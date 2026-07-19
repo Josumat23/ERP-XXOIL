@@ -1,0 +1,127 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { requerirRol } from "@/lib/auth";
+import { registrarMovimiento } from "@/lib/inventario";
+import { siguienteCodigoEnvasado } from "@/lib/correlativos";
+
+export type EstadoFormulario = { error?: string };
+
+type LineaInsumo = { insumoId: string; cantidad: number };
+
+// Envasado: consume granel aprobado + envases/etiquetas y produce stock
+// de la presentación. Todos los movimientos quedan en el kardex con el
+// código del envasado como referencia.
+export async function crearEnvasado(
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["PRODUCCION"]);
+  if ("error" in auth) return auth;
+
+  const loteGranelId = String(formData.get("loteGranelId") ?? "");
+  const presentacionId = String(formData.get("presentacionId") ?? "");
+  const unidades = Number(formData.get("unidades"));
+
+  let insumos: LineaInsumo[];
+  try {
+    insumos = JSON.parse(String(formData.get("insumos") ?? "[]"));
+  } catch {
+    return { error: "El detalle de envases/etiquetas es inválido." };
+  }
+
+  if (!loteGranelId) return { error: "Seleccione el lote granel." };
+  if (!presentacionId) return { error: "Seleccione la presentación a envasar." };
+  if (!Number.isInteger(unidades) || unidades <= 0) {
+    return { error: "Las unidades deben ser un entero mayor a 0." };
+  }
+  insumos = insumos.filter((i) => i.insumoId && Number.isFinite(i.cantidad) && i.cantidad > 0);
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const lote = await tx.loteGranel.findUnique({
+        where: { id: loteGranelId },
+        include: { formula: { include: { producto: true } } },
+      });
+      if (!lote) throw new Error("El lote no existe.");
+      if (lote.estado !== "APROBADO") {
+        throw new Error("Solo se puede envasar un lote aprobado por control de calidad.");
+      }
+
+      const presentacion = await tx.presentacion.findUnique({ where: { id: presentacionId } });
+      if (!presentacion) throw new Error("La presentación no existe.");
+      if (presentacion.productoId !== lote.formula.productoId) {
+        throw new Error(
+          `La presentación pertenece a otro producto: el lote es de ${lote.formula.producto.nombre}.`
+        );
+      }
+
+      const kgConsumidos = unidades * presentacion.contenidoKg.toNumber();
+      const disponibles = lote.kgDisponibles.toNumber();
+      if (kgConsumidos > disponibles + 1e-9) {
+        throw new Error(
+          `Granel insuficiente: el lote tiene ${disponibles.toFixed(2)} kg disponibles y se requieren ${kgConsumidos.toFixed(2)} kg.`
+        );
+      }
+
+      const codigo = await siguienteCodigoEnvasado(tx);
+
+      const envasado = await tx.envasado.create({
+        data: {
+          codigo,
+          loteGranelId,
+          presentacionId,
+          unidades,
+          kgConsumidos,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+          insumos: {
+            create: insumos.map((i) => ({ insumoId: i.insumoId, cantidad: i.cantidad })),
+          },
+        },
+      });
+
+      // Consumo de envases y etiquetas
+      for (const linea of insumos) {
+        const mov = await registrarMovimiento(tx, {
+          tipoItem: "INSUMO",
+          insumoId: linea.insumoId,
+          tipoMovimiento: "SALIDA",
+          origen: "ENVASADO",
+          cantidad: linea.cantidad,
+          referencia: `Envasado ${envasado.codigo} (lote ${lote.codigo})`,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        });
+        if (!mov.ok) throw new Error(mov.error);
+      }
+
+      // Entrada del producto terminado
+      const entrada = await registrarMovimiento(tx, {
+        tipoItem: "PRESENTACION",
+        presentacionId,
+        tipoMovimiento: "ENTRADA",
+        origen: "ENVASADO",
+        cantidad: unidades,
+        referencia: `Envasado ${envasado.codigo} (lote ${lote.codigo})`,
+        usuarioId: auth.usuario.id,
+        usuarioNombre: auth.usuario.nombre,
+      });
+      if (!entrada.ok) throw new Error(entrada.error);
+
+      await tx.loteGranel.update({
+        where: { id: loteGranelId },
+        data: { kgDisponibles: disponibles - kgConsumidos },
+      });
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath("/produccion/envasados");
+  revalidatePath("/produccion/lotes");
+  redirect("/produccion/envasados");
+}

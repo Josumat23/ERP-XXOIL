@@ -1,0 +1,90 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { formatMoneda } from "@/lib/format";
+import { ETIQUETA_ESTADO_PEDIDO } from "@/lib/etiquetas";
+
+const COLOR_ESTADO: Record<string, string> = {
+  PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  FACTURADO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
+  ANULADO: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
+};
+
+export default async function PedidosPage() {
+  const pedidos = await prisma.pedido.findMany({
+    include: { cliente: true, vendedor: true, factura: true },
+    orderBy: { fecha: "desc" },
+  });
+
+  return (
+    <div className="max-w-5xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Pedidos</h1>
+          <p className="text-neutral-500 mt-1">
+            El stock se descuenta recién al facturar; un pedido pendiente puede anularse.
+          </p>
+        </div>
+        <Link href="/comercial/pedidos/nuevo" className="boton-primario">
+          Nuevo pedido
+        </Link>
+      </div>
+
+      <table className="tabla mt-6">
+        <thead>
+          <tr>
+            <th>Número</th>
+            <th>Cliente</th>
+            <th>Vendedor</th>
+            <th className="text-right">Total</th>
+            <th>Estado</th>
+            <th>Factura</th>
+            <th>Fecha</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {pedidos.map((p) => (
+            <tr key={p.id}>
+              <td className="font-mono text-xs">{p.numero}</td>
+              <td>{p.cliente.razonSocial}</td>
+              <td>{p.vendedor.nombre}</td>
+              <td className="text-right">{formatMoneda(p.total)}</td>
+              <td>
+                <span className={`insignia ${COLOR_ESTADO[p.estado]}`}>
+                  {ETIQUETA_ESTADO_PEDIDO[p.estado]}
+                </span>
+              </td>
+              <td className="font-mono text-xs">
+                {p.factura ? (
+                  <Link href={`/comercial/facturas/${p.factura.id}`} className="hover:underline">
+                    {p.factura.numero}
+                  </Link>
+                ) : (
+                  "—"
+                )}
+              </td>
+              <td className="text-xs text-neutral-500 whitespace-nowrap">
+                {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(p.fecha)}
+              </td>
+              <td className="text-right">
+                <Link
+                  href={`/comercial/pedidos/${p.id}`}
+                  className="text-neutral-600 dark:text-neutral-400 hover:underline"
+                >
+                  Ver detalle
+                </Link>
+              </td>
+            </tr>
+          ))}
+          {pedidos.length === 0 && (
+            <tr>
+              <td colSpan={8} className="text-center text-neutral-500 py-6">
+                No hay pedidos registrados todavía.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
