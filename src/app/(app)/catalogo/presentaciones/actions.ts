@@ -4,6 +4,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
+import { requerirRol } from "@/lib/auth";
+import { registrarMovimiento } from "@/lib/inventario";
 
 export type EstadoFormulario = { error?: string };
 
@@ -17,7 +19,6 @@ function leerDatos(formData: FormData) {
   const nombre = String(formData.get("nombre") ?? "").trim();
   const contenidoKg = Number(formData.get("contenidoKg"));
   const precio = Number(formData.get("precio"));
-  const stock = Number(formData.get("stock") ?? 0);
   const stockMinimo = Number(formData.get("stockMinimo") ?? 0);
 
   if (!productoId || !sku || !nombre) {
@@ -29,12 +30,12 @@ function leerDatos(formData: FormData) {
   if (!Number.isFinite(precio) || precio < 0) {
     return { error: "El precio debe ser un número válido." } as const;
   }
-  if (!Number.isFinite(stock) || stock < 0 || !Number.isFinite(stockMinimo) || stockMinimo < 0) {
-    return { error: "El stock y el stock mínimo deben ser números válidos." } as const;
+  if (!Number.isFinite(stockMinimo) || stockMinimo < 0) {
+    return { error: "El stock mínimo debe ser un número válido." } as const;
   }
 
   return {
-    datos: { productoId, sku, nombre, contenidoKg, precio, stock, stockMinimo, moneda: "PEN" },
+    datos: { productoId, sku, nombre, contenidoKg, precio, stockMinimo, moneda: "PEN" },
   } as const;
 }
 
@@ -42,15 +43,39 @@ export async function crearPresentacion(
   _prevState: EstadoFormulario,
   formData: FormData
 ): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return auth;
+
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
 
+  const stockInicial = Number(formData.get("stock") ?? 0);
+  if (!Number.isFinite(stockInicial) || stockInicial < 0) {
+    return { error: "El stock inicial debe ser un número válido." };
+  }
+
   try {
-    await prisma.presentacion.create({ data: resultado.datos });
+    await prisma.$transaction(async (tx) => {
+      const creada = await tx.presentacion.create({ data: resultado.datos });
+      if (stockInicial > 0) {
+        const mov = await registrarMovimiento(tx, {
+          tipoItem: "PRESENTACION",
+          presentacionId: creada.id,
+          tipoMovimiento: "ENTRADA",
+          origen: "STOCK_INICIAL",
+          cantidad: stockInicial,
+          referencia: "Alta de presentación",
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        });
+        if (!mov.ok) throw new Error(mov.error);
+      }
+    });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe una presentación con el SKU "${resultado.datos.sku}".` };
     }
+    if (e instanceof Error) return { error: e.message };
     throw e;
   }
 
@@ -58,11 +83,15 @@ export async function crearPresentacion(
   redirect("/catalogo/presentaciones");
 }
 
+// La edición nunca toca el stock: eso solo ocurre vía kardex (ajustes, producción, ventas).
 export async function actualizarPresentacion(
   id: string,
   _prevState: EstadoFormulario,
   formData: FormData
 ): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return auth;
+
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
 
@@ -81,6 +110,8 @@ export async function actualizarPresentacion(
 }
 
 export async function alternarActivoPresentacion(id: string, activo: boolean) {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return;
   await prisma.presentacion.update({ where: { id }, data: { activo } });
   revalidatePath("/catalogo/presentaciones");
 }

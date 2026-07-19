@@ -1,5 +1,11 @@
 // Prisma schema — ERP Grasas y Lubricantes
-// Módulo 1: Catálogo (Categorías, Productos, Presentaciones, Insumos, Proveedores)
+// Módulos: Catálogo, Inventario (kardex), Producción (2 etapas), Comercial, Usuarios
+//
+// Principios:
+// - La historia nunca se edita ni se borra: kardex, facturas, cobros y comisiones
+//   solo se compensan con movimientos/documentos nuevos (ajustes, notas de crédito).
+// - Toda regularización guarda quién/cuándo/por qué (usuarioId, usuarioNombre, motivo).
+// - Campos semilla para el futuro: empresaId, moneda, pais.
 
 generator client {
   provider = "prisma-client"
@@ -11,12 +17,51 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
+// USUARIOS Y SESIONES
+// ---------------------------------------------------------------------------
+
+enum RolUsuario {
+  ADMIN
+  ALMACEN
+  PRODUCCION
+  VENTAS
+}
+
+model Usuario {
+  id           String     @id @default(cuid())
+  empresaId    String     @default("1")
+  nombre       String
+  usuario      String // nombre de acceso
+  passwordHash String
+  rol          RolUsuario
+  activo       Boolean    @default(true)
+  creadoEn     DateTime   @default(now())
+
+  sesiones Sesion[]
+
+  @@unique([empresaId, usuario])
+  @@map("usuarios")
+}
+
+model Sesion {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  usuarioId String
+  expiraEn  DateTime
+  creadoEn  DateTime @default(now())
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id])
+
+  @@map("sesiones")
+}
+
+// ---------------------------------------------------------------------------
 // CATALOGO
 // ---------------------------------------------------------------------------
 
 model Categoria {
   id          String   @id @default(cuid())
-  empresaId   String   @default("1") // campo semilla: hoy una sola empresa
+  empresaId   String   @default("1")
   nombre      String
   descripcion String?
   activo      Boolean  @default(true)
@@ -29,18 +74,19 @@ model Categoria {
 }
 
 model Producto {
-  id          String   @id @default(cuid())
-  empresaId   String   @default("1")
-  categoriaId String
-  codigo      String // código interno del producto (no SKU, eso es la presentación)
-  nombre      String
-  descripcion String?
-  activo      Boolean  @default(true)
-  creadoEn    DateTime @default(now())
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  categoriaId   String
+  codigo        String
+  nombre        String
+  descripcion   String?
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
-  categoria      Categoria       @relation(fields: [categoriaId], references: [id])
+  categoria      Categoria      @relation(fields: [categoriaId], references: [id])
   presentaciones Presentacion[]
+  formulas       Formula[]
 
   @@unique([empresaId, codigo])
   @@map("productos")
@@ -50,38 +96,37 @@ model Presentacion {
   id            String   @id @default(cuid())
   empresaId     String   @default("1")
   productoId    String
-  sku           String // ej: pote 1lb, balde 35lb, cilindro 400lb
+  sku           String
   nombre        String
-  contenidoKg   Decimal  // contenido en kg de esta presentación
-  precio        Decimal  // precio de venta unitario
-  moneda        String   @default("PEN") // campo semilla: hoy solo soles
-  stock         Decimal  @default(0) // stock actual de esta presentación (se actualiza vía kardex más adelante)
+  contenidoKg   Decimal
+  precio        Decimal
+  moneda        String   @default("PEN")
+  stock         Decimal  @default(0)
   stockMinimo   Decimal  @default(0)
   activo        Boolean  @default(true)
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
-  producto Producto @relation(fields: [productoId], references: [id])
+  producto       Producto           @relation(fields: [productoId], references: [id])
+  movimientos    MovimientoKardex[]
+  envasados      Envasado[]
+  pedidoDetalles PedidoDetalle[]
 
   @@unique([empresaId, sku])
   @@map("presentaciones")
 }
 
-// ---------------------------------------------------------------------------
-// PROVEEDORES E INSUMOS
-// ---------------------------------------------------------------------------
-
 model Proveedor {
-  id            String   @id @default(cuid())
-  empresaId     String   @default("1")
-  razonSocial   String
-  ruc           String?
-  pais          String   @default("Peru") // campo semilla: hoy todos Perú
-  telefono      String?
-  email         String?
-  direccion     String?
-  activo        Boolean  @default(true)
-  creadoEn      DateTime @default(now())
+  id          String   @id @default(cuid())
+  empresaId   String   @default("1")
+  razonSocial String
+  ruc         String?
+  pais        String   @default("Peru")
+  telefono    String?
+  email       String?
+  direccion   String?
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now())
 
   insumos Insumo[]
 
@@ -102,7 +147,7 @@ model Insumo {
   codigo        String
   nombre        String
   tipo          TipoInsumo
-  unidadMedida  String // ej: kg, litro, unidad
+  unidadMedida  String
   stock         Decimal    @default(0)
   stockMinimo   Decimal    @default(0)
   costoUnitario Decimal    @default(0)
@@ -111,8 +156,396 @@ model Insumo {
   creadoEn      DateTime   @default(now())
   actualizadoEn DateTime   @updatedAt
 
-  proveedor Proveedor? @relation(fields: [proveedorId], references: [id])
+  proveedor       Proveedor?         @relation(fields: [proveedorId], references: [id])
+  movimientos     MovimientoKardex[]
+  formulaDetalles FormulaDetalle[]
+  envasadoInsumos EnvasadoInsumo[]
 
   @@unique([empresaId, codigo])
   @@map("insumos")
+}
+
+// ---------------------------------------------------------------------------
+// INVENTARIO — KARDEX (inmutable: nunca se edita ni borra, solo se compensa)
+// ---------------------------------------------------------------------------
+
+enum TipoItemKardex {
+  PRESENTACION
+  INSUMO
+}
+
+enum TipoMovimiento {
+  ENTRADA
+  SALIDA
+}
+
+enum OrigenMovimiento {
+  STOCK_INICIAL
+  COMPRA
+  PRODUCCION // consumo de insumos por lote granel
+  ENVASADO // consumo de envases/etiquetas y entrada de presentaciones
+  VENTA
+  ANULACION_VENTA
+  AJUSTE // regularización manual: motivo obligatorio
+}
+
+model MovimientoKardex {
+  id             String           @id @default(cuid())
+  empresaId      String           @default("1")
+  fecha          DateTime         @default(now())
+  tipoItem       TipoItemKardex
+  presentacionId String?
+  insumoId       String?
+  tipoMovimiento TipoMovimiento
+  origen         OrigenMovimiento
+  cantidad       Decimal // siempre positiva; el signo lo da tipoMovimiento
+  saldoAnterior  Decimal
+  saldoNuevo     Decimal
+  motivo         String? // obligatorio cuando origen = AJUSTE
+  referencia     String? // código de lote, envasado, factura, etc.
+  usuarioId      String
+  usuarioNombre  String
+  creadoEn       DateTime         @default(now())
+
+  presentacion Presentacion? @relation(fields: [presentacionId], references: [id])
+  insumo       Insumo?       @relation(fields: [insumoId], references: [id])
+
+  @@index([tipoItem, presentacionId, insumoId])
+  @@map("movimientos_kardex")
+}
+
+// ---------------------------------------------------------------------------
+// PRODUCCION — ETAPA 1: FORMULAS (versionadas) Y LOTES GRANEL
+// ---------------------------------------------------------------------------
+
+model Formula {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  productoId    String
+  version       Int
+  rendimientoKg Decimal // kg de granel que produce un batch con las cantidades del detalle
+  notas         String?
+  activo        Boolean  @default(true)
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime @default(now())
+
+  producto Producto         @relation(fields: [productoId], references: [id])
+  detalles FormulaDetalle[]
+  lotes    LoteGranel[]
+
+  @@unique([productoId, version])
+  @@map("formulas")
+}
+
+model FormulaDetalle {
+  id        String  @id @default(cuid())
+  formulaId String
+  insumoId  String
+  cantidad  Decimal // cantidad del insumo (en su unidad) para producir rendimientoKg
+
+  formula Formula @relation(fields: [formulaId], references: [id])
+  insumo  Insumo  @relation(fields: [insumoId], references: [id])
+
+  @@map("formula_detalles")
+}
+
+enum EstadoLote {
+  EN_PROCESO
+  PENDIENTE_CALIDAD
+  APROBADO
+  RECHAZADO
+}
+
+model LoteGranel {
+  id            String     @id @default(cuid())
+  empresaId     String     @default("1")
+  codigo        String     @unique // LG-00001
+  formulaId     String
+  kgObjetivo    Decimal
+  kgProducidos  Decimal    @default(0)
+  mermaKg       Decimal    @default(0)
+  kgDisponibles Decimal    @default(0) // granel aprobado aún no envasado
+  estado        EstadoLote @default(EN_PROCESO)
+  observaciones String?
+  fechaInicio   DateTime   @default(now())
+  fechaFin      DateTime?
+  usuarioId     String
+  usuarioNombre String
+
+  formula        Formula         @relation(fields: [formulaId], references: [id])
+  controlCalidad ControlCalidad?
+  envasados      Envasado[]
+
+  @@map("lotes_granel")
+}
+
+enum ResultadoCalidad {
+  APROBADO
+  RECHAZADO
+}
+
+model ControlCalidad {
+  id            String           @id @default(cuid())
+  loteGranelId  String           @unique
+  resultado     ResultadoCalidad
+  observaciones String?
+  fecha         DateTime         @default(now())
+  usuarioId     String
+  usuarioNombre String
+
+  loteGranel LoteGranel @relation(fields: [loteGranelId], references: [id])
+
+  @@map("controles_calidad")
+}
+
+// ---------------------------------------------------------------------------
+// PRODUCCION — ETAPA 2: ENVASADO (granel + envases/etiquetas -> presentaciones)
+// ---------------------------------------------------------------------------
+
+model Envasado {
+  id             String   @id @default(cuid())
+  empresaId      String   @default("1")
+  codigo         String   @unique // ENV-00001
+  loteGranelId   String
+  presentacionId String
+  unidades       Int
+  kgConsumidos   Decimal // unidades * contenidoKg de la presentación
+  fecha          DateTime @default(now())
+  usuarioId      String
+  usuarioNombre  String
+
+  loteGranel   LoteGranel       @relation(fields: [loteGranelId], references: [id])
+  presentacion Presentacion     @relation(fields: [presentacionId], references: [id])
+  insumos      EnvasadoInsumo[]
+
+  @@map("envasados")
+}
+
+model EnvasadoInsumo {
+  id         String  @id @default(cuid())
+  envasadoId String
+  insumoId   String
+  cantidad   Decimal
+
+  envasado Envasado @relation(fields: [envasadoId], references: [id])
+  insumo   Insumo   @relation(fields: [insumoId], references: [id])
+
+  @@map("envasado_insumos")
+}
+
+// ---------------------------------------------------------------------------
+// COMERCIAL
+// ---------------------------------------------------------------------------
+
+model Zona {
+  id        String   @id @default(cuid())
+  empresaId String   @default("1")
+  nombre    String
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  vendedores Vendedor[]
+  clientes   Cliente[]
+
+  @@unique([empresaId, nombre])
+  @@map("zonas")
+}
+
+enum TipoVendedor {
+  CON_BASICO
+  SOLO_COMISION
+}
+
+model Vendedor {
+  id           String       @id @default(cuid())
+  empresaId    String       @default("1")
+  nombre       String
+  documento    String?
+  tipo         TipoVendedor
+  tasaComision Decimal // porcentaje individual, ej. 3.5
+  zonaId       String?
+  activo       Boolean      @default(true)
+  creadoEn     DateTime     @default(now())
+
+  zona       Zona?      @relation(fields: [zonaId], references: [id])
+  pedidos    Pedido[]
+  facturas   Factura[]
+  comisiones Comision[]
+
+  @@map("vendedores")
+}
+
+model Cliente {
+  id          String   @id @default(cuid())
+  empresaId   String   @default("1")
+  razonSocial String
+  ruc         String?
+  pais        String   @default("Peru")
+  zonaId      String?
+  direccion   String?
+  telefono    String?
+  email       String?
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now())
+
+  zona     Zona?     @relation(fields: [zonaId], references: [id])
+  pedidos  Pedido[]
+  facturas Factura[]
+
+  @@unique([empresaId, ruc])
+  @@map("clientes")
+}
+
+enum EstadoPedido {
+  PENDIENTE
+  FACTURADO
+  ANULADO
+}
+
+model Pedido {
+  id            String       @id @default(cuid())
+  empresaId     String       @default("1")
+  numero        String       @unique // PED-00001
+  clienteId     String
+  vendedorId    String
+  fecha         DateTime     @default(now())
+  estado        EstadoPedido @default(PENDIENTE)
+  total         Decimal
+  notas         String?
+  usuarioId     String
+  usuarioNombre String
+
+  cliente  Cliente         @relation(fields: [clienteId], references: [id])
+  vendedor Vendedor        @relation(fields: [vendedorId], references: [id])
+  detalles PedidoDetalle[]
+  factura  Factura?
+
+  @@map("pedidos")
+}
+
+model PedidoDetalle {
+  id             String  @id @default(cuid())
+  pedidoId       String
+  presentacionId String
+  cantidad       Int
+  precioUnitario Decimal
+  subtotal       Decimal
+
+  pedido       Pedido       @relation(fields: [pedidoId], references: [id])
+  presentacion Presentacion @relation(fields: [presentacionId], references: [id])
+
+  @@map("pedido_detalles")
+}
+
+enum CondicionPago {
+  CONTADO
+  DIAS_15
+  DIAS_30
+}
+
+enum EstadoFactura {
+  PENDIENTE
+  PAGADA
+  ANULADA
+}
+
+// La factura se emite en el portal SUNAT; aquí solo se registra su número.
+model Factura {
+  id               String        @id @default(cuid())
+  empresaId        String        @default("1")
+  numero           String        @unique // número SUNAT, ej. F001-00000123
+  pedidoId         String        @unique
+  clienteId        String
+  vendedorId       String
+  moneda           String        @default("PEN")
+  condicionPago    CondicionPago
+  fechaEmision     DateTime      @default(now())
+  fechaVencimiento DateTime
+  total            Decimal
+  saldo            Decimal
+  estado           EstadoFactura @default(PENDIENTE)
+  motivoAnulacion  String?
+  anuladaEn        DateTime?
+  anuladaPor       String?
+  usuarioId        String
+  usuarioNombre    String
+
+  pedido       Pedido        @relation(fields: [pedidoId], references: [id])
+  cliente      Cliente       @relation(fields: [clienteId], references: [id])
+  vendedor     Vendedor      @relation(fields: [vendedorId], references: [id])
+  cobros       Cobro[]
+  notasCredito NotaCredito[]
+  comisiones   Comision[]
+
+  @@map("facturas")
+}
+
+enum MedioPago {
+  EFECTIVO
+  TRANSFERENCIA
+  DEPOSITO
+  YAPE
+  PLIN
+  OTRO
+}
+
+model Cobro {
+  id            String    @id @default(cuid())
+  empresaId     String    @default("1")
+  facturaId     String
+  fecha         DateTime  @default(now())
+  monto         Decimal
+  medioPago     MedioPago
+  referencia    String?
+  usuarioId     String
+  usuarioNombre String
+
+  factura Factura @relation(fields: [facturaId], references: [id])
+
+  @@map("cobros")
+}
+
+model NotaCredito {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  numero        String   @unique // número SUNAT de la NC
+  facturaId     String
+  fecha         DateTime @default(now())
+  monto         Decimal
+  motivo        String
+  usuarioId     String
+  usuarioNombre String
+
+  factura Factura @relation(fields: [facturaId], references: [id])
+
+  @@map("notas_credito")
+}
+
+enum TipoComision {
+  GENERADA // nace con la factura
+  REVERSION // compensación por anulación o nota de crédito (monto negativo)
+}
+
+enum EstadoComision {
+  PENDIENTE
+  PAGADA
+}
+
+model Comision {
+  id         String         @id @default(cuid())
+  empresaId  String         @default("1")
+  vendedorId String
+  facturaId  String
+  tipo       TipoComision
+  tasa       Decimal
+  monto      Decimal // negativo cuando tipo = REVERSION
+  estado     EstadoComision @default(PENDIENTE)
+  motivo     String?
+  creadoEn   DateTime       @default(now())
+
+  vendedor Vendedor @relation(fields: [vendedorId], references: [id])
+  factura  Factura  @relation(fields: [facturaId], references: [id])
+
+  @@map("comisiones")
 }

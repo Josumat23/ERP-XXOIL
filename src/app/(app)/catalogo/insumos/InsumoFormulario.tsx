@@ -29,6 +29,7 @@ type Props = {
 
 export default function InsumoFormulario({ accion, proveedores, valoresIniciales, textoBoton }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
+  const esEdicion = Boolean(valoresIniciales);
 
   return (
     <form action={formAction} className="flex flex-col gap-4 max-w-lg">
@@ -103,16 +104,15 @@ export default function InsumoFormulario({ accion, proveedores, valoresIniciales
       </Campo>
 
       <div className="grid grid-cols-3 gap-4">
-        <Campo etiqueta="Stock inicial">
-          <input
-            name="stock"
-            type="number"
-            step="0.001"
-            min="0"
-            defaultValue={valoresIniciales?.stock ?? 0}
-            className="campo-input"
-          />
-        </Campo>
+        {esEdicion ? (
+          <Campo etiqueta="Stock actual">
+            <input value={valoresIniciales!.stock} disabled className="campo-input opacity-60" />
+          </Campo>
+        ) : (
+          <Campo etiqueta="Stock inicial">
+            <input name="stock" type="number" step="0.001" min="0" defaultValue={0} className="campo-input" />
+          </Campo>
+        )}
         <Campo etiqueta="Stock mínimo">
           <input
             name="stockMinimo"
@@ -134,6 +134,13 @@ export default function InsumoFormulario({ accion, proveedores, valoresIniciales
           />
         </Campo>
       </div>
+
+      {esEdicion && (
+        <p className="text-xs text-neutral-500">
+          El stock no se edita aquí: use Inventario → Ajustes para regularizarlo. Todo queda auditado
+          en el kardex.
+        </p>
+      )}
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Guardando..." : textoBoton}
