@@ -1,65 +1,105 @@
-import Image from "next/image";
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { formatNumero } from "@/lib/format";
 
-export default function Home() {
+export default async function PanelPage() {
+  const [totalProductos, totalPresentaciones, totalInsumos] = await Promise.all([
+    prisma.producto.count({ where: { activo: true } }),
+    prisma.presentacion.count({ where: { activo: true } }),
+    prisma.insumo.count({ where: { activo: true } }),
+  ]);
+
+  const presentaciones = await prisma.presentacion.findMany({
+    where: { activo: true },
+    include: { producto: true },
+  });
+  const insumos = await prisma.insumo.findMany({ where: { activo: true } });
+
+  const presentacionesBajoMinimo = presentaciones.filter(
+    (p) => p.stock.toNumber() < p.stockMinimo.toNumber()
+  );
+  const insumosBajoMinimo = insumos.filter(
+    (i) => i.stock.toNumber() < i.stockMinimo.toNumber()
+  );
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
+    <div className="max-w-5xl">
+      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+        Panel — Catálogo
+      </h1>
+      <p className="text-neutral-500 mt-1">
+        Resumen del módulo de catálogo e inventario base.
+      </p>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+        <TarjetaResumen etiqueta="Productos activos" valor={totalProductos} href="/catalogo/productos" />
+        <TarjetaResumen etiqueta="Presentaciones activas" valor={totalPresentaciones} href="/catalogo/presentaciones" />
+        <TarjetaResumen etiqueta="Insumos activos" valor={totalInsumos} href="/catalogo/insumos" />
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+        <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+            Presentaciones bajo stock mínimo
+          </h2>
+          {presentacionesBajoMinimo.length === 0 ? (
+            <p className="text-sm text-neutral-500 mt-2">Sin alertas.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-black/5 dark:divide-white/10">
+              {presentacionesBajoMinimo.map((p) => (
+                <li key={p.id} className="py-2 text-sm flex justify-between">
+                  <span>
+                    {p.producto.nombre} — {p.nombre}
+                  </span>
+                  <span className="text-red-600 dark:text-red-400 font-medium">
+                    {formatNumero(p.stock, 0)} / mín. {formatNumero(p.stockMinimo, 0)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+            Insumos bajo stock mínimo
+          </h2>
+          {insumosBajoMinimo.length === 0 ? (
+            <p className="text-sm text-neutral-500 mt-2">Sin alertas.</p>
+          ) : (
+            <ul className="mt-3 divide-y divide-black/5 dark:divide-white/10">
+              {insumosBajoMinimo.map((i) => (
+                <li key={i.id} className="py-2 text-sm flex justify-between">
+                  <span>{i.nombre}</span>
+                  <span className="text-red-600 dark:text-red-400 font-medium">
+                    {formatNumero(i.stock, 0)} / mín. {formatNumero(i.stockMinimo, 0)} {i.unidadMedida}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+      </div>
     </div>
+  );
+}
+
+function TarjetaResumen({
+  etiqueta,
+  valor,
+  href,
+}: {
+  etiqueta: string;
+  valor: number;
+  href: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="border border-black/10 dark:border-white/10 rounded-lg p-4 hover:border-black/30 dark:hover:border-white/30 transition-colors"
+    >
+      <p className="text-sm text-neutral-500">{etiqueta}</p>
+      <p className="text-3xl font-semibold mt-1 text-neutral-900 dark:text-neutral-100">{valor}</p>
+    </Link>
   );
 }

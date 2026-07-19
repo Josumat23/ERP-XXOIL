@@ -1,0 +1,118 @@
+// Prisma schema — ERP Grasas y Lubricantes
+// Módulo 1: Catálogo (Categorías, Productos, Presentaciones, Insumos, Proveedores)
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// ---------------------------------------------------------------------------
+// CATALOGO
+// ---------------------------------------------------------------------------
+
+model Categoria {
+  id          String   @id @default(cuid())
+  empresaId   String   @default("1") // campo semilla: hoy una sola empresa
+  nombre      String
+  descripcion String?
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now())
+
+  productos Producto[]
+
+  @@unique([empresaId, nombre])
+  @@map("categorias")
+}
+
+model Producto {
+  id          String   @id @default(cuid())
+  empresaId   String   @default("1")
+  categoriaId String
+  codigo      String // código interno del producto (no SKU, eso es la presentación)
+  nombre      String
+  descripcion String?
+  activo      Boolean  @default(true)
+  creadoEn    DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  categoria      Categoria       @relation(fields: [categoriaId], references: [id])
+  presentaciones Presentacion[]
+
+  @@unique([empresaId, codigo])
+  @@map("productos")
+}
+
+model Presentacion {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  productoId    String
+  sku           String // ej: pote 1lb, balde 35lb, cilindro 400lb
+  nombre        String
+  contenidoKg   Decimal  // contenido en kg de esta presentación
+  precio        Decimal  // precio de venta unitario
+  moneda        String   @default("PEN") // campo semilla: hoy solo soles
+  stock         Decimal  @default(0) // stock actual de esta presentación (se actualiza vía kardex más adelante)
+  stockMinimo   Decimal  @default(0)
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  producto Producto @relation(fields: [productoId], references: [id])
+
+  @@unique([empresaId, sku])
+  @@map("presentaciones")
+}
+
+// ---------------------------------------------------------------------------
+// PROVEEDORES E INSUMOS
+// ---------------------------------------------------------------------------
+
+model Proveedor {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  razonSocial   String
+  ruc           String?
+  pais          String   @default("Peru") // campo semilla: hoy todos Perú
+  telefono      String?
+  email         String?
+  direccion     String?
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+
+  insumos Insumo[]
+
+  @@unique([empresaId, ruc])
+  @@map("proveedores")
+}
+
+enum TipoInsumo {
+  MATERIA_PRIMA
+  ENVASE
+  ETIQUETA
+}
+
+model Insumo {
+  id            String     @id @default(cuid())
+  empresaId     String     @default("1")
+  proveedorId   String?
+  codigo        String
+  nombre        String
+  tipo          TipoInsumo
+  unidadMedida  String // ej: kg, litro, unidad
+  stock         Decimal    @default(0)
+  stockMinimo   Decimal    @default(0)
+  costoUnitario Decimal    @default(0)
+  moneda        String     @default("PEN")
+  activo        Boolean    @default(true)
+  creadoEn      DateTime   @default(now())
+  actualizadoEn DateTime   @updatedAt
+
+  proveedor Proveedor? @relation(fields: [proveedorId], references: [id])
+
+  @@unique([empresaId, codigo])
+  @@map("insumos")
+}

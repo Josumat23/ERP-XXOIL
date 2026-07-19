@@ -1,0 +1,108 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { formatMoneda, formatNumero } from "@/lib/format";
+import { alternarActivoInsumo } from "./actions";
+
+const ETIQUETA_TIPO: Record<string, string> = {
+  MATERIA_PRIMA: "Materia prima",
+  ENVASE: "Envase",
+  ETIQUETA: "Etiqueta",
+};
+
+export default async function InsumosPage() {
+  const insumos = await prisma.insumo.findMany({
+    include: { proveedor: true },
+    orderBy: { creadoEn: "desc" },
+  });
+
+  return (
+    <div className="max-w-5xl">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Insumos</h1>
+          <p className="text-neutral-500 mt-1">
+            Materia prima, envases y etiquetas usados en producción.
+          </p>
+        </div>
+        <Link href="/catalogo/insumos/nuevo" className="boton-primario">
+          Nuevo insumo
+        </Link>
+      </div>
+
+      <table className="tabla mt-6">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th>Tipo</th>
+            <th>Proveedor</th>
+            <th>Stock</th>
+            <th>Costo unit.</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {insumos.map((i) => {
+            const bajoMinimo = i.stock.toNumber() < i.stockMinimo.toNumber();
+            return (
+              <tr key={i.id}>
+                <td className="font-mono text-xs">{i.codigo}</td>
+                <td>{i.nombre}</td>
+                <td>{ETIQUETA_TIPO[i.tipo]}</td>
+                <td>{i.proveedor?.razonSocial ?? "—"}</td>
+                <td>
+                  <span className={bajoMinimo ? "text-red-600 dark:text-red-400 font-medium" : ""}>
+                    {formatNumero(i.stock, 0)}
+                  </span>{" "}
+                  <span className="text-neutral-400">
+                    {i.unidadMedida} / mín. {formatNumero(i.stockMinimo, 0)}
+                  </span>
+                </td>
+                <td>{formatMoneda(i.costoUnitario, i.moneda)}</td>
+                <td>
+                  <span
+                    className={`insignia ${
+                      i.activo
+                        ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
+                        : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"
+                    }`}
+                  >
+                    {i.activo ? "Activo" : "Inactivo"}
+                  </span>
+                </td>
+                <td className="text-right">
+                  <div className="flex justify-end gap-3">
+                    <Link
+                      href={`/catalogo/insumos/${i.id}`}
+                      className="text-neutral-600 dark:text-neutral-400 hover:underline"
+                    >
+                      Editar
+                    </Link>
+                    <form
+                      action={async () => {
+                        "use server";
+                        await alternarActivoInsumo(i.id, !i.activo);
+                      }}
+                    >
+                      <button type="submit" className="text-neutral-600 dark:text-neutral-400 hover:underline">
+                        {i.activo ? "Desactivar" : "Activar"}
+                      </button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+          {insumos.length === 0 && (
+            <tr>
+              <td colSpan={8} className="text-center text-neutral-500 py-6">
+                No hay insumos registrados todavía.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  );
+}
