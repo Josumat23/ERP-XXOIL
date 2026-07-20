@@ -25,7 +25,7 @@ function leerDatos(formData: FormData) {
   const pesoBrutoKg = pesoBrutoRaw ? Number(pesoBrutoRaw) : null;
   const unidadesPorCajaRaw = String(formData.get("unidadesPorCaja") ?? "").trim();
   const unidadesPorCaja = unidadesPorCajaRaw ? Number(unidadesPorCajaRaw) : null;
-  const ubicacion = String(formData.get("ubicacion") ?? "").trim() || null;
+  const zonaAlmacenId = String(formData.get("zonaAlmacenId") ?? "") || null;
 
   if (!productoId || !sku || !nombre) {
     return { error: "Producto, SKU y nombre son obligatorios." } as const;
@@ -60,7 +60,7 @@ function leerDatos(formData: FormData) {
       codigoBarras,
       pesoBrutoKg,
       unidadesPorCaja,
-      ubicacion,
+      zonaAlmacenId,
       moneda: "PEN",
     },
   } as const;

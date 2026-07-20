@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import type { EstadoFormulario } from "./actions";
 
 type Proveedor = { id: string; razonSocial: string };
+type ZonaAlmacen = { id: string; etiqueta: string };
+type UnidadMedida = { codigo: string; nombre: string };
 
 const OPCIONES_TIPO = [
   { valor: "MATERIA_PRIMA", etiqueta: "Materia prima" },
@@ -14,6 +16,8 @@ const OPCIONES_TIPO = [
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   proveedores: Proveedor[];
+  zonasAlmacen: ZonaAlmacen[];
+  unidadesMedida: UnidadMedida[];
   valoresIniciales?: {
     codigo: string;
     nombre: string;
@@ -24,13 +28,22 @@ type Props = {
     stockMinimo: number;
     costoUnitario: number;
     codigoProveedor: string | null;
-    ubicacion: string | null;
+    zonaAlmacenId: string | null;
     notas: string | null;
   };
   textoBoton: string;
 };
 
-export default function InsumoFormulario({ accion, proveedores, valoresIniciales, textoBoton }: Props) {
+export default function InsumoFormulario({
+  accion,
+  proveedores,
+  zonasAlmacen,
+  unidadesMedida,
+  valoresIniciales,
+  textoBoton,
+}: Props) {
+  const umActual = valoresIniciales?.unidadMedida;
+  const umFaltante = umActual && !unidadesMedida.some((u) => u.codigo === umActual);
   const [estado, formAction, enviando] = useActionState(accion, {});
   const esEdicion = Boolean(valoresIniciales);
 
@@ -81,13 +94,24 @@ export default function InsumoFormulario({ accion, proveedores, valoresIniciales
           </select>
         </Campo>
         <Campo etiqueta="Unidad de medida">
-          <input
+          <select
             name="unidadMedida"
             required
-            defaultValue={valoresIniciales?.unidadMedida}
-            placeholder="kg, litro, unidad"
+            defaultValue={umActual ?? ""}
             className="campo-input"
-          />
+          >
+            <option value="" disabled>
+              Seleccione
+            </option>
+            {umFaltante && (
+              <option value={umActual}>{umActual} (no está en el catálogo)</option>
+            )}
+            {unidadesMedida.map((u) => (
+              <option key={u.codigo} value={u.codigo}>
+                {u.nombre} ({u.codigo})
+              </option>
+            ))}
+          </select>
         </Campo>
       </div>
 
@@ -154,12 +178,18 @@ export default function InsumoFormulario({ accion, proveedores, valoresIniciales
           />
         </Campo>
         <Campo etiqueta="Ubicación en almacén">
-          <input
-            name="ubicacion"
-            defaultValue={valoresIniciales?.ubicacion ?? ""}
-            placeholder="MP-02-1 (zona-rack-nivel)"
+          <select
+            name="zonaAlmacenId"
+            defaultValue={valoresIniciales?.zonaAlmacenId ?? ""}
             className="campo-input"
-          />
+          >
+            <option value="">Sin ubicación asignada</option>
+            {zonasAlmacen.map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.etiqueta}
+              </option>
+            ))}
+          </select>
         </Campo>
       </div>
 

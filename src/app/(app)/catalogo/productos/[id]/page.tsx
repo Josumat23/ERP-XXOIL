@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
+import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
 import ProductoFormulario from "../ProductoFormulario";
 import { actualizarProducto } from "../actions";
 
@@ -12,12 +13,13 @@ export default async function EditarProductoPage({
 }) {
   const { id } = await params;
 
-  const [producto, categorias] = await Promise.all([
+  const [producto, categorias, unidadesMedida] = await Promise.all([
     prisma.producto.findUnique({
       where: { id },
       include: { presentaciones: { orderBy: { creadoEn: "asc" } } },
     }),
     prisma.categoria.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    unidadesMedidaParaSelect(),
   ]);
 
   if (!producto) notFound();
@@ -35,6 +37,7 @@ export default async function EditarProductoPage({
         <ProductoFormulario
           accion={actualizarProducto.bind(null, id)}
           categorias={categorias}
+          unidadesMedida={unidadesMedida}
           valoresIniciales={{
             codigo: producto.codigo,
             nombre: producto.nombre,

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { zonasAlmacenParaSelect } from "@/lib/almacenes";
 import PresentacionFormulario from "../PresentacionFormulario";
 import { actualizarPresentacion } from "../actions";
 
@@ -11,9 +12,10 @@ export default async function EditarPresentacionPage({
 }) {
   const { id } = await params;
 
-  const [presentacion, productos] = await Promise.all([
+  const [presentacion, productos, zonasAlmacen] = await Promise.all([
     prisma.presentacion.findUnique({ where: { id } }),
     prisma.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    zonasAlmacenParaSelect(),
   ]);
 
   if (!presentacion) notFound();
@@ -31,6 +33,7 @@ export default async function EditarPresentacionPage({
         <PresentacionFormulario
           accion={actualizarPresentacion.bind(null, id)}
           productos={productos}
+          zonasAlmacen={zonasAlmacen}
           valoresIniciales={{
             productoId: presentacion.productoId,
             sku: presentacion.sku,
@@ -42,7 +45,7 @@ export default async function EditarPresentacionPage({
             codigoBarras: presentacion.codigoBarras,
             pesoBrutoKg: presentacion.pesoBrutoKg?.toNumber() ?? null,
             unidadesPorCaja: presentacion.unidadesPorCaja,
-            ubicacion: presentacion.ubicacion,
+            zonaAlmacenId: presentacion.zonaAlmacenId,
           }}
           textoBoton="Guardar cambios"
         />

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { registrarMovimiento } from "@/lib/inventario";
+import { avanzarSerie } from "@/lib/series";
 
 export type EstadoFormulario = { error?: string };
 
@@ -104,6 +105,7 @@ export async function crearNotaCredito(
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
   const monto = Number(formData.get("monto"));
   const motivo = String(formData.get("motivo") ?? "").trim();
+  const serieId = String(formData.get("serieId") ?? "") || null;
 
   if (!numero) return { error: "Ingrese el número de la nota de crédito (SUNAT)." };
   if (!Number.isFinite(monto) || monto <= 0) return { error: "El monto debe ser mayor a 0." };
@@ -161,6 +163,8 @@ export async function crearNotaCredito(
           },
         });
       }
+
+      await avanzarSerie(tx, serieId);
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {

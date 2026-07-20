@@ -1,13 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { zonasAlmacenParaSelect } from "@/lib/almacenes";
+import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
 import InsumoFormulario from "../InsumoFormulario";
 import { crearInsumo } from "../actions";
 
 export default async function NuevoInsumoPage() {
-  const proveedores = await prisma.proveedor.findMany({
-    where: { activo: true },
-    orderBy: { razonSocial: "asc" },
-  });
+  const [proveedores, zonasAlmacen, unidadesMedida] = await Promise.all([
+    prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
+    zonasAlmacenParaSelect(),
+    unidadesMedidaParaSelect(),
+  ]);
 
   return (
     <div className="max-w-lg">
@@ -19,7 +22,13 @@ export default async function NuevoInsumoPage() {
       </h1>
 
       <div className="mt-6">
-        <InsumoFormulario accion={crearInsumo} proveedores={proveedores} textoBoton="Crear insumo" />
+        <InsumoFormulario
+          accion={crearInsumo}
+          proveedores={proveedores}
+          zonasAlmacen={zonasAlmacen}
+          unidadesMedida={unidadesMedida}
+          textoBoton="Crear insumo"
+        />
       </div>
     </div>
   );

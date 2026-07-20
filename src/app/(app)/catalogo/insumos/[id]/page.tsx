@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { zonasAlmacenParaSelect } from "@/lib/almacenes";
+import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
 import InsumoFormulario from "../InsumoFormulario";
 import { actualizarInsumo } from "../actions";
 
@@ -11,9 +13,11 @@ export default async function EditarInsumoPage({
 }) {
   const { id } = await params;
 
-  const [insumo, proveedores] = await Promise.all([
+  const [insumo, proveedores, zonasAlmacen, unidadesMedida] = await Promise.all([
     prisma.insumo.findUnique({ where: { id } }),
     prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
+    zonasAlmacenParaSelect(),
+    unidadesMedidaParaSelect(),
   ]);
 
   if (!insumo) notFound();
@@ -31,6 +35,8 @@ export default async function EditarInsumoPage({
         <InsumoFormulario
           accion={actualizarInsumo.bind(null, id)}
           proveedores={proveedores}
+          zonasAlmacen={zonasAlmacen}
+          unidadesMedida={unidadesMedida}
           valoresIniciales={{
             codigo: insumo.codigo,
             nombre: insumo.nombre,
@@ -41,7 +47,7 @@ export default async function EditarInsumoPage({
             stockMinimo: insumo.stockMinimo.toNumber(),
             costoUnitario: insumo.costoUnitario.toNumber(),
             codigoProveedor: insumo.codigoProveedor,
-            ubicacion: insumo.ubicacion,
+            zonaAlmacenId: insumo.zonaAlmacenId,
             notas: insumo.notas,
           }}
           textoBoton="Guardar cambios"

@@ -1,0 +1,129 @@
+import { redirect } from "next/navigation";
+import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { MODULOS } from "./modulos";
+import GrupoFormulario from "./GrupoFormulario";
+import PermisoCheckbox from "./PermisoCheckbox";
+import { alternarActivoGrupo } from "./actions";
+
+export default async function GruposSeguridadPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || usuario.rol !== "ADMIN") redirect("/");
+
+  const grupos = await prisma.grupoSeguridad.findMany({
+    include: { permisos: true },
+    orderBy: [{ esPredefinido: "desc" }, { codigo: "asc" }],
+  });
+
+  return (
+    <div className="max-w-4xl">
+      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+        Grupos de seguridad
+      </h1>
+      <p className="text-neutral-500 mt-1">
+        Equivalente reducido a Security Group Maintenance de Epicor. Los 4 roles del sistema
+        (Administrador, Almacén, Producción, Ventas) aparecen como grupos predefinidos de solo
+        lectura: el acceso real sigue controlado por el rol de cada usuario. Los grupos
+        personalizados quedan aquí como referencia para una futura versión con permisos dinámicos.
+      </p>
+
+      <div className="mt-6 border border-black/10 dark:border-white/10 rounded-lg p-4">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
+          Nuevo grupo personalizado
+        </h2>
+        <GrupoFormulario />
+      </div>
+
+      <div className="mt-6 flex flex-col gap-4">
+        {grupos.map((g) => (
+          <div key={g.id} className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <p className="font-medium text-neutral-900 dark:text-neutral-100">
+                {g.nombre} <span className="text-xs text-neutral-400 font-mono">{g.codigo}</span>
+              </p>
+              <div className="flex items-center gap-3">
+                {g.esPredefinido && (
+                  <span className="insignia bg-neutral-100 text-neutral-500 dark:bg-neutral-800">
+                    Predefinido
+                  </span>
+                )}
+                {!g.esPredefinido && (
+                  <>
+                    <span
+                      className={`insignia ${
+                        g.activo
+                          ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
+                          : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"
+                      }`}
+                    >
+                      {g.activo ? "Activo" : "Inactivo"}
+                    </span>
+                    <form
+                      action={async () => {
+                        "use server";
+                        await alternarActivoGrupo(g.id, !g.activo);
+                      }}
+                    >
+                      <button
+                        type="submit"
+                        className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline"
+                      >
+                        {g.activo ? "Desactivar" : "Activar"}
+                      </button>
+                    </form>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <table className="tabla mt-3">
+              <thead>
+                <tr>
+                  <th>Módulo</th>
+                  <th className="text-center">Ver</th>
+                  <th className="text-center">Crear</th>
+                  <th className="text-center">Editar</th>
+                </tr>
+              </thead>
+              <tbody>
+                {MODULOS.map((m) => {
+                  const permiso = g.permisos.find((p) => p.modulo === m.clave);
+                  if (!permiso) return null;
+                  return (
+                    <tr key={m.clave}>
+                      <td>{m.nombre}</td>
+                      <td className="text-center">
+                        <PermisoCheckbox
+                          permisoId={permiso.id}
+                          campo="puedeVer"
+                          valorInicial={permiso.puedeVer}
+                          disabled={g.esPredefinido}
+                        />
+                      </td>
+                      <td className="text-center">
+                        <PermisoCheckbox
+                          permisoId={permiso.id}
+                          campo="puedeCrear"
+                          valorInicial={permiso.puedeCrear}
+                          disabled={g.esPredefinido}
+                        />
+                      </td>
+                      <td className="text-center">
+                        <PermisoCheckbox
+                          permisoId={permiso.id}
+                          campo="puedeEditar"
+                          valorInicial={permiso.puedeEditar}
+                          disabled={g.esPredefinido}
+                        />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -5,10 +5,12 @@ import FichaTabs from "@/components/FichaTabs";
 import type { EstadoFormulario } from "./actions";
 
 type Categoria = { id: string; nombre: string };
+type UnidadMedida = { codigo: string; nombre: string };
 
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   categorias: Categoria[];
+  unidadesMedida: UnidadMedida[];
   valoresIniciales?: {
     codigo: string;
     nombre: string;
@@ -26,10 +28,13 @@ type Props = {
 export default function ProductoFormulario({
   accion,
   categorias,
+  unidadesMedida,
   valoresIniciales,
   textoBoton,
 }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
+  const umActual = valoresIniciales?.unidadMedidaBase;
+  const umFaltante = umActual && !unidadesMedida.some((u) => u.codigo === umActual);
 
   return (
     <form action={formAction} className="flex flex-col gap-5 max-w-2xl">
@@ -96,13 +101,17 @@ export default function ProductoFormulario({
                     <select
                       name="unidadMedidaBase"
                       required
-                      defaultValue={valoresIniciales?.unidadMedidaBase ?? "kg"}
+                      defaultValue={umActual ?? "kg"}
                       className="campo-input"
                     >
-                      <option value="kg">Kilogramo (kg)</option>
-                      <option value="litro">Litro (L)</option>
-                      <option value="galon">Galón</option>
-                      <option value="unidad">Unidad</option>
+                      {umFaltante && (
+                        <option value={umActual}>{umActual} (no está en el catálogo)</option>
+                      )}
+                      {unidadesMedida.map((u) => (
+                        <option key={u.codigo} value={u.codigo}>
+                          {u.nombre} ({u.codigo})
+                        </option>
+                      ))}
                     </select>
                   </Campo>
                 </div>

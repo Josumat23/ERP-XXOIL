@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { avanzarSerie } from "@/lib/series";
 
 export type EstadoFormulario = { error?: string };
 
@@ -30,6 +31,7 @@ export async function crearGuiaRemision(
   const placaVehiculo = String(formData.get("placaVehiculo") ?? "").trim().toUpperCase() || null;
   const dniConductor = String(formData.get("dniConductor") ?? "").trim() || null;
   const observaciones = String(formData.get("observaciones") ?? "").trim() || null;
+  const serieId = String(formData.get("serieId") ?? "") || null;
 
   let lineas: LineaGuia[];
   try {
@@ -51,28 +53,31 @@ export async function crearGuiaRemision(
 
   let guiaId = "";
   try {
-    const guia = await prisma.guiaRemision.create({
-      data: {
-        numero,
-        facturaId,
-        clienteId,
-        // "T00:00:00" fuerza interpretación en hora local (evita el corrimiento de un día)
-        fechaTraslado: new Date(`${fechaTraslado}T00:00:00`),
-        puntoPartida,
-        puntoLlegada,
-        motivoTraslado,
-        transportista,
-        placaVehiculo,
-        dniConductor,
-        observaciones,
-        usuarioId: auth.usuario.id,
-        usuarioNombre: auth.usuario.nombre,
-        detalles: {
-          create: lineas.map((l) => ({ presentacionId: l.presentacionId, cantidad: l.cantidad })),
+    await prisma.$transaction(async (tx) => {
+      const guia = await tx.guiaRemision.create({
+        data: {
+          numero,
+          facturaId,
+          clienteId,
+          // "T00:00:00" fuerza interpretación en hora local (evita el corrimiento de un día)
+          fechaTraslado: new Date(`${fechaTraslado}T00:00:00`),
+          puntoPartida,
+          puntoLlegada,
+          motivoTraslado,
+          transportista,
+          placaVehiculo,
+          dniConductor,
+          observaciones,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+          detalles: {
+            create: lineas.map((l) => ({ presentacionId: l.presentacionId, cantidad: l.cantidad })),
+          },
         },
-      },
+      });
+      guiaId = guia.id;
+      await avanzarSerie(tx, serieId);
     });
-    guiaId = guia.id;
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: `Ya existe una guía con el número ${numero}.` };

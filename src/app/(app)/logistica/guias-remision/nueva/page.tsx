@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { seriesActivas } from "@/lib/series";
 import GuiaFormulario from "../GuiaFormulario";
 
 export default async function NuevaGuiaPage() {
-  const [facturas, clientes, presentaciones] = await Promise.all([
+  const [facturas, clientes, presentaciones, series] = await Promise.all([
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" } },
       include: {
@@ -19,6 +20,7 @@ export default async function NuevaGuiaPage() {
       include: { producto: true },
       orderBy: { sku: "asc" },
     }),
+    seriesActivas("GUIA_REMISION"),
   ]);
 
   return (
@@ -49,6 +51,11 @@ export default async function NuevaGuiaPage() {
           presentaciones={presentaciones.map((p) => ({
             id: p.id,
             etiqueta: `${p.producto.nombre} — ${p.nombre}`,
+          }))}
+          series={series.map((s) => ({
+            id: s.id,
+            serie: s.serie,
+            correlativoActual: s.correlativoActual,
           }))}
         />
       </div>

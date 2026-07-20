@@ -24,7 +24,7 @@ function leerDatos(formData: FormData) {
   const stockMinimo = Number(formData.get("stockMinimo") ?? 0);
   const costoUnitario = Number(formData.get("costoUnitario") ?? 0);
   const codigoProveedor = String(formData.get("codigoProveedor") ?? "").trim() || null;
-  const ubicacion = String(formData.get("ubicacion") ?? "").trim() || null;
+  const zonaAlmacenId = String(formData.get("zonaAlmacenId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!codigo || !nombre || !unidadMedida || !TIPOS_VALIDOS.includes(tipo)) {
@@ -47,7 +47,7 @@ function leerDatos(formData: FormData) {
       stockMinimo,
       costoUnitario,
       codigoProveedor,
-      ubicacion,
+      zonaAlmacenId,
       notas,
       moneda: "PEN",
     },

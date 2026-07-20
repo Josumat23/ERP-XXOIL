@@ -1,12 +1,15 @@
 "use client";
 
 import { useActionState } from "react";
+import SelectorSerieNumero from "@/components/SelectorSerieNumero";
 import {
   registrarCobro,
   crearNotaCredito,
   anularFactura,
   type EstadoFormulario,
 } from "../actions";
+
+type Serie = { id: string; serie: string; correlativoActual: number };
 
 export function CobroFormulario({ facturaId, saldo }: { facturaId: string; saldo: number }) {
   const accion = registrarCobro.bind(null, facturaId);
@@ -61,9 +64,11 @@ export function CobroFormulario({ facturaId, saldo }: { facturaId: string; saldo
 export function NotaCreditoFormulario({
   facturaId,
   maximo,
+  series = [],
 }: {
   facturaId: string;
   maximo: number;
+  series?: Serie[];
 }) {
   const accion = crearNotaCredito.bind(null, facturaId);
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
@@ -72,15 +77,7 @@ export function NotaCreditoFormulario({
     <form action={formAction} className="flex flex-col gap-3">
       {estado.error && <MensajeError texto={estado.error} />}
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">N° NC SUNAT</span>
-          <input
-            name="numero"
-            required
-            placeholder="FC01-00000045"
-            className="campo-input font-mono w-44"
-          />
-        </label>
+        <SelectorSerieNumero series={series} etiquetaNumero="N° NC SUNAT" />
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
             Monto (máx.: S/ {maximo.toFixed(2)})

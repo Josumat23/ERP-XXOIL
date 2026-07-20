@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { zonasAlmacenParaSelect } from "@/lib/almacenes";
 import PresentacionFormulario from "../PresentacionFormulario";
 import { crearPresentacion } from "../actions";
 
@@ -10,10 +11,10 @@ export default async function NuevaPresentacionPage({
 }) {
   const { productoId } = await searchParams;
 
-  const productos = await prisma.producto.findMany({
-    where: { activo: true },
-    orderBy: { nombre: "asc" },
-  });
+  const [productos, zonasAlmacen] = await Promise.all([
+    prisma.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    zonasAlmacenParaSelect(),
+  ]);
 
   return (
     <div className="max-w-lg">
@@ -28,6 +29,7 @@ export default async function NuevaPresentacionPage({
         <PresentacionFormulario
           accion={crearPresentacion}
           productos={productos}
+          zonasAlmacen={zonasAlmacen}
           productoIdInicial={productoId}
           textoBoton="Crear presentación"
         />

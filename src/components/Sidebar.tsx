@@ -82,6 +82,11 @@ const MODULOS: Modulo[] = [
     enlaces: [
       { href: "/configuracion/empresa", etiqueta: "Empresa", roles: ["ADMIN"] },
       { href: "/configuracion/usuarios", etiqueta: "Usuarios", roles: ["ADMIN"] },
+      { href: "/configuracion/series", etiqueta: "Series de documentos", roles: ["ADMIN"] },
+      { href: "/configuracion/almacenes", etiqueta: "Almacenes y zonas", roles: ["ADMIN", "ALMACEN"] },
+      { href: "/configuracion/unidades-medida", etiqueta: "Unidades de medida", roles: ["ADMIN"] },
+      { href: "/configuracion/grupos-seguridad", etiqueta: "Grupos de seguridad", roles: ["ADMIN"] },
+      { href: "/configuracion/calendario-fiscal", etiqueta: "Calendario fiscal", roles: ["ADMIN"] },
     ],
   },
 ];

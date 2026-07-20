@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useActionState } from "react";
+import SelectorSerieNumero from "@/components/SelectorSerieNumero";
 import { crearGuiaRemision, type EstadoFormulario } from "./actions";
 
 type FacturaOpcion = {
@@ -11,6 +12,7 @@ type FacturaOpcion = {
   lineas: { presentacionId: string; cantidad: number }[];
 };
 type Opcion = { id: string; etiqueta: string };
+type Serie = { id: string; serie: string; correlativoActual: number };
 
 type Linea = { presentacionId: string; cantidad: string };
 
@@ -19,6 +21,7 @@ type Props = {
   clientes: Opcion[];
   presentaciones: Opcion[];
   puntoPartidaDefecto: string;
+  series?: Serie[];
 };
 
 export default function GuiaFormulario({
@@ -26,6 +29,7 @@ export default function GuiaFormulario({
   clientes,
   presentaciones,
   puntoPartidaDefecto,
+  series = [],
 }: Props) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     crearGuiaRemision,
@@ -84,10 +88,7 @@ export default function GuiaFormulario({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">N° guía (SUNAT)</span>
-          <input name="numero" required placeholder="T001-00000001" className="campo-input font-mono" />
-        </label>
+        <SelectorSerieNumero series={series} etiquetaNumero="N° guía (SUNAT)" />
       </div>
 
       <div className="grid grid-cols-2 gap-4">

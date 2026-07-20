@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_PEDIDO } from "@/lib/etiquetas";
+import { seriesActivas } from "@/lib/series";
 import { anularPedido } from "../actions";
 import FacturarFormulario from "./FacturarFormulario";
 
@@ -29,6 +30,9 @@ export default async function DetallePedidoPage({
     },
   });
   if (!pedido) notFound();
+
+  const series =
+    pedido.estado === "PENDIENTE" ? await seriesActivas("FACTURA") : [];
 
   return (
     <div className="max-w-3xl">
@@ -94,6 +98,11 @@ export default async function DetallePedidoPage({
             <FacturarFormulario
               pedidoId={pedido.id}
               condicionDefecto={pedido.cliente.condicionPagoDefecto}
+              series={series.map((s) => ({
+                id: s.id,
+                serie: s.serie,
+                correlativoActual: s.correlativoActual,
+              }))}
             />
           </section>
 

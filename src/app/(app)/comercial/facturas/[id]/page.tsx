@@ -9,6 +9,7 @@ import {
 } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
+import { seriesActivas } from "@/lib/series";
 import {
   CobroFormulario,
   NotaCreditoFormulario,
@@ -46,6 +47,7 @@ export default async function DetalleFacturaPage({
   const maximoNC = factura.total.toNumber() - totalNC;
   const puedeOperar = factura.estado !== "ANULADA";
   const sinCobrosNiNC = factura.cobros.length === 0 && factura.notasCredito.length === 0;
+  const seriesNC = puedeOperar && maximoNC > 0 ? await seriesActivas("NOTA_CREDITO") : [];
 
   return (
     <div className="max-w-3xl">
@@ -252,7 +254,15 @@ export default async function DetalleFacturaPage({
         )}
         {puedeOperar && maximoNC > 0 && (
           <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 mt-3">
-            <NotaCreditoFormulario facturaId={factura.id} maximo={maximoNC} />
+            <NotaCreditoFormulario
+              facturaId={factura.id}
+              maximo={maximoNC}
+              series={seriesNC.map((s) => ({
+                id: s.id,
+                serie: s.serie,
+                correlativoActual: s.correlativoActual,
+              }))}
+            />
           </div>
         )}
         {factura.notasCredito.length === 0 && (!puedeOperar || maximoNC === 0) && (

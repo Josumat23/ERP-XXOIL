@@ -4,10 +4,12 @@ import { useActionState } from "react";
 import type { EstadoFormulario } from "./actions";
 
 type Producto = { id: string; nombre: string; codigo: string };
+type ZonaAlmacen = { id: string; etiqueta: string };
 
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   productos: Producto[];
+  zonasAlmacen: ZonaAlmacen[];
   productoIdInicial?: string;
   valoresIniciales?: {
     productoId: string;
@@ -20,7 +22,7 @@ type Props = {
     codigoBarras: string | null;
     pesoBrutoKg: number | null;
     unidadesPorCaja: number | null;
-    ubicacion: string | null;
+    zonaAlmacenId: string | null;
   };
   textoBoton: string;
 };
@@ -28,6 +30,7 @@ type Props = {
 export default function PresentacionFormulario({
   accion,
   productos,
+  zonasAlmacen,
   productoIdInicial,
   valoresIniciales,
   textoBoton,
@@ -169,12 +172,18 @@ export default function PresentacionFormulario({
           />
         </Campo>
         <Campo etiqueta="Ubicación en almacén">
-          <input
-            name="ubicacion"
-            defaultValue={valoresIniciales?.ubicacion ?? ""}
-            placeholder="A-01-2 (zona-rack-nivel)"
+          <select
+            name="zonaAlmacenId"
+            defaultValue={valoresIniciales?.zonaAlmacenId ?? ""}
             className="campo-input"
-          />
+          >
+            <option value="">Sin ubicación asignada</option>
+            {zonasAlmacen.map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.etiqueta}
+              </option>
+            ))}
+          </select>
         </Campo>
       </div>
 

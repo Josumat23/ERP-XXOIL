@@ -241,6 +241,134 @@ async function main() {
     });
   }
 
+  // ------------------------------------------------------------ System Setup (fase 2)
+
+  // Unidades de medida
+  const claseP = await prisma.claseUnidadMedida.upsert({
+    where: { empresaId_codigo: { empresaId: "1", codigo: "PESO" } },
+    update: {},
+    create: { codigo: "PESO", nombre: "Peso" },
+  });
+  const claseV = await prisma.claseUnidadMedida.upsert({
+    where: { empresaId_codigo: { empresaId: "1", codigo: "VOLUMEN" } },
+    update: {},
+    create: { codigo: "VOLUMEN", nombre: "Volumen" },
+  });
+  const claseC = await prisma.claseUnidadMedida.upsert({
+    where: { empresaId_codigo: { empresaId: "1", codigo: "CANTIDAD" } },
+    update: {},
+    create: { codigo: "CANTIDAD", nombre: "Cantidad" },
+  });
+  const unidadesSemilla = [
+    { claseId: claseP.id, codigo: "kg", nombre: "Kilogramo" },
+    { claseId: claseV.id, codigo: "litro", nombre: "Litro" },
+    { claseId: claseV.id, codigo: "galon", nombre: "Galón" },
+    { claseId: claseC.id, codigo: "unidad", nombre: "Unidad" },
+  ];
+  for (const u of unidadesSemilla) {
+    await prisma.unidadMedida.upsert({
+      where: { claseId_codigo: { claseId: u.claseId, codigo: u.codigo } },
+      update: {},
+      create: u,
+    });
+  }
+
+  // Almacén y zonas
+  const planta = await prisma.almacen.upsert({
+    where: { empresaId_codigo: { empresaId: "1", codigo: "PLANTA" } },
+    update: {},
+    create: { codigo: "PLANTA", nombre: "Planta de producción" },
+  });
+  const zonasSemillaAlmacen = [
+    { almacenId: planta.id, codigo: "A-01", nombre: "Producto terminado" },
+    { almacenId: planta.id, codigo: "MP-01", nombre: "Materia prima" },
+    { almacenId: planta.id, codigo: "ENV-01", nombre: "Envases y etiquetas" },
+  ];
+  for (const z of zonasSemillaAlmacen) {
+    await prisma.zonaAlmacen.upsert({
+      where: { almacenId_codigo: { almacenId: z.almacenId, codigo: z.codigo } },
+      update: {},
+      create: z,
+    });
+  }
+
+  // Series de documentos
+  const seriesSemilla = [
+    { tipoDocumento: "FACTURA" as const, serie: "F001" },
+    { tipoDocumento: "NOTA_CREDITO" as const, serie: "FC01" },
+    { tipoDocumento: "GUIA_REMISION" as const, serie: "T001" },
+  ];
+  for (const s of seriesSemilla) {
+    await prisma.serieDocumento.upsert({
+      where: { empresaId_tipoDocumento_serie: { empresaId: "1", tipoDocumento: s.tipoDocumento, serie: s.serie } },
+      update: {},
+      create: s,
+    });
+  }
+
+  // Grupos de seguridad predefinidos (referencia; el acceso real lo sigue
+  // controlando el rol del usuario, ver src/lib/auth.ts)
+  const permisosPredefinidos: Record<string, Record<string, [boolean, boolean, boolean]>> = {
+    ADMIN: {
+      ventas: [true, true, true],
+      materiales: [true, true, true],
+      produccion: [true, true, true],
+      finanzas: [true, true, true],
+      configuracion: [true, true, true],
+    },
+    ALMACEN: {
+      ventas: [true, false, false],
+      materiales: [true, true, true],
+      produccion: [true, false, false],
+      finanzas: [true, true, false],
+      configuracion: [false, false, false],
+    },
+    PRODUCCION: {
+      ventas: [false, false, false],
+      materiales: [true, false, false],
+      produccion: [true, true, true],
+      finanzas: [false, false, false],
+      configuracion: [false, false, false],
+    },
+    VENTAS: {
+      ventas: [true, true, true],
+      materiales: [true, false, false],
+      produccion: [false, false, false],
+      finanzas: [true, true, false],
+      configuracion: [false, false, false],
+    },
+  };
+  const nombreGrupo: Record<string, string> = {
+    ADMIN: "Administrador",
+    ALMACEN: "Almacén",
+    PRODUCCION: "Producción",
+    VENTAS: "Ventas",
+  };
+  for (const [codigo, permisos] of Object.entries(permisosPredefinidos)) {
+    const grupo = await prisma.grupoSeguridad.upsert({
+      where: { empresaId_codigo: { empresaId: "1", codigo } },
+      update: {},
+      create: { codigo, nombre: nombreGrupo[codigo], esPredefinido: true },
+    });
+    for (const [modulo, [puedeVer, puedeCrear, puedeEditar]] of Object.entries(permisos)) {
+      await prisma.permisoGrupo.upsert({
+        where: { grupoId_modulo: { grupoId: grupo.id, modulo } },
+        update: {},
+        create: { grupoId: grupo.id, modulo, puedeVer, puedeCrear, puedeEditar },
+      });
+    }
+  }
+
+  // Calendario fiscal del año en curso
+  const anioActual = new Date().getFullYear();
+  for (let mes = 1; mes <= 12; mes++) {
+    await prisma.periodoFiscal.upsert({
+      where: { empresaId_anio_mes: { empresaId: "1", anio: anioActual, mes } },
+      update: {},
+      create: { anio: anioActual, mes },
+    });
+  }
+
   console.log("Seed completo. Usuarios: admin / almacen / operario / ventas (clave: cambiar123)");
 }
 

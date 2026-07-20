@@ -1,14 +1,19 @@
 "use client";
 
 import { useActionState } from "react";
+import SelectorSerieNumero from "@/components/SelectorSerieNumero";
 import { facturarPedido, type EstadoFormulario } from "../actions";
+
+type Serie = { id: string; serie: string; correlativoActual: number };
 
 export default function FacturarFormulario({
   pedidoId,
   condicionDefecto = "",
+  series = [],
 }: {
   pedidoId: string;
   condicionDefecto?: string;
+  series?: Serie[];
 }) {
   const accion = facturarPedido.bind(null, pedidoId);
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
@@ -21,17 +26,7 @@ export default function FacturarFormulario({
         </p>
       )}
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">
-            N° factura SUNAT
-          </span>
-          <input
-            name="numero"
-            required
-            placeholder="F001-00000123"
-            className="campo-input font-mono w-48"
-          />
-        </label>
+        <SelectorSerieNumero series={series} etiquetaNumero="N° factura SUNAT" />
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Condición de pago</span>
           <select name="condicionPago" required defaultValue={condicionDefecto} className="campo-input w-44">

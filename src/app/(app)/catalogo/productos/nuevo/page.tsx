@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
 import ProductoFormulario from "../ProductoFormulario";
 import { crearProducto } from "../actions";
 
 export default async function NuevoProductoPage() {
-  const categorias = await prisma.categoria.findMany({
-    where: { activo: true },
-    orderBy: { nombre: "asc" },
-  });
+  const [categorias, unidadesMedida] = await Promise.all([
+    prisma.categoria.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    unidadesMedidaParaSelect(),
+  ]);
 
   return (
     <div className="max-w-lg">
@@ -19,7 +20,12 @@ export default async function NuevoProductoPage() {
       </h1>
 
       <div className="mt-6">
-        <ProductoFormulario accion={crearProducto} categorias={categorias} textoBoton="Crear producto" />
+        <ProductoFormulario
+          accion={crearProducto}
+          categorias={categorias}
+          unidadesMedida={unidadesMedida}
+          textoBoton="Crear producto"
+        />
       </div>
     </div>
   );

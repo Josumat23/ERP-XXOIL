@@ -8,6 +8,7 @@ import { requerirRol } from "@/lib/auth";
 import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteNumeroPedido } from "@/lib/correlativos";
 import { DIAS_CONDICION } from "@/lib/etiquetas";
+import { avanzarSerie } from "@/lib/series";
 
 export type EstadoFormulario = { error?: string };
 
@@ -99,6 +100,7 @@ export async function facturarPedido(
 
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
   const condicionPago = String(formData.get("condicionPago") ?? "") as $Enums.CondicionPago;
+  const serieId = String(formData.get("serieId") ?? "") || null;
 
   if (!numero) return { error: "Ingrese el número de factura emitido en SUNAT." };
   if (!["CONTADO", "DIAS_15", "DIAS_30"].includes(condicionPago)) {
@@ -206,6 +208,7 @@ export async function facturarPedido(
       });
 
       await tx.pedido.update({ where: { id }, data: { estado: "FACTURADO" } });
+      await avanzarSerie(tx, serieId);
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {

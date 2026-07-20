@@ -134,12 +134,13 @@ model Presentacion {
   codigoBarras    String? // EAN-13
   pesoBrutoKg     Decimal? // contenido + envase
   unidadesPorCaja Int?
-  ubicacion       String? // ubicación en almacén (zona-rack-nivel)
+  zonaAlmacenId   String? // ubicación estructurada (Almacen > ZonaAlmacen)
   activo          Boolean  @default(true)
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
   producto       Producto           @relation(fields: [productoId], references: [id])
+  zonaAlmacen    ZonaAlmacen?       @relation(fields: [zonaAlmacenId], references: [id])
   movimientos    MovimientoKardex[]
   envasados      Envasado[]
   pedidoDetalles PedidoDetalle[]
@@ -193,13 +194,14 @@ model Insumo {
   costoUnitario   Decimal    @default(0)
   moneda          String     @default("PEN")
   codigoProveedor String? // código del artículo en el catálogo del proveedor
-  ubicacion       String?
+  zonaAlmacenId   String? // ubicación estructurada (Almacen > ZonaAlmacen)
   notas           String?
   activo          Boolean    @default(true)
   creadoEn      DateTime   @default(now())
   actualizadoEn DateTime   @updatedAt
 
   proveedor       Proveedor?         @relation(fields: [proveedorId], references: [id])
+  zonaAlmacen     ZonaAlmacen?       @relation(fields: [zonaAlmacenId], references: [id])
   movimientos     MovimientoKardex[]
   formulaDetalles FormulaDetalle[]
   envasadoInsumos EnvasadoInsumo[]
@@ -847,4 +849,152 @@ model HojaRutaVisita {
   cliente  Cliente  @relation(fields: [clienteId], references: [id])
 
   @@map("hoja_ruta_visitas")
+}
+
+// ---------------------------------------------------------------------------
+// SYSTEM SETUP — FASE 2 (equivalente reducido a los programas de
+// configuración de sistema de Epicor: Legal Numbers, Warehouse/Warehouse
+// Zone, UOM Maintenance, Security Group Maintenance, Fiscal Calendar).
+// ---------------------------------------------------------------------------
+
+// --- Numeración legal de documentos (Legal Number / Document Type) ---------
+
+enum TipoDocumentoSerie {
+  FACTURA
+  NOTA_CREDITO
+  GUIA_REMISION
+}
+
+// Catálogo de series SUNAT (F001, T001, FC01...). El correlativo es solo una
+// sugerencia editable: el número real lo asigna SUNAT al emitir; aquí se
+// transcribe. Avanza cuando se usa la serie al crear el documento.
+model SerieDocumento {
+  id                String             @id @default(cuid())
+  empresaId         String             @default("1")
+  tipoDocumento     TipoDocumentoSerie
+  serie             String // ej. F001, T001, FC01
+  correlativoActual Int                @default(0)
+  activo            Boolean            @default(true)
+  creadoEn          DateTime           @default(now())
+
+  @@unique([empresaId, tipoDocumento, serie])
+  @@map("series_documento")
+}
+
+// --- Almacenes y zonas (Warehouse / Warehouse Zone) -------------------------
+
+model Almacen {
+  id        String   @id @default(cuid())
+  empresaId String   @default("1")
+  codigo    String
+  nombre    String
+  direccion String?
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  zonas ZonaAlmacen[]
+
+  @@unique([empresaId, codigo])
+  @@map("almacenes")
+}
+
+model ZonaAlmacen {
+  id        String  @id @default(cuid())
+  almacenId String
+  codigo    String // ej. A-01, RACK-2
+  nombre    String?
+  activo    Boolean @default(true)
+
+  almacen        Almacen        @relation(fields: [almacenId], references: [id])
+  presentaciones Presentacion[]
+  insumos        Insumo[]
+
+  @@unique([almacenId, codigo])
+  @@map("zonas_almacen")
+}
+
+// --- Unidades de medida (UOM Class / UOM Maintenance) -----------------------
+
+model ClaseUnidadMedida {
+  id        String   @id @default(cuid())
+  empresaId String   @default("1")
+  codigo    String // ej. PESO, VOLUMEN, CANTIDAD
+  nombre    String
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  unidades UnidadMedida[]
+
+  @@unique([empresaId, codigo])
+  @@map("clases_unidad_medida")
+}
+
+model UnidadMedida {
+  id      String  @id @default(cuid())
+  claseId String
+  codigo  String // ej. kg, litro, galon, unidad
+  nombre  String // ej. Kilogramo
+  activo  Boolean @default(true)
+
+  clase ClaseUnidadMedida @relation(fields: [claseId], references: [id])
+
+  @@unique([claseId, codigo])
+  @@map("unidades_medida")
+}
+
+// --- Grupos de seguridad (Security Group Maintenance) -----------------------
+//
+// Modelo de referencia/consulta: documenta qué puede hacer cada grupo por
+// módulo, como en Epicor. Los 4 roles existentes (RolUsuario) se muestran
+// como grupos predefinidos no editables; la aplicación real de permisos
+// sigue haciéndose con requerirRol() sobre RolUsuario — conectar estos
+// permisos al enforcement en tiempo real es un cambio aparte, más profundo.
+
+model GrupoSeguridad {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  codigo        String
+  nombre        String
+  esPredefinido Boolean  @default(false)
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+
+  permisos PermisoGrupo[]
+
+  @@unique([empresaId, codigo])
+  @@map("grupos_seguridad")
+}
+
+model PermisoGrupo {
+  id        String  @id @default(cuid())
+  grupoId   String
+  modulo    String // ventas | materiales | produccion | finanzas | configuracion
+  puedeVer  Boolean @default(true)
+  puedeCrear Boolean @default(false)
+  puedeEditar Boolean @default(false)
+
+  grupo GrupoSeguridad @relation(fields: [grupoId], references: [id])
+
+  @@unique([grupoId, modulo])
+  @@map("permisos_grupo")
+}
+
+// --- Calendario fiscal (Fiscal Calendar) ------------------------------------
+
+enum EstadoPeriodoFiscal {
+  ABIERTO
+  CERRADO
+}
+
+model PeriodoFiscal {
+  id         String              @id @default(cuid())
+  empresaId  String              @default("1")
+  anio       Int
+  mes        Int // 1-12
+  estado     EstadoPeriodoFiscal @default(ABIERTO)
+  cerradoEn  DateTime?
+  cerradoPor String?
+
+  @@unique([empresaId, anio, mes])
+  @@map("periodos_fiscales")
 }
