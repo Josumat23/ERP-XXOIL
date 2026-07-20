@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_MEDIO_PAGO } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 import CajaFormulario from "./CajaFormulario";
 
 export default async function CajaPage() {
@@ -19,7 +20,10 @@ export default async function CajaPage() {
 
   return (
     <div className="max-w-5xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Libro de caja</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Libro de caja</h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">
         Los cobros de facturas y pagos a proveedores se registran automáticamente; aquí también se
         anotan movimientos manuales.

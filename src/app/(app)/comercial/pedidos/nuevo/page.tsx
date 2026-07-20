@@ -24,7 +24,11 @@ export default async function NuevoPedidoPage() {
 
       <div className="mt-6">
         <PedidoFormulario
-          clientes={clientes.map((c) => ({ id: c.id, etiqueta: c.razonSocial }))}
+          clientes={clientes.map((c) => ({
+            id: c.id,
+            etiqueta: c.razonSocial,
+            vendedorId: c.vendedorId,
+          }))}
           vendedores={vendedores.map((v) => ({ id: v.id, etiqueta: v.nombre }))}
           presentaciones={presentaciones.map((p) => ({
             id: p.id,

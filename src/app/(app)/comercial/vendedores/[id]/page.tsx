@@ -36,6 +36,8 @@ export default async function EditarVendedorPage({
           valoresIniciales={{
             nombre: vendedor.nombre,
             documento: vendedor.documento,
+            telefono: vendedor.telefono,
+            email: vendedor.email,
             tipo: vendedor.tipo,
             tasaComision: vendedor.tasaComision.toNumber(),
             zonaId: vendedor.zonaId,

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 
 const COLOR_ESTADO: Record<string, string> = {
   EN_PROCESO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
@@ -27,9 +28,12 @@ export default async function LotesPage() {
             Primera etapa de producción: cocción a granel según fórmula, con registro de merma.
           </p>
         </div>
-        <Link href="/produccion/lotes/nuevo" className="boton-primario">
-          Nuevo lote
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/produccion/lotes/nuevo" className="boton-primario">
+            Nuevo lote
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

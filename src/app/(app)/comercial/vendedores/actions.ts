@@ -11,6 +11,8 @@ export type EstadoFormulario = { error?: string };
 function leerDatos(formData: FormData) {
   const nombre = String(formData.get("nombre") ?? "").trim();
   const documento = String(formData.get("documento") ?? "").trim() || null;
+  const telefono = String(formData.get("telefono") ?? "").trim() || null;
+  const email = String(formData.get("email") ?? "").trim() || null;
   const tipo = String(formData.get("tipo") ?? "") as $Enums.TipoVendedor;
   const tasaComision = Number(formData.get("tasaComision"));
   const zonaId = String(formData.get("zonaId") ?? "") || null;
@@ -23,7 +25,7 @@ function leerDatos(formData: FormData) {
     return { error: "La tasa de comisión debe estar entre 0 y 100." } as const;
   }
 
-  return { datos: { nombre, documento, tipo, tasaComision, zonaId } } as const;
+  return { datos: { nombre, documento, telefono, email, tipo, tasaComision, zonaId } } as const;
 }
 
 export async function crearVendedor(

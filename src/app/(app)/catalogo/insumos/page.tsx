@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
+import BotonImprimir from "@/components/BotonImprimir";
 import { alternarActivoInsumo } from "./actions";
 
 const ETIQUETA_TIPO: Record<string, string> = {
@@ -24,9 +25,12 @@ export default async function InsumosPage() {
             Materia prima, envases y etiquetas usados en producción.
           </p>
         </div>
-        <Link href="/catalogo/insumos/nuevo" className="boton-primario">
-          Nuevo insumo
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/catalogo/insumos/nuevo" className="boton-primario">
+            Nuevo insumo
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

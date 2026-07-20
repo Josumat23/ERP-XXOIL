@@ -5,12 +5,13 @@ import { useActionState } from "react";
 import { crearPedido, type EstadoFormulario } from "./actions";
 
 type Opcion = { id: string; etiqueta: string };
+type ClienteOpcion = { id: string; etiqueta: string; vendedorId: string | null };
 type PresentacionOpcion = { id: string; etiqueta: string; precio: number; stock: number };
 
 type Linea = { presentacionId: string; cantidad: string; precioUnitario: string };
 
 type Props = {
-  clientes: Opcion[];
+  clientes: ClienteOpcion[];
   vendedores: Opcion[];
   presentaciones: PresentacionOpcion[];
 };
@@ -20,6 +21,7 @@ export default function PedidoFormulario({ clientes, vendedores, presentaciones 
     crearPedido,
     {}
   );
+  const [vendedorId, setVendedorId] = useState("");
   const [lineas, setLineas] = useState<Linea[]>([
     { presentacionId: "", cantidad: "", precioUnitario: "" },
   ]);
@@ -53,7 +55,16 @@ export default function PedidoFormulario({ clientes, vendedores, presentaciones 
       <div className="grid grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Cliente</span>
-          <select name="clienteId" required defaultValue="" className="campo-input">
+          <select
+            name="clienteId"
+            required
+            defaultValue=""
+            onChange={(e) => {
+              const cliente = clientes.find((c) => c.id === e.target.value);
+              if (cliente?.vendedorId) setVendedorId(cliente.vendedorId);
+            }}
+            className="campo-input"
+          >
             <option value="" disabled>
               Seleccione
             </option>
@@ -65,8 +76,16 @@ export default function PedidoFormulario({ clientes, vendedores, presentaciones 
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">Vendedor</span>
-          <select name="vendedorId" required defaultValue="" className="campo-input">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Vendedor (se preselecciona el asignado al cliente)
+          </span>
+          <select
+            name="vendedorId"
+            required
+            value={vendedorId}
+            onChange={(e) => setVendedorId(e.target.value)}
+            className="campo-input"
+          >
             <option value="" disabled>
               Seleccione
             </option>

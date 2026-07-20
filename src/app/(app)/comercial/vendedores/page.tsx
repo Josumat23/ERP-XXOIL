@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_TIPO_VENDEDOR } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 import { alternarActivoVendedor } from "./actions";
 
 export default async function VendedoresPage() {
@@ -19,9 +20,12 @@ export default async function VendedoresPage() {
             Cada vendedor tiene su propia tasa de comisión; las comisiones se generan al facturar.
           </p>
         </div>
-        <Link href="/comercial/vendedores/nuevo" className="boton-primario">
-          Nuevo vendedor
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/comercial/vendedores/nuevo" className="boton-primario">
+            Nuevo vendedor
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

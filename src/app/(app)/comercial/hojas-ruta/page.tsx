@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ETIQUETA_ESTADO_HR } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 
 export default async function HojasRutaPage() {
   const hojas = await prisma.hojaRuta.findMany({
@@ -19,9 +20,12 @@ export default async function HojasRutaPage() {
             Planificación diaria de visitas por vendedor, con registro de resultados.
           </p>
         </div>
-        <Link href="/comercial/hojas-ruta/nueva" className="boton-primario">
-          Nueva hoja de ruta
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/comercial/hojas-ruta/nueva" className="boton-primario">
+            Nueva hoja de ruta
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

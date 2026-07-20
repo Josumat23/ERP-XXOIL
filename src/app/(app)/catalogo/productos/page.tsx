@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import BotonImprimir from "@/components/BotonImprimir";
 import { alternarActivoProducto } from "./actions";
 
 export default async function ProductosPage() {
@@ -19,9 +20,12 @@ export default async function ProductosPage() {
             Catálogo maestro de productos (grasas, aceites, siliconas).
           </p>
         </div>
-        <Link href="/catalogo/productos/nuevo" className="boton-primario">
-          Nuevo producto
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/catalogo/productos/nuevo" className="boton-primario">
+            Nuevo producto
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

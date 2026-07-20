@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ORIGEN } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 
 // El kardex es historia inmutable: aquí solo se consulta, jamás se edita.
 export default async function KardexPage({
@@ -28,7 +29,10 @@ export default async function KardexPage({
 
   return (
     <div className="max-w-6xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Kardex</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Kardex</h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">
         Historial de movimientos de inventario. Los registros nunca se editan ni se borran: las
         correcciones se hacen con ajustes que quedan auditados.

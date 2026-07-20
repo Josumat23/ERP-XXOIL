@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
+import BotonImprimir from "@/components/BotonImprimir";
 import { alternarActivoPresentacion } from "./actions";
 
 export default async function PresentacionesPage() {
@@ -20,9 +21,12 @@ export default async function PresentacionesPage() {
             SKUs de venta por producto (pote, balde, cilindro, etc.).
           </p>
         </div>
-        <Link href="/catalogo/presentaciones/nuevo" className="boton-primario">
-          Nueva presentación
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/catalogo/presentaciones/nuevo" className="boton-primario">
+            Nueva presentación
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

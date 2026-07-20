@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_OC } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -28,9 +29,12 @@ export default async function OrdenesCompraPage() {
             promedio y genera la cuenta por pagar.
           </p>
         </div>
-        <Link href="/logistica/ordenes-compra/nuevo" className="boton-primario">
-          Nueva orden
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/logistica/ordenes-compra/nuevo" className="boton-primario">
+            Nueva orden
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario, ETIQUETA_ROL } from "@/lib/auth";
+import BotonImprimir from "@/components/BotonImprimir";
 import { CrearUsuarioFormulario, RestablecerPasswordFormulario } from "./UsuarioFormularios";
 import { alternarActivoUsuario } from "./actions";
 
@@ -12,7 +13,10 @@ export default async function UsuariosPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Usuarios</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Usuarios</h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">
         Cuentas de acceso y roles. El rol define qué operaciones puede realizar cada persona.
       </p>

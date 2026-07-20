@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_PEDIDO } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -24,9 +25,12 @@ export default async function PedidosPage() {
             El stock se descuenta recién al facturar; un pedido pendiente puede anularse.
           </p>
         </div>
-        <Link href="/comercial/pedidos/nuevo" className="boton-primario">
-          Nuevo pedido
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/comercial/pedidos/nuevo" className="boton-primario">
+            Nuevo pedido
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

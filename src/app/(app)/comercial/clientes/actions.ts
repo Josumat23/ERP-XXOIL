@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 
 export type EstadoFormulario = { error?: string };
@@ -14,18 +14,55 @@ function esErrorDuplicado(e: unknown): boolean {
 
 function leerDatos(formData: FormData) {
   const razonSocial = String(formData.get("razonSocial") ?? "").trim();
+  const nombreComercial = String(formData.get("nombreComercial") ?? "").trim() || null;
   const ruc = String(formData.get("ruc") ?? "").trim() || null;
-  const zonaId = String(formData.get("zonaId") ?? "") || null;
+  const departamento = String(formData.get("departamento") ?? "").trim() || null;
+  const provincia = String(formData.get("provincia") ?? "").trim() || null;
+  const distrito = String(formData.get("distrito") ?? "").trim() || null;
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
   const telefono = String(formData.get("telefono") ?? "").trim() || null;
   const email = String(formData.get("email") ?? "").trim() || null;
+  const contactoNombre = String(formData.get("contactoNombre") ?? "").trim() || null;
+  const contactoTelefono = String(formData.get("contactoTelefono") ?? "").trim() || null;
+  const zonaId = String(formData.get("zonaId") ?? "") || null;
+  const vendedorId = String(formData.get("vendedorId") ?? "") || null;
+  const limiteCredito = Number(formData.get("limiteCredito") ?? 0);
+  const condicionPagoDefecto = String(
+    formData.get("condicionPagoDefecto") ?? "CONTADO"
+  ) as $Enums.CondicionPago;
+  const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!razonSocial) return { error: "La razón social es obligatoria." } as const;
   if (ruc && !/^\d{8}(\d{3})?$/.test(ruc)) {
     return { error: "El documento debe ser un DNI (8 dígitos) o RUC (11 dígitos)." } as const;
   }
+  if (!Number.isFinite(limiteCredito) || limiteCredito < 0) {
+    return { error: "El límite de crédito debe ser un número válido (0 = sin límite)." } as const;
+  }
+  if (!["CONTADO", "DIAS_15", "DIAS_30"].includes(condicionPagoDefecto)) {
+    return { error: "Seleccione la condición de pago habitual." } as const;
+  }
 
-  return { datos: { razonSocial, ruc, zonaId, direccion, telefono, email } } as const;
+  return {
+    datos: {
+      razonSocial,
+      nombreComercial,
+      ruc,
+      departamento,
+      provincia,
+      distrito,
+      direccion,
+      telefono,
+      email,
+      contactoNombre,
+      contactoTelefono,
+      zonaId,
+      vendedorId,
+      limiteCredito,
+      condicionPagoDefecto,
+      notas,
+    },
+  } as const;
 }
 
 export async function crearCliente(

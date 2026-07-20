@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import BotonImprimir from "@/components/BotonImprimir";
 import CategoriaFormulario from "./CategoriaFormulario";
 import { alternarActivoCategoria } from "./actions";
 
@@ -10,7 +11,10 @@ export default async function CategoriasPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Categorías</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Categorías</h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">Agrupan los productos del catálogo.</p>
 
       <div className="mt-6">

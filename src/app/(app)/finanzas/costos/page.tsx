@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
+import BotonImprimir from "@/components/BotonImprimir";
 
 // Reporte de costos: costo promedio de insumos, costo/kg de lotes y
 // margen por presentación (precio de venta vs costo promedio de envasado).
@@ -21,9 +22,12 @@ export default async function CostosPage() {
 
   return (
     <div className="max-w-5xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Costos y márgenes
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          Costos y márgenes
+        </h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">
         Los costos de insumos se actualizan por promedio ponderado en cada recepción de compra; los
         de producción se calculan por lote y envasado.

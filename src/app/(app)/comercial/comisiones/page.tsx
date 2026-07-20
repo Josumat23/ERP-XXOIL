@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
+import BotonImprimir from "@/components/BotonImprimir";
 
 export default async function ComisionesPage() {
   const comisiones = await prisma.comision.findMany({
@@ -19,7 +20,10 @@ export default async function ComisionesPage() {
 
   return (
     <div className="max-w-5xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Comisiones</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Comisiones</h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">
         Se generan al facturar y se revierten con anulaciones o notas de crédito. Los registros no se
         editan: cada reversión es un movimiento nuevo.

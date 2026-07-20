@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
+import BotonImprimir from "@/components/BotonImprimir";
 import { alternarActivoFormula } from "./actions";
 
 export default async function FormulasPage() {
@@ -22,9 +23,12 @@ export default async function FormulasPage() {
             Recetas de producción por producto. No se editan: cada cambio crea una versión nueva.
           </p>
         </div>
-        <Link href="/produccion/formulas/nueva" className="boton-primario">
-          Nueva versión
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/produccion/formulas/nueva" className="boton-primario">
+            Nueva versión
+          </Link>
+        </div>
       </div>
 
       <div className="mt-6 flex flex-col gap-4">

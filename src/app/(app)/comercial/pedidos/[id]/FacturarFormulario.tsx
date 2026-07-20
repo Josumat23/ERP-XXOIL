@@ -3,7 +3,13 @@
 import { useActionState } from "react";
 import { facturarPedido, type EstadoFormulario } from "../actions";
 
-export default function FacturarFormulario({ pedidoId }: { pedidoId: string }) {
+export default function FacturarFormulario({
+  pedidoId,
+  condicionDefecto = "",
+}: {
+  pedidoId: string;
+  condicionDefecto?: string;
+}) {
   const accion = facturarPedido.bind(null, pedidoId);
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
 
@@ -28,7 +34,7 @@ export default function FacturarFormulario({ pedidoId }: { pedidoId: string }) {
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Condición de pago</span>
-          <select name="condicionPago" required defaultValue="" className="campo-input w-44">
+          <select name="condicionPago" required defaultValue={condicionDefecto} className="campo-input w-44">
             <option value="" disabled>
               Seleccione
             </option>

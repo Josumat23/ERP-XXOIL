@@ -91,7 +91,10 @@ export default async function DetallePedidoPage({
             <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
               Facturar este pedido
             </h2>
-            <FacturarFormulario pedidoId={pedido.id} />
+            <FacturarFormulario
+              pedidoId={pedido.id}
+              condicionDefecto={pedido.cliente.condicionPagoDefecto}
+            />
           </section>
 
           <form

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import BotonImprimir from "@/components/BotonImprimir";
 import ZonaFormulario from "./ZonaFormulario";
 import { alternarActivoZona } from "./actions";
 
@@ -10,7 +11,10 @@ export default async function ZonasPage() {
 
   return (
     <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Zonas</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Zonas</h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">Zonas comerciales para vendedores y clientes.</p>
 
       <div className="mt-6">

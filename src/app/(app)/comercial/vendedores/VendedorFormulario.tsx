@@ -11,6 +11,8 @@ type Props = {
   valoresIniciales?: {
     nombre: string;
     documento: string | null;
+    telefono: string | null;
+    email: string | null;
     tipo: string;
     tasaComision: number;
     zonaId: string | null;
@@ -50,6 +52,15 @@ export default function VendedorFormulario({ accion, zonas, valoresIniciales, te
               </option>
             ))}
           </select>
+        </Campo>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Campo etiqueta="Teléfono">
+          <input name="telefono" defaultValue={valoresIniciales?.telefono ?? ""} className="campo-input" />
+        </Campo>
+        <Campo etiqueta="Correo electrónico">
+          <input name="email" type="email" defaultValue={valoresIniciales?.email ?? ""} className="campo-input" />
         </Campo>
       </div>
 

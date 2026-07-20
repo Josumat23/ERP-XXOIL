@@ -18,11 +18,32 @@ function leerDatos(formData: FormData) {
   const telefono = String(formData.get("telefono") ?? "").trim() || null;
   const email = String(formData.get("email") ?? "").trim() || null;
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
+  const contactoNombre = String(formData.get("contactoNombre") ?? "").trim() || null;
+  const contactoTelefono = String(formData.get("contactoTelefono") ?? "").trim() || null;
+  const cuentaBancaria = String(formData.get("cuentaBancaria") ?? "").trim() || null;
+  const condicionPagoDias = Number(formData.get("condicionPagoDias") ?? 0);
+  const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!razonSocial) return { error: "La razón social es obligatoria." } as const;
   if (ruc && !/^\d{11}$/.test(ruc)) return { error: "El RUC debe tener 11 dígitos." } as const;
+  if (!Number.isInteger(condicionPagoDias) || condicionPagoDias < 0) {
+    return { error: "La condición de pago debe ser 0 (contado) o días de crédito." } as const;
+  }
 
-  return { datos: { razonSocial, ruc, telefono, email, direccion } } as const;
+  return {
+    datos: {
+      razonSocial,
+      ruc,
+      telefono,
+      email,
+      direccion,
+      contactoNombre,
+      contactoTelefono,
+      cuentaBancaria,
+      condicionPagoDias,
+      notas,
+    },
+  } as const;
 }
 
 export async function crearProveedor(

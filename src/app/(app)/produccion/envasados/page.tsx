@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
+import BotonImprimir from "@/components/BotonImprimir";
 
 export default async function EnvasadosPage() {
   const envasados = await prisma.envasado.findMany({
@@ -21,9 +22,12 @@ export default async function EnvasadosPage() {
             Segunda etapa de producción: el granel aprobado se convierte en stock de presentaciones.
           </p>
         </div>
-        <Link href="/produccion/envasados/nuevo" className="boton-primario">
-          Nuevo envasado
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/produccion/envasados/nuevo" className="boton-primario">
+            Nuevo envasado
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
+import BotonImprimir from "@/components/BotonImprimir";
 import CalidadFormulario from "./CalidadFormulario";
 
 export default async function CalidadPage() {
@@ -19,9 +20,12 @@ export default async function CalidadPage() {
 
   return (
     <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Control de calidad
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          Control de calidad
+        </h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">
         Ningún lote granel puede envasarse sin aprobación de calidad.
       </p>

@@ -31,6 +31,11 @@ export default async function EditarProveedorPage({
             telefono: proveedor.telefono,
             email: proveedor.email,
             direccion: proveedor.direccion,
+            contactoNombre: proveedor.contactoNombre,
+            contactoTelefono: proveedor.contactoTelefono,
+            cuentaBancaria: proveedor.cuentaBancaria,
+            condicionPagoDias: proveedor.condicionPagoDias,
+            notas: proveedor.notas,
           }}
           textoBoton="Guardar cambios"
         />

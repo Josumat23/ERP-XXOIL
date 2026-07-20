@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 
 export default async function PanelPage() {
   const hoy = new Date();
@@ -49,9 +50,12 @@ export default async function PanelPage() {
 
   return (
     <div className="max-w-6xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Panel general
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          Panel general
+        </h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">
         {new Intl.DateTimeFormat("es-PE", { dateStyle: "full" }).format(hoy)}
       </p>

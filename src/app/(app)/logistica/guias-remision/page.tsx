@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import BotonImprimir from "@/components/BotonImprimir";
 
 export default async function GuiasRemisionPage() {
   const guias = await prisma.guiaRemision.findMany({
@@ -19,9 +20,12 @@ export default async function GuiasRemisionPage() {
             transporte.
           </p>
         </div>
-        <Link href="/logistica/guias-remision/nueva" className="boton-primario">
-          Nueva guía
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/logistica/guias-remision/nueva" className="boton-primario">
+            Nueva guía
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

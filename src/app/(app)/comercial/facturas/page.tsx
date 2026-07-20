@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_FACTURA, ETIQUETA_CONDICION_PAGO } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -19,7 +20,10 @@ export default async function FacturasPage() {
 
   return (
     <div className="max-w-6xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Facturas</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Facturas</h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">
         Se emiten en el portal SUNAT; aquí se registra el número y se controla la cobranza.
       </p>

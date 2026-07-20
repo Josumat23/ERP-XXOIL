@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
+import BotonImprimir from "@/components/BotonImprimir";
 
 export default async function CuentasPorPagarPage() {
   const cuentas = await prisma.cuentaPorPagar.findMany({
@@ -13,9 +14,12 @@ export default async function CuentasPorPagarPage() {
 
   return (
     <div className="max-w-5xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-        Cuentas por pagar
-      </h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          Cuentas por pagar
+        </h1>
+        <BotonImprimir />
+      </div>
       <p className="text-neutral-500 mt-1">
         Deudas con proveedores generadas por las recepciones de compras. Total pendiente:{" "}
         <span className="font-semibold text-neutral-900 dark:text-neutral-100">

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import BotonImprimir from "@/components/BotonImprimir";
 import { alternarActivoProveedor } from "./actions";
 
 export default async function ProveedoresPage() {
@@ -15,9 +16,12 @@ export default async function ProveedoresPage() {
           <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Proveedores</h1>
           <p className="text-neutral-500 mt-1">Proveedores de materia prima, envases y etiquetas.</p>
         </div>
-        <Link href="/catalogo/proveedores/nuevo" className="boton-primario">
-          Nuevo proveedor
-        </Link>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+          <Link href="/catalogo/proveedores/nuevo" className="boton-primario">
+            Nuevo proveedor
+          </Link>
+        </div>
       </div>
 
       <table className="tabla mt-6">

@@ -110,11 +110,31 @@ export async function facturarPedido(
     await prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.findUnique({
         where: { id },
-        include: { detalles: { include: { presentacion: true } }, vendedor: true },
+        include: {
+          detalles: { include: { presentacion: true } },
+          vendedor: true,
+          cliente: true,
+        },
       });
       if (!pedido) throw new Error("El pedido no existe.");
       if (pedido.estado !== "PENDIENTE") {
         throw new Error("Solo se puede facturar un pedido pendiente.");
+      }
+
+      // Control de límite de crédito (0 = sin límite). Solo aplica a ventas
+      // al crédito: la deuda vigente más esta factura no puede exceder el límite.
+      const limite = pedido.cliente.limiteCredito.toNumber();
+      if (limite > 0 && condicionPago !== "CONTADO") {
+        const pendientes = await tx.factura.findMany({
+          where: { clienteId: pedido.clienteId, estado: "PENDIENTE" },
+        });
+        const deudaActual = pendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
+        const proyectada = deudaActual + pedido.total.toNumber();
+        if (proyectada > limite + 1e-9) {
+          throw new Error(
+            `Límite de crédito excedido: deuda actual S/ ${deudaActual.toFixed(2)} + esta factura S/ ${pedido.total.toNumber().toFixed(2)} supera el límite de S/ ${limite.toFixed(2)}. Cobre pendientes, facture al contado o amplíe el límite en la ficha del cliente.`
+          );
+        }
       }
 
       const fechaEmision = new Date();
