@@ -13,6 +13,18 @@ function hashPassword(password: string): string {
 }
 
 async function main() {
+  // ------------------------------------------------------- configuración empresa
+  await prisma.configuracionEmpresa.upsert({
+    where: { id: "1" },
+    update: {},
+    create: {
+      id: "1",
+      razonSocial: "Grasas y Lubricantes del Perú S.A.C.",
+      ciudad: "Lima, Perú",
+      tasaIgv: 18,
+    },
+  });
+
   // ------------------------------------------------------------------ usuarios
   const usuariosSemilla = [
     { usuario: "admin", nombre: "Administrador General", rol: "ADMIN" as const },

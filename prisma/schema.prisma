@@ -17,6 +17,28 @@ datasource db {
 }
 
 // ---------------------------------------------------------------------------
+// CONFIGURACION DE EMPRESA (equivalente a Company Maintenance de Epicor):
+// datos fiscales que aparecen en los documentos y parámetros como la tasa IGV.
+// ---------------------------------------------------------------------------
+
+model ConfiguracionEmpresa {
+  id              String   @id @default("1")
+  razonSocial     String   @default("Mi Empresa S.A.C.")
+  nombreComercial String?
+  ruc             String?
+  direccion       String?
+  ciudad          String?
+  telefono        String?
+  email           String?
+  sitioWeb        String?
+  moneda          String   @default("PEN")
+  tasaIgv         Decimal  @default(18) // % aplicado al facturar
+  actualizadoEn   DateTime @updatedAt
+
+  @@map("configuracion_empresa")
+}
+
+// ---------------------------------------------------------------------------
 // USUARIOS Y SESIONES
 // ---------------------------------------------------------------------------
 
@@ -507,7 +529,10 @@ model Factura {
   condicionPago    CondicionPago
   fechaEmision     DateTime      @default(now())
   fechaVencimiento DateTime
-  total            Decimal
+  subtotal         Decimal       @default(0) // valor de venta (base imponible)
+  tasaIgv          Decimal       @default(0) // % vigente al emitir (congelado)
+  igv              Decimal       @default(0)
+  total            Decimal // subtotal + IGV
   saldo            Decimal
   estado           EstadoFactura @default(PENDIENTE)
   motivoAnulacion  String?

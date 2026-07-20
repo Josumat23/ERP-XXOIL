@@ -121,18 +121,29 @@ export async function facturarPedido(
         throw new Error("Solo se puede facturar un pedido pendiente.");
       }
 
+      // IGV: los precios del pedido son valor de venta (sin IGV); la tasa
+      // vigente de la configuración de empresa se congela en la factura.
+      const config =
+        (await tx.configuracionEmpresa.findUnique({ where: { id: "1" } })) ??
+        (await tx.configuracionEmpresa.create({ data: { id: "1" } }));
+      const tasaIgv = config.tasaIgv.toNumber();
+      const subtotal = pedido.total.toNumber();
+      const igv = Math.round(subtotal * tasaIgv) / 100;
+      const totalConIgv = subtotal + igv;
+
       // Control de límite de crédito (0 = sin límite). Solo aplica a ventas
-      // al crédito: la deuda vigente más esta factura no puede exceder el límite.
+      // al crédito: la deuda vigente más esta factura (IGV incluido) no puede
+      // exceder el límite.
       const limite = pedido.cliente.limiteCredito.toNumber();
       if (limite > 0 && condicionPago !== "CONTADO") {
         const pendientes = await tx.factura.findMany({
           where: { clienteId: pedido.clienteId, estado: "PENDIENTE" },
         });
         const deudaActual = pendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
-        const proyectada = deudaActual + pedido.total.toNumber();
+        const proyectada = deudaActual + totalConIgv;
         if (proyectada > limite + 1e-9) {
           throw new Error(
-            `Límite de crédito excedido: deuda actual S/ ${deudaActual.toFixed(2)} + esta factura S/ ${pedido.total.toNumber().toFixed(2)} supera el límite de S/ ${limite.toFixed(2)}. Cobre pendientes, facture al contado o amplíe el límite en la ficha del cliente.`
+            `Límite de crédito excedido: deuda actual S/ ${deudaActual.toFixed(2)} + esta factura S/ ${totalConIgv.toFixed(2)} supera el límite de S/ ${limite.toFixed(2)}. Cobre pendientes, facture al contado o amplíe el límite en la ficha del cliente.`
           );
         }
       }
@@ -151,8 +162,11 @@ export async function facturarPedido(
           condicionPago,
           fechaEmision,
           fechaVencimiento,
-          total: pedido.total,
-          saldo: pedido.total,
+          subtotal,
+          tasaIgv,
+          igv,
+          total: totalConIgv,
+          saldo: totalConIgv,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
         },
@@ -178,7 +192,8 @@ export async function facturarPedido(
         if (!mov.ok) throw new Error(mov.error);
       }
 
-      // Comisión generada con la tasa vigente del vendedor
+      // Comisión generada con la tasa vigente del vendedor, sobre la base
+      // imponible (valor de venta sin IGV: el impuesto no es ingreso).
       const tasa = pedido.vendedor.tasaComision.toNumber();
       await tx.comision.create({
         data: {
@@ -186,7 +201,7 @@ export async function facturarPedido(
           facturaId: factura.id,
           tipo: "GENERADA",
           tasa,
-          monto: (pedido.total.toNumber() * tasa) / 100,
+          monto: (subtotal * tasa) / 100,
         },
       });
 

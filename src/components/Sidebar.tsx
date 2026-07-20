@@ -76,7 +76,10 @@ const SECCIONES: Seccion[] = [
   {
     titulo: "Configuración",
     icono: "✦",
-    enlaces: [{ href: "/configuracion/usuarios", etiqueta: "Usuarios", roles: ["ADMIN"] }],
+    enlaces: [
+      { href: "/configuracion/empresa", etiqueta: "Empresa", roles: ["ADMIN"] },
+      { href: "/configuracion/usuarios", etiqueta: "Usuarios", roles: ["ADMIN"] },
+    ],
   },
 ];
 

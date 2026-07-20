@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import MembreteEmpresa from "@/components/MembreteEmpresa";
 
 export default async function DetalleGuiaPage({
   params,
@@ -36,18 +37,7 @@ export default async function DetalleGuiaPage({
       </div>
 
       <div className="documento border border-black/10 dark:border-white/10 rounded-lg p-6 mt-4">
-        <div className="flex items-start justify-between border-b border-black/10 dark:border-white/10 pb-4">
-          <div>
-            <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-              ERP Grasas &amp; Lubricantes
-            </p>
-            <p className="text-sm text-neutral-500">Fabricación de grasas y lubricantes — Perú</p>
-          </div>
-          <div className="text-right">
-            <p className="font-semibold text-neutral-900 dark:text-neutral-100">GUÍA DE REMISIÓN</p>
-            <p className="font-mono text-lg">{guia.numero}</p>
-          </div>
-        </div>
+        <MembreteEmpresa tituloDocumento="GUÍA DE REMISIÓN" numero={guia.numero} />
 
         <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-4 text-sm">
           <Dato etiqueta="Destinatario" valor={guia.cliente.razonSocial} />

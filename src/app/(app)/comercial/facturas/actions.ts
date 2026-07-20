@@ -144,17 +144,19 @@ export async function crearNotaCredito(
         data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : factura.estado },
       });
 
-      // Reversión proporcional de la comisión generada.
+      // Reversión proporcional de la comisión generada. El monto de la NC
+      // incluye IGV: se lleva a base imponible antes de aplicar la tasa.
       const generada = factura.comisiones.find((c) => c.tipo === "GENERADA");
       if (generada) {
         const tasa = generada.tasa.toNumber();
+        const montoBase = monto / (1 + factura.tasaIgv.toNumber() / 100);
         await tx.comision.create({
           data: {
             vendedorId: factura.vendedorId,
             facturaId,
             tipo: "REVERSION",
             tasa,
-            monto: -(monto * tasa) / 100,
+            monto: -(montoBase * tasa) / 100,
             motivo: `Nota de crédito ${numero}`,
           },
         });

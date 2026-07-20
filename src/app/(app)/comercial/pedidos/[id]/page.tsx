@@ -78,7 +78,7 @@ export default async function DetallePedidoPage({
           ))}
           <tr>
             <td colSpan={3} className="text-right font-semibold">
-              Total
+              Total (valor de venta, sin IGV)
             </td>
             <td className="text-right font-semibold">{formatMoneda(pedido.total)}</td>
           </tr>

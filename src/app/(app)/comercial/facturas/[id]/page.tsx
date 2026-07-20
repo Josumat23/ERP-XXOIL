@@ -8,6 +8,7 @@ import {
   ETIQUETA_MEDIO_PAGO,
 } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import MembreteEmpresa from "@/components/MembreteEmpresa";
 import {
   CobroFormulario,
   NotaCreditoFormulario,
@@ -55,6 +56,8 @@ export default async function DetalleFacturaPage({
         <BotonImprimir />
       </div>
 
+      <MembreteEmpresa soloImprimir tituloDocumento="FACTURA" numero={factura.numero} />
+
       <div className="flex items-center gap-3 mt-2">
         <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 font-mono">
           {factura.numero}
@@ -82,7 +85,17 @@ export default async function DetalleFacturaPage({
         </p>
       )}
 
-      <div className="grid grid-cols-3 gap-4 mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
+        <Dato
+          etiqueta="Valor de venta"
+          valor={formatMoneda(
+            factura.subtotal.toNumber() > 0 ? factura.subtotal : factura.total
+          )}
+        />
+        <Dato
+          etiqueta={`IGV (${factura.tasaIgv.toNumber()}%)`}
+          valor={formatMoneda(factura.igv)}
+        />
         <Dato etiqueta="Total" valor={formatMoneda(factura.total)} />
         <Dato etiqueta="Notas de crédito" valor={formatMoneda(totalNC)} />
         <Dato etiqueta="Saldo por cobrar" valor={formatMoneda(factura.saldo)} />
@@ -112,6 +125,26 @@ export default async function DetalleFacturaPage({
                 <td className="text-right">{formatMoneda(d.subtotal)}</td>
               </tr>
             ))}
+            <tr>
+              <td colSpan={3} className="text-right text-neutral-500">
+                Valor de venta
+              </td>
+              <td className="text-right">
+                {formatMoneda(factura.subtotal.toNumber() > 0 ? factura.subtotal : factura.total)}
+              </td>
+            </tr>
+            <tr>
+              <td colSpan={3} className="text-right text-neutral-500">
+                IGV ({factura.tasaIgv.toNumber()}%)
+              </td>
+              <td className="text-right">{formatMoneda(factura.igv)}</td>
+            </tr>
+            <tr>
+              <td colSpan={3} className="text-right font-semibold">
+                Total
+              </td>
+              <td className="text-right font-semibold">{formatMoneda(factura.total)}</td>
+            </tr>
           </tbody>
         </table>
       </section>

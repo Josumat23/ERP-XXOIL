@@ -179,7 +179,10 @@ export default function PedidoFormulario({ clientes, vendedores, presentaciones 
 
       <div className="flex items-center justify-between border-t border-black/10 dark:border-white/10 pt-4">
         <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-          Total: {total.toLocaleString("es-PE", { style: "currency", currency: "PEN" })}
+          Total: {total.toLocaleString("es-PE", { style: "currency", currency: "PEN" })}{" "}
+          <span className="text-xs font-normal text-neutral-500">
+            (valor de venta; el IGV se agrega al facturar)
+          </span>
         </p>
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Crear pedido"}

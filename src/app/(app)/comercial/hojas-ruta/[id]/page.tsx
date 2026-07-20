@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { ETIQUETA_ESTADO_HR } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import MembreteEmpresa from "@/components/MembreteEmpresa";
 import CerrarRutaFormulario from "./CerrarRutaFormulario";
 
 export default async function DetalleHojaRutaPage({
@@ -31,6 +32,7 @@ export default async function DetalleHojaRutaPage({
       </div>
 
       <div className="documento border border-black/10 dark:border-white/10 rounded-lg p-6 mt-4">
+        <MembreteEmpresa soloImprimir tituloDocumento="HOJA DE RUTA" numero={hoja.numero} />
         <div className="flex items-start justify-between border-b border-black/10 dark:border-white/10 pb-4">
           <div>
             <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">

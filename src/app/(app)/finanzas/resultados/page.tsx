@@ -44,6 +44,7 @@ export default async function ResultadosPage({
     }),
     prisma.notaCredito.findMany({
       where: { fecha: { gte: inicio, lt: fin }, factura: { estado: { not: "ANULADA" } } },
+      include: { factura: true },
     }),
     prisma.comision.findMany({ where: { creadoEn: { gte: inicio, lt: fin } } }),
     // Solo movimientos manuales: los automáticos llevan referencia (factura/documento)
@@ -52,8 +53,16 @@ export default async function ResultadosPage({
     }),
   ]);
 
-  const ventasBrutas = facturas.reduce((acc, f) => acc + f.total.toNumber(), 0);
-  const totalNC = notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
+  // Todo el estado se calcula sobre la base imponible (sin IGV): el impuesto
+  // no es ingreso. Facturas antiguas sin desglose usan su total como base.
+  const baseFactura = (f: { subtotal: { toNumber(): number }; total: { toNumber(): number } }) =>
+    f.subtotal.toNumber() > 0 ? f.subtotal.toNumber() : f.total.toNumber();
+
+  const ventasBrutas = facturas.reduce((acc, f) => acc + baseFactura(f), 0);
+  const totalNC = notasCredito.reduce(
+    (acc, nc) => acc + nc.monto.toNumber() / (1 + nc.factura.tasaIgv.toNumber() / 100),
+    0
+  );
   const ventasNetas = ventasBrutas - totalNC;
 
   const costoVentas = facturas.reduce(
@@ -153,11 +162,12 @@ export default async function ResultadosPage({
             </thead>
             <tbody>
               {facturas.map((f) => {
+                const venta = baseFactura(f);
                 const costo = f.pedido.detalles.reduce(
                   (s, d) => s + d.cantidad * d.costoUnitario.toNumber(),
                   0
                 );
-                const margen = f.total.toNumber() - costo;
+                const margen = venta - costo;
                 return (
                   <tr key={f.id}>
                     <td className="font-mono text-xs">
@@ -166,7 +176,7 @@ export default async function ResultadosPage({
                       </Link>
                     </td>
                     <td>{f.cliente.razonSocial}</td>
-                    <td className="text-right">{formatMoneda(f.total)}</td>
+                    <td className="text-right">{formatMoneda(venta)}</td>
                     <td className="text-right">{formatMoneda(costo)}</td>
                     <td
                       className={`text-right font-medium ${

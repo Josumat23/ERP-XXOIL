@@ -69,8 +69,17 @@ body {
   }
 }
 
+/* Elementos que solo aparecen al imprimir (membretes de documentos). */
+.solo-imprimir {
+  display: none;
+}
+
 /* Impresión: solo se imprime el contenido del documento, sin navegación. */
 @media print {
+  .solo-imprimir {
+    display: block !important;
+  }
+
   aside,
   header,
   .no-imprimir {

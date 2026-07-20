@@ -36,7 +36,11 @@ export default async function PanelPage() {
     prisma.pedido.count({ where: { estado: "PENDIENTE" } }),
   ]);
 
-  const ventasMes = facturasMes.reduce((acc, f) => acc + f.total.toNumber(), 0);
+  // Ventas sin IGV (facturas antiguas sin desglose usan su total)
+  const ventasMes = facturasMes.reduce(
+    (acc, f) => acc + (f.subtotal.toNumber() > 0 ? f.subtotal.toNumber() : f.total.toNumber()),
+    0
+  );
   const cuentasPorCobrar = facturasPendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
   const facturasVencidas = facturasPendientes.filter(
     (f) => f.fechaVencimiento < hoy && f.saldo.toNumber() > 0

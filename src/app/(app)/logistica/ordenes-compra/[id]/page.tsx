@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_OC } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import MembreteEmpresa from "@/components/MembreteEmpresa";
 import RecepcionFormulario from "./RecepcionFormulario";
 import AnularOCFormulario from "./AnularOCFormulario";
 
@@ -54,6 +55,7 @@ export default async function DetalleOrdenCompraPage({
       </div>
 
       <div className="documento">
+        <MembreteEmpresa soloImprimir tituloDocumento="ORDEN DE COMPRA" numero={oc.numero} />
         <div className="flex items-center gap-3 mt-2">
           <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 font-mono">
             {oc.numero}
