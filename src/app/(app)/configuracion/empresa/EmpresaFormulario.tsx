@@ -9,8 +9,15 @@ type Props = {
     nombreComercial: string | null;
     ruc: string | null;
     direccion: string | null;
+    direccion2: string | null;
     ciudad: string | null;
+    distrito: string | null;
+    provincia: string | null;
+    departamento: string | null;
+    codigoPostal: string | null;
+    pais: string;
     telefono: string | null;
+    fax: string | null;
     email: string | null;
     sitioWeb: string | null;
     tasaIgv: number;
@@ -66,19 +73,50 @@ export default function EmpresaFormulario({ valores }: Props) {
       </fieldset>
 
       <fieldset className="borde-seccion">
-        <legend className="titulo-seccion">Contacto (aparece en los documentos impresos)</legend>
+        <legend className="titulo-seccion">Dirección (aparece en los documentos impresos)</legend>
         <div className="grid grid-cols-2 gap-4">
           <Campo etiqueta="Dirección">
             <input name="direccion" defaultValue={valores.direccion ?? ""} className="campo-input" />
           </Campo>
-          <Campo etiqueta="Ciudad">
-            <input name="ciudad" defaultValue={valores.ciudad ?? ""} className="campo-input" />
+          <Campo etiqueta="Dirección (línea 2)">
+            <input name="direccion2" defaultValue={valores.direccion2 ?? ""} className="campo-input" />
           </Campo>
         </div>
         <div className="grid grid-cols-3 gap-4">
+          <Campo etiqueta="Distrito">
+            <input name="distrito" defaultValue={valores.distrito ?? ""} className="campo-input" />
+          </Campo>
+          <Campo etiqueta="Provincia">
+            <input name="provincia" defaultValue={valores.provincia ?? ""} className="campo-input" />
+          </Campo>
+          <Campo etiqueta="Departamento">
+            <input name="departamento" defaultValue={valores.departamento ?? ""} className="campo-input" />
+          </Campo>
+        </div>
+        <div className="grid grid-cols-3 gap-4">
+          <Campo etiqueta="Ciudad">
+            <input name="ciudad" defaultValue={valores.ciudad ?? ""} className="campo-input" />
+          </Campo>
+          <Campo etiqueta="Código postal">
+            <input name="codigoPostal" defaultValue={valores.codigoPostal ?? ""} className="campo-input" />
+          </Campo>
+          <Campo etiqueta="País">
+            <input name="pais" defaultValue={valores.pais} className="campo-input" />
+          </Campo>
+        </div>
+      </fieldset>
+
+      <fieldset className="borde-seccion">
+        <legend className="titulo-seccion">Contacto</legend>
+        <div className="grid grid-cols-2 gap-4">
           <Campo etiqueta="Teléfono">
             <input name="telefono" defaultValue={valores.telefono ?? ""} className="campo-input" />
           </Campo>
+          <Campo etiqueta="Fax">
+            <input name="fax" defaultValue={valores.fax ?? ""} className="campo-input" />
+          </Campo>
+        </div>
+        <div className="grid grid-cols-2 gap-4">
           <Campo etiqueta="Correo electrónico">
             <input name="email" type="email" defaultValue={valores.email ?? ""} className="campo-input" />
           </Campo>

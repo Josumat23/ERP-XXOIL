@@ -27,8 +27,15 @@ model ConfiguracionEmpresa {
   nombreComercial String?
   ruc             String?
   direccion       String?
+  direccion2      String?
   ciudad          String?
+  distrito        String?
+  provincia       String?
+  departamento    String?
+  codigoPostal    String?
+  pais            String   @default("Perú")
   telefono        String?
+  fax             String?
   email           String?
   sitioWeb        String?
   moneda          String   @default("PEN")

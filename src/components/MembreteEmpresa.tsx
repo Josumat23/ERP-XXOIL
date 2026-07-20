@@ -27,11 +27,25 @@ export default async function MembreteEmpresa({
           )}
           <p className="text-sm text-neutral-500">
             {config.ruc ? `RUC ${config.ruc}` : ""}
-            {config.ruc && (config.direccion || config.ciudad) ? " · " : ""}
-            {[config.direccion, config.ciudad].filter(Boolean).join(", ")}
+            {config.ruc &&
+            (config.direccion || config.distrito || config.provincia || config.departamento)
+              ? " · "
+              : ""}
+            {[
+              config.direccion,
+              config.direccion2,
+              config.distrito,
+              config.provincia,
+              config.departamento,
+              config.pais,
+            ]
+              .filter(Boolean)
+              .join(", ")}
           </p>
           <p className="text-sm text-neutral-500">
-            {[config.telefono, config.email, config.sitioWeb].filter(Boolean).join(" · ")}
+            {[config.telefono, config.fax && `Fax ${config.fax}`, config.email, config.sitioWeb]
+              .filter(Boolean)
+              .join(" · ")}
           </p>
         </div>
         {tituloDocumento && (

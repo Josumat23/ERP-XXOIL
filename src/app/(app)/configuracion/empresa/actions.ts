@@ -17,8 +17,15 @@ export async function guardarConfiguracionEmpresa(
   const nombreComercial = String(formData.get("nombreComercial") ?? "").trim() || null;
   const ruc = String(formData.get("ruc") ?? "").trim() || null;
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
+  const direccion2 = String(formData.get("direccion2") ?? "").trim() || null;
   const ciudad = String(formData.get("ciudad") ?? "").trim() || null;
+  const distrito = String(formData.get("distrito") ?? "").trim() || null;
+  const provincia = String(formData.get("provincia") ?? "").trim() || null;
+  const departamento = String(formData.get("departamento") ?? "").trim() || null;
+  const codigoPostal = String(formData.get("codigoPostal") ?? "").trim() || null;
+  const pais = String(formData.get("pais") ?? "").trim() || "Perú";
   const telefono = String(formData.get("telefono") ?? "").trim() || null;
+  const fax = String(formData.get("fax") ?? "").trim() || null;
   const email = String(formData.get("email") ?? "").trim() || null;
   const sitioWeb = String(formData.get("sitioWeb") ?? "").trim() || null;
   const tasaIgv = Number(formData.get("tasaIgv"));
@@ -34,8 +41,15 @@ export async function guardarConfiguracionEmpresa(
     nombreComercial,
     ruc,
     direccion,
+    direccion2,
     ciudad,
+    distrito,
+    provincia,
+    departamento,
+    codigoPostal,
+    pais,
     telefono,
+    fax,
     email,
     sitioWeb,
     tasaIgv,
