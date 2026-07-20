@@ -444,6 +444,7 @@ model PedidoDetalle {
   cantidad       Int
   precioUnitario Decimal
   subtotal       Decimal
+  costoUnitario  Decimal @default(0) // snapshot del costo promedio al facturar (para costo de ventas)
 
   pedido       Pedido       @relation(fields: [pedidoId], references: [id])
   presentacion Presentacion @relation(fields: [presentacionId], references: [id])

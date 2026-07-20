@@ -139,8 +139,12 @@ export async function facturarPedido(
       });
       facturaId = factura.id;
 
-      // Salida de stock por cada línea del pedido
+      // Salida de stock por cada línea, congelando el costo de venta del momento
       for (const d of pedido.detalles) {
+        await tx.pedidoDetalle.update({
+          where: { id: d.id },
+          data: { costoUnitario: d.presentacion.costoPromedio },
+        });
         const mov = await registrarMovimiento(tx, {
           tipoItem: "PRESENTACION",
           presentacionId: d.presentacionId,

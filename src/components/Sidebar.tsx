@@ -59,6 +59,7 @@ const SECCIONES: Seccion[] = [
       { href: "/finanzas/cuentas-por-pagar", etiqueta: "Cuentas por pagar" },
       { href: "/finanzas/caja", etiqueta: "Libro de caja" },
       { href: "/finanzas/costos", etiqueta: "Costos y márgenes" },
+      { href: "/finanzas/resultados", etiqueta: "Estado de resultados" },
     ],
   },
   {

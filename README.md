@@ -15,7 +15,7 @@ Interfaz en español, moneda en soles (PEN).
 | **Producción** | Fórmulas versionadas (sin edición: cada cambio es versión nueva) → lotes granel (consumen insumos, registran merma y costo) → control de calidad → envasados (consumen granel + envases, producen stock y calculan costo unitario) |
 | **Logística** | Órdenes de compra a proveedores, recepciones (parciales o totales) que alimentan el kardex y recalculan el costo promedio ponderado, guías de remisión imprimibles (formato SUNAT: transportista, placa, conductor, peso) |
 | **Comercial** | Zonas, vendedores (con básico / solo comisión, tasa individual), clientes, pedidos con detalle, facturas (número SUNAT, contado/15/30 días), cobros, notas de crédito (revierten comisión proporcional), comisiones, hojas de ruta de vendedores con registro de resultados |
-| **Finanzas** | Cuentas por pagar con pagos a proveedores, libro de caja (los cobros y pagos generan movimientos automáticos, admite manuales), reporte de costos y márgenes por presentación |
+| **Finanzas** | Cuentas por pagar con pagos a proveedores, libro de caja (los cobros y pagos generan movimientos automáticos, admite manuales), reporte de costos y márgenes por presentación, estado de resultados mensual (ventas netas − costo de ventas − comisiones − gastos de caja) con costo congelado al facturar |
 | **Configuración** | Usuarios y roles (Administrador, Almacén, Producción, Ventas) |
 
 **Impresión**: factura, orden de compra, guía de remisión y hoja de ruta tienen botón
