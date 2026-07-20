@@ -74,15 +74,20 @@ model Categoria {
 }
 
 model Producto {
-  id            String   @id @default(cuid())
-  empresaId     String   @default("1")
-  categoriaId   String
-  codigo        String
-  nombre        String
-  descripcion   String?
-  activo        Boolean  @default(true)
-  creadoEn      DateTime @default(now())
-  actualizadoEn DateTime @updatedAt
+  id               String   @id @default(cuid())
+  empresaId        String   @default("1")
+  categoriaId      String
+  codigo           String
+  nombre           String
+  descripcion      String?
+  unidadMedidaBase String   @default("kg") // UM en que se produce y controla el granel
+  marca            String?
+  gradoNlgi        String? // grasas: NLGI 000..6
+  viscosidad       String? // aceites: ISO VG / SAE
+  notasTecnicas    String?
+  activo           Boolean  @default(true)
+  creadoEn         DateTime @default(now())
+  actualizadoEn    DateTime @updatedAt
 
   categoria      Categoria      @relation(fields: [categoriaId], references: [id])
   presentaciones Presentacion[]
@@ -98,13 +103,17 @@ model Presentacion {
   productoId    String
   sku           String
   nombre        String
-  contenidoKg   Decimal
-  precio        Decimal
-  moneda        String   @default("PEN")
-  stock         Decimal  @default(0)
-  stockMinimo   Decimal  @default(0)
-  costoPromedio Decimal  @default(0) // costo unitario promedio ponderado (se actualiza al envasar)
-  activo        Boolean  @default(true)
+  contenidoKg     Decimal
+  precio          Decimal
+  moneda          String   @default("PEN")
+  stock           Decimal  @default(0)
+  stockMinimo     Decimal  @default(0)
+  costoPromedio   Decimal  @default(0) // costo unitario promedio ponderado (se actualiza al envasar)
+  codigoBarras    String? // EAN-13
+  pesoBrutoKg     Decimal? // contenido + envase
+  unidadesPorCaja Int?
+  ubicacion       String? // ubicación en almacén (zona-rack-nivel)
+  activo          Boolean  @default(true)
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
 
@@ -119,16 +128,21 @@ model Presentacion {
 }
 
 model Proveedor {
-  id          String   @id @default(cuid())
-  empresaId   String   @default("1")
-  razonSocial String
-  ruc         String?
-  pais        String   @default("Peru")
-  telefono    String?
-  email       String?
-  direccion   String?
-  activo      Boolean  @default(true)
-  creadoEn    DateTime @default(now())
+  id                String   @id @default(cuid())
+  empresaId         String   @default("1")
+  razonSocial       String
+  ruc               String?
+  pais              String   @default("Peru")
+  telefono          String?
+  email             String?
+  direccion         String?
+  contactoNombre    String?
+  contactoTelefono  String?
+  cuentaBancaria    String? // banco y n° de cuenta / CCI para pagos
+  condicionPagoDias Int      @default(0) // 0 = contado
+  notas             String?
+  activo            Boolean  @default(true)
+  creadoEn          DateTime @default(now())
 
   insumos        Insumo[]
   ordenesCompra  OrdenCompra[]
@@ -150,13 +164,16 @@ model Insumo {
   proveedorId   String?
   codigo        String
   nombre        String
-  tipo          TipoInsumo
-  unidadMedida  String
-  stock         Decimal    @default(0)
-  stockMinimo   Decimal    @default(0)
-  costoUnitario Decimal    @default(0)
-  moneda        String     @default("PEN")
-  activo        Boolean    @default(true)
+  tipo            TipoInsumo
+  unidadMedida    String
+  stock           Decimal    @default(0)
+  stockMinimo     Decimal    @default(0)
+  costoUnitario   Decimal    @default(0)
+  moneda          String     @default("PEN")
+  codigoProveedor String? // código del artículo en el catálogo del proveedor
+  ubicacion       String?
+  notas           String?
+  activo          Boolean    @default(true)
   creadoEn      DateTime   @default(now())
   actualizadoEn DateTime   @updatedAt
 
@@ -372,39 +389,53 @@ model Vendedor {
   empresaId    String       @default("1")
   nombre       String
   documento    String?
+  telefono     String?
+  email        String?
   tipo         TipoVendedor
   tasaComision Decimal // porcentaje individual, ej. 3.5
   zonaId       String?
   activo       Boolean      @default(true)
   creadoEn     DateTime     @default(now())
 
-  zona       Zona?      @relation(fields: [zonaId], references: [id])
-  pedidos    Pedido[]
-  facturas   Factura[]
-  comisiones Comision[]
-  hojasRuta  HojaRuta[]
+  zona              Zona?      @relation(fields: [zonaId], references: [id])
+  pedidos           Pedido[]
+  facturas          Factura[]
+  comisiones        Comision[]
+  hojasRuta         HojaRuta[]
+  clientesAsignados Cliente[]  @relation("ClienteVendedor")
 
   @@map("vendedores")
 }
 
 model Cliente {
-  id          String   @id @default(cuid())
-  empresaId   String   @default("1")
-  razonSocial String
-  ruc         String?
-  pais        String   @default("Peru")
-  zonaId      String?
-  direccion   String?
-  telefono    String?
-  email       String?
-  activo      Boolean  @default(true)
-  creadoEn    DateTime @default(now())
+  id                   String        @id @default(cuid())
+  empresaId            String        @default("1")
+  razonSocial          String
+  nombreComercial      String?
+  ruc                  String?
+  pais                 String        @default("Peru")
+  departamento         String?
+  provincia            String?
+  distrito             String?
+  direccion            String?
+  telefono             String?
+  email                String?
+  contactoNombre       String?
+  contactoTelefono     String?
+  zonaId               String?
+  vendedorId           String? // vendedor asignado (se preselecciona en pedidos)
+  limiteCredito        Decimal       @default(0) // 0 = sin límite; se valida al facturar
+  condicionPagoDefecto CondicionPago @default(CONTADO)
+  notas                String?
+  activo               Boolean       @default(true)
+  creadoEn             DateTime      @default(now())
 
-  zona     Zona?     @relation(fields: [zonaId], references: [id])
-  pedidos  Pedido[]
-  facturas Factura[]
-  guias    GuiaRemision[]
-  visitas  HojaRutaVisita[]
+  zona             Zona?            @relation(fields: [zonaId], references: [id])
+  vendedorAsignado Vendedor?        @relation("ClienteVendedor", fields: [vendedorId], references: [id])
+  pedidos          Pedido[]
+  facturas         Factura[]
+  guias            GuiaRemision[]
+  visitas          HojaRutaVisita[]
 
   @@unique([empresaId, ruc])
   @@map("clientes")

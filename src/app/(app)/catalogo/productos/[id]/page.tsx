@@ -40,6 +40,11 @@ export default async function EditarProductoPage({
             nombre: producto.nombre,
             descripcion: producto.descripcion,
             categoriaId: producto.categoriaId,
+            unidadMedidaBase: producto.unidadMedidaBase,
+            marca: producto.marca,
+            gradoNlgi: producto.gradoNlgi,
+            viscosidad: producto.viscosidad,
+            notasTecnicas: producto.notasTecnicas,
           }}
           textoBoton="Guardar cambios"
         />

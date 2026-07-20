@@ -23,6 +23,9 @@ type Props = {
     stock: number;
     stockMinimo: number;
     costoUnitario: number;
+    codigoProveedor: string | null;
+    ubicacion: string | null;
+    notas: string | null;
   };
   textoBoton: string;
 };
@@ -141,6 +144,33 @@ export default function InsumoFormulario({ accion, proveedores, valoresIniciales
           en el kardex.
         </p>
       )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <Campo etiqueta="Código en catálogo del proveedor">
+          <input
+            name="codigoProveedor"
+            defaultValue={valoresIniciales?.codigoProveedor ?? ""}
+            className="campo-input font-mono"
+          />
+        </Campo>
+        <Campo etiqueta="Ubicación en almacén">
+          <input
+            name="ubicacion"
+            defaultValue={valoresIniciales?.ubicacion ?? ""}
+            placeholder="MP-02-1 (zona-rack-nivel)"
+            className="campo-input"
+          />
+        </Campo>
+      </div>
+
+      <Campo etiqueta="Notas">
+        <textarea
+          name="notas"
+          rows={2}
+          defaultValue={valoresIniciales?.notas ?? ""}
+          className="campo-input"
+        />
+      </Campo>
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Guardando..." : textoBoton}

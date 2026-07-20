@@ -16,13 +16,16 @@ function esErrorDuplicado(e: unknown): boolean {
 }
 
 function leerDatos(formData: FormData) {
-  const codigo = String(formData.get("codigo") ?? "").trim();
+  const codigo = String(formData.get("codigo") ?? "").trim().toUpperCase();
   const nombre = String(formData.get("nombre") ?? "").trim();
   const tipo = String(formData.get("tipo") ?? "") as $Enums.TipoInsumo;
   const unidadMedida = String(formData.get("unidadMedida") ?? "").trim();
   const proveedorId = String(formData.get("proveedorId") ?? "") || null;
   const stockMinimo = Number(formData.get("stockMinimo") ?? 0);
   const costoUnitario = Number(formData.get("costoUnitario") ?? 0);
+  const codigoProveedor = String(formData.get("codigoProveedor") ?? "").trim() || null;
+  const ubicacion = String(formData.get("ubicacion") ?? "").trim() || null;
+  const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!codigo || !nombre || !unidadMedida || !TIPOS_VALIDOS.includes(tipo)) {
     return { error: "Código, nombre, tipo y unidad de medida son obligatorios." } as const;
@@ -35,7 +38,19 @@ function leerDatos(formData: FormData) {
   }
 
   return {
-    datos: { codigo, nombre, tipo, unidadMedida, proveedorId, stockMinimo, costoUnitario, moneda: "PEN" },
+    datos: {
+      codigo,
+      nombre,
+      tipo,
+      unidadMedida,
+      proveedorId,
+      stockMinimo,
+      costoUnitario,
+      codigoProveedor,
+      ubicacion,
+      notas,
+      moneda: "PEN",
+    },
   } as const;
 }
 

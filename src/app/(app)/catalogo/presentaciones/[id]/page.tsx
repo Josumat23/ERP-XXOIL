@@ -39,6 +39,10 @@ export default async function EditarPresentacionPage({
             precio: presentacion.precio.toNumber(),
             stock: presentacion.stock.toNumber(),
             stockMinimo: presentacion.stockMinimo.toNumber(),
+            codigoBarras: presentacion.codigoBarras,
+            pesoBrutoKg: presentacion.pesoBrutoKg?.toNumber() ?? null,
+            unidadesPorCaja: presentacion.unidadesPorCaja,
+            ubicacion: presentacion.ubicacion,
           }}
           textoBoton="Guardar cambios"
         />

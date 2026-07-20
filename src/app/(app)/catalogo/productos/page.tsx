@@ -30,6 +30,9 @@ export default async function ProductosPage() {
             <th>Código</th>
             <th>Nombre</th>
             <th>Categoría</th>
+            <th>Marca</th>
+            <th>UM base</th>
+            <th>Especificación</th>
             <th>Presentaciones</th>
             <th>Estado</th>
             <th></th>
@@ -41,6 +44,11 @@ export default async function ProductosPage() {
               <td className="font-mono text-xs">{p.codigo}</td>
               <td>{p.nombre}</td>
               <td>{p.categoria.nombre}</td>
+              <td>{p.marca ?? "—"}</td>
+              <td>{p.unidadMedidaBase}</td>
+              <td className="text-sm text-neutral-500">
+                {p.gradoNlgi ? `NLGI ${p.gradoNlgi}` : p.viscosidad ?? "—"}
+              </td>
               <td>{p._count.presentaciones}</td>
               <td>
                 <span
@@ -77,7 +85,7 @@ export default async function ProductosPage() {
           ))}
           {productos.length === 0 && (
             <tr>
-              <td colSpan={6} className="text-center text-neutral-500 py-6">
+              <td colSpan={9} className="text-center text-neutral-500 py-6">
                 No hay productos registrados todavía.
               </td>
             </tr>

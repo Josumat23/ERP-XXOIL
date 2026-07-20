@@ -58,6 +58,15 @@ body {
   .insignia {
     @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium;
   }
+
+  /* Fieldsets de formularios maestros (ficha estilo ERP) */
+  .borde-seccion {
+    @apply border border-black/10 dark:border-white/10 rounded-lg px-4 pb-4 pt-2;
+  }
+
+  .titulo-seccion {
+    @apply px-2 text-xs font-semibold uppercase tracking-wider text-neutral-500;
+  }
 }
 
 /* Impresión: solo se imprime el contenido del documento, sin navegación. */

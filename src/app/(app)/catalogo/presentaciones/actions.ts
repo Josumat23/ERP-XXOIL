@@ -15,11 +15,17 @@ function esErrorDuplicado(e: unknown): boolean {
 
 function leerDatos(formData: FormData) {
   const productoId = String(formData.get("productoId") ?? "");
-  const sku = String(formData.get("sku") ?? "").trim();
+  const sku = String(formData.get("sku") ?? "").trim().toUpperCase();
   const nombre = String(formData.get("nombre") ?? "").trim();
   const contenidoKg = Number(formData.get("contenidoKg"));
   const precio = Number(formData.get("precio"));
   const stockMinimo = Number(formData.get("stockMinimo") ?? 0);
+  const codigoBarras = String(formData.get("codigoBarras") ?? "").trim() || null;
+  const pesoBrutoRaw = String(formData.get("pesoBrutoKg") ?? "").trim();
+  const pesoBrutoKg = pesoBrutoRaw ? Number(pesoBrutoRaw) : null;
+  const unidadesPorCajaRaw = String(formData.get("unidadesPorCaja") ?? "").trim();
+  const unidadesPorCaja = unidadesPorCajaRaw ? Number(unidadesPorCajaRaw) : null;
+  const ubicacion = String(formData.get("ubicacion") ?? "").trim() || null;
 
   if (!productoId || !sku || !nombre) {
     return { error: "Producto, SKU y nombre son obligatorios." } as const;
@@ -33,9 +39,30 @@ function leerDatos(formData: FormData) {
   if (!Number.isFinite(stockMinimo) || stockMinimo < 0) {
     return { error: "El stock mínimo debe ser un número válido." } as const;
   }
+  if (codigoBarras && !/^\d{8,14}$/.test(codigoBarras)) {
+    return { error: "El código de barras debe tener entre 8 y 14 dígitos (EAN/UPC)." } as const;
+  }
+  if (pesoBrutoKg !== null && (!Number.isFinite(pesoBrutoKg) || pesoBrutoKg < contenidoKg)) {
+    return { error: "El peso bruto debe ser mayor o igual al contenido neto." } as const;
+  }
+  if (unidadesPorCaja !== null && (!Number.isInteger(unidadesPorCaja) || unidadesPorCaja <= 0)) {
+    return { error: "Las unidades por caja deben ser un entero mayor a 0." } as const;
+  }
 
   return {
-    datos: { productoId, sku, nombre, contenidoKg, precio, stockMinimo, moneda: "PEN" },
+    datos: {
+      productoId,
+      sku,
+      nombre,
+      contenidoKg,
+      precio,
+      stockMinimo,
+      codigoBarras,
+      pesoBrutoKg,
+      unidadesPorCaja,
+      ubicacion,
+      moneda: "PEN",
+    },
   } as const;
 }
 

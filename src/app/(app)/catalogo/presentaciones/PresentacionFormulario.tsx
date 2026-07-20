@@ -17,6 +17,10 @@ type Props = {
     precio: number;
     stock: number;
     stockMinimo: number;
+    codigoBarras: string | null;
+    pesoBrutoKg: number | null;
+    unidadesPorCaja: number | null;
+    ubicacion: string | null;
   };
   textoBoton: string;
 };
@@ -130,6 +134,49 @@ export default function PresentacionFormulario({
           en el kardex.
         </p>
       )}
+
+      <div className="grid grid-cols-2 gap-4">
+        <Campo etiqueta="Código de barras (EAN-13)">
+          <input
+            name="codigoBarras"
+            defaultValue={valoresIniciales?.codigoBarras ?? ""}
+            placeholder="7750000000000"
+            maxLength={14}
+            className="campo-input font-mono"
+          />
+        </Campo>
+        <Campo etiqueta="Peso bruto (kg, con envase)">
+          <input
+            name="pesoBrutoKg"
+            type="number"
+            step="0.001"
+            min="0"
+            defaultValue={valoresIniciales?.pesoBrutoKg ?? ""}
+            className="campo-input"
+          />
+        </Campo>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Campo etiqueta="Unidades por caja">
+          <input
+            name="unidadesPorCaja"
+            type="number"
+            step="1"
+            min="1"
+            defaultValue={valoresIniciales?.unidadesPorCaja ?? ""}
+            className="campo-input"
+          />
+        </Campo>
+        <Campo etiqueta="Ubicación en almacén">
+          <input
+            name="ubicacion"
+            defaultValue={valoresIniciales?.ubicacion ?? ""}
+            placeholder="A-01-2 (zona-rack-nivel)"
+            className="campo-input"
+          />
+        </Campo>
+      </div>
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Guardando..." : textoBoton}

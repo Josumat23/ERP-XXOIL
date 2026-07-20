@@ -40,6 +40,9 @@ export default async function EditarInsumoPage({
             stock: insumo.stock.toNumber(),
             stockMinimo: insumo.stockMinimo.toNumber(),
             costoUnitario: insumo.costoUnitario.toNumber(),
+            codigoProveedor: insumo.codigoProveedor,
+            ubicacion: insumo.ubicacion,
+            notas: insumo.notas,
           }}
           textoBoton="Guardar cambios"
         />

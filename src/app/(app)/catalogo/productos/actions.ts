@@ -12,6 +12,36 @@ function esErrorDuplicado(e: unknown): boolean {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
 
+function leerDatos(formData: FormData) {
+  const codigo = String(formData.get("codigo") ?? "").trim().toUpperCase();
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  const descripcion = String(formData.get("descripcion") ?? "").trim() || null;
+  const categoriaId = String(formData.get("categoriaId") ?? "");
+  const unidadMedidaBase = String(formData.get("unidadMedidaBase") ?? "kg").trim() || "kg";
+  const marca = String(formData.get("marca") ?? "").trim() || null;
+  const gradoNlgi = String(formData.get("gradoNlgi") ?? "").trim() || null;
+  const viscosidad = String(formData.get("viscosidad") ?? "").trim() || null;
+  const notasTecnicas = String(formData.get("notasTecnicas") ?? "").trim() || null;
+
+  if (!codigo || !nombre || !categoriaId) {
+    return { error: "Código, nombre y categoría son obligatorios." } as const;
+  }
+
+  return {
+    datos: {
+      codigo,
+      nombre,
+      descripcion,
+      categoriaId,
+      unidadMedidaBase,
+      marca,
+      gradoNlgi,
+      viscosidad,
+      notasTecnicas,
+    },
+  } as const;
+}
+
 export async function crearProducto(
   _prevState: EstadoFormulario,
   formData: FormData
@@ -19,22 +49,14 @@ export async function crearProducto(
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
 
-  const codigo = String(formData.get("codigo") ?? "").trim();
-  const nombre = String(formData.get("nombre") ?? "").trim();
-  const descripcion = String(formData.get("descripcion") ?? "").trim();
-  const categoriaId = String(formData.get("categoriaId") ?? "");
-
-  if (!codigo || !nombre || !categoriaId) {
-    return { error: "Código, nombre y categoría son obligatorios." };
-  }
+  const resultado = leerDatos(formData);
+  if ("error" in resultado) return resultado;
 
   try {
-    await prisma.producto.create({
-      data: { codigo, nombre, descripcion: descripcion || null, categoriaId },
-    });
+    await prisma.producto.create({ data: resultado.datos });
   } catch (e) {
     if (esErrorDuplicado(e)) {
-      return { error: `Ya existe un producto con el código "${codigo}".` };
+      return { error: `Ya existe un producto con el código "${resultado.datos.codigo}".` };
     }
     throw e;
   }
@@ -51,23 +73,14 @@ export async function actualizarProducto(
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
 
-  const codigo = String(formData.get("codigo") ?? "").trim();
-  const nombre = String(formData.get("nombre") ?? "").trim();
-  const descripcion = String(formData.get("descripcion") ?? "").trim();
-  const categoriaId = String(formData.get("categoriaId") ?? "");
-
-  if (!codigo || !nombre || !categoriaId) {
-    return { error: "Código, nombre y categoría son obligatorios." };
-  }
+  const resultado = leerDatos(formData);
+  if ("error" in resultado) return resultado;
 
   try {
-    await prisma.producto.update({
-      where: { id },
-      data: { codigo, nombre, descripcion: descripcion || null, categoriaId },
-    });
+    await prisma.producto.update({ where: { id }, data: resultado.datos });
   } catch (e) {
     if (esErrorDuplicado(e)) {
-      return { error: `Ya existe un producto con el código "${codigo}".` };
+      return { error: `Ya existe un producto con el código "${resultado.datos.codigo}".` };
     }
     throw e;
   }
