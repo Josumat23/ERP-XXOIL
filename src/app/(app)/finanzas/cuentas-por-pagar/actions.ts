@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { postearPagoProveedor } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -73,6 +74,16 @@ export async function registrarPagoProveedor(
         where: { id: cuentaId },
         data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
       });
+
+      await postearPagoProveedor(
+        tx,
+        {
+          documentoProveedor: cuenta.numeroDocumento,
+          proveedor: cuenta.proveedor.razonSocial,
+          monto,
+        },
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      );
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };

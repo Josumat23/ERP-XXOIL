@@ -9,6 +9,7 @@ import {
   siguienteNumeroOrdenCompra,
   siguienteNumeroRecepcion,
 } from "@/lib/correlativos";
+import { postearRecepcionCompra } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -246,6 +247,17 @@ export async function registrarRecepcion(
           usuarioNombre: auth.usuario.nombre,
         },
       });
+
+      await postearRecepcionCompra(
+        tx,
+        {
+          numeroRecepcion: numero,
+          documentoProveedor: numeroDocumento,
+          proveedor: oc.proveedor.razonSocial,
+          total: totalRecepcion,
+        },
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      );
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };

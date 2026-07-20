@@ -6,6 +6,11 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { registrarMovimiento } from "@/lib/inventario";
 import { avanzarSerie } from "@/lib/series";
+import {
+  postearCobro,
+  postearNotaCredito,
+  postearAnulacionFactura,
+} from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -80,6 +85,12 @@ export async function registrarCobro(
           estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE",
         },
       });
+
+      await postearCobro(
+        tx,
+        { numeroFactura: factura.numero, monto },
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      );
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
@@ -165,6 +176,19 @@ export async function crearNotaCredito(
       }
 
       await avanzarSerie(tx, serieId);
+
+      const montoBaseNC = monto / (1 + factura.tasaIgv.toNumber() / 100);
+      await postearNotaCredito(
+        tx,
+        {
+          numeroNC: numero,
+          numeroFactura: factura.numero,
+          montoBase: montoBaseNC,
+          montoIgv: monto - montoBaseNC,
+          montoTotal: monto,
+        },
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      );
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -261,6 +285,26 @@ export async function anularFactura(
         where: { id: factura.pedidoId },
         data: { estado: "ANULADO" },
       });
+
+      const costoVentasAnulado = factura.pedido.detalles.reduce(
+        (acc, d) => acc + d.cantidad * d.costoUnitario.toNumber(),
+        0
+      );
+      await postearAnulacionFactura(
+        tx,
+        {
+          numeroFactura: factura.numero,
+          subtotal:
+            factura.subtotal.toNumber() > 0
+              ? factura.subtotal.toNumber()
+              : factura.total.toNumber(),
+          igv: factura.igv.toNumber(),
+          total: factura.total.toNumber(),
+          costoVentas: costoVentasAnulado,
+          motivo,
+        },
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      );
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };

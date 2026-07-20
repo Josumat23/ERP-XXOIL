@@ -69,11 +69,29 @@ const MODULOS: Modulo[] = [
   {
     titulo: "Finanzas",
     icono: "◇",
-    enlaces: [
-      { href: "/finanzas/cuentas-por-pagar", etiqueta: "Cuentas por pagar" },
-      { href: "/finanzas/caja", etiqueta: "Libro de caja" },
-      { href: "/finanzas/costos", etiqueta: "Costos y márgenes" },
-      { href: "/finanzas/resultados", etiqueta: "Estado de resultados" },
+    grupos: [
+      {
+        titulo: "Tesorería",
+        enlaces: [
+          { href: "/finanzas/cuentas-por-pagar", etiqueta: "Cuentas por pagar" },
+          { href: "/finanzas/caja", etiqueta: "Libro de caja" },
+        ],
+      },
+      {
+        titulo: "Contabilidad",
+        enlaces: [
+          { href: "/finanzas/asientos", etiqueta: "Asientos contables" },
+          { href: "/finanzas/balance", etiqueta: "Balance de comprobación" },
+          { href: "/finanzas/plan-cuentas", etiqueta: "Plan de cuentas", roles: ["ADMIN"] },
+        ],
+      },
+      {
+        titulo: "Reportes",
+        enlaces: [
+          { href: "/finanzas/costos", etiqueta: "Costos y márgenes" },
+          { href: "/finanzas/resultados", etiqueta: "Estado de resultados" },
+        ],
+      },
     ],
   },
   {

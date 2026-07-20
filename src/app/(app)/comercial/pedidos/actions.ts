@@ -9,6 +9,7 @@ import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteNumeroPedido } from "@/lib/correlativos";
 import { DIAS_CONDICION } from "@/lib/etiquetas";
 import { avanzarSerie } from "@/lib/series";
+import { postearVenta } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -176,7 +177,9 @@ export async function facturarPedido(
       facturaId = factura.id;
 
       // Salida de stock por cada línea, congelando el costo de venta del momento
+      let costoVentas = 0;
       for (const d of pedido.detalles) {
+        costoVentas += d.cantidad * d.presentacion.costoPromedio.toNumber();
         await tx.pedidoDetalle.update({
           where: { id: d.id },
           data: { costoUnitario: d.presentacion.costoPromedio },
@@ -209,6 +212,21 @@ export async function facturarPedido(
 
       await tx.pedido.update({ where: { id }, data: { estado: "FACTURADO" } });
       await avanzarSerie(tx, serieId);
+
+      // Asiento contable automático (best-effort: sin controles configurados
+      // la venta se registra igual, solo sin asiento)
+      await postearVenta(
+        tx,
+        {
+          numeroFactura: numero,
+          cliente: pedido.cliente.razonSocial,
+          subtotal,
+          igv,
+          total: totalConIgv,
+          costoVentas,
+        },
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      );
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {

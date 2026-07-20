@@ -998,3 +998,131 @@ model PeriodoFiscal {
   @@unique([empresaId, anio, mes])
   @@map("periodos_fiscales")
 }
+
+// ---------------------------------------------------------------------------
+// CONTABILIDAD — FASE 3 (equivalente reducido al General Ledger de Epicor:
+// Chart of Accounts, Books, Journal Entry, GL Controls).
+//
+// Principio: los asientos son inmutables — nunca se editan ni borran; una
+// corrección se hace con un asiento de reverso (mismo patrón del kardex).
+// ---------------------------------------------------------------------------
+
+enum TipoCuenta {
+  ACTIVO
+  PASIVO
+  PATRIMONIO
+  INGRESO
+  GASTO
+}
+
+model PlanCuentas {
+  id          String   @id @default(cuid())
+  empresaId   String   @default("1")
+  codigo      String // ej. PCGE (Plan Contable General Empresarial)
+  nombre      String
+  esMaestro   Boolean  @default(false)
+  creadoEn    DateTime @default(now())
+
+  cuentas CuentaContable[]
+
+  @@unique([empresaId, codigo])
+  @@map("planes_cuentas")
+}
+
+model CuentaContable {
+  id            String     @id @default(cuid())
+  planCuentasId String
+  codigo        String // ej. 1041, 1212, 7011 (estilo PCGE)
+  nombre        String
+  tipo          TipoCuenta
+  activo        Boolean    @default(true)
+  creadoEn      DateTime   @default(now())
+
+  planCuentas PlanCuentas       @relation(fields: [planCuentasId], references: [id])
+  detalles    AsientoDetalle[]
+  controles   ControlContable[]
+
+  @@unique([planCuentasId, codigo])
+  @@map("cuentas_contables")
+}
+
+model Libro {
+  id        String   @id @default(cuid())
+  empresaId String   @default("1")
+  codigo    String // ej. DIARIO
+  nombre    String
+  moneda    String   @default("PEN")
+  creadoEn  DateTime @default(now())
+
+  asientos AsientoContable[]
+
+  @@unique([empresaId, codigo])
+  @@map("libros")
+}
+
+enum OrigenAsiento {
+  MANUAL
+  VENTA
+  COBRO
+  NOTA_CREDITO
+  ANULACION_VENTA
+  COMPRA
+  PAGO_PROVEEDOR
+  REVERSO
+}
+
+model AsientoContable {
+  id            String        @id @default(cuid())
+  empresaId     String        @default("1")
+  libroId       String
+  numero        String        @unique // AS-00001
+  fecha         DateTime      @default(now())
+  anio          Int // período fiscal al que pertenece
+  mes           Int
+  origen        OrigenAsiento @default(MANUAL)
+  glosa         String // descripción del asiento
+  referencia    String? // nro de factura, OC, etc.
+  reversadoPor  String? // numero del asiento de reverso, si existe
+  reversaA      String? // numero del asiento que este asiento reversa
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime      @default(now())
+
+  libro    Libro            @relation(fields: [libroId], references: [id])
+  detalles AsientoDetalle[]
+
+  @@index([anio, mes])
+  @@map("asientos_contables")
+}
+
+model AsientoDetalle {
+  id        String  @id @default(cuid())
+  asientoId String
+  cuentaId  String
+  glosa     String?
+  debe      Decimal @default(0)
+  haber     Decimal @default(0)
+
+  asiento AsientoContable @relation(fields: [asientoId], references: [id])
+  cuenta  CuentaContable  @relation(fields: [cuentaId], references: [id])
+
+  @@index([cuentaId])
+  @@map("asiento_detalles")
+}
+
+// Mapa transacción → cuenta contable (GL Controls de Epicor). Cada clave la
+// usa la contabilización automática; si falta, la transacción operativa se
+// registra igual pero sin asiento (se avisa en la pantalla de controles).
+model ControlContable {
+  id        String @id @default(cuid())
+  empresaId String @default("1")
+  clave     String // CUENTAS_POR_COBRAR, VENTAS, IGV_POR_PAGAR, COSTO_VENTAS,
+  //                  INVENTARIO_PT, INVENTARIO_INSUMOS, CAJA_BANCOS,
+  //                  CUENTAS_POR_PAGAR, DEVOLUCIONES
+  cuentaId  String
+
+  cuenta CuentaContable @relation(fields: [cuentaId], references: [id])
+
+  @@unique([empresaId, clave])
+  @@map("controles_contables")
+}

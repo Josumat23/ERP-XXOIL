@@ -16,6 +16,8 @@ Interfaz en español, moneda en soles (PEN).
 | **Logística** | Órdenes de compra a proveedores, recepciones (parciales o totales) que alimentan el kardex y recalculan el costo promedio ponderado, guías de remisión imprimibles (formato SUNAT: transportista, placa, conductor, peso) |
 | **Comercial** | Zonas, vendedores (con básico / solo comisión, tasa individual), clientes, pedidos con detalle, facturas (número SUNAT, contado/15/30 días), cobros, notas de crédito (revierten comisión proporcional), comisiones, hojas de ruta de vendedores con registro de resultados |
 | **Finanzas** | Cuentas por pagar con pagos a proveedores, libro de caja (los cobros y pagos generan movimientos automáticos, admite manuales), reporte de costos y márgenes por presentación, estado de resultados mensual (ventas netas − costo de ventas − comisiones − gastos de caja) con costo congelado al facturar |
+| **Contabilidad** | Plan de cuentas (codificación PCGE), controles contables (mapa transacción → cuenta), asientos automáticos por cada venta/cobro/NC/anulación/compra/pago (best-effort: sin cuentas configuradas la operación sigue, solo sin asiento), asientos manuales cuadrados, reversos inmutables y balance de comprobación mensual |
+| **Configuración del Sistema** | Empresa (membrete + IGV), usuarios, series de documentos SUNAT con correlativo sugerido, almacenes y zonas, unidades de medida, grupos de seguridad (referencia), calendario fiscal con cierre de períodos que bloquea la contabilización |
 | **Configuración** | Usuarios y roles (Administrador, Almacén, Producción, Ventas) |
 
 **Impresión**: factura, orden de compra, guía de remisión y hoja de ruta tienen botón

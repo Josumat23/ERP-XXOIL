@@ -369,6 +369,65 @@ async function main() {
     });
   }
 
+  // -------------------------------------------------------- Contabilidad (fase 3)
+
+  const plan = await prisma.planCuentas.upsert({
+    where: { empresaId_codigo: { empresaId: "1", codigo: "PCGE" } },
+    update: {},
+    create: { codigo: "PCGE", nombre: "Plan Contable General Empresarial", esMaestro: true },
+  });
+
+  // Plan de cuentas mínimo viable para una fábrica (codificación PCGE)
+  const cuentasSemilla: { codigo: string; nombre: string; tipo: "ACTIVO" | "PASIVO" | "PATRIMONIO" | "INGRESO" | "GASTO" }[] = [
+    { codigo: "1041", nombre: "Caja y bancos — cuentas corrientes", tipo: "ACTIVO" },
+    { codigo: "1212", nombre: "Cuentas por cobrar comerciales — terceros", tipo: "ACTIVO" },
+    { codigo: "2411", nombre: "Materias primas", tipo: "ACTIVO" },
+    { codigo: "2111", nombre: "Productos terminados", tipo: "ACTIVO" },
+    { codigo: "4011", nombre: "IGV por pagar", tipo: "PASIVO" },
+    { codigo: "4212", nombre: "Cuentas por pagar comerciales — terceros", tipo: "PASIVO" },
+    { codigo: "5011", nombre: "Capital social", tipo: "PATRIMONIO" },
+    { codigo: "7011", nombre: "Ventas de productos terminados", tipo: "INGRESO" },
+    { codigo: "7411", nombre: "Devoluciones y descuentos concedidos", tipo: "GASTO" },
+    { codigo: "6911", nombre: "Costo de ventas — productos terminados", tipo: "GASTO" },
+    { codigo: "6311", nombre: "Gastos de servicios — operativos", tipo: "GASTO" },
+  ];
+  const cuentaPorCodigo = new Map<string, string>();
+  for (const c of cuentasSemilla) {
+    const cuenta = await prisma.cuentaContable.upsert({
+      where: { planCuentasId_codigo: { planCuentasId: plan.id, codigo: c.codigo } },
+      update: {},
+      create: { planCuentasId: plan.id, ...c },
+    });
+    cuentaPorCodigo.set(c.codigo, cuenta.id);
+  }
+
+  await prisma.libro.upsert({
+    where: { empresaId_codigo: { empresaId: "1", codigo: "DIARIO" } },
+    update: {},
+    create: { codigo: "DIARIO", nombre: "Libro diario" },
+  });
+
+  // Controles contables: qué cuenta usa cada asiento automático
+  const controlesSemilla: [string, string][] = [
+    ["CUENTAS_POR_COBRAR", "1212"],
+    ["VENTAS", "7011"],
+    ["IGV_POR_PAGAR", "4011"],
+    ["COSTO_VENTAS", "6911"],
+    ["INVENTARIO_PT", "2111"],
+    ["INVENTARIO_INSUMOS", "2411"],
+    ["CAJA_BANCOS", "1041"],
+    ["CUENTAS_POR_PAGAR", "4212"],
+    ["DEVOLUCIONES", "7411"],
+  ];
+  for (const [clave, codigo] of controlesSemilla) {
+    const cuentaId = cuentaPorCodigo.get(codigo)!;
+    await prisma.controlContable.upsert({
+      where: { empresaId_clave: { empresaId: "1", clave } },
+      update: {},
+      create: { clave, cuentaId },
+    });
+  }
+
   console.log("Seed completo. Usuarios: admin / almacen / operario / ventas (clave: cambiar123)");
 }
 
