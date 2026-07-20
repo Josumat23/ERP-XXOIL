@@ -73,7 +73,7 @@ export default async function KardexPage({
       </form>
 
       <div className="mt-5 overflow-x-auto">
-        <table className="tabla">
+        <table className="tabla tabla-densa">
           <thead>
             <tr>
               <th>Fecha</th>

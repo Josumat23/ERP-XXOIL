@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import FichaTabs from "@/components/FichaTabs";
 import type { EstadoFormulario } from "./actions";
 
 type Opcion = { id: string; nombre: string };
@@ -47,120 +48,191 @@ export default function ClienteFormulario({
         </p>
       )}
 
-      <fieldset className="borde-seccion">
-        <legend className="titulo-seccion">Identificación</legend>
-        <div className="grid grid-cols-2 gap-4">
-          <Campo etiqueta="Razón social *">
-            <input name="razonSocial" required defaultValue={valoresIniciales?.razonSocial} className="campo-input" />
-          </Campo>
-          <Campo etiqueta="Nombre comercial">
-            <input
-              name="nombreComercial"
-              defaultValue={valoresIniciales?.nombreComercial ?? ""}
-              placeholder="Cómo se le conoce en el mercado"
-              className="campo-input"
-            />
-          </Campo>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Campo etiqueta="RUC / DNI">
-            <input
-              name="ruc"
-              defaultValue={valoresIniciales?.ruc ?? ""}
-              maxLength={11}
-              className="campo-input font-mono"
-            />
-          </Campo>
-          <Campo etiqueta="Correo electrónico">
-            <input name="email" type="email" defaultValue={valoresIniciales?.email ?? ""} className="campo-input" />
-          </Campo>
-        </div>
-      </fieldset>
-
-      <fieldset className="borde-seccion">
-        <legend className="titulo-seccion">Ubicación</legend>
-        <div className="grid grid-cols-3 gap-4">
-          <Campo etiqueta="Departamento">
-            <input name="departamento" defaultValue={valoresIniciales?.departamento ?? ""} placeholder="Lima" className="campo-input" />
-          </Campo>
-          <Campo etiqueta="Provincia">
-            <input name="provincia" defaultValue={valoresIniciales?.provincia ?? ""} placeholder="Lima" className="campo-input" />
-          </Campo>
-          <Campo etiqueta="Distrito">
-            <input name="distrito" defaultValue={valoresIniciales?.distrito ?? ""} placeholder="Comas" className="campo-input" />
-          </Campo>
-        </div>
-        <Campo etiqueta="Dirección">
-          <input name="direccion" defaultValue={valoresIniciales?.direccion ?? ""} className="campo-input" />
-        </Campo>
-      </fieldset>
-
-      <fieldset className="borde-seccion">
-        <legend className="titulo-seccion">Contacto</legend>
-        <div className="grid grid-cols-3 gap-4">
-          <Campo etiqueta="Teléfono de la empresa">
-            <input name="telefono" defaultValue={valoresIniciales?.telefono ?? ""} className="campo-input" />
-          </Campo>
-          <Campo etiqueta="Persona de contacto">
-            <input name="contactoNombre" defaultValue={valoresIniciales?.contactoNombre ?? ""} className="campo-input" />
-          </Campo>
-          <Campo etiqueta="Teléfono del contacto">
-            <input name="contactoTelefono" defaultValue={valoresIniciales?.contactoTelefono ?? ""} className="campo-input" />
-          </Campo>
-        </div>
-      </fieldset>
-
-      <fieldset className="borde-seccion">
-        <legend className="titulo-seccion">Condiciones comerciales</legend>
-        <div className="grid grid-cols-2 gap-4">
-          <Campo etiqueta="Zona">
-            <select name="zonaId" defaultValue={valoresIniciales?.zonaId ?? ""} className="campo-input">
-              <option value="">Sin zona asignada</option>
-              {zonas.map((z) => (
-                <option key={z.id} value={z.id}>
-                  {z.nombre}
-                </option>
-              ))}
-            </select>
-          </Campo>
-          <Campo etiqueta="Vendedor asignado">
-            <select name="vendedorId" defaultValue={valoresIniciales?.vendedorId ?? ""} className="campo-input">
-              <option value="">Sin vendedor asignado</option>
-              {vendedores.map((v) => (
-                <option key={v.id} value={v.id}>
-                  {v.nombre}
-                </option>
-              ))}
-            </select>
-          </Campo>
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Campo etiqueta="Límite de crédito S/ (0 = sin límite)">
-            <input
-              name="limiteCredito"
-              type="number"
-              step="0.01"
-              min="0"
-              defaultValue={valoresIniciales?.limiteCredito ?? 0}
-              className="campo-input"
-            />
-          </Campo>
-          <Campo etiqueta="Condición de pago habitual">
-            <select
-              name="condicionPagoDefecto"
-              defaultValue={valoresIniciales?.condicionPagoDefecto ?? "CONTADO"}
-              className="campo-input"
-            >
-              <option value="CONTADO">Contado</option>
-              <option value="DIAS_15">Crédito 15 días</option>
-              <option value="DIAS_30">Crédito 30 días</option>
-            </select>
-          </Campo>
-        </div>
-        <Campo etiqueta="Notas">
-          <textarea name="notas" rows={2} defaultValue={valoresIniciales?.notas ?? ""} className="campo-input" />
-        </Campo>
-      </fieldset>
+      <FichaTabs
+        pestanas={[
+          {
+            id: "identificacion",
+            etiqueta: "Identificación",
+            contenido: (
+              <div className="borde-seccion">
+                <div className="grid grid-cols-2 gap-4">
+                  <Campo etiqueta="Razón social *">
+                    <input
+                      name="razonSocial"
+                      required
+                      defaultValue={valoresIniciales?.razonSocial}
+                      className="campo-input"
+                    />
+                  </Campo>
+                  <Campo etiqueta="Nombre comercial">
+                    <input
+                      name="nombreComercial"
+                      defaultValue={valoresIniciales?.nombreComercial ?? ""}
+                      placeholder="Cómo se le conoce en el mercado"
+                      className="campo-input"
+                    />
+                  </Campo>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Campo etiqueta="RUC / DNI">
+                    <input
+                      name="ruc"
+                      defaultValue={valoresIniciales?.ruc ?? ""}
+                      maxLength={11}
+                      className="campo-input font-mono"
+                    />
+                  </Campo>
+                  <Campo etiqueta="Correo electrónico">
+                    <input
+                      name="email"
+                      type="email"
+                      defaultValue={valoresIniciales?.email ?? ""}
+                      className="campo-input"
+                    />
+                  </Campo>
+                </div>
+              </div>
+            ),
+          },
+          {
+            id: "ubicacion",
+            etiqueta: "Ubicación",
+            contenido: (
+              <div className="borde-seccion">
+                <div className="grid grid-cols-3 gap-4">
+                  <Campo etiqueta="Departamento">
+                    <input
+                      name="departamento"
+                      defaultValue={valoresIniciales?.departamento ?? ""}
+                      placeholder="Lima"
+                      className="campo-input"
+                    />
+                  </Campo>
+                  <Campo etiqueta="Provincia">
+                    <input
+                      name="provincia"
+                      defaultValue={valoresIniciales?.provincia ?? ""}
+                      placeholder="Lima"
+                      className="campo-input"
+                    />
+                  </Campo>
+                  <Campo etiqueta="Distrito">
+                    <input
+                      name="distrito"
+                      defaultValue={valoresIniciales?.distrito ?? ""}
+                      placeholder="Comas"
+                      className="campo-input"
+                    />
+                  </Campo>
+                </div>
+                <Campo etiqueta="Dirección">
+                  <input
+                    name="direccion"
+                    defaultValue={valoresIniciales?.direccion ?? ""}
+                    className="campo-input"
+                  />
+                </Campo>
+              </div>
+            ),
+          },
+          {
+            id: "contacto",
+            etiqueta: "Contacto",
+            contenido: (
+              <div className="borde-seccion">
+                <div className="grid grid-cols-3 gap-4">
+                  <Campo etiqueta="Teléfono de la empresa">
+                    <input
+                      name="telefono"
+                      defaultValue={valoresIniciales?.telefono ?? ""}
+                      className="campo-input"
+                    />
+                  </Campo>
+                  <Campo etiqueta="Persona de contacto">
+                    <input
+                      name="contactoNombre"
+                      defaultValue={valoresIniciales?.contactoNombre ?? ""}
+                      className="campo-input"
+                    />
+                  </Campo>
+                  <Campo etiqueta="Teléfono del contacto">
+                    <input
+                      name="contactoTelefono"
+                      defaultValue={valoresIniciales?.contactoTelefono ?? ""}
+                      className="campo-input"
+                    />
+                  </Campo>
+                </div>
+              </div>
+            ),
+          },
+          {
+            id: "condiciones",
+            etiqueta: "Condiciones comerciales",
+            contenido: (
+              <div className="borde-seccion">
+                <div className="grid grid-cols-2 gap-4">
+                  <Campo etiqueta="Zona">
+                    <select name="zonaId" defaultValue={valoresIniciales?.zonaId ?? ""} className="campo-input">
+                      <option value="">Sin zona asignada</option>
+                      {zonas.map((z) => (
+                        <option key={z.id} value={z.id}>
+                          {z.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </Campo>
+                  <Campo etiqueta="Vendedor asignado">
+                    <select
+                      name="vendedorId"
+                      defaultValue={valoresIniciales?.vendedorId ?? ""}
+                      className="campo-input"
+                    >
+                      <option value="">Sin vendedor asignado</option>
+                      {vendedores.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.nombre}
+                        </option>
+                      ))}
+                    </select>
+                  </Campo>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <Campo etiqueta="Límite de crédito S/ (0 = sin límite)">
+                    <input
+                      name="limiteCredito"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      defaultValue={valoresIniciales?.limiteCredito ?? 0}
+                      className="campo-input"
+                    />
+                  </Campo>
+                  <Campo etiqueta="Condición de pago habitual">
+                    <select
+                      name="condicionPagoDefecto"
+                      defaultValue={valoresIniciales?.condicionPagoDefecto ?? "CONTADO"}
+                      className="campo-input"
+                    >
+                      <option value="CONTADO">Contado</option>
+                      <option value="DIAS_15">Crédito 15 días</option>
+                      <option value="DIAS_30">Crédito 30 días</option>
+                    </select>
+                  </Campo>
+                </div>
+                <Campo etiqueta="Notas">
+                  <textarea
+                    name="notas"
+                    rows={2}
+                    defaultValue={valoresIniciales?.notas ?? ""}
+                    className="campo-input"
+                  />
+                </Campo>
+              </div>
+            ),
+          },
+        ]}
+      />
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Guardando..." : textoBoton}

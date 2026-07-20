@@ -42,7 +42,7 @@ export default async function CajaPage() {
         <CajaFormulario />
       </div>
 
-      <table className="tabla mt-6">
+      <table className="tabla tabla-densa mt-6">
         <thead>
           <tr>
             <th>Fecha</th>

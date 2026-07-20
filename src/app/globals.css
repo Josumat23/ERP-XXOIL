@@ -48,11 +48,20 @@ body {
   }
 
   .tabla th {
-    @apply text-left font-medium text-neutral-500 border-b border-black/10 dark:border-white/10 px-3 py-2;
+    @apply text-left font-medium text-neutral-500 border-b border-black/10 dark:border-white/10 px-3 py-1.5;
   }
 
   .tabla td {
-    @apply px-3 py-2 border-b border-black/5 dark:border-white/5;
+    @apply px-3 py-1.5 border-b border-black/5 dark:border-white/5;
+  }
+
+  /* Grillas largas (kardex, movimientos de caja): más filas visibles por pantalla. */
+  .tabla-densa th {
+    @apply px-2.5 py-1 text-xs;
+  }
+
+  .tabla-densa td {
+    @apply px-2.5 py-1 text-xs;
   }
 
   .insignia {
