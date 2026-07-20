@@ -58,6 +58,19 @@ export async function registrarCobro(
         },
       });
 
+      // Ingreso automático en el libro de caja
+      await tx.movimientoCaja.create({
+        data: {
+          tipo: "INGRESO",
+          concepto: `Cobro factura ${factura.numero}`,
+          monto,
+          medioPago,
+          referencia: factura.numero,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+
       const nuevoSaldo = saldo - monto;
       await tx.factura.update({
         where: { id: facturaId },
@@ -74,6 +87,7 @@ export async function registrarCobro(
 
   revalidatePath(`/comercial/facturas/${facturaId}`);
   revalidatePath("/comercial/facturas");
+  revalidatePath("/finanzas/caja");
   return {};
 }
 

@@ -12,9 +12,19 @@ Interfaz en español, moneda en soles (PEN).
 | --- | --- |
 | **Catálogo** | Categorías, productos, presentaciones/SKU (contenido kg, precio, stock), insumos (materia prima, envases, etiquetas), proveedores |
 | **Inventario** | Kardex inmutable con saldos (nunca se edita ni borra historia), ajustes con motivo obligatorio y auditoría, alertas de stock mínimo |
-| **Producción** | Fórmulas versionadas (sin edición: cada cambio es versión nueva) → lotes granel (consumen insumos, registran merma) → control de calidad → envasados (consumen granel + envases y producen stock) |
-| **Comercial** | Zonas, vendedores (con básico / solo comisión, tasa individual), clientes, pedidos con detalle, facturas (número SUNAT, contado/15/30 días), cobros, notas de crédito (revierten comisión proporcional), comisiones |
+| **Producción** | Fórmulas versionadas (sin edición: cada cambio es versión nueva) → lotes granel (consumen insumos, registran merma y costo) → control de calidad → envasados (consumen granel + envases, producen stock y calculan costo unitario) |
+| **Logística** | Órdenes de compra a proveedores, recepciones (parciales o totales) que alimentan el kardex y recalculan el costo promedio ponderado, guías de remisión imprimibles (formato SUNAT: transportista, placa, conductor, peso) |
+| **Comercial** | Zonas, vendedores (con básico / solo comisión, tasa individual), clientes, pedidos con detalle, facturas (número SUNAT, contado/15/30 días), cobros, notas de crédito (revierten comisión proporcional), comisiones, hojas de ruta de vendedores con registro de resultados |
+| **Finanzas** | Cuentas por pagar con pagos a proveedores, libro de caja (los cobros y pagos generan movimientos automáticos, admite manuales), reporte de costos y márgenes por presentación |
 | **Configuración** | Usuarios y roles (Administrador, Almacén, Producción, Ventas) |
+
+**Impresión**: factura, orden de compra, guía de remisión y hoja de ruta tienen botón
+"Imprimir / PDF" (usa la impresión del navegador; "Guardar como PDF" genera el archivo).
+
+**Costos**: los insumos llevan costo promedio ponderado (se recalcula en cada recepción
+de compra); cada lote granel registra el costo de sus insumos y su costo por kg (la merma
+encarece el kg); cada envasado calcula costo unitario (granel + envases/etiquetas) y
+actualiza el costo promedio de la presentación, del que sale el margen de venta.
 
 ## Principios de diseño
 
@@ -55,16 +65,22 @@ Cambie las contraseñas desde **Configuración → Usuarios** (sesión de admin)
 
 ## Flujo de trabajo típico
 
-1. **Producción etapa 1**: Producción → Lotes granel → Nuevo lote (elige fórmula y kg
-   objetivo; descuenta insumos por kardex). Al terminar la cocción, registrar kg
-   producidos (la merma se calcula sola).
-2. **Calidad**: Producción → Control de calidad → aprobar o rechazar el lote.
-3. **Producción etapa 2**: Producción → Envasados → Nuevo envasado (consume granel
-   aprobado + envases/etiquetas, genera stock de la presentación).
-4. **Venta**: Comercial → Pedidos → Nuevo pedido → desde el detalle, **Facturar**
-   (registra el número emitido en SUNAT, descuenta stock, genera comisión).
-5. **Cobranza**: Comercial → Facturas → detalle → registrar cobros. Notas de crédito
-   y anulaciones revierten comisiones automáticamente.
+1. **Compras**: Logística → Órdenes de compra → Nueva orden. Al llegar la mercadería,
+   registrar la **recepción** (entra al kardex, recalcula el costo promedio y genera la
+   cuenta por pagar). Los pagos se registran en Finanzas → Cuentas por pagar.
+2. **Producción etapa 1**: Producción → Lotes granel → Nuevo lote (elige fórmula y kg
+   objetivo; descuenta insumos por kardex y registra su costo). Al terminar la cocción,
+   registrar kg producidos (la merma y el costo por kg se calculan solos).
+3. **Calidad**: Producción → Control de calidad → aprobar o rechazar el lote.
+4. **Producción etapa 2**: Producción → Envasados → Nuevo envasado (consume granel
+   aprobado + envases/etiquetas, genera stock y costo unitario de la presentación).
+5. **Venta**: Comercial → Pedidos → Nuevo pedido → desde el detalle, **Facturar**
+   (registra el número emitido en SUNAT, descuenta stock, genera comisión). Para el
+   despacho, crear la **guía de remisión** desde Logística (se autocompleta con la factura).
+6. **Cobranza**: Comercial → Facturas → detalle → registrar cobros (entran solos al libro
+   de caja). Notas de crédito y anulaciones revierten comisiones automáticamente.
+7. **Campo**: Comercial → Hojas de ruta → planificar visitas del vendedor, imprimir la
+   hoja, y al final del día cerrar la ruta con los resultados.
 
 ## Comandos útiles de base de datos
 

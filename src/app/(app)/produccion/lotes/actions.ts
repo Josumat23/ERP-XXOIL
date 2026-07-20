@@ -49,8 +49,13 @@ export async function crearLote(
         },
       });
 
+      // Consume insumos y acumula su costo (al costo promedio vigente)
+      let costoInsumos = 0;
       for (const detalle of formula.detalles) {
         const cantidad = detalle.cantidad.toNumber() * factor;
+        const insumo = await tx.insumo.findUniqueOrThrow({ where: { id: detalle.insumoId } });
+        costoInsumos += cantidad * insumo.costoUnitario.toNumber();
+
         const mov = await registrarMovimiento(tx, {
           tipoItem: "INSUMO",
           insumoId: detalle.insumoId,
@@ -63,6 +68,8 @@ export async function crearLote(
         });
         if (!mov.ok) throw new Error(mov.error);
       }
+
+      await tx.loteGranel.update({ where: { id: lote.id }, data: { costoInsumos } });
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
@@ -100,6 +107,8 @@ export async function finalizarLote(
     data: {
       kgProducidos,
       mermaKg: merma,
+      // La merma encarece el kg: el costo total se reparte entre lo realmente producido.
+      costoKg: lote.costoInsumos.toNumber() / kgProducidos,
       estado: "PENDIENTE_CALIDAD",
       fechaFin: new Date(),
     },

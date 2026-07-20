@@ -22,3 +22,18 @@ export async function siguienteNumeroPedido(tx: Tx): Promise<string> {
   const ultimo = await tx.pedido.findFirst({ orderBy: { numero: "desc" } });
   return siguiente("PED", ultimo?.numero ?? null);
 }
+
+export async function siguienteNumeroOrdenCompra(tx: Tx): Promise<string> {
+  const ultimo = await tx.ordenCompra.findFirst({ orderBy: { numero: "desc" } });
+  return siguiente("OC", ultimo?.numero ?? null);
+}
+
+export async function siguienteNumeroRecepcion(tx: Tx): Promise<string> {
+  const ultimo = await tx.recepcionCompra.findFirst({ orderBy: { numero: "desc" } });
+  return siguiente("RC", ultimo?.numero ?? null);
+}
+
+export async function siguienteNumeroHojaRuta(tx: Tx): Promise<string> {
+  const ultimo = await tx.hojaRuta.findFirst({ orderBy: { numero: "desc" } });
+  return siguiente("HR", ultimo?.numero ?? null);
+}

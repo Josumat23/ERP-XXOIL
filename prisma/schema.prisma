@@ -103,6 +103,7 @@ model Presentacion {
   moneda        String   @default("PEN")
   stock         Decimal  @default(0)
   stockMinimo   Decimal  @default(0)
+  costoPromedio Decimal  @default(0) // costo unitario promedio ponderado (se actualiza al envasar)
   activo        Boolean  @default(true)
   creadoEn      DateTime @default(now())
   actualizadoEn DateTime @updatedAt
@@ -111,6 +112,7 @@ model Presentacion {
   movimientos    MovimientoKardex[]
   envasados      Envasado[]
   pedidoDetalles PedidoDetalle[]
+  guiaDetalles   GuiaRemisionDetalle[]
 
   @@unique([empresaId, sku])
   @@map("presentaciones")
@@ -128,7 +130,9 @@ model Proveedor {
   activo      Boolean  @default(true)
   creadoEn    DateTime @default(now())
 
-  insumos Insumo[]
+  insumos        Insumo[]
+  ordenesCompra  OrdenCompra[]
+  cuentasPorPagar CuentaPorPagar[]
 
   @@unique([empresaId, ruc])
   @@map("proveedores")
@@ -160,6 +164,8 @@ model Insumo {
   movimientos     MovimientoKardex[]
   formulaDetalles FormulaDetalle[]
   envasadoInsumos EnvasadoInsumo[]
+  ordenCompraDetalles OrdenCompraDetalle[]
+  recepcionDetalles   RecepcionCompraDetalle[]
 
   @@unique([empresaId, codigo])
   @@map("insumos")
@@ -266,6 +272,8 @@ model LoteGranel {
   kgProducidos  Decimal    @default(0)
   mermaKg       Decimal    @default(0)
   kgDisponibles Decimal    @default(0) // granel aprobado aún no envasado
+  costoInsumos  Decimal    @default(0) // costo total de insumos consumidos al crear el lote
+  costoKg       Decimal    @default(0) // costoInsumos / kgProducidos (al finalizar)
   estado        EstadoLote @default(EN_PROCESO)
   observaciones String?
   fechaInicio   DateTime   @default(now())
@@ -311,6 +319,8 @@ model Envasado {
   presentacionId String
   unidades       Int
   kgConsumidos   Decimal // unidades * contenidoKg de la presentación
+  costoTotal     Decimal  @default(0) // granel consumido + envases/etiquetas
+  costoUnitario  Decimal  @default(0) // costoTotal / unidades
   fecha          DateTime @default(now())
   usuarioId      String
   usuarioNombre  String
@@ -372,6 +382,7 @@ model Vendedor {
   pedidos    Pedido[]
   facturas   Factura[]
   comisiones Comision[]
+  hojasRuta  HojaRuta[]
 
   @@map("vendedores")
 }
@@ -392,6 +403,8 @@ model Cliente {
   zona     Zona?     @relation(fields: [zonaId], references: [id])
   pedidos  Pedido[]
   facturas Factura[]
+  guias    GuiaRemision[]
+  visitas  HojaRutaVisita[]
 
   @@unique([empresaId, ruc])
   @@map("clientes")
@@ -477,6 +490,7 @@ model Factura {
   cobros       Cobro[]
   notasCredito NotaCredito[]
   comisiones   Comision[]
+  guias        GuiaRemision[]
 
   @@map("facturas")
 }
@@ -548,4 +562,232 @@ model Comision {
   factura  Factura  @relation(fields: [facturaId], references: [id])
 
   @@map("comisiones")
+}
+
+// ---------------------------------------------------------------------------
+// LOGISTICA — COMPRAS (órdenes de compra y recepciones)
+// ---------------------------------------------------------------------------
+
+enum EstadoOrdenCompra {
+  PENDIENTE
+  PARCIAL
+  RECIBIDA
+  ANULADA
+}
+
+model OrdenCompra {
+  id            String            @id @default(cuid())
+  empresaId     String            @default("1")
+  numero        String            @unique // OC-00001
+  proveedorId   String
+  fecha         DateTime          @default(now())
+  estado        EstadoOrdenCompra @default(PENDIENTE)
+  moneda        String            @default("PEN")
+  total         Decimal
+  notas         String?
+  motivoAnulacion String?
+  usuarioId     String
+  usuarioNombre String
+
+  proveedor   Proveedor            @relation(fields: [proveedorId], references: [id])
+  detalles    OrdenCompraDetalle[]
+  recepciones RecepcionCompra[]
+  cuentasPorPagar CuentaPorPagar[]
+
+  @@map("ordenes_compra")
+}
+
+model OrdenCompraDetalle {
+  id               String  @id @default(cuid())
+  ordenCompraId    String
+  insumoId         String
+  cantidad         Decimal
+  costoUnitario    Decimal
+  subtotal         Decimal
+  cantidadRecibida Decimal @default(0)
+
+  ordenCompra OrdenCompra @relation(fields: [ordenCompraId], references: [id])
+  insumo      Insumo      @relation(fields: [insumoId], references: [id])
+
+  @@map("orden_compra_detalles")
+}
+
+model RecepcionCompra {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  numero        String   @unique // RC-00001
+  ordenCompraId String
+  fecha         DateTime @default(now())
+  notas         String?
+  usuarioId     String
+  usuarioNombre String
+
+  ordenCompra OrdenCompra              @relation(fields: [ordenCompraId], references: [id])
+  detalles    RecepcionCompraDetalle[]
+
+  @@map("recepciones_compra")
+}
+
+model RecepcionCompraDetalle {
+  id            String  @id @default(cuid())
+  recepcionId   String
+  insumoId      String
+  cantidad      Decimal
+  costoUnitario Decimal // costo real de esta recepción (actualiza el promedio ponderado)
+
+  recepcion RecepcionCompra @relation(fields: [recepcionId], references: [id])
+  insumo    Insumo          @relation(fields: [insumoId], references: [id])
+
+  @@map("recepcion_compra_detalles")
+}
+
+// ---------------------------------------------------------------------------
+// LOGISTICA — GUIAS DE REMISION (traslado de mercadería, formato SUNAT)
+// ---------------------------------------------------------------------------
+
+model GuiaRemision {
+  id             String   @id @default(cuid())
+  empresaId      String   @default("1")
+  numero         String   @unique // ej. T001-00000001
+  facturaId      String?
+  clienteId      String
+  fechaTraslado  DateTime
+  puntoPartida   String
+  puntoLlegada   String
+  motivoTraslado String   @default("Venta")
+  transportista  String?
+  placaVehiculo  String?
+  dniConductor   String?
+  observaciones  String?
+  usuarioId      String
+  usuarioNombre  String
+  creadoEn       DateTime @default(now())
+
+  factura  Factura?              @relation(fields: [facturaId], references: [id])
+  cliente  Cliente               @relation(fields: [clienteId], references: [id])
+  detalles GuiaRemisionDetalle[]
+
+  @@map("guias_remision")
+}
+
+model GuiaRemisionDetalle {
+  id             String  @id @default(cuid())
+  guiaId         String
+  presentacionId String
+  cantidad       Int
+
+  guia         GuiaRemision @relation(fields: [guiaId], references: [id])
+  presentacion Presentacion @relation(fields: [presentacionId], references: [id])
+
+  @@map("guia_remision_detalles")
+}
+
+// ---------------------------------------------------------------------------
+// FINANZAS — CUENTAS POR PAGAR Y CAJA
+// ---------------------------------------------------------------------------
+
+enum EstadoCuentaPorPagar {
+  PENDIENTE
+  PAGADA
+}
+
+model CuentaPorPagar {
+  id              String               @id @default(cuid())
+  empresaId       String               @default("1")
+  proveedorId     String
+  ordenCompraId   String?
+  numeroDocumento String // factura del proveedor
+  fechaEmision    DateTime             @default(now())
+  fechaVencimiento DateTime?
+  moneda          String               @default("PEN")
+  total           Decimal
+  saldo           Decimal
+  estado          EstadoCuentaPorPagar @default(PENDIENTE)
+  usuarioId       String
+  usuarioNombre   String
+
+  proveedor   Proveedor       @relation(fields: [proveedorId], references: [id])
+  ordenCompra OrdenCompra?    @relation(fields: [ordenCompraId], references: [id])
+  pagos       PagoProveedor[]
+
+  @@map("cuentas_por_pagar")
+}
+
+model PagoProveedor {
+  id               String    @id @default(cuid())
+  empresaId        String    @default("1")
+  cuentaPorPagarId String
+  fecha            DateTime  @default(now())
+  monto            Decimal
+  medioPago        MedioPago
+  referencia       String?
+  usuarioId        String
+  usuarioNombre    String
+
+  cuentaPorPagar CuentaPorPagar @relation(fields: [cuentaPorPagarId], references: [id])
+
+  @@map("pagos_proveedor")
+}
+
+enum TipoMovimientoCaja {
+  INGRESO
+  EGRESO
+}
+
+// Libro de caja: los cobros de facturas y pagos a proveedores generan
+// movimientos automáticos; también admite movimientos manuales con concepto.
+model MovimientoCaja {
+  id            String             @id @default(cuid())
+  empresaId     String             @default("1")
+  fecha         DateTime           @default(now())
+  tipo          TipoMovimientoCaja
+  concepto      String
+  monto         Decimal
+  medioPago     MedioPago
+  referencia    String? // nro de factura, OC, comisión, etc.
+  usuarioId     String
+  usuarioNombre String
+
+  @@map("movimientos_caja")
+}
+
+// ---------------------------------------------------------------------------
+// COMERCIAL — HOJAS DE RUTA DE VENDEDORES
+// ---------------------------------------------------------------------------
+
+enum EstadoHojaRuta {
+  PLANIFICADA
+  COMPLETADA
+}
+
+model HojaRuta {
+  id            String         @id @default(cuid())
+  empresaId     String         @default("1")
+  numero        String         @unique // HR-00001
+  vendedorId    String
+  fecha         DateTime
+  estado        EstadoHojaRuta @default(PLANIFICADA)
+  notas         String?
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime       @default(now())
+
+  vendedor Vendedor         @relation(fields: [vendedorId], references: [id])
+  visitas  HojaRutaVisita[]
+
+  @@map("hojas_ruta")
+}
+
+model HojaRutaVisita {
+  id         String  @id @default(cuid())
+  hojaRutaId String
+  clienteId  String
+  orden      Int
+  objetivo   String? // cobrar, ofrecer producto nuevo, etc.
+  resultado  String? // se llena al cerrar la ruta
+
+  hojaRuta HojaRuta @relation(fields: [hojaRutaId], references: [id])
+  cliente  Cliente  @relation(fields: [clienteId], references: [id])
+
+  @@map("hoja_ruta_visitas")
 }

@@ -60,3 +60,15 @@ export const DIAS_CONDICION: Record<$Enums.CondicionPago, number> = {
   DIAS_15: 15,
   DIAS_30: 30,
 };
+
+export const ETIQUETA_ESTADO_OC: Record<$Enums.EstadoOrdenCompra, string> = {
+  PENDIENTE: "Pendiente",
+  PARCIAL: "Recepción parcial",
+  RECIBIDA: "Recibida",
+  ANULADA: "Anulada",
+};
+
+export const ETIQUETA_ESTADO_HR: Record<$Enums.EstadoHojaRuta, string> = {
+  PLANIFICADA: "Planificada",
+  COMPLETADA: "Completada",
+};

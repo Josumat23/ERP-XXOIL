@@ -83,8 +83,12 @@ export async function crearEnvasado(
         },
       });
 
-      // Consumo de envases y etiquetas
+      // Consumo de envases y etiquetas, acumulando su costo
+      let costoEnvases = 0;
       for (const linea of insumos) {
+        const insumo = await tx.insumo.findUniqueOrThrow({ where: { id: linea.insumoId } });
+        costoEnvases += linea.cantidad * insumo.costoUnitario.toNumber();
+
         const mov = await registrarMovimiento(tx, {
           tipoItem: "INSUMO",
           insumoId: linea.insumoId,
@@ -97,6 +101,25 @@ export async function crearEnvasado(
         });
         if (!mov.ok) throw new Error(mov.error);
       }
+
+      // Costo del envasado: granel consumido (al costo/kg del lote) + envases
+      const costoTotal = kgConsumidos * lote.costoKg.toNumber() + costoEnvases;
+      const costoUnitario = costoTotal / unidades;
+
+      // Costo promedio ponderado de la presentación ANTES de la entrada
+      const stockAntes = presentacion.stock.toNumber();
+      const costoPromAntes = presentacion.costoPromedio.toNumber();
+      const nuevoCostoPromedio =
+        (stockAntes * costoPromAntes + unidades * costoUnitario) / (stockAntes + unidades);
+
+      await tx.envasado.update({
+        where: { id: envasado.id },
+        data: { costoTotal, costoUnitario },
+      });
+      await tx.presentacion.update({
+        where: { id: presentacionId },
+        data: { costoPromedio: nuevoCostoPromedio },
+      });
 
       // Entrada del producto terminado
       const entrada = await registrarMovimiento(tx, {

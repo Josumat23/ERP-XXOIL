@@ -57,7 +57,7 @@ export default async function DetalleLotePage({
         )}
       </p>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
         <Dato etiqueta="Kg objetivo" valor={formatNumero(lote.kgObjetivo, 2)} />
         <Dato
           etiqueta="Kg producidos"
@@ -68,6 +68,10 @@ export default async function DetalleLotePage({
           valor={lote.estado === "EN_PROCESO" ? "—" : formatNumero(lote.mermaKg, 2)}
         />
         <Dato etiqueta="Granel disponible" valor={formatNumero(lote.kgDisponibles, 2)} />
+        <Dato
+          etiqueta="Costo por kg"
+          valor={lote.estado === "EN_PROCESO" ? "—" : `S/ ${formatNumero(lote.costoKg, 2)}`}
+        />
       </div>
 
       {lote.observaciones && (

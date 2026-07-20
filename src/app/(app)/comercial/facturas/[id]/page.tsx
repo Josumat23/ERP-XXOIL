@@ -7,6 +7,7 @@ import {
   ETIQUETA_CONDICION_PAGO,
   ETIQUETA_MEDIO_PAGO,
 } from "@/lib/etiquetas";
+import BotonImprimir from "@/components/BotonImprimir";
 import {
   CobroFormulario,
   NotaCreditoFormulario,
@@ -35,6 +36,7 @@ export default async function DetalleFacturaPage({
       cobros: { orderBy: { fecha: "asc" } },
       notasCredito: { orderBy: { fecha: "asc" } },
       comisiones: { orderBy: { creadoEn: "asc" } },
+      guias: true,
     },
   });
   if (!factura) notFound();
@@ -46,9 +48,12 @@ export default async function DetalleFacturaPage({
 
   return (
     <div className="max-w-3xl">
-      <Link href="/comercial/facturas" className="text-sm text-neutral-500 hover:underline">
-        ← Volver a facturas
-      </Link>
+      <div className="flex items-center justify-between no-imprimir">
+        <Link href="/comercial/facturas" className="text-sm text-neutral-500 hover:underline">
+          ← Volver a facturas
+        </Link>
+        <BotonImprimir />
+      </div>
 
       <div className="flex items-center gap-3 mt-2">
         <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 font-mono">
@@ -109,6 +114,39 @@ export default async function DetalleFacturaPage({
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className="mt-8">
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Guías de remisión</h2>
+          {factura.estado !== "ANULADA" && (
+            <Link
+              href={`/logistica/guias-remision/nueva`}
+              className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline no-imprimir"
+            >
+              + Nueva guía
+            </Link>
+          )}
+        </div>
+        {factura.guias.length > 0 ? (
+          <ul className="mt-2 text-sm">
+            {factura.guias.map((g) => (
+              <li key={g.id} className="py-1">
+                <Link
+                  href={`/logistica/guias-remision/${g.id}`}
+                  className="font-mono text-xs hover:underline"
+                >
+                  {g.numero}
+                </Link>{" "}
+                — traslado del{" "}
+                {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(g.fechaTraslado)} a{" "}
+                {g.puntoLlegada}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-neutral-500 mt-2">Sin guías registradas para esta factura.</p>
+        )}
       </section>
 
       <section className="mt-8">
