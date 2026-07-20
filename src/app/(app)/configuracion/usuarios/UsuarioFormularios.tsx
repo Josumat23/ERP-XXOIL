@@ -2,9 +2,16 @@
 
 import { useRef } from "react";
 import { useActionState } from "react";
-import { crearUsuario, restablecerPassword, type EstadoFormulario } from "./actions";
+import {
+  crearUsuario,
+  restablecerPassword,
+  asignarGrupoUsuario,
+  type EstadoFormulario,
+} from "./actions";
 
-export function CrearUsuarioFormulario() {
+type GrupoOpcion = { id: string; nombre: string };
+
+export function CrearUsuarioFormulario({ grupos }: { grupos: GrupoOpcion[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [estado, formAction, enviando] = useActionState(
     async (prev: EstadoFormulario, formData: FormData) => {
@@ -37,11 +44,46 @@ export function CrearUsuarioFormulario() {
           <option value="PRODUCCION">Producción</option>
           <option value="VENTAS">Ventas</option>
         </select>
+        <select name="grupoSeguridadId" defaultValue="" className="campo-input">
+          <option value="">Sin grupo (solo el rol)</option>
+          {grupos.map((g) => (
+            <option key={g.id} value={g.id}>
+              {g.nombre}
+            </option>
+          ))}
+        </select>
       </div>
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Creando..." : "Crear usuario"}
       </button>
     </form>
+  );
+}
+
+export function GrupoUsuarioFormulario({
+  usuarioId,
+  grupoActualId,
+  grupos,
+}: {
+  usuarioId: string;
+  grupoActualId: string | null;
+  grupos: GrupoOpcion[];
+}) {
+  return (
+    <select
+      defaultValue={grupoActualId ?? ""}
+      onChange={(e) => {
+        asignarGrupoUsuario(usuarioId, e.currentTarget.value || null);
+      }}
+      className="campo-input text-xs py-1"
+    >
+      <option value="">Sin grupo (solo el rol)</option>
+      {grupos.map((g) => (
+        <option key={g.id} value={g.id}>
+          {g.nombre}
+        </option>
+      ))}
+    </select>
   );
 }
 

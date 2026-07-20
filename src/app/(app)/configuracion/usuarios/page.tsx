@@ -2,7 +2,11 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario, ETIQUETA_ROL } from "@/lib/auth";
 import BotonImprimir from "@/components/BotonImprimir";
-import { CrearUsuarioFormulario, RestablecerPasswordFormulario } from "./UsuarioFormularios";
+import {
+  CrearUsuarioFormulario,
+  RestablecerPasswordFormulario,
+  GrupoUsuarioFormulario,
+} from "./UsuarioFormularios";
 import { alternarActivoUsuario } from "./actions";
 
 export default async function UsuariosPage() {
@@ -10,6 +14,11 @@ export default async function UsuariosPage() {
   if (!actual || actual.rol !== "ADMIN") redirect("/");
 
   const usuarios = await prisma.usuario.findMany({ orderBy: { nombre: "asc" } });
+  const grupos = await prisma.grupoSeguridad.findMany({
+    where: { esPredefinido: false, activo: true },
+    orderBy: { nombre: "asc" },
+    select: { id: true, nombre: true },
+  });
 
   return (
     <div className="max-w-4xl">
@@ -23,7 +32,7 @@ export default async function UsuariosPage() {
 
       <div className="mt-6 border border-black/10 dark:border-white/10 rounded-lg p-4">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">Nuevo usuario</h2>
-        <CrearUsuarioFormulario />
+        <CrearUsuarioFormulario grupos={grupos} />
       </div>
 
       <table className="tabla mt-6">
@@ -32,6 +41,7 @@ export default async function UsuariosPage() {
             <th>Nombre</th>
             <th>Usuario</th>
             <th>Rol</th>
+            <th>Grupo de seguridad</th>
             <th>Estado</th>
             <th className="text-right">Acciones</th>
           </tr>
@@ -42,6 +52,13 @@ export default async function UsuariosPage() {
               <td className="font-medium">{u.nombre}</td>
               <td className="font-mono text-xs">{u.usuario}</td>
               <td>{ETIQUETA_ROL[u.rol]}</td>
+              <td>
+                <GrupoUsuarioFormulario
+                  usuarioId={u.id}
+                  grupoActualId={u.grupoSeguridadId}
+                  grupos={grupos}
+                />
+              </td>
               <td>
                 <span
                   className={`insignia ${

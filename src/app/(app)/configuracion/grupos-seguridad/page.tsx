@@ -23,8 +23,10 @@ export default async function GruposSeguridadPage() {
       <p className="text-neutral-500 mt-1">
         Equivalente reducido a Security Group Maintenance de Epicor. Los 4 roles del sistema
         (Administrador, Almacén, Producción, Ventas) aparecen como grupos predefinidos de solo
-        lectura: el acceso real sigue controlado por el rol de cada usuario. Los grupos
-        personalizados quedan aquí como referencia para una futura versión con permisos dinámicos.
+        lectura: el acceso a cada pantalla sigue controlado por el rol. Los grupos personalizados
+        sí tienen efecto real: al asignarle uno a un usuario (en Configuración → Usuarios), sus
+        casillas &quot;Crear&quot;/&quot;Editar&quot; por módulo restringen esas acciones para ese
+        usuario, sin ampliar nunca lo que su rol ya permite.
       </p>
 
       <div className="mt-6 border border-black/10 dark:border-white/10 rounded-lg p-4">

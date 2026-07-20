@@ -20,6 +20,7 @@ export async function crearUsuario(
   const usuario = String(formData.get("usuario") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const rol = String(formData.get("rol") ?? "") as $Enums.RolUsuario;
+  const grupoSeguridadId = String(formData.get("grupoSeguridadId") ?? "").trim() || null;
 
   if (!nombre || !usuario) return { error: "Nombre y usuario son obligatorios." };
   if (!/^[a-z0-9._-]{3,}$/.test(usuario)) {
@@ -30,7 +31,7 @@ export async function crearUsuario(
 
   try {
     await prisma.usuario.create({
-      data: { nombre, usuario, rol, passwordHash: hashPassword(password) },
+      data: { nombre, usuario, rol, grupoSeguridadId, passwordHash: hashPassword(password) },
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -62,6 +63,14 @@ export async function restablecerPassword(
 
   revalidatePath("/configuracion/usuarios");
   return {};
+}
+
+export async function asignarGrupoUsuario(id: string, grupoSeguridadId: string | null) {
+  const auth = await requerirRol([]); // solo ADMIN
+  if ("error" in auth) return;
+
+  await prisma.usuario.update({ where: { id }, data: { grupoSeguridadId } });
+  revalidatePath("/configuracion/usuarios");
 }
 
 export async function alternarActivoUsuario(id: string, activo: boolean) {
