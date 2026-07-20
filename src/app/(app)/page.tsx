@@ -100,14 +100,14 @@ export default async function PanelPage() {
         <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
-              Producción en curso
+              Órdenes de producción en curso
             </h2>
             <Link href="/produccion/lotes" className="text-xs text-neutral-500 hover:underline">
               Ver todos
             </Link>
           </div>
           {lotesActivos.length === 0 ? (
-            <p className="text-sm text-neutral-500 mt-3">No hay lotes en proceso.</p>
+            <p className="text-sm text-neutral-500 mt-3">No hay órdenes de producción en proceso.</p>
           ) : (
             <ul className="mt-3 divide-y divide-black/5 dark:divide-white/10">
               {lotesActivos.map((l) => (

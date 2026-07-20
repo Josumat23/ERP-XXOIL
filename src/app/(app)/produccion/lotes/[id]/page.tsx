@@ -38,12 +38,12 @@ export default async function DetalleLotePage({
   return (
     <div className="max-w-3xl">
       <Link href="/produccion/lotes" className="text-sm text-neutral-500 hover:underline">
-        ← Volver a lotes
+        ← Volver a órdenes de producción
       </Link>
 
       <div className="flex items-center gap-3 mt-2">
         <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-          Lote {lote.codigo}
+          Orden de producción {lote.codigo}
         </h1>
         <span className={`insignia ${COLOR_ESTADO[lote.estado]}`}>
           {ETIQUETA_ESTADO_LOTE[lote.estado]}

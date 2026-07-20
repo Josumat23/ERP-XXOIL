@@ -12,10 +12,10 @@ export default async function NuevoLotePage() {
   return (
     <div className="max-w-2xl">
       <Link href="/produccion/lotes" className="text-sm text-neutral-500 hover:underline">
-        ← Volver a lotes
+        ← Volver a órdenes de producción
       </Link>
       <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 mt-2">
-        Nuevo lote granel
+        Nueva orden de producción
       </h1>
       <p className="text-neutral-500 mt-1">
         Al crear el lote se descuentan los insumos de la fórmula (escalados a los kg objetivo) y el

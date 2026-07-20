@@ -88,12 +88,12 @@ export default async function CostosPage() {
 
       <section className="mt-10">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
-          Costo de lotes recientes
+          Costo de órdenes de producción recientes
         </h2>
         <table className="tabla mt-2">
           <thead>
             <tr>
-              <th>Lote</th>
+              <th>Orden</th>
               <th>Producto</th>
               <th className="text-right">Kg producidos</th>
               <th className="text-right">Merma</th>
@@ -115,7 +115,7 @@ export default async function CostosPage() {
             {lotes.length === 0 && (
               <tr>
                 <td colSpan={6} className="text-center text-neutral-500 py-4">
-                  Sin lotes con costo registrado.
+                  Sin órdenes de producción con costo registrado.
                 </td>
               </tr>
             )}

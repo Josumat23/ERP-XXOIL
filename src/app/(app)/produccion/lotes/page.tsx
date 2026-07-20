@@ -22,7 +22,7 @@ export default async function LotesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
-            Lotes granel
+            Órdenes de producción
           </h1>
           <p className="text-neutral-500 mt-1">
             Primera etapa de producción: cocción a granel según fórmula, con registro de merma.
@@ -31,7 +31,7 @@ export default async function LotesPage() {
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
           <Link href="/produccion/lotes/nuevo" className="boton-primario">
-            Nuevo lote
+            Nueva orden
           </Link>
         </div>
       </div>
@@ -39,7 +39,7 @@ export default async function LotesPage() {
       <table className="tabla mt-6">
         <thead>
           <tr>
-            <th>Código</th>
+            <th>N.° de orden</th>
             <th>Producto / Fórmula</th>
             <th className="text-right">Kg objetivo</th>
             <th className="text-right">Kg producidos</th>
@@ -83,7 +83,7 @@ export default async function LotesPage() {
           {lotes.length === 0 && (
             <tr>
               <td colSpan={8} className="text-center text-neutral-500 py-6">
-                No hay lotes registrados todavía.
+                No hay órdenes de producción registradas todavía.
               </td>
             </tr>
           )}

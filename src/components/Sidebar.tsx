@@ -61,7 +61,7 @@ const MODULOS: Modulo[] = [
     icono: "⚙",
     enlaces: [
       { href: "/produccion/formulas", etiqueta: "Fórmulas" },
-      { href: "/produccion/lotes", etiqueta: "Lotes granel" },
+      { href: "/produccion/lotes", etiqueta: "Órdenes de producción" },
       { href: "/produccion/calidad", etiqueta: "Control de calidad" },
       { href: "/produccion/envasados", etiqueta: "Envasados" },
     ],
@@ -73,6 +73,7 @@ const MODULOS: Modulo[] = [
       {
         titulo: "Tesorería",
         enlaces: [
+          { href: "/finanzas/cuentas-por-cobrar", etiqueta: "Cuentas por cobrar" },
           { href: "/finanzas/cuentas-por-pagar", etiqueta: "Cuentas por pagar" },
           { href: "/finanzas/caja", etiqueta: "Libro de caja" },
         ],
