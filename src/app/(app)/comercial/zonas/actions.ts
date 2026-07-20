@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -13,6 +14,9 @@ export async function crearZona(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Ventas." };
+  }
 
   const nombre = String(formData.get("nombre") ?? "").trim();
   if (!nombre) return { error: "El nombre es obligatorio." };
@@ -33,6 +37,7 @@ export async function crearZona(
 export async function alternarActivoZona(id: string, activo: boolean) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
   await prisma.zona.update({ where: { id }, data: { activo } });
   revalidatePath("/comercial/zonas");
 }

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -34,6 +35,9 @@ export async function crearVendedor(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Ventas." };
+  }
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
@@ -51,6 +55,9 @@ export async function actualizarVendedor(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
@@ -65,6 +72,7 @@ export async function actualizarVendedor(
 export async function alternarActivoVendedor(id: string, activo: boolean) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
   await prisma.vendedor.update({ where: { id }, data: { activo } });
   revalidatePath("/comercial/vendedores");
 }

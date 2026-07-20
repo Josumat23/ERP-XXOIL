@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { avanzarSerie } from "@/lib/series";
 
 export type EstadoFormulario = { error?: string };
@@ -19,6 +20,9 @@ export async function crearGuiaRemision(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS", "ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Materiales." };
+  }
 
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
   const facturaId = String(formData.get("facturaId") ?? "") || null;

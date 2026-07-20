@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import {
   siguienteNumeroOrdenCompra,
@@ -21,6 +22,9 @@ export async function crearOrdenCompra(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Materiales." };
+  }
 
   const proveedorId = String(formData.get("proveedorId") ?? "");
   const notas = String(formData.get("notas") ?? "").trim() || null;
@@ -81,6 +85,9 @@ export async function anularOrdenCompra(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
 
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo de anulación es obligatorio." };
@@ -115,6 +122,9 @@ export async function registrarRecepcion(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
 
   const numeroDocumento = String(formData.get("numeroDocumento") ?? "").trim();
   const diasCredito = Number(formData.get("diasCredito") ?? 0);

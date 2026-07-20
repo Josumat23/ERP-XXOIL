@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -14,6 +15,9 @@ export async function registrarCalidad(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Producción." };
+  }
 
   const loteId = String(formData.get("loteId") ?? "");
   const resultado = String(formData.get("resultado") ?? "");

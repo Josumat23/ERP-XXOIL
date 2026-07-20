@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { siguienteNumeroHojaRuta } from "@/lib/correlativos";
 
 export type EstadoFormulario = { error?: string };
@@ -16,6 +17,9 @@ export async function crearHojaRuta(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Ventas." };
+  }
 
   const vendedorId = String(formData.get("vendedorId") ?? "");
   const fecha = String(formData.get("fecha") ?? "");
@@ -69,6 +73,9 @@ export async function cerrarHojaRuta(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
 
   const hoja = await prisma.hojaRuta.findUnique({
     where: { id: hojaId },

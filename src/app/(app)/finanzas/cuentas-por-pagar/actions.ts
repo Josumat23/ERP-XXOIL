@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { postearPagoProveedor } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
@@ -24,6 +25,9 @@ export async function registrarPagoProveedor(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
+  }
 
   const monto = Number(formData.get("monto"));
   const medioPago = String(formData.get("medioPago") ?? "") as $Enums.MedioPago;

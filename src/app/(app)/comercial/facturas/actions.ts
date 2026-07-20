@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { avanzarSerie } from "@/lib/series";
 import {
@@ -30,6 +31,9 @@ export async function registrarCobro(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
 
   const monto = Number(formData.get("monto"));
   const medioPago = String(formData.get("medioPago") ?? "") as $Enums.MedioPago;
@@ -112,6 +116,9 @@ export async function crearNotaCredito(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
 
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
   const monto = Number(formData.get("monto"));
@@ -213,6 +220,9 @@ export async function anularFactura(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
 
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo de anulación es obligatorio." };

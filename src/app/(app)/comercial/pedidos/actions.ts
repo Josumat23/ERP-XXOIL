@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteNumeroPedido } from "@/lib/correlativos";
 import { DIAS_CONDICION } from "@/lib/etiquetas";
@@ -21,6 +22,9 @@ export async function crearPedido(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Ventas." };
+  }
 
   const clienteId = String(formData.get("clienteId") ?? "");
   const vendedorId = String(formData.get("vendedorId") ?? "");
@@ -80,6 +84,7 @@ export async function crearPedido(
 export async function anularPedido(id: string) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
 
   const pedido = await prisma.pedido.findUnique({ where: { id } });
   if (!pedido || pedido.estado !== "PENDIENTE") return;
@@ -98,6 +103,9 @@ export async function facturarPedido(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
 
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
   const condicionPago = String(formData.get("condicionPago") ?? "") as $Enums.CondicionPago;

@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 
 export type EstadoFormulario = { error?: string };
@@ -72,6 +73,9 @@ export async function crearPresentacion(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Materiales." };
+  }
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
@@ -118,6 +122,9 @@ export async function actualizarPresentacion(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
@@ -139,6 +146,7 @@ export async function actualizarPresentacion(
 export async function alternarActivoPresentacion(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
   await prisma.presentacion.update({ where: { id }, data: { activo } });
   revalidatePath("/catalogo/presentaciones");
 }

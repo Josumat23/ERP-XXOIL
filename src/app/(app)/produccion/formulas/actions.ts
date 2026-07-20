@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -16,6 +17,9 @@ export async function crearFormula(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Producción." };
+  }
 
   const productoId = String(formData.get("productoId") ?? "");
   const rendimientoKg = Number(formData.get("rendimientoKg"));
@@ -66,6 +70,7 @@ export async function crearFormula(
 export async function alternarActivoFormula(id: string, activo: boolean) {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   await prisma.formula.update({ where: { id }, data: { activo } });
   revalidatePath("/produccion/formulas");
 }

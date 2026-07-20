@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -13,6 +14,9 @@ export async function crearAlmacen(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "configuracion", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Configuración del sistema." };
+  }
 
   const codigo = String(formData.get("codigo") ?? "").trim().toUpperCase();
   const nombre = String(formData.get("nombre") ?? "").trim();
@@ -39,6 +43,9 @@ export async function crearZonaAlmacen(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "configuracion", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Configuración del sistema." };
+  }
 
   const almacenId = String(formData.get("almacenId") ?? "");
   const codigo = String(formData.get("codigo") ?? "").trim().toUpperCase();
@@ -63,6 +70,7 @@ export async function crearZonaAlmacen(
 export async function alternarActivoAlmacen(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "configuracion", "editar"))) return;
   await prisma.almacen.update({ where: { id }, data: { activo } });
   revalidatePath("/configuracion/almacenes");
 }
@@ -70,6 +78,7 @@ export async function alternarActivoAlmacen(id: string, activo: boolean) {
 export async function alternarActivoZona(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "configuracion", "editar"))) return;
   await prisma.zonaAlmacen.update({ where: { id }, data: { activo } });
   revalidatePath("/configuracion/almacenes");
 }

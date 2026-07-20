@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -24,6 +25,9 @@ export async function crearMovimientoCaja(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["VENTAS", "ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "finanzas", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Finanzas." };
+  }
 
   const tipo = String(formData.get("tipo") ?? "");
   const concepto = String(formData.get("concepto") ?? "").trim();

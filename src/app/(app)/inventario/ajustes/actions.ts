@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 
 export type EstadoFormulario = { error?: string };
@@ -16,6 +17,9 @@ export async function crearAjuste(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Materiales." };
+  }
 
   const itemCompuesto = String(formData.get("item") ?? ""); // "PRESENTACION:id" | "INSUMO:id"
   const direccion = String(formData.get("direccion") ?? "");

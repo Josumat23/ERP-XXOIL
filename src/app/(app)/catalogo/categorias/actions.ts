@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -13,6 +14,9 @@ export async function crearCategoria(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Materiales." };
+  }
 
   const nombre = String(formData.get("nombre") ?? "").trim();
   const descripcion = String(formData.get("descripcion") ?? "").trim() || null;
@@ -34,6 +38,7 @@ export async function crearCategoria(
 export async function alternarActivoCategoria(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
   await prisma.categoria.update({ where: { id }, data: { activo } });
   revalidatePath("/catalogo/categorias");
 }

@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoLote } from "@/lib/correlativos";
 
@@ -17,6 +18,9 @@ export async function crearLote(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Producción." };
+  }
 
   const formulaId = String(formData.get("formulaId") ?? "");
   const kgObjetivo = Number(formData.get("kgObjetivo"));
@@ -88,6 +92,9 @@ export async function finalizarLote(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Producción." };
+  }
 
   const kgProducidos = Number(formData.get("kgProducidos"));
   if (!Number.isFinite(kgProducidos) || kgProducidos <= 0) {
