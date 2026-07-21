@@ -1,23 +1,39 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { ETIQUETA_TIPO_VENDEDOR } from "@/lib/etiquetas";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import VendedorFormulario from "../VendedorFormulario";
 import { crearVendedor } from "../actions";
 
 export default async function NuevoVendedorPage() {
-  const zonas = await prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } });
+  const [zonas, vendedores] = await Promise.all([
+    prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.vendedor.findMany({ orderBy: { nombre: "asc" } }),
+  ]);
 
   return (
-    <div className="max-w-lg">
-      <Link href="/comercial/vendedores" className="text-sm text-neutral-500 hover:underline">
+    <div>
+      <Link href="/comercial/vendedores" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a vendedores
       </Link>
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 mt-2">
+      <h1 className="text-xl font-bold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
         Nuevo vendedor
       </h1>
 
-      <div className="mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/comercial/vendedores/nuevo"
+        nuevoTexto="Nuevo vendedor"
+        registros={vendedores.map((v) => ({
+          id: v.id,
+          href: `/comercial/vendedores/${v.id}`,
+          primario: v.nombre,
+          secundario: ETIQUETA_TIPO_VENDEDOR[v.tipo],
+        }))}
+      >
+      <div className="max-w-lg">
         <VendedorFormulario accion={crearVendedor} zonas={zonas} textoBoton="Crear vendedor" />
       </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

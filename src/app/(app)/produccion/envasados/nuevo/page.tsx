@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import EnvasadoFormulario from "../EnvasadoFormulario";
 
 export default async function NuevoEnvasadoPage({
@@ -9,7 +10,7 @@ export default async function NuevoEnvasadoPage({
 }) {
   const { loteId } = await searchParams;
 
-  const [lotes, presentaciones, insumos] = await Promise.all([
+  const [lotes, presentaciones, insumos, envasados] = await Promise.all([
     prisma.loteGranel.findMany({
       where: { estado: "APROBADO", kgDisponibles: { gt: 0 } },
       include: { formula: { include: { producto: true } } },
@@ -20,21 +21,32 @@ export default async function NuevoEnvasadoPage({
       where: { activo: true, tipo: { in: ["ENVASE", "ETIQUETA"] } },
       orderBy: { codigo: "asc" },
     }),
+    prisma.envasado.findMany({ include: { presentacion: true }, orderBy: { fecha: "desc" } }),
   ]);
 
   return (
-    <div className="max-w-2xl">
-      <Link href="/produccion/envasados" className="text-sm text-neutral-500 hover:underline">
+    <div>
+      <Link href="/produccion/envasados" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a envasados
       </Link>
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 mt-2">
+      <h1 className="text-xl font-bold mt-1" style={{ color: "var(--epicor-texto)" }}>
         Nuevo envasado
       </h1>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Consume granel aprobado más envases y etiquetas, y genera stock de la presentación elegida.
       </p>
 
-      <div className="mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/produccion/envasados/nuevo"
+        nuevoTexto="Nuevo envasado"
+        registros={envasados.map((e) => ({
+          id: e.id,
+          href: `/produccion/envasados/${e.id}`,
+          primario: e.codigo,
+          secundario: e.presentacion.nombre,
+        }))}
+      >
+      <div className="max-w-2xl">
         <EnvasadoFormulario
           loteIdInicial={loteId}
           lotes={lotes.map((l) => ({
@@ -57,6 +69,7 @@ export default async function NuevoEnvasadoPage({
           }))}
         />
       </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

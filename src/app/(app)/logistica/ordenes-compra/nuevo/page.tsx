@@ -1,23 +1,35 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import OrdenCompraFormulario from "../OrdenCompraFormulario";
 
 export default async function NuevaOrdenCompraPage() {
-  const [proveedores, insumos] = await Promise.all([
+  const [proveedores, insumos, ordenes] = await Promise.all([
     prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.ordenCompra.findMany({ include: { proveedor: true }, orderBy: { fecha: "desc" } }),
   ]);
 
   return (
-    <div className="max-w-3xl">
-      <Link href="/logistica/ordenes-compra" className="text-sm text-neutral-500 hover:underline">
+    <div>
+      <Link href="/logistica/ordenes-compra" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a órdenes de compra
       </Link>
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 mt-2">
+      <h1 className="text-xl font-bold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
         Nueva orden de compra
       </h1>
 
-      <div className="mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/logistica/ordenes-compra/nuevo"
+        nuevoTexto="Nueva orden"
+        registros={ordenes.map((o) => ({
+          id: o.id,
+          href: `/logistica/ordenes-compra/${o.id}`,
+          primario: o.numero,
+          secundario: o.proveedor.razonSocial,
+        }))}
+      >
+      <div className="max-w-3xl">
         <OrdenCompraFormulario
           proveedores={proveedores.map((p) => ({ id: p.id, etiqueta: p.razonSocial }))}
           insumos={insumos.map((i) => ({
@@ -28,6 +40,7 @@ export default async function NuevaOrdenCompraPage() {
           }))}
         />
       </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }
