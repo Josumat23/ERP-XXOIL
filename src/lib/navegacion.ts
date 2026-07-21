@@ -1,0 +1,131 @@
+export type Rol = "ADMIN" | "ALMACEN" | "PRODUCCION" | "VENTAS";
+
+export type Enlace = { href: string; etiqueta: string; roles?: Rol[] };
+export type Grupo = { titulo: string; enlaces: Enlace[] };
+export type Modulo = { titulo: string | null; icono?: string; enlaces?: Enlace[]; grupos?: Grupo[] };
+
+// Jerarquía adaptada de Epicor Kinetic (Sales/Material/Production/Financial
+// Management + System Setup), traducida al español y mapeada a las rutas
+// existentes del proyecto. Compartida entre el Sidebar (árbol de navegación)
+// y la barra de programa (nombre de pantalla estilo Epicor).
+export const MODULOS: Modulo[] = [
+  {
+    titulo: null,
+    enlaces: [{ href: "/", etiqueta: "Panel general" }],
+  },
+  {
+    titulo: "Ventas",
+    icono: "◆",
+    enlaces: [
+      { href: "/comercial/pedidos", etiqueta: "Pedidos" },
+      { href: "/comercial/facturas", etiqueta: "Facturas" },
+      { href: "/comercial/hojas-ruta", etiqueta: "Hojas de ruta" },
+      { href: "/comercial/comisiones", etiqueta: "Comisiones" },
+      { href: "/comercial/clientes", etiqueta: "Clientes" },
+      { href: "/comercial/vendedores", etiqueta: "Vendedores" },
+      { href: "/comercial/zonas", etiqueta: "Zonas" },
+    ],
+  },
+  {
+    titulo: "Materiales",
+    icono: "▤",
+    grupos: [
+      {
+        titulo: "Inventario",
+        enlaces: [
+          { href: "/catalogo/productos", etiqueta: "Productos" },
+          { href: "/catalogo/presentaciones", etiqueta: "Presentaciones" },
+          { href: "/catalogo/insumos", etiqueta: "Insumos" },
+          { href: "/catalogo/categorias", etiqueta: "Categorías" },
+          { href: "/inventario/kardex", etiqueta: "Kardex" },
+          { href: "/inventario/ajustes", etiqueta: "Ajustes", roles: ["ADMIN", "ALMACEN"] },
+        ],
+      },
+      {
+        titulo: "Compras",
+        enlaces: [
+          { href: "/logistica/ordenes-compra", etiqueta: "Órdenes de compra" },
+          { href: "/logistica/guias-remision", etiqueta: "Guías de remisión" },
+          { href: "/catalogo/proveedores", etiqueta: "Proveedores" },
+        ],
+      },
+    ],
+  },
+  {
+    titulo: "Producción",
+    icono: "⚙",
+    enlaces: [
+      { href: "/produccion/formulas", etiqueta: "Fórmulas" },
+      { href: "/produccion/lotes", etiqueta: "Órdenes de producción" },
+      { href: "/produccion/calidad", etiqueta: "Control de calidad" },
+      { href: "/produccion/envasados", etiqueta: "Envasados" },
+    ],
+  },
+  {
+    titulo: "Finanzas",
+    icono: "◇",
+    grupos: [
+      {
+        titulo: "Tesorería",
+        enlaces: [
+          { href: "/finanzas/cuentas-por-cobrar", etiqueta: "Cuentas por cobrar" },
+          { href: "/finanzas/cuentas-por-pagar", etiqueta: "Cuentas por pagar" },
+          { href: "/finanzas/caja", etiqueta: "Libro de caja" },
+        ],
+      },
+      {
+        titulo: "Contabilidad",
+        enlaces: [
+          { href: "/finanzas/asientos", etiqueta: "Asientos contables" },
+          { href: "/finanzas/balance", etiqueta: "Balance de comprobación" },
+          { href: "/finanzas/plan-cuentas", etiqueta: "Plan de cuentas", roles: ["ADMIN"] },
+        ],
+      },
+      {
+        titulo: "Reportes",
+        enlaces: [
+          { href: "/finanzas/costos", etiqueta: "Costos y márgenes" },
+          { href: "/finanzas/resultados", etiqueta: "Estado de resultados" },
+        ],
+      },
+    ],
+  },
+  {
+    titulo: "Configuración del Sistema",
+    icono: "✦",
+    enlaces: [
+      { href: "/configuracion/empresa", etiqueta: "Empresa", roles: ["ADMIN"] },
+      { href: "/configuracion/usuarios", etiqueta: "Usuarios", roles: ["ADMIN"] },
+      { href: "/configuracion/series", etiqueta: "Series de documentos", roles: ["ADMIN"] },
+      { href: "/configuracion/almacenes", etiqueta: "Almacenes y zonas", roles: ["ADMIN", "ALMACEN"] },
+      { href: "/configuracion/unidades-medida", etiqueta: "Unidades de medida", roles: ["ADMIN"] },
+      { href: "/configuracion/grupos-seguridad", etiqueta: "Grupos de seguridad", roles: ["ADMIN"] },
+      { href: "/configuracion/calendario-fiscal", etiqueta: "Calendario fiscal", roles: ["ADMIN"] },
+    ],
+  },
+];
+
+// Aplana MODULOS a una lista de enlaces con su módulo padre, para que la
+// barra de programa pueda ubicar el nombre de pantalla + módulo a partir
+// de la ruta actual (más específico primero, para que /a/b no capture /a).
+type EnlacePlano = Enlace & { modulo: string | null };
+
+function aplanar(): EnlacePlano[] {
+  const lista: EnlacePlano[] = [];
+  for (const modulo of MODULOS) {
+    for (const enlace of modulo.enlaces ?? []) lista.push({ ...enlace, modulo: modulo.titulo });
+    for (const grupo of modulo.grupos ?? []) {
+      for (const enlace of grupo.enlaces) lista.push({ ...enlace, modulo: modulo.titulo });
+    }
+  }
+  return lista.sort((a, b) => b.href.length - a.href.length);
+}
+
+const ENLACES_PLANOS = aplanar();
+
+export function ubicarPantalla(pathname: string): { etiqueta: string; modulo: string | null } | null {
+  const encontrado = ENLACES_PLANOS.find((e) =>
+    e.href === "/" ? pathname === "/" : pathname.startsWith(e.href)
+  );
+  return encontrado ? { etiqueta: encontrado.etiqueta, modulo: encontrado.modulo } : null;
+}
