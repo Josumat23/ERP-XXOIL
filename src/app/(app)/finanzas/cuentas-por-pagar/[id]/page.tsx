@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_MEDIO_PAGO } from "@/lib/etiquetas";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PagoFormulario from "./PagoFormulario";
 
 export default async function DetalleCuentaPorPagarPage({
@@ -12,22 +13,35 @@ export default async function DetalleCuentaPorPagarPage({
 }) {
   const { id } = await params;
 
-  const cuenta = await prisma.cuentaPorPagar.findUnique({
-    where: { id },
-    include: {
-      proveedor: true,
-      ordenCompra: true,
-      pagos: { orderBy: { fecha: "asc" } },
-    },
-  });
+  const [cuenta, cuentas] = await Promise.all([
+    prisma.cuentaPorPagar.findUnique({
+      where: { id },
+      include: {
+        proveedor: true,
+        ordenCompra: true,
+        pagos: { orderBy: { fecha: "asc" } },
+      },
+    }),
+    prisma.cuentaPorPagar.findMany({ include: { proveedor: true }, orderBy: { fechaEmision: "desc" } }),
+  ]);
   if (!cuenta) notFound();
 
   return (
-    <div className="max-w-3xl">
-      <Link href="/finanzas/cuentas-por-pagar" className="text-sm text-neutral-500 hover:underline">
+    <div>
+      <Link href="/finanzas/cuentas-por-pagar" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a cuentas por pagar
       </Link>
 
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        registros={cuentas.map((c) => ({
+          id: c.id,
+          href: `/finanzas/cuentas-por-pagar/${c.id}`,
+          primario: c.numeroDocumento,
+          secundario: c.proveedor.razonSocial,
+        }))}
+      >
+      <div className="max-w-3xl">
       <div className="flex items-center gap-3 mt-2">
         <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 font-mono">
           {cuenta.numeroDocumento}
@@ -106,6 +120,8 @@ export default async function DetalleCuentaPorPagarPage({
           </div>
         )}
       </section>
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

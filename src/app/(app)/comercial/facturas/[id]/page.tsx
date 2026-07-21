@@ -9,6 +9,7 @@ import {
 } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { seriesActivas } from "@/lib/series";
 import {
   CobroFormulario,
@@ -29,18 +30,21 @@ export default async function DetalleFacturaPage({
 }) {
   const { id } = await params;
 
-  const factura = await prisma.factura.findUnique({
-    where: { id },
-    include: {
-      cliente: true,
-      vendedor: true,
-      pedido: { include: { detalles: { include: { presentacion: { include: { producto: true } } } } } },
-      cobros: { orderBy: { fecha: "asc" } },
-      notasCredito: { orderBy: { fecha: "asc" } },
-      comisiones: { orderBy: { creadoEn: "asc" } },
-      guias: true,
-    },
-  });
+  const [factura, facturas] = await Promise.all([
+    prisma.factura.findUnique({
+      where: { id },
+      include: {
+        cliente: true,
+        vendedor: true,
+        pedido: { include: { detalles: { include: { presentacion: { include: { producto: true } } } } } },
+        cobros: { orderBy: { fecha: "asc" } },
+        notasCredito: { orderBy: { fecha: "asc" } },
+        comisiones: { orderBy: { creadoEn: "asc" } },
+        guias: true,
+      },
+    }),
+    prisma.factura.findMany({ include: { cliente: true }, orderBy: { fechaEmision: "desc" } }),
+  ]);
   if (!factura) notFound();
 
   const totalNC = factura.notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
@@ -50,14 +54,24 @@ export default async function DetalleFacturaPage({
   const seriesNC = puedeOperar && maximoNC > 0 ? await seriesActivas("NOTA_CREDITO") : [];
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <div className="flex items-center justify-between no-imprimir">
-        <Link href="/comercial/facturas" className="text-sm text-neutral-500 hover:underline">
+        <Link href="/comercial/facturas" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           ← Volver a facturas
         </Link>
         <BotonImprimir />
       </div>
 
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        registros={facturas.map((f) => ({
+          id: f.id,
+          href: `/comercial/facturas/${f.id}`,
+          primario: f.numero,
+          secundario: f.cliente.razonSocial,
+        }))}
+      >
+      <div className="max-w-3xl">
       <MembreteEmpresa soloImprimir tituloDocumento="FACTURA" numero={factura.numero} />
 
       <div className="flex items-center gap-3 mt-2">
@@ -308,6 +322,8 @@ export default async function DetalleFacturaPage({
           <AnularFacturaFormulario facturaId={factura.id} />
         </section>
       )}
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

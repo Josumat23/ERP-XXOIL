@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 export default async function DetalleGuiaPage({
   params,
@@ -12,14 +13,17 @@ export default async function DetalleGuiaPage({
 }) {
   const { id } = await params;
 
-  const guia = await prisma.guiaRemision.findUnique({
-    where: { id },
-    include: {
-      cliente: true,
-      factura: true,
-      detalles: { include: { presentacion: { include: { producto: true } } } },
-    },
-  });
+  const [guia, guias] = await Promise.all([
+    prisma.guiaRemision.findUnique({
+      where: { id },
+      include: {
+        cliente: true,
+        factura: true,
+        detalles: { include: { presentacion: { include: { producto: true } } } },
+      },
+    }),
+    prisma.guiaRemision.findMany({ include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
+  ]);
   if (!guia) notFound();
 
   const totalKg = guia.detalles.reduce(
@@ -28,14 +32,26 @@ export default async function DetalleGuiaPage({
   );
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <div className="flex items-center justify-between no-imprimir">
-        <Link href="/logistica/guias-remision" className="text-sm text-neutral-500 hover:underline">
+        <Link href="/logistica/guias-remision" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           ← Volver a guías de remisión
         </Link>
         <BotonImprimir />
       </div>
 
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        nuevoHref="/logistica/guias-remision/nueva"
+        nuevoTexto="Nueva guía"
+        registros={guias.map((g) => ({
+          id: g.id,
+          href: `/logistica/guias-remision/${g.id}`,
+          primario: g.numero,
+          secundario: g.cliente.razonSocial,
+        }))}
+      >
+      <div className="max-w-3xl">
       <div className="documento border border-black/10 dark:border-white/10 rounded-lg p-6 mt-4">
         <MembreteEmpresa tituloDocumento="GUÍA DE REMISIÓN" numero={guia.numero} />
 
@@ -105,6 +121,8 @@ export default async function DetalleGuiaPage({
           )}
         </p>
       </div>
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

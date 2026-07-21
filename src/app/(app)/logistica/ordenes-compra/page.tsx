@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_OC } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -18,26 +19,33 @@ export default async function OrdenesCompraPage() {
   });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
             Órdenes de compra
           </h1>
-          <p className="text-neutral-500 mt-1">
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             Compras de insumos a proveedores. La recepción alimenta el kardex, actualiza el costo
             promedio y genera la cuenta por pagar.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/logistica/ordenes-compra/nuevo" className="boton-primario">
-            Nueva orden
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/logistica/ordenes-compra/nuevo"
+        nuevoTexto="Nueva orden"
+        registros={ordenes.map((oc) => ({
+          id: oc.id,
+          href: `/logistica/ordenes-compra/${oc.id}`,
+          primario: oc.numero,
+          secundario: oc.proveedor.razonSocial,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Número</th>
@@ -83,6 +91,7 @@ export default async function OrdenesCompraPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

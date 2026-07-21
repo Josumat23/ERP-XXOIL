@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 export default async function CuentasPorPagarPage() {
   const cuentas = await prisma.cuentaPorPagar.findMany({
@@ -13,21 +14,29 @@ export default async function CuentasPorPagarPage() {
   const totalPorPagar = cuentas.reduce((acc, c) => acc + c.saldo.toNumber(), 0);
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
           Cuentas por pagar
         </h1>
         <BotonImprimir />
       </div>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Deudas con proveedores generadas por las recepciones de compras. Total pendiente:{" "}
-        <span className="font-semibold text-neutral-900 dark:text-neutral-100">
+        <span className="font-semibold" style={{ color: "var(--epicor-texto)" }}>
           {formatMoneda(totalPorPagar)}
         </span>
       </p>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        registros={cuentas.map((c) => ({
+          id: c.id,
+          href: `/finanzas/cuentas-por-pagar/${c.id}`,
+          primario: c.numeroDocumento,
+          secundario: c.proveedor.razonSocial,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Documento</th>
@@ -103,6 +112,7 @@ export default async function CuentasPorPagarPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { ETIQUETA_ESTADO_HR } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import CerrarRutaFormulario from "./CerrarRutaFormulario";
 
 export default async function DetalleHojaRutaPage({
@@ -13,24 +14,39 @@ export default async function DetalleHojaRutaPage({
 }) {
   const { id } = await params;
 
-  const hoja = await prisma.hojaRuta.findUnique({
-    where: { id },
-    include: {
-      vendedor: { include: { zona: true } },
-      visitas: { include: { cliente: true }, orderBy: { orden: "asc" } },
-    },
-  });
+  const [hoja, hojas] = await Promise.all([
+    prisma.hojaRuta.findUnique({
+      where: { id },
+      include: {
+        vendedor: { include: { zona: true } },
+        visitas: { include: { cliente: true }, orderBy: { orden: "asc" } },
+      },
+    }),
+    prisma.hojaRuta.findMany({ include: { vendedor: true }, orderBy: { fecha: "desc" } }),
+  ]);
   if (!hoja) notFound();
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <div className="flex items-center justify-between no-imprimir">
-        <Link href="/comercial/hojas-ruta" className="text-sm text-neutral-500 hover:underline">
+        <Link href="/comercial/hojas-ruta" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           ← Volver a hojas de ruta
         </Link>
         <BotonImprimir />
       </div>
 
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        nuevoHref="/comercial/hojas-ruta/nueva"
+        nuevoTexto="Nueva hoja de ruta"
+        registros={hojas.map((h) => ({
+          id: h.id,
+          href: `/comercial/hojas-ruta/${h.id}`,
+          primario: h.numero,
+          secundario: h.vendedor.nombre,
+        }))}
+      >
+      <div className="max-w-3xl">
       <div className="documento border border-black/10 dark:border-white/10 rounded-lg p-6 mt-4">
         <MembreteEmpresa soloImprimir tituloDocumento="HOJA DE RUTA" numero={hoja.numero} />
         <div className="flex items-start justify-between border-b border-black/10 dark:border-white/10 pb-4">
@@ -101,6 +117,8 @@ export default async function DetalleHojaRutaPage({
           />
         </section>
       )}
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

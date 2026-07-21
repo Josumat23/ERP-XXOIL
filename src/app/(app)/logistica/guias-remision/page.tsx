@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 export default async function GuiasRemisionPage() {
   const guias = await prisma.guiaRemision.findMany({
@@ -9,26 +10,33 @@ export default async function GuiasRemisionPage() {
   });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
             Guías de remisión
           </h1>
-          <p className="text-neutral-500 mt-1">
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             Documentan el traslado de mercadería (formato SUNAT). Se imprimen para acompañar el
             transporte.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/logistica/guias-remision/nueva" className="boton-primario">
-            Nueva guía
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/logistica/guias-remision/nueva"
+        nuevoTexto="Nueva guía"
+        registros={guias.map((g) => ({
+          id: g.id,
+          href: `/logistica/guias-remision/${g.id}`,
+          primario: g.numero,
+          secundario: g.cliente.razonSocial,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Número</th>
@@ -78,6 +86,7 @@ export default async function GuiasRemisionPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

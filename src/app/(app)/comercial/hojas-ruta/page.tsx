@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { ETIQUETA_ESTADO_HR } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 export default async function HojasRutaPage() {
   const hojas = await prisma.hojaRuta.findMany({
@@ -10,25 +11,32 @@ export default async function HojasRutaPage() {
   });
 
   return (
-    <div className="max-w-4xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
             Hojas de ruta
           </h1>
-          <p className="text-neutral-500 mt-1">
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             Planificación diaria de visitas por vendedor, con registro de resultados.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/comercial/hojas-ruta/nueva" className="boton-primario">
-            Nueva hoja de ruta
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/comercial/hojas-ruta/nueva"
+        nuevoTexto="Nueva hoja de ruta"
+        registros={hojas.map((h) => ({
+          id: h.id,
+          href: `/comercial/hojas-ruta/${h.id}`,
+          primario: h.numero,
+          secundario: h.vendedor.nombre,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Número</th>
@@ -78,6 +86,7 @@ export default async function HojasRutaPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

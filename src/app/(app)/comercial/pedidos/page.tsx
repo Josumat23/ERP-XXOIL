@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_PEDIDO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -17,23 +18,30 @@ export default async function PedidosPage() {
   });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Pedidos</h1>
-          <p className="text-neutral-500 mt-1">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Pedidos</h1>
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             El stock se descuenta recién al facturar; un pedido pendiente puede anularse.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/comercial/pedidos/nuevo" className="boton-primario">
-            Nuevo pedido
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/comercial/pedidos/nuevo"
+        nuevoTexto="Nuevo pedido"
+        registros={pedidos.map((p) => ({
+          id: p.id,
+          href: `/comercial/pedidos/${p.id}`,
+          primario: p.numero,
+          secundario: p.cliente.razonSocial,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Número</th>
@@ -89,6 +97,7 @@ export default async function PedidosPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

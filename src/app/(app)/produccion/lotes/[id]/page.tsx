@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import FinalizarLoteFormulario from "./FinalizarLoteFormulario";
 
 const COLOR_ESTADO: Record<string, string> = {
@@ -19,14 +20,20 @@ export default async function DetalleLotePage({
 }) {
   const { id } = await params;
 
-  const lote = await prisma.loteGranel.findUnique({
-    where: { id },
-    include: {
-      formula: { include: { producto: true, detalles: { include: { insumo: true } } } },
-      controlCalidad: true,
-      envasados: { include: { presentacion: true } },
-    },
-  });
+  const [lote, lotes] = await Promise.all([
+    prisma.loteGranel.findUnique({
+      where: { id },
+      include: {
+        formula: { include: { producto: true, detalles: { include: { insumo: true } } } },
+        controlCalidad: true,
+        envasados: { include: { presentacion: true } },
+      },
+    }),
+    prisma.loteGranel.findMany({
+      include: { formula: { include: { producto: true } } },
+      orderBy: { fechaInicio: "desc" },
+    }),
+  ]);
   if (!lote) notFound();
 
   const consumos = await prisma.movimientoKardex.findMany({
@@ -36,11 +43,23 @@ export default async function DetalleLotePage({
   });
 
   return (
-    <div className="max-w-3xl">
-      <Link href="/produccion/lotes" className="text-sm text-neutral-500 hover:underline">
+    <div>
+      <Link href="/produccion/lotes" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a órdenes de producción
       </Link>
 
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        nuevoHref="/produccion/lotes/nuevo"
+        nuevoTexto="Nueva orden"
+        registros={lotes.map((l) => ({
+          id: l.id,
+          href: `/produccion/lotes/${l.id}`,
+          primario: l.codigo,
+          secundario: l.formula.producto.nombre,
+        }))}
+      >
+      <div className="max-w-3xl">
       <div className="flex items-center gap-3 mt-2">
         <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
           Orden de producción {lote.codigo}
@@ -185,6 +204,8 @@ export default async function DetalleLotePage({
           </tbody>
         </table>
       </section>
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

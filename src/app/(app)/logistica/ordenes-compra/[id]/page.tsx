@@ -5,6 +5,7 @@ import { formatMoneda, formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_OC } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import RecepcionFormulario from "./RecepcionFormulario";
 import AnularOCFormulario from "./AnularOCFormulario";
 
@@ -22,15 +23,18 @@ export default async function DetalleOrdenCompraPage({
 }) {
   const { id } = await params;
 
-  const oc = await prisma.ordenCompra.findUnique({
-    where: { id },
-    include: {
-      proveedor: true,
-      detalles: { include: { insumo: true } },
-      recepciones: { include: { detalles: { include: { insumo: true } } }, orderBy: { fecha: "asc" } },
-      cuentasPorPagar: true,
-    },
-  });
+  const [oc, ordenes] = await Promise.all([
+    prisma.ordenCompra.findUnique({
+      where: { id },
+      include: {
+        proveedor: true,
+        detalles: { include: { insumo: true } },
+        recepciones: { include: { detalles: { include: { insumo: true } } }, orderBy: { fecha: "asc" } },
+        cuentasPorPagar: true,
+      },
+    }),
+    prisma.ordenCompra.findMany({ include: { proveedor: true }, orderBy: { fecha: "desc" } }),
+  ]);
   if (!oc) notFound();
 
   const pendientes = oc.detalles
@@ -46,14 +50,26 @@ export default async function DetalleOrdenCompraPage({
   const admiteRecepcion = oc.estado === "PENDIENTE" || oc.estado === "PARCIAL";
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <div className="flex items-center justify-between no-imprimir">
-        <Link href="/logistica/ordenes-compra" className="text-sm text-neutral-500 hover:underline">
+        <Link href="/logistica/ordenes-compra" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           ← Volver a órdenes de compra
         </Link>
         <BotonImprimir />
       </div>
 
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        nuevoHref="/logistica/ordenes-compra/nuevo"
+        nuevoTexto="Nueva orden"
+        registros={ordenes.map((o) => ({
+          id: o.id,
+          href: `/logistica/ordenes-compra/${o.id}`,
+          primario: o.numero,
+          secundario: o.proveedor.razonSocial,
+        }))}
+      >
+      <div className="max-w-3xl">
       <div className="documento">
         <MembreteEmpresa soloImprimir tituloDocumento="ORDEN DE COMPRA" numero={oc.numero} />
         <div className="flex items-center gap-3 mt-2">
@@ -175,6 +191,8 @@ export default async function DetalleOrdenCompraPage({
           <AnularOCFormulario ordenCompraId={oc.id} />
         </section>
       )}
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

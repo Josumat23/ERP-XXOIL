@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_FACTURA, ETIQUETA_CONDICION_PAGO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -19,16 +20,24 @@ export default async function FacturasPage() {
   const hoy = new Date();
 
   return (
-    <div className="max-w-6xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Facturas</h1>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Facturas</h1>
         <BotonImprimir />
       </div>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Se emiten en el portal SUNAT; aquí se registra el número y se controla la cobranza.
       </p>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        registros={facturas.map((f) => ({
+          id: f.id,
+          href: `/comercial/facturas/${f.id}`,
+          primario: f.numero,
+          secundario: f.cliente.razonSocial,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Número</th>
@@ -87,6 +96,7 @@ export default async function FacturasPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

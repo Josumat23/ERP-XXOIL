@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_PEDIDO } from "@/lib/etiquetas";
 import { seriesActivas } from "@/lib/series";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { anularPedido } from "../actions";
 import FacturarFormulario from "./FacturarFormulario";
 
@@ -20,26 +21,41 @@ export default async function DetallePedidoPage({
 }) {
   const { id } = await params;
 
-  const pedido = await prisma.pedido.findUnique({
-    where: { id },
-    include: {
-      cliente: true,
-      vendedor: true,
-      factura: true,
-      detalles: { include: { presentacion: { include: { producto: true } } } },
-    },
-  });
+  const [pedido, pedidos] = await Promise.all([
+    prisma.pedido.findUnique({
+      where: { id },
+      include: {
+        cliente: true,
+        vendedor: true,
+        factura: true,
+        detalles: { include: { presentacion: { include: { producto: true } } } },
+      },
+    }),
+    prisma.pedido.findMany({ include: { cliente: true }, orderBy: { fecha: "desc" } }),
+  ]);
   if (!pedido) notFound();
 
   const series =
     pedido.estado === "PENDIENTE" ? await seriesActivas("FACTURA") : [];
 
   return (
-    <div className="max-w-3xl">
-      <Link href="/comercial/pedidos" className="text-sm text-neutral-500 hover:underline">
+    <div>
+      <Link href="/comercial/pedidos" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a pedidos
       </Link>
 
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        nuevoHref="/comercial/pedidos/nuevo"
+        nuevoTexto="Nuevo pedido"
+        registros={pedidos.map((p) => ({
+          id: p.id,
+          href: `/comercial/pedidos/${p.id}`,
+          primario: p.numero,
+          secundario: p.cliente.razonSocial,
+        }))}
+      >
+      <div className="max-w-3xl">
       <div className="flex items-center gap-3 mt-2">
         <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
           Pedido {pedido.numero}
@@ -131,6 +147,8 @@ export default async function DetallePedidoPage({
           </Link>
         </p>
       )}
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

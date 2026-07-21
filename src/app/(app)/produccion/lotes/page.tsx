@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 const COLOR_ESTADO: Record<string, string> = {
   EN_PROCESO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
@@ -18,25 +19,32 @@ export default async function LotesPage() {
   });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
             Órdenes de producción
           </h1>
-          <p className="text-neutral-500 mt-1">
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             Primera etapa de producción: cocción a granel según fórmula, con registro de merma.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/produccion/lotes/nuevo" className="boton-primario">
-            Nueva orden
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/produccion/lotes/nuevo"
+        nuevoTexto="Nueva orden"
+        registros={lotes.map((l) => ({
+          id: l.id,
+          href: `/produccion/lotes/${l.id}`,
+          primario: l.codigo,
+          secundario: l.formula.producto.nombre,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>N.° de orden</th>
@@ -89,6 +97,7 @@ export default async function LotesPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }
