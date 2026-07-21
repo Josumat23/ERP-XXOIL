@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { AlmacenFormulario, ZonaFormulario } from "./AlmacenFormularios";
 import { alternarActivoAlmacen, alternarActivoZona } from "./actions";
 
@@ -16,16 +17,25 @@ export default async function AlmacenesPage() {
   });
 
   return (
-    <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+    <div>
+      <h1 className="text-xl font-bold mb-1" style={{ color: "var(--epicor-texto)" }}>
         Almacenes y zonas
       </h1>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Equivalente reducido a Warehouse / Warehouse Zone de Epicor: define dónde vive físicamente
         cada presentación e insumo, en vez de texto libre.
       </p>
 
-      <div className="mt-6 border border-black/10 dark:border-white/10 rounded-lg p-4">
+      <PanelMaestroDetalle
+        registros={almacenes.map((a) => ({
+          id: a.id,
+          href: `#almacen-${a.id}`,
+          primario: a.nombre,
+          secundario: a.codigo,
+        }))}
+      >
+      <div className="max-w-4xl">
+      <div className="border border-black/10 dark:border-white/10 rounded-lg p-4">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">Nuevo almacén</h2>
         <AlmacenFormulario />
       </div>
@@ -37,7 +47,7 @@ export default async function AlmacenesPage() {
 
       <div className="mt-6 flex flex-col gap-6">
         {almacenes.map((a) => (
-          <div key={a.id} className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <div key={a.id} id={`almacen-${a.id}`} className="border border-black/10 dark:border-white/10 rounded-lg p-4 scroll-mt-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="font-medium text-neutral-900 dark:text-neutral-100">
@@ -140,6 +150,8 @@ export default async function AlmacenesPage() {
           </p>
         )}
       </div>
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

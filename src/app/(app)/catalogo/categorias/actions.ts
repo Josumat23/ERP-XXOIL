@@ -6,7 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 
-export type EstadoFormulario = { error?: string };
+export type EstadoFormulario = { error?: string; ok?: boolean };
 
 export async function crearCategoria(
   _prevState: EstadoFormulario,
@@ -33,6 +33,35 @@ export async function crearCategoria(
 
   revalidatePath("/catalogo/categorias");
   return {};
+}
+
+export async function actualizarCategoria(
+  id: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
+
+  const nombre = String(formData.get("nombre") ?? "").trim();
+  const descripcion = String(formData.get("descripcion") ?? "").trim() || null;
+  if (!nombre) return { error: "El nombre es obligatorio." };
+
+  try {
+    await prisma.categoria.update({ where: { id }, data: { nombre, descripcion } });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: `Ya existe la categoría "${nombre}".` };
+    }
+    throw e;
+  }
+
+  revalidatePath("/catalogo/categorias");
+  revalidatePath(`/catalogo/categorias/${id}`);
+  return { ok: true };
 }
 
 export async function alternarActivoCategoria(id: string, activo: boolean) {

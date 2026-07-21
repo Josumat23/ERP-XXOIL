@@ -2,14 +2,24 @@
 
 import { useRef } from "react";
 import { useActionState } from "react";
-import { crearCategoria } from "./actions";
+import { crearCategoria, type EstadoFormulario } from "./actions";
 
-export default function CategoriaFormulario() {
+type Accion = (prev: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
+
+export default function CategoriaFormulario({
+  accion,
+  valoresIniciales,
+  textoBoton = "Agregar",
+}: {
+  accion?: Accion;
+  valoresIniciales?: { nombre: string; descripcion: string | null };
+  textoBoton?: string;
+}) {
   const formRef = useRef<HTMLFormElement>(null);
   const [estado, formAction, enviando] = useActionState(
-    async (prev: { error?: string }, formData: FormData) => {
-      const resultado = await crearCategoria(prev, formData);
-      if (!resultado.error) formRef.current?.reset();
+    async (prev: EstadoFormulario, formData: FormData) => {
+      const resultado = await (accion ?? crearCategoria)(prev, formData);
+      if (!resultado.error && !accion) formRef.current?.reset();
       return resultado;
     },
     {}
@@ -22,11 +32,27 @@ export default function CategoriaFormulario() {
           {estado.error}
         </p>
       )}
+      {estado.ok && (
+        <p className="text-sm text-green-700 dark:text-green-400 bg-green-50 dark:bg-green-950/40 border border-green-200 dark:border-green-900 rounded-md px-3 py-2">
+          Guardado.
+        </p>
+      )}
       <div className="flex gap-3">
-        <input name="nombre" required placeholder="Nombre de la categoría" className="campo-input flex-1" />
-        <input name="descripcion" placeholder="Descripción (opcional)" className="campo-input flex-[2]" />
+        <input
+          name="nombre"
+          required
+          defaultValue={valoresIniciales?.nombre}
+          placeholder="Nombre de la categoría"
+          className="campo-input flex-1"
+        />
+        <input
+          name="descripcion"
+          defaultValue={valoresIniciales?.descripcion ?? ""}
+          placeholder="Descripción (opcional)"
+          className="campo-input flex-[2]"
+        />
         <button type="submit" disabled={enviando} className="boton-primario">
-          {enviando ? "Creando..." : "Agregar"}
+          {enviando ? "Guardando..." : textoBoton}
         </button>
       </div>
     </form>
