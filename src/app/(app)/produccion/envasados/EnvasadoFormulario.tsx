@@ -124,6 +124,20 @@ export default function EnvasadoFormulario({ lotes, presentaciones, insumos, lot
         </label>
       </div>
 
+      <label className="flex flex-col gap-1 text-sm w-48">
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">
+          Horas de mano de obra
+        </span>
+        <input
+          name="horasManoObra"
+          type="number"
+          step="0.01"
+          min="0"
+          defaultValue={0}
+          className="campo-input"
+        />
+      </label>
+
       {lote && kgNecesarios > 0 && (
         <p
           className={`text-sm ${

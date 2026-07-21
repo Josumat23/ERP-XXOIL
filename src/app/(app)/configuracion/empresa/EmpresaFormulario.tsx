@@ -21,6 +21,7 @@ type Props = {
     email: string | null;
     sitioWeb: string | null;
     tasaIgv: number;
+    tarifaHoraManoObra: number;
   };
 };
 
@@ -124,6 +125,27 @@ export default function EmpresaFormulario({ valores }: Props) {
             <input name="sitioWeb" defaultValue={valores.sitioWeb ?? ""} className="campo-input" />
           </Campo>
         </div>
+      </fieldset>
+
+      <fieldset className="borde-seccion">
+        <legend className="titulo-seccion">Costeo de producción</legend>
+        <div className="grid grid-cols-2 gap-4">
+          <Campo etiqueta="Tarifa de mano de obra (S/ por hora)">
+            <input
+              name="tarifaHoraManoObra"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              defaultValue={valores.tarifaHoraManoObra}
+              className="campo-input"
+            />
+          </Campo>
+        </div>
+        <p className="text-xs text-neutral-500 mt-1">
+          Se usa para calcular el costo de mano de obra al finalizar lotes y envasados (horas
+          registradas × esta tarifa vigente al momento).
+        </p>
       </fieldset>
 
       <p className="text-xs text-neutral-500">

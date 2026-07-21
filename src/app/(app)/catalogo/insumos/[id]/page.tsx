@@ -62,6 +62,7 @@ export default async function EditarInsumoPage({
             codigoProveedor: insumo.codigoProveedor,
             zonaAlmacenId: insumo.zonaAlmacenId,
             notas: insumo.notas,
+            requiereInspeccion: insumo.requiereInspeccion,
           }}
           textoBoton="Guardar cambios"
         />

@@ -186,7 +186,7 @@ export async function registrarRecepcion(
           ? linea.costoUnitario
           : detalle.costoUnitario.toNumber();
 
-        await tx.recepcionCompraDetalle.create({
+        const detalleRecepcion = await tx.recepcionCompraDetalle.create({
           data: {
             recepcionId: recepcion.id,
             insumoId: detalle.insumoId,
@@ -195,30 +195,37 @@ export async function registrarRecepcion(
           },
         });
 
-        // Costo promedio ponderado ANTES de mover el stock
         const insumo = detalle.insumo;
-        const stockActual = insumo.stock.toNumber();
-        const costoActual = insumo.costoUnitario.toNumber();
-        const nuevoCosto =
-          stockActual + linea.cantidad > 0
-            ? (stockActual * costoActual + linea.cantidad * costo) / (stockActual + linea.cantidad)
-            : costo;
-        await tx.insumo.update({
-          where: { id: insumo.id },
-          data: { costoUnitario: nuevoCosto },
-        });
+        if (insumo.requiereInspeccion) {
+          // No suma stock ni recalcula costo promedio hasta que calidad apruebe.
+          await tx.inspeccionCompra.create({
+            data: { recepcionCompraDetalleId: detalleRecepcion.id },
+          });
+        } else {
+          // Costo promedio ponderado ANTES de mover el stock
+          const stockActual = insumo.stock.toNumber();
+          const costoActual = insumo.costoUnitario.toNumber();
+          const nuevoCosto =
+            stockActual + linea.cantidad > 0
+              ? (stockActual * costoActual + linea.cantidad * costo) / (stockActual + linea.cantidad)
+              : costo;
+          await tx.insumo.update({
+            where: { id: insumo.id },
+            data: { costoUnitario: nuevoCosto },
+          });
 
-        const mov = await registrarMovimiento(tx, {
-          tipoItem: "INSUMO",
-          insumoId: detalle.insumoId,
-          tipoMovimiento: "ENTRADA",
-          origen: "COMPRA",
-          cantidad: linea.cantidad,
-          referencia: `Recepción ${numero} (${oc.numero}, doc. ${numeroDocumento})`,
-          usuarioId: auth.usuario.id,
-          usuarioNombre: auth.usuario.nombre,
-        });
-        if (!mov.ok) throw new Error(mov.error);
+          const mov = await registrarMovimiento(tx, {
+            tipoItem: "INSUMO",
+            insumoId: detalle.insumoId,
+            tipoMovimiento: "ENTRADA",
+            origen: "COMPRA",
+            cantidad: linea.cantidad,
+            referencia: `Recepción ${numero} (${oc.numero}, doc. ${numeroDocumento})`,
+            usuarioId: auth.usuario.id,
+            usuarioNombre: auth.usuario.nombre,
+          });
+          if (!mov.ok) throw new Error(mov.error);
+        }
 
         await tx.ordenCompraDetalle.update({
           where: { id: detalle.id },

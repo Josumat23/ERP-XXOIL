@@ -40,6 +40,7 @@ model ConfiguracionEmpresa {
   sitioWeb        String?
   moneda          String   @default("PEN")
   tasaIgv         Decimal  @default(18) // % aplicado al facturar
+  tarifaHoraManoObra Decimal @default(0) // S/ por hora, usado al costear lotes y envasados
   actualizadoEn   DateTime @updatedAt
 
   @@map("configuracion_empresa")
@@ -205,6 +206,7 @@ model Insumo {
   codigoProveedor String? // código del artículo en el catálogo del proveedor
   zonaAlmacenId   String? // ubicación estructurada (Almacen > ZonaAlmacen)
   notas           String?
+  requiereInspeccion Boolean @default(false) // si true, cada recepción queda pendiente de calidad antes de sumar stock
   activo          Boolean    @default(true)
   creadoEn      DateTime   @default(now())
   actualizadoEn DateTime   @updatedAt
@@ -323,7 +325,9 @@ model LoteGranel {
   mermaKg       Decimal    @default(0)
   kgDisponibles Decimal    @default(0) // granel aprobado aún no envasado
   costoInsumos  Decimal    @default(0) // costo total de insumos consumidos al crear el lote
-  costoKg       Decimal    @default(0) // costoInsumos / kgProducidos (al finalizar)
+  horasManoObra Decimal    @default(0) // horas-hombre invertidas en la cocción (al finalizar)
+  costoManoObra Decimal    @default(0) // horasManoObra * tarifa vigente al finalizar
+  costoKg       Decimal    @default(0) // (costoInsumos + costoManoObra) / kgProducidos
   estado        EstadoLote @default(EN_PROCESO)
   observaciones String?
   fechaInicio   DateTime   @default(now())
@@ -369,7 +373,9 @@ model Envasado {
   presentacionId String
   unidades       Int
   kgConsumidos   Decimal // unidades * contenidoKg de la presentación
-  costoTotal     Decimal  @default(0) // granel consumido + envases/etiquetas
+  horasManoObra  Decimal  @default(0) // horas-hombre invertidas en el envasado
+  costoManoObra  Decimal  @default(0) // horasManoObra * tarifa vigente al envasar
+  costoTotal     Decimal  @default(0) // granel consumido + envases/etiquetas + mano de obra
   costoUnitario  Decimal  @default(0) // costoTotal / unidades
   fecha          DateTime @default(now())
   usuarioId      String
@@ -703,10 +709,36 @@ model RecepcionCompraDetalle {
   cantidad      Decimal
   costoUnitario Decimal // costo real de esta recepción (actualiza el promedio ponderado)
 
-  recepcion RecepcionCompra @relation(fields: [recepcionId], references: [id])
-  insumo    Insumo          @relation(fields: [insumoId], references: [id])
+  recepcion   RecepcionCompra    @relation(fields: [recepcionId], references: [id])
+  insumo      Insumo             @relation(fields: [insumoId], references: [id])
+  inspeccion  InspeccionCompra?
 
   @@map("recepcion_compra_detalles")
+}
+
+enum ResultadoInspeccion {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+// Inspección de calidad al recibir insumos marcados con requiereInspeccion:
+// la cantidad recibida no suma stock (ni recalcula el costo promedio) hasta
+// que se aprueba aquí. Un rechazo nunca entra al kardex (devolución al
+// proveedor se maneja fuera del sistema, igual que las notas de crédito).
+model InspeccionCompra {
+  id                       String              @id @default(cuid())
+  recepcionCompraDetalleId String              @unique
+  resultado                ResultadoInspeccion @default(PENDIENTE)
+  observaciones            String?
+  usuarioId                String?
+  usuarioNombre            String?
+  fecha                    DateTime?
+  creadoEn                 DateTime            @default(now())
+
+  recepcionDetalle RecepcionCompraDetalle @relation(fields: [recepcionCompraDetalleId], references: [id])
+
+  @@map("inspecciones_compra")
 }
 
 // ---------------------------------------------------------------------------

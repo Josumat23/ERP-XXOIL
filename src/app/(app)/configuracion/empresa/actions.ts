@@ -29,11 +29,15 @@ export async function guardarConfiguracionEmpresa(
   const email = String(formData.get("email") ?? "").trim() || null;
   const sitioWeb = String(formData.get("sitioWeb") ?? "").trim() || null;
   const tasaIgv = Number(formData.get("tasaIgv"));
+  const tarifaHoraManoObra = Number(formData.get("tarifaHoraManoObra"));
 
   if (!razonSocial) return { error: "La razón social es obligatoria." };
   if (ruc && !/^\d{11}$/.test(ruc)) return { error: "El RUC debe tener 11 dígitos." };
   if (!Number.isFinite(tasaIgv) || tasaIgv < 0 || tasaIgv > 30) {
     return { error: "La tasa de IGV debe estar entre 0 y 30%." };
+  }
+  if (!Number.isFinite(tarifaHoraManoObra) || tarifaHoraManoObra < 0) {
+    return { error: "La tarifa de mano de obra debe ser mayor o igual a 0." };
   }
 
   const datos = {
@@ -53,6 +57,7 @@ export async function guardarConfiguracionEmpresa(
     email,
     sitioWeb,
     tasaIgv,
+    tarifaHoraManoObra,
   };
 
   await prisma.configuracionEmpresa.upsert({

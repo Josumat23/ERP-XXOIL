@@ -38,6 +38,7 @@ export default async function EmpresaPage() {
             email: config.email,
             sitioWeb: config.sitioWeb,
             tasaIgv: config.tasaIgv.toNumber(),
+            tarifaHoraManoObra: config.tarifaHoraManoObra.toNumber(),
           }}
         />
       </div>

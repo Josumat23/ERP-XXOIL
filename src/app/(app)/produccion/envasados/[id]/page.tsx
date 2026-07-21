@@ -63,6 +63,10 @@ export default async function DetalleEnvasadoPage({
           <Dato etiqueta="Costo unitario" valor={formatMoneda(envasado.costoUnitario)} />
         </div>
 
+        <p className="text-xs mt-3" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Mano de obra: {formatNumero(envasado.horasManoObra, 2)} h = {formatMoneda(envasado.costoManoObra)}
+        </p>
+
         <section className="mt-8">
           <h2 className="font-medium" style={{ color: "var(--epicor-texto)" }}>
             Envases y etiquetas consumidos

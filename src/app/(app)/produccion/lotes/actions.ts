@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoLote } from "@/lib/correlativos";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type EstadoFormulario = { error?: string };
 
@@ -100,6 +101,10 @@ export async function finalizarLote(
   if (!Number.isFinite(kgProducidos) || kgProducidos <= 0) {
     return { error: "Los kg producidos deben ser mayores a 0." };
   }
+  const horasManoObra = Number(formData.get("horasManoObra") ?? 0);
+  if (!Number.isFinite(horasManoObra) || horasManoObra < 0) {
+    return { error: "Las horas de mano de obra deben ser mayores o iguales a 0." };
+  }
 
   const lote = await prisma.loteGranel.findUnique({ where: { id } });
   if (!lote) return { error: "El lote no existe." };
@@ -107,6 +112,8 @@ export async function finalizarLote(
     return { error: "Solo se puede finalizar un lote en proceso." };
   }
 
+  const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
+  const costoManoObra = horasManoObra * tarifaHoraManoObra.toNumber();
   const merma = Math.max(0, lote.kgObjetivo.toNumber() - kgProducidos);
 
   await prisma.loteGranel.update({
@@ -114,8 +121,10 @@ export async function finalizarLote(
     data: {
       kgProducidos,
       mermaKg: merma,
+      horasManoObra,
+      costoManoObra,
       // La merma encarece el kg: el costo total se reparte entre lo realmente producido.
-      costoKg: lote.costoInsumos.toNumber() / kgProducidos,
+      costoKg: (lote.costoInsumos.toNumber() + costoManoObra) / kgProducidos,
       estado: "PENDIENTE_CALIDAD",
       fechaFin: new Date(),
     },

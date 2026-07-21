@@ -93,6 +93,17 @@ export default async function DetalleLotePage({
         />
       </div>
 
+      {lote.estado !== "EN_PROCESO" && (
+        <p className="text-xs text-neutral-500 mt-2">
+          Costo insumos: S/ {formatNumero(lote.costoInsumos, 2)} + Mano de obra:{" "}
+          {formatNumero(lote.horasManoObra, 2)} h × S/{" "}
+          {lote.horasManoObra.toNumber() > 0
+            ? formatNumero(lote.costoManoObra.toNumber() / lote.horasManoObra.toNumber(), 2)
+            : "0.00"}
+          /h = S/ {formatNumero(lote.costoManoObra, 2)}
+        </p>
+      )}
+
       {lote.observaciones && (
         <p className="text-sm text-neutral-500 mt-4">Observaciones: {lote.observaciones}</p>
       )}

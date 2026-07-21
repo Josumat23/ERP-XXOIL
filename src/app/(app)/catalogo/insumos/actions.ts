@@ -27,6 +27,7 @@ function leerDatos(formData: FormData) {
   const codigoProveedor = String(formData.get("codigoProveedor") ?? "").trim() || null;
   const zonaAlmacenId = String(formData.get("zonaAlmacenId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
+  const requiereInspeccion = formData.get("requiereInspeccion") === "on";
 
   if (!codigo || !nombre || !unidadMedida || !TIPOS_VALIDOS.includes(tipo)) {
     return { error: "Código, nombre, tipo y unidad de medida son obligatorios." } as const;
@@ -50,6 +51,7 @@ function leerDatos(formData: FormData) {
       codigoProveedor,
       zonaAlmacenId,
       notas,
+      requiereInspeccion,
       moneda: "PEN",
     },
   } as const;

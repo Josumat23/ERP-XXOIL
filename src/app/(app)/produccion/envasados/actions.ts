@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoEnvasado } from "@/lib/correlativos";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type EstadoFormulario = { error?: string };
 
@@ -28,6 +29,7 @@ export async function crearEnvasado(
   const loteGranelId = String(formData.get("loteGranelId") ?? "");
   const presentacionId = String(formData.get("presentacionId") ?? "");
   const unidades = Number(formData.get("unidades"));
+  const horasManoObra = Number(formData.get("horasManoObra") ?? 0);
 
   let insumos: LineaInsumo[];
   try {
@@ -41,7 +43,13 @@ export async function crearEnvasado(
   if (!Number.isInteger(unidades) || unidades <= 0) {
     return { error: "Las unidades deben ser un entero mayor a 0." };
   }
+  if (!Number.isFinite(horasManoObra) || horasManoObra < 0) {
+    return { error: "Las horas de mano de obra deben ser mayores o iguales a 0." };
+  }
   insumos = insumos.filter((i) => i.insumoId && Number.isFinite(i.cantidad) && i.cantidad > 0);
+
+  const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
+  const costoManoObra = horasManoObra * tarifaHoraManoObra.toNumber();
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -79,6 +87,8 @@ export async function crearEnvasado(
           presentacionId,
           unidades,
           kgConsumidos,
+          horasManoObra,
+          costoManoObra,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
           insumos: {
@@ -106,8 +116,8 @@ export async function crearEnvasado(
         if (!mov.ok) throw new Error(mov.error);
       }
 
-      // Costo del envasado: granel consumido (al costo/kg del lote) + envases
-      const costoTotal = kgConsumidos * lote.costoKg.toNumber() + costoEnvases;
+      // Costo del envasado: granel consumido (al costo/kg del lote) + envases + mano de obra
+      const costoTotal = kgConsumidos * lote.costoKg.toNumber() + costoEnvases + costoManoObra;
       const costoUnitario = costoTotal / unidades;
 
       // Costo promedio ponderado de la presentación ANTES de la entrada

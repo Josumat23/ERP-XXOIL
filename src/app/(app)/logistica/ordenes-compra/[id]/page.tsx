@@ -29,7 +29,10 @@ export default async function DetalleOrdenCompraPage({
       include: {
         proveedor: true,
         detalles: { include: { insumo: true } },
-        recepciones: { include: { detalles: { include: { insumo: true } } }, orderBy: { fecha: "asc" } },
+        recepciones: {
+          include: { detalles: { include: { insumo: true, inspeccion: true } } },
+          orderBy: { fecha: "asc" },
+        },
         cuentasPorPagar: true,
       },
     }),
@@ -155,6 +158,24 @@ export default async function DetalleOrdenCompraPage({
                     <li key={rd.id}>
                       {rd.insumo.nombre}: {formatNumero(rd.cantidad, 2)} {rd.insumo.unidadMedida} a{" "}
                       {formatMoneda(rd.costoUnitario)}
+                      {rd.inspeccion && (
+                        <Link
+                          href={`/logistica/inspeccion-compras/${rd.inspeccion.id}`}
+                          className={`insignia ml-2 no-imprimir ${
+                            rd.inspeccion.resultado === "PENDIENTE"
+                              ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400"
+                              : rd.inspeccion.resultado === "APROBADO"
+                                ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
+                                : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400"
+                          }`}
+                        >
+                          {rd.inspeccion.resultado === "PENDIENTE"
+                            ? "Pendiente de inspección"
+                            : rd.inspeccion.resultado === "APROBADO"
+                              ? "Inspección aprobada"
+                              : "Inspección rechazada"}
+                        </Link>
+                      )}
                     </li>
                   ))}
                 </ul>

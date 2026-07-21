@@ -30,6 +30,7 @@ type Props = {
     codigoProveedor: string | null;
     zonaAlmacenId: string | null;
     notas: string | null;
+    requiereInspeccion: boolean;
   };
   textoBoton: string;
 };
@@ -201,6 +202,21 @@ export default function InsumoFormulario({
           className="campo-input"
         />
       </Campo>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="requiereInspeccion"
+          defaultChecked={valoresIniciales?.requiereInspeccion ?? false}
+        />
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">
+          Requiere inspección de calidad al recibir
+        </span>
+      </label>
+      <p className="text-xs text-neutral-500 -mt-3">
+        Si está marcado, las recepciones de este insumo quedan pendientes de aprobación de calidad
+        antes de sumar stock disponible.
+      </p>
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Guardando..." : textoBoton}

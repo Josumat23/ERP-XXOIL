@@ -30,6 +30,19 @@ export default function FinalizarLoteFormulario({ loteId, kgObjetivo }: Props) {
             className="campo-input w-48"
           />
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Horas de mano de obra
+          </span>
+          <input
+            name="horasManoObra"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={0}
+            className="campo-input w-40"
+          />
+        </label>
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Registrando..." : "Finalizar y enviar a calidad"}
         </button>
