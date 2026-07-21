@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { alternarActivoInsumo } from "./actions";
 
 const ETIQUETA_TIPO: Record<string, string> = {
@@ -17,23 +18,30 @@ export default async function InsumosPage() {
   });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Insumos</h1>
-          <p className="text-neutral-500 mt-1">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Insumos</h1>
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             Materia prima, envases y etiquetas usados en producción.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/catalogo/insumos/nuevo" className="boton-primario">
-            Nuevo insumo
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/catalogo/insumos/nuevo"
+        nuevoTexto="Nuevo insumo"
+        registros={insumos.map((i) => ({
+          id: i.id,
+          href: `/catalogo/insumos/${i.id}`,
+          primario: i.nombre,
+          secundario: i.codigo,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Código</th>
@@ -107,6 +115,7 @@ export default async function InsumosPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

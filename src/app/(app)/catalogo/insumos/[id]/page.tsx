@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { zonasAlmacenParaSelect } from "@/lib/almacenes";
 import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import InsumoFormulario from "../InsumoFormulario";
 import { actualizarInsumo } from "../actions";
 
@@ -13,8 +14,9 @@ export default async function EditarInsumoPage({
 }) {
   const { id } = await params;
 
-  const [insumo, proveedores, zonasAlmacen, unidadesMedida] = await Promise.all([
+  const [insumo, insumos, proveedores, zonasAlmacen, unidadesMedida] = await Promise.all([
     prisma.insumo.findUnique({ where: { id } }),
+    prisma.insumo.findMany({ orderBy: { creadoEn: "desc" } }),
     prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     zonasAlmacenParaSelect(),
     unidadesMedidaParaSelect(),
@@ -23,15 +25,26 @@ export default async function EditarInsumoPage({
   if (!insumo) notFound();
 
   return (
-    <div className="max-w-lg">
-      <Link href="/catalogo/insumos" className="text-sm text-neutral-500 hover:underline">
+    <div>
+      <Link href="/catalogo/insumos" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a insumos
       </Link>
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 mt-2">
+      <h1 className="text-xl font-bold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
         Editar insumo
       </h1>
 
-      <div className="mt-6">
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        nuevoHref="/catalogo/insumos/nuevo"
+        nuevoTexto="Nuevo insumo"
+        registros={insumos.map((i) => ({
+          id: i.id,
+          href: `/catalogo/insumos/${i.id}`,
+          primario: i.nombre,
+          secundario: i.codigo,
+        }))}
+      >
+      <div className="max-w-lg">
         <InsumoFormulario
           accion={actualizarInsumo.bind(null, id)}
           proveedores={proveedores}
@@ -53,6 +66,7 @@ export default async function EditarInsumoPage({
           textoBoton="Guardar cambios"
         />
       </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

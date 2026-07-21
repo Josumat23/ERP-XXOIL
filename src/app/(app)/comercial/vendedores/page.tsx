@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_TIPO_VENDEDOR } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { alternarActivoVendedor } from "./actions";
 
 export default async function VendedoresPage() {
@@ -12,23 +13,30 @@ export default async function VendedoresPage() {
   });
 
   return (
-    <div className="max-w-4xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Vendedores</h1>
-          <p className="text-neutral-500 mt-1">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Vendedores</h1>
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             Cada vendedor tiene su propia tasa de comisión; las comisiones se generan al facturar.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/comercial/vendedores/nuevo" className="boton-primario">
-            Nuevo vendedor
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/comercial/vendedores/nuevo"
+        nuevoTexto="Nuevo vendedor"
+        registros={vendedores.map((v) => ({
+          id: v.id,
+          href: `/comercial/vendedores/${v.id}`,
+          primario: v.nombre,
+          secundario: ETIQUETA_TIPO_VENDEDOR[v.tipo],
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Nombre</th>
@@ -90,6 +98,7 @@ export default async function VendedoresPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

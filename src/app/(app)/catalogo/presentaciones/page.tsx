@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { alternarActivoPresentacion } from "./actions";
 
 export default async function PresentacionesPage() {
@@ -11,25 +12,32 @@ export default async function PresentacionesPage() {
   });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
             Presentaciones
           </h1>
-          <p className="text-neutral-500 mt-1">
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             SKUs de venta por producto (pote, balde, cilindro, etc.).
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/catalogo/presentaciones/nuevo" className="boton-primario">
-            Nueva presentación
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/catalogo/presentaciones/nuevo"
+        nuevoTexto="Nueva presentación"
+        registros={presentaciones.map((p) => ({
+          id: p.id,
+          href: `/catalogo/presentaciones/${p.id}`,
+          primario: p.nombre,
+          secundario: `${p.sku} · ${p.producto.nombre}`,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>SKU</th>
@@ -101,6 +109,7 @@ export default async function PresentacionesPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }
