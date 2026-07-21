@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ProductoFormulario from "../ProductoFormulario";
 import { actualizarProducto } from "../actions";
 
@@ -13,11 +14,12 @@ export default async function EditarProductoPage({
 }) {
   const { id } = await params;
 
-  const [producto, categorias, unidadesMedida] = await Promise.all([
+  const [producto, productos, categorias, unidadesMedida] = await Promise.all([
     prisma.producto.findUnique({
       where: { id },
       include: { presentaciones: { orderBy: { creadoEn: "asc" } } },
     }),
+    prisma.producto.findMany({ orderBy: { creadoEn: "desc" } }),
     prisma.categoria.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     unidadesMedidaParaSelect(),
   ]);
@@ -25,15 +27,26 @@ export default async function EditarProductoPage({
   if (!producto) notFound();
 
   return (
-    <div className="max-w-2xl">
-      <Link href="/catalogo/productos" className="text-sm text-neutral-500 hover:underline">
+    <div>
+      <Link href="/catalogo/productos" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a productos
       </Link>
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 mt-2">
+      <h1 className="text-xl font-bold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
         Editar producto
       </h1>
 
-      <div className="mt-6">
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        nuevoHref="/catalogo/productos/nuevo"
+        nuevoTexto="Nuevo producto"
+        registros={productos.map((p) => ({
+          id: p.id,
+          href: `/catalogo/productos/${p.id}`,
+          primario: p.nombre,
+          secundario: p.codigo,
+        }))}
+      >
+      <div className="max-w-2xl">
         <ProductoFormulario
           accion={actualizarProducto.bind(null, id)}
           categorias={categorias}
@@ -93,6 +106,7 @@ export default async function EditarProductoPage({
           </tbody>
         </table>
       </section>
+      </PanelMaestroDetalle>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { alternarActivoCliente } from "./actions";
 
 export default async function ClientesPage() {
@@ -16,21 +17,30 @@ export default async function ClientesPage() {
   });
 
   return (
-    <div className="max-w-6xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Clientes</h1>
-          <p className="text-neutral-500 mt-1 no-imprimir">Cartera de clientes de la empresa.</p>
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Clientes</h1>
+          <p className="text-[13px] no-imprimir" style={{ color: "var(--epicor-texto-tenue)" }}>
+            Cartera de clientes de la empresa.
+          </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/comercial/clientes/nuevo" className="boton-primario">
-            Nuevo cliente
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/comercial/clientes/nuevo"
+        nuevoTexto="Nuevo cliente"
+        registros={clientes.map((c) => ({
+          id: c.id,
+          href: `/comercial/clientes/${c.id}`,
+          primario: c.razonSocial,
+          secundario: c.ruc ?? undefined,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Razón social</th>
@@ -116,6 +126,7 @@ export default async function ClientesPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

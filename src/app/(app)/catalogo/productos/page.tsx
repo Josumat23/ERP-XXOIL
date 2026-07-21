@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { alternarActivoProducto } from "./actions";
 
 export default async function ProductosPage() {
@@ -10,25 +11,32 @@ export default async function ProductosPage() {
   });
 
   return (
-    <div className="max-w-4xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
             Productos
           </h1>
-          <p className="text-neutral-500 mt-1">
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             Catálogo maestro de productos (grasas, aceites, siliconas).
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/catalogo/productos/nuevo" className="boton-primario">
-            Nuevo producto
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/catalogo/productos/nuevo"
+        nuevoTexto="Nuevo producto"
+        registros={productos.map((p) => ({
+          id: p.id,
+          href: `/catalogo/productos/${p.id}`,
+          primario: p.nombre,
+          secundario: p.codigo,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Código</th>
@@ -96,6 +104,7 @@ export default async function ProductosPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

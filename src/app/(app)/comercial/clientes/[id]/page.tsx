@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ClienteFormulario from "../ClienteFormulario";
 import { actualizarCliente } from "../actions";
 
@@ -12,8 +13,9 @@ export default async function EditarClientePage({
 }) {
   const { id } = await params;
 
-  const [cliente, zonas, vendedores, facturasPendientes] = await Promise.all([
+  const [cliente, clientes, zonas, vendedores, facturasPendientes] = await Promise.all([
     prisma.cliente.findUnique({ where: { id } }),
+    prisma.cliente.findMany({ orderBy: { razonSocial: "asc" } }),
     prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.factura.findMany({ where: { clienteId: id, estado: "PENDIENTE" } }),
@@ -24,11 +26,11 @@ export default async function EditarClientePage({
   const limite = cliente.limiteCredito.toNumber();
 
   return (
-    <div className="max-w-2xl">
-      <Link href="/comercial/clientes" className="text-sm text-neutral-500 hover:underline">
+    <div>
+      <Link href="/comercial/clientes" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a clientes
       </Link>
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 mt-2">
+      <h1 className="text-xl font-bold mt-1" style={{ color: "var(--epicor-texto)" }}>
         Ficha del cliente
       </h1>
       <p className="text-neutral-500 mt-1 text-sm">
@@ -49,31 +51,45 @@ export default async function EditarClientePage({
         )}
       </p>
 
-      <div className="mt-6">
-        <ClienteFormulario
-          accion={actualizarCliente.bind(null, id)}
-          zonas={zonas}
-          vendedores={vendedores}
-          valoresIniciales={{
-            razonSocial: cliente.razonSocial,
-            nombreComercial: cliente.nombreComercial,
-            ruc: cliente.ruc,
-            departamento: cliente.departamento,
-            provincia: cliente.provincia,
-            distrito: cliente.distrito,
-            direccion: cliente.direccion,
-            telefono: cliente.telefono,
-            email: cliente.email,
-            contactoNombre: cliente.contactoNombre,
-            contactoTelefono: cliente.contactoTelefono,
-            zonaId: cliente.zonaId,
-            vendedorId: cliente.vendedorId,
-            limiteCredito: cliente.limiteCredito.toNumber(),
-            condicionPagoDefecto: cliente.condicionPagoDefecto,
-            notas: cliente.notas,
-          }}
-          textoBoton="Guardar cambios"
-        />
+      <div className="mt-4">
+        <PanelMaestroDetalle
+          seleccionadoId={id}
+          nuevoHref="/comercial/clientes/nuevo"
+          nuevoTexto="Nuevo cliente"
+          registros={clientes.map((c) => ({
+            id: c.id,
+            href: `/comercial/clientes/${c.id}`,
+            primario: c.razonSocial,
+            secundario: c.ruc ?? undefined,
+          }))}
+        >
+        <div className="max-w-2xl">
+          <ClienteFormulario
+            accion={actualizarCliente.bind(null, id)}
+            zonas={zonas}
+            vendedores={vendedores}
+            valoresIniciales={{
+              razonSocial: cliente.razonSocial,
+              nombreComercial: cliente.nombreComercial,
+              ruc: cliente.ruc,
+              departamento: cliente.departamento,
+              provincia: cliente.provincia,
+              distrito: cliente.distrito,
+              direccion: cliente.direccion,
+              telefono: cliente.telefono,
+              email: cliente.email,
+              contactoNombre: cliente.contactoNombre,
+              contactoTelefono: cliente.contactoTelefono,
+              zonaId: cliente.zonaId,
+              vendedorId: cliente.vendedorId,
+              limiteCredito: cliente.limiteCredito.toNumber(),
+              condicionPagoDefecto: cliente.condicionPagoDefecto,
+              notas: cliente.notas,
+            }}
+            textoBoton="Guardar cambios"
+          />
+        </div>
+        </PanelMaestroDetalle>
       </div>
     </div>
   );
