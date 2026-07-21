@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 export default async function EnvasadosPage() {
   const envasados = await prisma.envasado.findMany({
@@ -14,23 +15,30 @@ export default async function EnvasadosPage() {
   });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Envasados</h1>
-          <p className="text-neutral-500 mt-1">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Envasados</h1>
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             Segunda etapa de producción: el granel aprobado se convierte en stock de presentaciones.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/produccion/envasados/nuevo" className="boton-primario">
-            Nuevo envasado
-          </Link>
         </div>
       </div>
 
-      <table className="tabla mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/produccion/envasados/nuevo"
+        nuevoTexto="Nuevo envasado"
+        registros={envasados.map((e) => ({
+          id: e.id,
+          href: `/produccion/envasados/${e.id}`,
+          primario: e.codigo,
+          secundario: e.presentacion.nombre,
+        }))}
+      >
+      <table className="tabla">
         <thead>
           <tr>
             <th>Código</th>
@@ -41,6 +49,7 @@ export default async function EnvasadosPage() {
             <th className="text-right">Kg granel</th>
             <th>Envases/etiquetas</th>
             <th>Fecha</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -65,17 +74,26 @@ export default async function EnvasadosPage() {
                   e.fecha
                 )}
               </td>
+              <td className="text-right">
+                <Link
+                  href={`/produccion/envasados/${e.id}`}
+                  className="text-neutral-600 dark:text-neutral-400 hover:underline"
+                >
+                  Ver detalle
+                </Link>
+              </td>
             </tr>
           ))}
           {envasados.length === 0 && (
             <tr>
-              <td colSpan={8} className="text-center text-neutral-500 py-6">
+              <td colSpan={9} className="text-center text-neutral-500 py-6">
                 No hay envasados registrados todavía.
               </td>
             </tr>
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

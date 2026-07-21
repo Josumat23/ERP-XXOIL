@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario, ETIQUETA_ROL } from "@/lib/auth";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import {
   CrearUsuarioFormulario,
   RestablecerPasswordFormulario,
@@ -21,16 +22,25 @@ export default async function UsuariosPage() {
   });
 
   return (
-    <div className="max-w-4xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Usuarios</h1>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Usuarios</h1>
         <BotonImprimir />
       </div>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Cuentas de acceso y roles. El rol define qué operaciones puede realizar cada persona.
       </p>
 
-      <div className="mt-6 border border-black/10 dark:border-white/10 rounded-lg p-4">
+      <PanelMaestroDetalle
+        registros={usuarios.map((u) => ({
+          id: u.id,
+          href: `#usuario-${u.id}`,
+          primario: u.nombre,
+          secundario: u.usuario,
+        }))}
+      >
+      <div className="max-w-4xl">
+      <div className="border border-black/10 dark:border-white/10 rounded-lg p-4">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">Nuevo usuario</h2>
         <CrearUsuarioFormulario grupos={grupos} />
       </div>
@@ -48,7 +58,7 @@ export default async function UsuariosPage() {
         </thead>
         <tbody>
           {usuarios.map((u) => (
-            <tr key={u.id}>
+            <tr key={u.id} id={`usuario-${u.id}`}>
               <td className="font-medium">{u.nombre}</td>
               <td className="font-mono text-xs">{u.usuario}</td>
               <td>{ETIQUETA_ROL[u.rol]}</td>
@@ -94,6 +104,8 @@ export default async function UsuariosPage() {
           ))}
         </tbody>
       </table>
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

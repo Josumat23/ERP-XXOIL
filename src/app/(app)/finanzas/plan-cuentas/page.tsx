@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { ETIQUETA_CONTROL, type ClaveControl } from "@/lib/contabilidad";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { CuentaFormulario, ControlFormulario } from "./PlanCuentasFormularios";
 import { alternarActivoCuenta } from "./actions";
 
@@ -39,14 +40,24 @@ export default async function PlanCuentasPage() {
   const faltantes = clavesControl.filter(([clave]) => !controlPorClave.has(clave));
 
   return (
-    <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+    <div>
+      <h1 className="text-xl font-bold mb-1" style={{ color: "var(--epicor-texto)" }}>
         Plan de cuentas
       </h1>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Equivalente reducido a Chart of Accounts + GL Controls de Epicor. Las cuentas siguen la
         codificación del PCGE peruano; los controles indican qué cuenta usa cada asiento automático.
       </p>
+
+      <PanelMaestroDetalle
+        registros={cuentas.map((c) => ({
+          id: c.id,
+          href: `#cuenta-${c.id}`,
+          primario: c.nombre,
+          secundario: c.codigo,
+        }))}
+      >
+      <div className="max-w-4xl">
 
       {faltantes.length > 0 && (
         <p className="mt-4 text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2">
@@ -93,7 +104,7 @@ export default async function PlanCuentasPage() {
         </thead>
         <tbody>
           {cuentas.map((c) => (
-            <tr key={c.id}>
+            <tr key={c.id} id={`cuenta-${c.id}`}>
               <td className="font-mono text-xs">{c.codigo}</td>
               <td>{c.nombre}</td>
               <td>
@@ -133,6 +144,8 @@ export default async function PlanCuentasPage() {
           )}
         </tbody>
       </table>
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

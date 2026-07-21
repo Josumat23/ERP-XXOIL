@@ -2,51 +2,62 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
-import { alternarActivoFormula } from "./actions";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 export default async function FormulasPage() {
   const formulas = await prisma.formula.findMany({
     include: {
       producto: true,
-      detalles: { include: { insumo: true } },
-      _count: { select: { lotes: true } },
+      _count: { select: { detalles: true, lotes: true } },
     },
     orderBy: [{ producto: { nombre: "asc" } }, { version: "desc" }],
   });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
+    <div>
+      <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Fórmulas</h1>
-          <p className="text-neutral-500 mt-1">
+          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Fórmulas</h1>
+          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
             Recetas de producción por producto. No se editan: cada cambio crea una versión nueva.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/produccion/formulas/nueva" className="boton-primario">
-            Nueva versión
-          </Link>
         </div>
       </div>
 
-      <div className="mt-6 flex flex-col gap-4">
-        {formulas.map((f) => (
-          <div key={f.id} className="border border-black/10 dark:border-white/10 rounded-lg p-4">
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="font-medium text-neutral-900 dark:text-neutral-100">
-                  {f.producto.nombre}{" "}
-                  <span className="text-neutral-400 font-normal">— versión {f.version}</span>
-                </p>
-                <p className="text-sm text-neutral-500 mt-0.5">
-                  Batch de {formatNumero(f.rendimientoKg, 2)} kg de granel · {f._count.lotes}{" "}
-                  {f._count.lotes === 1 ? "lote producido" : "lotes producidos"}
-                  {f.notas ? ` · ${f.notas}` : ""}
-                </p>
-              </div>
-              <div className="flex items-center gap-3 shrink-0">
+      <PanelMaestroDetalle
+        nuevoHref="/produccion/formulas/nueva"
+        nuevoTexto="Nueva versión"
+        registros={formulas.map((f) => ({
+          id: f.id,
+          href: `/produccion/formulas/${f.id}`,
+          primario: f.producto.nombre,
+          secundario: `v${f.version}`,
+        }))}
+      >
+      <table className="tabla">
+        <thead>
+          <tr>
+            <th>Producto</th>
+            <th>Versión</th>
+            <th className="text-right">Batch (kg)</th>
+            <th>Insumos</th>
+            <th>Lotes producidos</th>
+            <th>Estado</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {formulas.map((f) => (
+            <tr key={f.id}>
+              <td className="font-medium">{f.producto.nombre}</td>
+              <td className="font-mono text-xs">v{f.version}</td>
+              <td className="text-right">{formatNumero(f.rendimientoKg, 2)}</td>
+              <td>{f._count.detalles}</td>
+              <td>{f._count.lotes}</td>
+              <td>
                 <span
                   className={`insignia ${
                     f.activo
@@ -56,52 +67,27 @@ export default async function FormulasPage() {
                 >
                   {f.activo ? "Activa" : "Inactiva"}
                 </span>
-                <form
-                  action={async () => {
-                    "use server";
-                    await alternarActivoFormula(f.id, !f.activo);
-                  }}
+              </td>
+              <td className="text-right">
+                <Link
+                  href={`/produccion/formulas/${f.id}`}
+                  className="text-neutral-600 dark:text-neutral-400 hover:underline"
                 >
-                  <button type="submit" className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline">
-                    {f.activo ? "Desactivar" : "Activar"}
-                  </button>
-                </form>
-              </div>
-            </div>
-
-            <table className="tabla mt-3">
-              <thead>
-                <tr>
-                  <th>Insumo</th>
-                  <th className="text-right">Cantidad por batch</th>
-                </tr>
-              </thead>
-              <tbody>
-                {f.detalles.map((d) => (
-                  <tr key={d.id}>
-                    <td>
-                      {d.insumo.nombre}{" "}
-                      <span className="text-xs text-neutral-400 font-mono">{d.insumo.codigo}</span>
-                    </td>
-                    <td className="text-right">
-                      {formatNumero(d.cantidad, 3)} {d.insumo.unidadMedida}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            <p className="text-xs text-neutral-400 mt-2">
-              Creada por {f.usuarioNombre} el{" "}
-              {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(f.creadoEn)}
-            </p>
-          </div>
-        ))}
-        {formulas.length === 0 && (
-          <p className="text-neutral-500 text-center py-10 border border-dashed border-black/10 dark:border-white/10 rounded-lg">
-            No hay fórmulas registradas. Cree la primera versión para poder producir lotes.
-          </p>
-        )}
-      </div>
+                  Ver detalle
+                </Link>
+              </td>
+            </tr>
+          ))}
+          {formulas.length === 0 && (
+            <tr>
+              <td colSpan={7} className="text-center text-neutral-500 py-6">
+                No hay fórmulas registradas. Cree la primera versión para poder producir lotes.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

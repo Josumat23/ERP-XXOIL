@@ -5,7 +5,19 @@ import { formatMoneda } from "@/lib/format";
 import { obtenerUsuario } from "@/lib/auth";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ReversarFormulario from "./ReversarFormulario";
+
+const ETIQUETA_ORIGEN: Record<string, string> = {
+  MANUAL: "Manual",
+  VENTA: "Venta",
+  COBRO: "Cobro",
+  NOTA_CREDITO: "Nota de crédito",
+  ANULACION_VENTA: "Anulación de venta",
+  COMPRA: "Compra",
+  PAGO_PROVEEDOR: "Pago a proveedor",
+  REVERSO: "Reverso",
+};
 
 export default async function DetalleAsientoPage({
   params,
@@ -15,24 +27,39 @@ export default async function DetalleAsientoPage({
   const { id } = await params;
   const usuario = await obtenerUsuario();
 
-  const asiento = await prisma.asientoContable.findUnique({
-    where: { id },
-    include: { detalles: { include: { cuenta: true } }, libro: true },
-  });
+  const [asiento, asientos] = await Promise.all([
+    prisma.asientoContable.findUnique({
+      where: { id },
+      include: { detalles: { include: { cuenta: true } }, libro: true },
+    }),
+    prisma.asientoContable.findMany({ orderBy: { numero: "desc" }, take: 100 }),
+  ]);
   if (!asiento) notFound();
 
   const totalDebe = asiento.detalles.reduce((acc, d) => acc + d.debe.toNumber(), 0);
   const totalHaber = asiento.detalles.reduce((acc, d) => acc + d.haber.toNumber(), 0);
 
   return (
-    <div className="max-w-3xl">
+    <div>
       <div className="flex items-center justify-between no-imprimir">
-        <Link href="/finanzas/asientos" className="text-sm text-neutral-500 hover:underline">
+        <Link href="/finanzas/asientos" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           ← Volver a asientos
         </Link>
         <BotonImprimir />
       </div>
 
+      <PanelMaestroDetalle
+        seleccionadoId={id}
+        nuevoHref="/finanzas/asientos/nuevo"
+        nuevoTexto="Asiento manual"
+        registros={asientos.map((a) => ({
+          id: a.id,
+          href: `/finanzas/asientos/${a.id}`,
+          primario: a.numero,
+          secundario: ETIQUETA_ORIGEN[a.origen],
+        }))}
+      >
+      <div className="max-w-3xl">
       <MembreteEmpresa soloImprimir tituloDocumento="ASIENTO CONTABLE" numero={asiento.numero} />
 
       <div className="flex items-center gap-3 mt-2">
@@ -98,6 +125,8 @@ export default async function DetalleAsientoPage({
           <ReversarFormulario asientoId={asiento.id} />
         </section>
       )}
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

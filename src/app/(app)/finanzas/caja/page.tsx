@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_MEDIO_PAGO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import CajaFormulario from "./CajaFormulario";
 
 export default async function CajaPage() {
@@ -19,17 +20,25 @@ export default async function CajaPage() {
   const saldo = ingresos - egresos;
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Libro de caja</h1>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Libro de caja</h1>
         <BotonImprimir />
       </div>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Los cobros de facturas y pagos a proveedores se registran automáticamente; aquí también se
         anotan movimientos manuales.
       </p>
 
-      <div className="grid grid-cols-3 gap-4 mt-6 max-w-2xl">
+      <PanelMaestroDetalle
+        registros={movimientos.map((m) => ({
+          id: m.id,
+          href: `#mov-${m.id}`,
+          primario: m.concepto,
+          secundario: m.tipo === "INGRESO" ? "Ingreso" : "Egreso",
+        }))}
+      >
+      <div className="grid grid-cols-3 gap-4 max-w-2xl">
         <Kpi etiqueta="Ingresos acumulados" valor={formatMoneda(ingresos)} />
         <Kpi etiqueta="Egresos acumulados" valor={formatMoneda(egresos)} />
         <Kpi etiqueta="Saldo de caja" valor={formatMoneda(saldo)} destacado />
@@ -54,7 +63,7 @@ export default async function CajaPage() {
         </thead>
         <tbody>
           {movimientos.map((m) => (
-            <tr key={m.id}>
+            <tr key={m.id} id={`mov-${m.id}`}>
               <td className="text-xs text-neutral-500 whitespace-nowrap">
                 {new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" }).format(
                   m.fecha
@@ -84,6 +93,7 @@ export default async function CajaPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

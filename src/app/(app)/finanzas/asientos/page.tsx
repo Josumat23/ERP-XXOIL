@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 const ETIQUETA_ORIGEN: Record<string, string> = {
   MANUAL: "Manual",
@@ -22,24 +23,31 @@ export default async function AsientosPage() {
   });
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
           Asientos contables
         </h1>
         <div className="flex gap-2 no-imprimir">
           <BotonImprimir />
-          <Link href="/finanzas/asientos/nuevo" className="boton-primario">
-            Asiento manual
-          </Link>
         </div>
       </div>
-      <p className="text-neutral-500 mt-1 no-imprimir">
+      <p className="text-[13px] mb-4 no-imprimir" style={{ color: "var(--epicor-texto-tenue)" }}>
         Libro diario. Los asientos automáticos nacen de las transacciones (ventas, cobros, compras,
         pagos); los asientos nunca se editan: se corrigen con un reverso.
       </p>
 
-      <table className="tabla tabla-densa mt-6">
+      <PanelMaestroDetalle
+        nuevoHref="/finanzas/asientos/nuevo"
+        nuevoTexto="Asiento manual"
+        registros={asientos.map((a) => ({
+          id: a.id,
+          href: `/finanzas/asientos/${a.id}`,
+          primario: a.numero,
+          secundario: ETIQUETA_ORIGEN[a.origen],
+        }))}
+      >
+      <table className="tabla tabla-densa">
         <thead>
           <tr>
             <th>Número</th>
@@ -92,6 +100,7 @@ export default async function AsientosPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

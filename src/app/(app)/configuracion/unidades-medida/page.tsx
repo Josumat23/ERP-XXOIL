@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { ClaseFormulario, UnidadFormulario } from "./UnidadMedidaFormularios";
 import { alternarActivoUnidad } from "./actions";
 
@@ -14,16 +15,25 @@ export default async function UnidadesMedidaPage() {
   });
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+    <div>
+      <h1 className="text-xl font-bold mb-1" style={{ color: "var(--epicor-texto)" }}>
         Unidades de medida
       </h1>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Equivalente reducido a UOM Class / UOM Maintenance de Epicor. Estas unidades alimentan los
         selectores de productos e insumos.
       </p>
 
-      <div className="mt-6 border border-black/10 dark:border-white/10 rounded-lg p-4">
+      <PanelMaestroDetalle
+        registros={clases.map((c) => ({
+          id: c.id,
+          href: `#clase-${c.id}`,
+          primario: c.nombre,
+          secundario: c.codigo,
+        }))}
+      >
+      <div className="max-w-3xl">
+      <div className="border border-black/10 dark:border-white/10 rounded-lg p-4">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">Nueva clase</h2>
         <ClaseFormulario />
       </div>
@@ -35,7 +45,7 @@ export default async function UnidadesMedidaPage() {
 
       <div className="mt-6 flex flex-col gap-4">
         {clases.map((c) => (
-          <div key={c.id} className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <div key={c.id} id={`clase-${c.id}`} className="border border-black/10 dark:border-white/10 rounded-lg p-4 scroll-mt-4">
             <p className="font-medium text-neutral-900 dark:text-neutral-100">
               {c.nombre} <span className="text-xs text-neutral-400 font-mono">{c.codigo}</span>
             </p>
@@ -98,6 +108,8 @@ export default async function UnidadesMedidaPage() {
           </p>
         )}
       </div>
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

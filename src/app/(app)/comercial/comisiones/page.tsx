@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
 export default async function ComisionesPage() {
   const comisiones = await prisma.comision.findMany({
@@ -19,17 +20,25 @@ export default async function ComisionesPage() {
   }
 
   return (
-    <div className="max-w-5xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Comisiones</h1>
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Comisiones</h1>
         <BotonImprimir />
       </div>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Se generan al facturar y se revierten con anulaciones o notas de crédito. Los registros no se
         editan: cada reversión es un movimiento nuevo.
       </p>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-6">
+      <PanelMaestroDetalle
+        registros={comisiones.map((c) => ({
+          id: c.id,
+          href: `/comercial/facturas/${c.facturaId}`,
+          primario: c.vendedor.nombre,
+          secundario: c.factura.numero,
+        }))}
+      >
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[...porVendedor.entries()].map(([id, v]) => (
           <div key={id} className="border border-black/10 dark:border-white/10 rounded-lg p-4">
             <p className="text-sm text-neutral-500">{v.nombre}</p>
@@ -111,6 +120,7 @@ export default async function ComisionesPage() {
           )}
         </tbody>
       </table>
+      </PanelMaestroDetalle>
     </div>
   );
 }

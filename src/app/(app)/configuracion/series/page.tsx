@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { formatearNumeroSerie } from "@/lib/series";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import SerieFormulario from "./SerieFormulario";
 import { alternarActivoSerie } from "./actions";
 
@@ -20,19 +21,26 @@ export default async function SeriesPage() {
   });
 
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+    <div>
+      <h1 className="text-xl font-bold mb-1" style={{ color: "var(--epicor-texto)" }}>
         Series de documentos
       </h1>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Numeración legal (equivalente a Legal Number Maintenance de Epicor). Al facturar, crear una
         guía o una nota de crédito, se puede elegir una de estas series para sugerir el siguiente
         número — el número real lo asigna SUNAT al emitir el documento externamente.
       </p>
 
-      <div className="mt-6">
-        <SerieFormulario />
-      </div>
+      <PanelMaestroDetalle
+        registros={series.map((s) => ({
+          id: s.id,
+          href: `#serie-${s.id}`,
+          primario: ETIQUETA_TIPO[s.tipoDocumento],
+          secundario: s.serie,
+        }))}
+      >
+      <div className="max-w-3xl">
+      <SerieFormulario />
 
       <table className="tabla mt-6">
         <thead>
@@ -46,7 +54,7 @@ export default async function SeriesPage() {
         </thead>
         <tbody>
           {series.map((s) => (
-            <tr key={s.id}>
+            <tr key={s.id} id={`serie-${s.id}`}>
               <td>{ETIQUETA_TIPO[s.tipoDocumento]}</td>
               <td className="font-mono text-xs">{s.serie}</td>
               <td className="font-mono text-xs">
@@ -86,6 +94,8 @@ export default async function SeriesPage() {
           )}
         </tbody>
       </table>
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }

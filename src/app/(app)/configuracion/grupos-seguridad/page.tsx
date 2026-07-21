@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { MODULOS } from "./modulos";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import GrupoFormulario from "./GrupoFormulario";
 import PermisoCheckbox from "./PermisoCheckbox";
 import { alternarActivoGrupo } from "./actions";
@@ -16,11 +17,11 @@ export default async function GruposSeguridadPage() {
   });
 
   return (
-    <div className="max-w-4xl">
-      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
+    <div>
+      <h1 className="text-xl font-bold mb-1" style={{ color: "var(--epicor-texto)" }}>
         Grupos de seguridad
       </h1>
-      <p className="text-neutral-500 mt-1">
+      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Equivalente reducido a Security Group Maintenance de Epicor. Los 4 roles del sistema
         (Administrador, Almacén, Producción, Ventas) aparecen como grupos predefinidos de solo
         lectura: el acceso a cada pantalla sigue controlado por el rol. Los grupos personalizados
@@ -29,7 +30,16 @@ export default async function GruposSeguridadPage() {
         usuario, sin ampliar nunca lo que su rol ya permite.
       </p>
 
-      <div className="mt-6 border border-black/10 dark:border-white/10 rounded-lg p-4">
+      <PanelMaestroDetalle
+        registros={grupos.map((g) => ({
+          id: g.id,
+          href: `#grupo-${g.id}`,
+          primario: g.nombre,
+          secundario: g.esPredefinido ? "Predefinido" : g.codigo,
+        }))}
+      >
+      <div className="max-w-4xl">
+      <div className="border border-black/10 dark:border-white/10 rounded-lg p-4">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
           Nuevo grupo personalizado
         </h2>
@@ -38,7 +48,7 @@ export default async function GruposSeguridadPage() {
 
       <div className="mt-6 flex flex-col gap-4">
         {grupos.map((g) => (
-          <div key={g.id} className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <div key={g.id} id={`grupo-${g.id}`} className="border border-black/10 dark:border-white/10 rounded-lg p-4 scroll-mt-4">
             <div className="flex items-center justify-between">
               <p className="font-medium text-neutral-900 dark:text-neutral-100">
                 {g.nombre} <span className="text-xs text-neutral-400 font-mono">{g.codigo}</span>
@@ -126,6 +136,8 @@ export default async function GruposSeguridadPage() {
           </div>
         ))}
       </div>
+      </div>
+      </PanelMaestroDetalle>
     </div>
   );
 }
