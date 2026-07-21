@@ -36,7 +36,7 @@ export default async function ResultadosPage({
   const aParam = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
-  const [facturas, notasCredito, comisiones, movimientosManuales] = await Promise.all([
+  const [facturas, notasCredito, comisiones, movimientosManuales, controlesGL] = await Promise.all([
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicio, lt: fin } },
       include: { pedido: { include: { detalles: true } }, cliente: true },
@@ -51,6 +51,7 @@ export default async function ResultadosPage({
     prisma.movimientoCaja.findMany({
       where: { fecha: { gte: inicio, lt: fin }, referencia: null },
     }),
+    prisma.controlContable.findMany({ where: { clave: { in: ["VENTAS", "COSTO_VENTAS"] } } }),
   ]);
 
   // Todo el estado se calcula sobre la base imponible (sin IGV): el impuesto
@@ -85,6 +86,26 @@ export default async function ResultadosPage({
     .reduce((acc, m) => acc + m.monto.toNumber(), 0);
 
   const utilidadOperativa = utilidadBruta - comisionesNetas - gastosOperativos + otrosIngresos;
+
+  // Verificación cruzada contra el libro mayor: si los controles VENTAS/
+  // COSTO_VENTAS están configurados, el asiento automático de cada factura
+  // debió postear el mismo monto. Una diferencia indica ventas del mes sin
+  // asiento (período cerrado al facturar, o control agregado después).
+  const cuentaVentasId = controlesGL.find((c) => c.clave === "VENTAS")?.cuentaId;
+  const cuentaCostoId = controlesGL.find((c) => c.clave === "COSTO_VENTAS")?.cuentaId;
+  let diferenciaGL: number | null = null;
+  if (cuentaVentasId) {
+    const detallesGL = await prisma.asientoDetalle.findMany({
+      where: {
+        cuentaId: { in: [cuentaVentasId, cuentaCostoId].filter((x): x is string => !!x) },
+        asiento: { anio, mes: mesIdx + 1 },
+      },
+    });
+    const ventasGL = detallesGL
+      .filter((d) => d.cuentaId === cuentaVentasId)
+      .reduce((acc, d) => acc + d.haber.toNumber() - d.debe.toNumber(), 0);
+    diferenciaGL = Math.round((ventasGL - ventasBrutas) * 100) / 100;
+  }
 
   const nombreMes = new Intl.DateTimeFormat("es-PE", { month: "long", year: "numeric" }).format(
     inicio
@@ -143,6 +164,17 @@ export default async function ResultadosPage({
           <p className="text-xs text-amber-700 dark:text-amber-400 mt-4">
             ⚠ Hay ventas del mes con costo S/ 0.00 (facturadas antes de que existiera el costeo o
             de producir con costos registrados). La utilidad bruta de este mes está sobreestimada.
+          </p>
+        )}
+        {diferenciaGL !== null && Math.abs(diferenciaGL) > 0.05 && (
+          <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
+            ⚠ Las ventas de este mes (S/ {ventasBrutas.toFixed(2)}) no coinciden con lo posteado en
+            el libro mayor (diferencia S/ {diferenciaGL.toFixed(2)}) — revise si hubo períodos
+            cerrados o controles contables agregados después de facturar. Ver{" "}
+            <Link href="/finanzas/situacion-financiera" className="underline">
+              Situación financiera
+            </Link>
+            .
           </p>
         )}
 

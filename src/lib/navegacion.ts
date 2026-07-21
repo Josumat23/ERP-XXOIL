@@ -86,6 +86,7 @@ export const MODULOS: Modulo[] = [
         enlaces: [
           { href: "/finanzas/costos", etiqueta: "Costos y márgenes" },
           { href: "/finanzas/resultados", etiqueta: "Estado de resultados" },
+          { href: "/finanzas/situacion-financiera", etiqueta: "Situación financiera" },
         ],
       },
     ],
