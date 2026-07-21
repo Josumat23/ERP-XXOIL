@@ -43,7 +43,16 @@ export default async function AlmacenesPage() {
                 <p className="font-medium text-neutral-900 dark:text-neutral-100">
                   {a.nombre} <span className="text-xs text-neutral-400 font-mono">{a.codigo}</span>
                 </p>
-                {a.direccion && <p className="text-sm text-neutral-500">{a.direccion}</p>}
+                {(a.direccion || a.distrito || a.provincia || a.departamento) && (
+                  <p className="text-sm text-neutral-500">
+                    {[a.direccion, a.direccion2, a.distrito, a.provincia, a.departamento, a.pais]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </p>
+                )}
+                {a.encargado && (
+                  <p className="text-xs text-neutral-400">Encargado: {a.encargado}</p>
+                )}
               </div>
               <div className="flex items-center gap-3">
                 <span

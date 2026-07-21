@@ -25,7 +25,19 @@ export function AlmacenFormulario() {
       <div className="flex flex-wrap gap-3 items-end">
         <input name="codigo" required placeholder="Código (ej. PLANTA)" className="campo-input w-40 font-mono" />
         <input name="nombre" required placeholder="Nombre" className="campo-input flex-1 min-w-48" />
-        <input name="direccion" placeholder="Dirección (opcional)" className="campo-input flex-1 min-w-48" />
+        <input name="encargado" placeholder="Encargado (opcional)" className="campo-input flex-1 min-w-40" />
+      </div>
+      <div className="flex flex-wrap gap-3 items-end">
+        <input name="direccion" placeholder="Dirección" className="campo-input flex-1 min-w-48" />
+        <input name="direccion2" placeholder="Dirección (línea 2)" className="campo-input flex-1 min-w-40" />
+      </div>
+      <div className="flex flex-wrap gap-3 items-end">
+        <input name="distrito" placeholder="Distrito" className="campo-input flex-1 min-w-32" />
+        <input name="provincia" placeholder="Provincia" className="campo-input flex-1 min-w-32" />
+        <input name="departamento" placeholder="Departamento" className="campo-input flex-1 min-w-32" />
+        <input name="ciudad" placeholder="Ciudad" className="campo-input flex-1 min-w-32" />
+        <input name="codigoPostal" placeholder="Código postal" className="campo-input w-32" />
+        <input name="pais" placeholder="País" defaultValue="Perú" className="campo-input w-28" />
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Agregar almacén"}
         </button>

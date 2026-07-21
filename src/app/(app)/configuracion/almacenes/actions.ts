@@ -21,11 +21,33 @@ export async function crearAlmacen(
   const codigo = String(formData.get("codigo") ?? "").trim().toUpperCase();
   const nombre = String(formData.get("nombre") ?? "").trim();
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
+  const direccion2 = String(formData.get("direccion2") ?? "").trim() || null;
+  const ciudad = String(formData.get("ciudad") ?? "").trim() || null;
+  const distrito = String(formData.get("distrito") ?? "").trim() || null;
+  const provincia = String(formData.get("provincia") ?? "").trim() || null;
+  const departamento = String(formData.get("departamento") ?? "").trim() || null;
+  const codigoPostal = String(formData.get("codigoPostal") ?? "").trim() || null;
+  const pais = String(formData.get("pais") ?? "").trim() || "Perú";
+  const encargado = String(formData.get("encargado") ?? "").trim() || null;
 
   if (!codigo || !nombre) return { error: "Código y nombre son obligatorios." };
 
   try {
-    await prisma.almacen.create({ data: { codigo, nombre, direccion } });
+    await prisma.almacen.create({
+      data: {
+        codigo,
+        nombre,
+        direccion,
+        direccion2,
+        ciudad,
+        distrito,
+        provincia,
+        departamento,
+        codigoPostal,
+        pais,
+        encargado,
+      },
+    });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: `Ya existe un almacén con el código "${codigo}".` };

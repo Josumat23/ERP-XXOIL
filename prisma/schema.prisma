@@ -893,13 +893,21 @@ model SerieDocumento {
 // --- Almacenes y zonas (Warehouse / Warehouse Zone) -------------------------
 
 model Almacen {
-  id        String   @id @default(cuid())
-  empresaId String   @default("1")
-  codigo    String
-  nombre    String
-  direccion String?
-  activo    Boolean  @default(true)
-  creadoEn  DateTime @default(now())
+  id           String   @id @default(cuid())
+  empresaId    String   @default("1")
+  codigo       String
+  nombre       String
+  direccion    String?
+  direccion2   String?
+  ciudad       String?
+  distrito     String?
+  provincia    String?
+  departamento String?
+  codigoPostal String?
+  pais         String   @default("Perú")
+  encargado    String?
+  activo       Boolean  @default(true)
+  creadoEn     DateTime @default(now())
 
   zonas ZonaAlmacen[]
 
