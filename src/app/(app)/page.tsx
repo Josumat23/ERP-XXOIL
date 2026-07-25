@@ -28,7 +28,7 @@ export default async function PanelPage() {
   ] = await Promise.all([
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicioRango } },
-      include: { cliente: true },
+      include: { cliente: true, vendedor: true, pedido: { include: { detalles: true } } },
     }),
     prisma.factura.findMany({
       where: { estado: "PENDIENTE" },
@@ -47,15 +47,21 @@ export default async function PanelPage() {
   ]);
 
   // Tendencia de ventas: un balde por mes (los últimos MESES_TENDENCIA, el
-  // actual incluido) con la suma de ventas netas de IGV de ese mes.
+  // actual incluido) con la suma de ventas netas de IGV y su costo de ventas.
   const baldesMes = Array.from({ length: MESES_TENDENCIA }, (_, i) => {
     const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (MESES_TENDENCIA - 1 - i), 1);
     const fin = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 1);
-    return { inicio, fin, total: 0 };
+    return { inicio, fin, total: 0, costo: 0 };
   });
   for (const f of facturasRango) {
     const balde = baldesMes.find((b) => f.fechaEmision >= b.inicio && f.fechaEmision < b.fin);
-    if (balde) balde.total += baseFactura(f);
+    if (balde) {
+      balde.total += baseFactura(f);
+      balde.costo += f.pedido.detalles.reduce(
+        (acc, d) => acc + d.cantidad * d.costoUnitario.toNumber(),
+        0
+      );
+    }
   }
   const ventasPorMes = baldesMes.map((b) => ({
     etiqueta: new Intl.DateTimeFormat("es-PE", { month: "short" }).format(b.inicio).replace(".", ""),
@@ -69,17 +75,35 @@ export default async function PanelPage() {
   const deltaVentas =
     ventasMesAnterior > 0 ? ((ventasMes - ventasMesAnterior) / ventasMesAnterior) * 100 : null;
 
-  // Top 5 clientes del mes por ventas.
+  // Margen bruto del mes: (ventas - costo de ventas) / ventas.
+  const costoMes = baldesMes[baldesMes.length - 1].costo;
+  const costoMesAnterior = baldesMes.length > 1 ? baldesMes[baldesMes.length - 2].costo : 0;
+  const margenMes = ventasMes > 0 ? ((ventasMes - costoMes) / ventasMes) * 100 : null;
+  const margenMesAnterior =
+    ventasMesAnterior > 0 ? ((ventasMesAnterior - costoMesAnterior) / ventasMesAnterior) * 100 : null;
+  const deltaMargen =
+    margenMes !== null && margenMesAnterior !== null ? margenMes - margenMesAnterior : null;
+
+  // Top 5 clientes y top 5 vendedores del mes por ventas.
   const ventasPorCliente = new Map<string, { nombre: string; total: number }>();
+  const ventasPorVendedor = new Map<string, { nombre: string; total: number }>();
   for (const f of facturasMes) {
-    const fila = ventasPorCliente.get(f.clienteId) ?? { nombre: f.cliente.razonSocial, total: 0 };
-    fila.total += baseFactura(f);
-    ventasPorCliente.set(f.clienteId, fila);
+    const filaCliente = ventasPorCliente.get(f.clienteId) ?? { nombre: f.cliente.razonSocial, total: 0 };
+    filaCliente.total += baseFactura(f);
+    ventasPorCliente.set(f.clienteId, filaCliente);
+
+    const filaVendedor = ventasPorVendedor.get(f.vendedorId) ?? { nombre: f.vendedor.nombre, total: 0 };
+    filaVendedor.total += baseFactura(f);
+    ventasPorVendedor.set(f.vendedorId, filaVendedor);
   }
   const topClientes = [...ventasPorCliente.values()]
     .sort((a, b) => b.total - a.total)
     .slice(0, 5);
   const maxCliente = Math.max(...topClientes.map((c) => c.total), 1);
+  const topVendedores = [...ventasPorVendedor.values()]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+  const maxVendedor = Math.max(...topVendedores.map((v) => v.total), 1);
 
   const cuentasPorCobrar = facturasPendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
   const facturasVencidas = facturasPendientes.filter(
@@ -91,6 +115,18 @@ export default async function PanelPage() {
     (p) => p.stock.toNumber() < p.stockMinimo.toNumber()
   );
   const insumosBajoMinimo = insumos.filter((i) => i.stock.toNumber() < i.stockMinimo.toNumber());
+
+  // Valor de inventario a costo (producto terminado + insumos), para tener
+  // una foto de cuánto capital está inmovilizado en stock.
+  const valorInventarioPT = presentaciones.reduce(
+    (acc, p) => acc + p.stock.toNumber() * p.costoPromedio.toNumber(),
+    0
+  );
+  const valorInventarioInsumos = insumos.reduce(
+    (acc, i) => acc + i.stock.toNumber() * i.costoUnitario.toNumber(),
+    0
+  );
+  const valorInventario = valorInventarioPT + valorInventarioInsumos;
 
   return (
     <div className="max-w-6xl">
@@ -104,13 +140,21 @@ export default async function PanelPage() {
         {new Intl.DateTimeFormat("es-PE", { dateStyle: "full" }).format(hoy)}
       </p>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mt-6">
         <Kpi
           etiqueta="Ventas del mes"
           valor={formatMoneda(ventasMes)}
           detalle={`${facturasMes.length} factura${facturasMes.length === 1 ? "" : "s"}`}
           href="/comercial/facturas"
           deltaPct={deltaVentas}
+        />
+        <Kpi
+          etiqueta="Margen bruto del mes"
+          valor={margenMes !== null ? `${margenMes.toFixed(1)}%` : "—"}
+          detalle="ventas − costo de ventas"
+          href="/finanzas/resultados"
+          deltaPct={deltaMargen}
+          deltaEnPuntos
         />
         <Kpi
           etiqueta="Cuentas por cobrar"
@@ -121,7 +165,7 @@ export default async function PanelPage() {
               : "sin facturas vencidas"
           }
           alerta={facturasVencidas.length > 0}
-          href="/comercial/facturas"
+          href="/finanzas/cuentas-por-cobrar"
         />
         <Kpi
           etiqueta="Comisiones por pagar"
@@ -135,9 +179,15 @@ export default async function PanelPage() {
           detalle="por facturar"
           href="/comercial/pedidos"
         />
+        <Kpi
+          etiqueta="Valor de inventario"
+          valor={formatMoneda(valorInventario)}
+          detalle="producto terminado + insumos, a costo"
+          href="/finanzas/costos"
+        />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mt-6">
         <section className="lg:col-span-2 border border-black/10 dark:border-white/10 rounded-lg p-4">
           <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
             Tendencia de ventas ({MESES_TENDENCIA} meses)
@@ -165,6 +215,30 @@ export default async function PanelPage() {
                   valor={c.total}
                   max={maxCliente}
                   formatoValor={(v) => formatMoneda(v)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Top vendedores del mes</h2>
+            <Link href="/comercial/vendedores" className="text-xs text-neutral-500 hover:underline">
+              Ver todos
+            </Link>
+          </div>
+          {topVendedores.length === 0 ? (
+            <p className="text-sm text-neutral-500 mt-3">Sin ventas este mes todavía.</p>
+          ) : (
+            <div className="flex flex-col gap-2.5 mt-4">
+              {topVendedores.map((v) => (
+                <BarraRanking
+                  key={v.nombre}
+                  etiqueta={v.nombre}
+                  valor={v.total}
+                  max={maxVendedor}
+                  formatoValor={(val) => formatMoneda(val)}
                 />
               ))}
             </div>
@@ -306,6 +380,7 @@ function Kpi({
   href,
   alerta = false,
   deltaPct,
+  deltaEnPuntos = false,
 }: {
   etiqueta: string;
   valor: string;
@@ -313,6 +388,7 @@ function Kpi({
   href: string;
   alerta?: boolean;
   deltaPct?: number | null;
+  deltaEnPuntos?: boolean;
 }) {
   const sube = typeof deltaPct === "number" && deltaPct >= 0;
   return (
@@ -328,7 +404,8 @@ function Kpi({
               sube ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400"
             }`}
           >
-            {sube ? "▲" : "▼"} {Math.abs(deltaPct).toFixed(1)}%
+            {sube ? "▲" : "▼"} {Math.abs(deltaPct).toFixed(1)}
+            {deltaEnPuntos ? " pts" : "%"}
           </span>
         )}
       </div>
