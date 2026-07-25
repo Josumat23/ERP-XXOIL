@@ -30,10 +30,10 @@ export default async function NuevaGuiaPage() {
       <Link href="/logistica/guias-remision" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a guías de remisión
       </Link>
-      <h1 className="text-xl font-bold mt-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1" style={{ color: "var(--epicor-texto)" }}>
         Nueva guía de remisión
       </h1>
-      <p className="text-[13px] mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         La guía se emite en el portal SUNAT; aquí se registra y se imprime para el transporte.
       </p>
 

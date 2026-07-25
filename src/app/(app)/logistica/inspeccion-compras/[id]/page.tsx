@@ -59,10 +59,10 @@ export default async function DetalleInspeccionCompraPage({
         }))}
       >
         <div className="max-w-xl">
-          <h1 className="text-xl font-bold mt-2" style={{ color: "var(--epicor-texto)" }}>
+          <h1 className="text-2xl font-semibold mt-2" style={{ color: "var(--epicor-texto)" }}>
             {detalle.insumo.nombre}
           </h1>
-          <p className="text-[13px] mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <p className="text-sm mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
             Proveedor: {detalle.recepcion.ordenCompra.proveedor.razonSocial} · Recepción{" "}
             {detalle.recepcion.numero} · OC{" "}
             <Link
@@ -111,7 +111,7 @@ export default async function DetalleInspeccionCompraPage({
 
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   return (
-    <div className="border rounded-none p-3" style={{ borderColor: "var(--epicor-borde)" }}>
+    <div className="border rounded-lg p-3" style={{ borderColor: "var(--epicor-borde)" }}>
       <p className="text-xs" style={{ color: "var(--epicor-texto-tenue)" }}>
         {etiqueta}
       </p>

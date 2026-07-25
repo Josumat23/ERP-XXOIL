@@ -18,10 +18,10 @@ export default async function GruposSeguridadPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold mb-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--epicor-texto)" }}>
         Grupos de seguridad
       </h1>
-      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Equivalente reducido a Security Group Maintenance de Epicor. Los 4 roles del sistema
         (Administrador, Almacén, Producción, Ventas) aparecen como grupos predefinidos de solo
         lectura: el acceso a cada pantalla sigue controlado por el rol. Los grupos personalizados

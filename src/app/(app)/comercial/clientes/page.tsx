@@ -20,8 +20,8 @@ export default async function ClientesPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Clientes</h1>
-          <p className="text-[13px] no-imprimir" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>Clientes</h1>
+          <p className="text-sm no-imprimir" style={{ color: "var(--epicor-texto-tenue)" }}>
             Cartera de clientes de la empresa.
           </p>
         </div>

@@ -21,10 +21,10 @@ export default async function NuevaFormulaPage() {
       <Link href="/produccion/formulas" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a fórmulas
       </Link>
-      <h1 className="text-xl font-bold mt-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1" style={{ color: "var(--epicor-texto)" }}>
         Nueva versión de fórmula
       </h1>
-      <p className="text-[13px] mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         La versión se asigna automáticamente (siguiente número para el producto elegido).
       </p>
 

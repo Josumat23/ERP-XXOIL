@@ -22,10 +22,10 @@ export default async function FacturasPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Facturas</h1>
+        <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>Facturas</h1>
         <BotonImprimir />
       </div>
-      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Se emiten en el portal SUNAT; aquí se registra el número y se controla la cobranza.
       </p>
 

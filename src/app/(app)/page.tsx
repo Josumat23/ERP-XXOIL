@@ -3,13 +3,22 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import GraficoLinea from "@/components/GraficoLinea";
+import BarraRanking from "@/components/BarraRanking";
+
+const MESES_TENDENCIA = 6;
+
+// Base imponible de una factura (sin IGV); las antiguas sin desglose usan su total.
+const baseFactura = (f: { subtotal: { toNumber(): number }; total: { toNumber(): number } }) =>
+  f.subtotal.toNumber() > 0 ? f.subtotal.toNumber() : f.total.toNumber();
 
 export default async function PanelPage() {
   const hoy = new Date();
   const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+  const inicioRango = new Date(hoy.getFullYear(), hoy.getMonth() - (MESES_TENDENCIA - 1), 1);
 
   const [
-    facturasMes,
+    facturasRango,
     facturasPendientes,
     comisiones,
     lotesActivos,
@@ -18,7 +27,8 @@ export default async function PanelPage() {
     pedidosPendientes,
   ] = await Promise.all([
     prisma.factura.findMany({
-      where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicioMes } },
+      where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicioRango } },
+      include: { cliente: true },
     }),
     prisma.factura.findMany({
       where: { estado: "PENDIENTE" },
@@ -36,11 +46,41 @@ export default async function PanelPage() {
     prisma.pedido.count({ where: { estado: "PENDIENTE" } }),
   ]);
 
+  // Tendencia de ventas: un balde por mes (los últimos MESES_TENDENCIA, el
+  // actual incluido) con la suma de ventas netas de IGV de ese mes.
+  const baldesMes = Array.from({ length: MESES_TENDENCIA }, (_, i) => {
+    const inicio = new Date(hoy.getFullYear(), hoy.getMonth() - (MESES_TENDENCIA - 1 - i), 1);
+    const fin = new Date(inicio.getFullYear(), inicio.getMonth() + 1, 1);
+    return { inicio, fin, total: 0 };
+  });
+  for (const f of facturasRango) {
+    const balde = baldesMes.find((b) => f.fechaEmision >= b.inicio && f.fechaEmision < b.fin);
+    if (balde) balde.total += baseFactura(f);
+  }
+  const ventasPorMes = baldesMes.map((b) => ({
+    etiqueta: new Intl.DateTimeFormat("es-PE", { month: "short" }).format(b.inicio).replace(".", ""),
+    valor: b.total,
+  }));
+
+  const facturasMes = facturasRango.filter((f) => f.fechaEmision >= inicioMes);
   // Ventas sin IGV (facturas antiguas sin desglose usan su total)
-  const ventasMes = facturasMes.reduce(
-    (acc, f) => acc + (f.subtotal.toNumber() > 0 ? f.subtotal.toNumber() : f.total.toNumber()),
-    0
-  );
+  const ventasMes = baldesMes[baldesMes.length - 1].total;
+  const ventasMesAnterior = baldesMes.length > 1 ? baldesMes[baldesMes.length - 2].total : 0;
+  const deltaVentas =
+    ventasMesAnterior > 0 ? ((ventasMes - ventasMesAnterior) / ventasMesAnterior) * 100 : null;
+
+  // Top 5 clientes del mes por ventas.
+  const ventasPorCliente = new Map<string, { nombre: string; total: number }>();
+  for (const f of facturasMes) {
+    const fila = ventasPorCliente.get(f.clienteId) ?? { nombre: f.cliente.razonSocial, total: 0 };
+    fila.total += baseFactura(f);
+    ventasPorCliente.set(f.clienteId, fila);
+  }
+  const topClientes = [...ventasPorCliente.values()]
+    .sort((a, b) => b.total - a.total)
+    .slice(0, 5);
+  const maxCliente = Math.max(...topClientes.map((c) => c.total), 1);
+
   const cuentasPorCobrar = facturasPendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
   const facturasVencidas = facturasPendientes.filter(
     (f) => f.fechaVencimiento < hoy && f.saldo.toNumber() > 0
@@ -70,6 +110,7 @@ export default async function PanelPage() {
           valor={formatMoneda(ventasMes)}
           detalle={`${facturasMes.length} factura${facturasMes.length === 1 ? "" : "s"}`}
           href="/comercial/facturas"
+          deltaPct={deltaVentas}
         />
         <Kpi
           etiqueta="Cuentas por cobrar"
@@ -96,7 +137,42 @@ export default async function PanelPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+        <section className="lg:col-span-2 border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+            Tendencia de ventas ({MESES_TENDENCIA} meses)
+          </h2>
+          <div className="mt-4">
+            <GraficoLinea datos={ventasPorMes} formatoValor={(v) => formatMoneda(v)} />
+          </div>
+        </section>
+
+        <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Top clientes del mes</h2>
+            <Link href="/comercial/clientes" className="text-xs text-neutral-500 hover:underline">
+              Ver todos
+            </Link>
+          </div>
+          {topClientes.length === 0 ? (
+            <p className="text-sm text-neutral-500 mt-3">Sin ventas este mes todavía.</p>
+          ) : (
+            <div className="flex flex-col gap-2.5 mt-4">
+              {topClientes.map((c) => (
+                <BarraRanking
+                  key={c.nombre}
+                  etiqueta={c.nombre}
+                  valor={c.total}
+                  max={maxCliente}
+                  formatoValor={(v) => formatMoneda(v)}
+                />
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
         <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
@@ -229,22 +305,36 @@ function Kpi({
   detalle,
   href,
   alerta = false,
+  deltaPct,
 }: {
   etiqueta: string;
   valor: string;
   detalle: string;
   href: string;
   alerta?: boolean;
+  deltaPct?: number | null;
 }) {
+  const sube = typeof deltaPct === "number" && deltaPct >= 0;
   return (
     <Link
       href={href}
       className="border border-black/10 dark:border-white/10 rounded-lg p-4 hover:border-black/30 dark:hover:border-white/30 transition-colors"
     >
-      <p className="text-sm text-neutral-500">{etiqueta}</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-neutral-500">{etiqueta}</p>
+        {typeof deltaPct === "number" && (
+          <span
+            className={`text-xs font-medium shrink-0 ${
+              sube ? "text-green-700 dark:text-green-400" : "text-red-600 dark:text-red-400"
+            }`}
+          >
+            {sube ? "▲" : "▼"} {Math.abs(deltaPct).toFixed(1)}%
+          </span>
+        )}
+      </div>
       <p className="text-2xl font-semibold mt-1 text-neutral-900 dark:text-neutral-100">{valor}</p>
       <p className={`text-xs mt-0.5 ${alerta ? "text-red-600 dark:text-red-400" : "text-neutral-400"}`}>
-        {detalle}
+        {detalle}{typeof deltaPct === "number" ? " · vs. mes anterior" : ""}
       </p>
     </Link>
   );

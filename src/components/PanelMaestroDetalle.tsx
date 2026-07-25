@@ -25,48 +25,53 @@ export default function PanelMaestroDetalle({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex gap-0 border" style={{ borderColor: "var(--epicor-borde)" }}>
+    <div
+      className="flex gap-0 rounded-xl overflow-hidden border"
+      style={{ borderColor: "var(--epicor-borde)", boxShadow: "var(--sombra-suave)" }}
+    >
       <aside
-        className="w-56 shrink-0 flex flex-col text-[13px] border-r no-imprimir"
+        className="w-60 shrink-0 flex flex-col text-[13px] border-r no-imprimir"
         style={{ borderColor: "var(--epicor-borde)", background: "var(--epicor-panel-2)" }}
       >
         {nuevoHref && (
           <Link
             href={nuevoHref}
-            className="px-2 py-1.5 border-b font-semibold hover:bg-[var(--epicor-hover)]"
+            className="px-3 py-2.5 border-b font-semibold hover:bg-[var(--epicor-hover)] transition-colors"
             style={{ borderColor: "var(--epicor-borde)", color: "var(--epicor-azul)" }}
           >
             + {nuevoTexto}
           </Link>
         )}
-        <div className="overflow-y-auto flex-1 max-h-[70vh]">
+        <div className="overflow-y-auto flex-1 max-h-[70vh] p-1.5">
           {registros.map((r) => (
             <Link
               key={r.id}
               href={r.href}
-              className={`flex flex-col px-2 py-1 border-b ${
+              className={`flex flex-col px-2.5 py-1.5 rounded-lg transition-colors ${
                 r.id === seleccionadoId
                   ? "bg-[var(--epicor-seleccion)] font-semibold"
                   : "hover:bg-[var(--epicor-hover)]"
               }`}
-              style={{ borderColor: "var(--epicor-borde-suave)", color: "var(--epicor-texto)" }}
+              style={{ color: "var(--epicor-texto)" }}
             >
-              <span className="truncate">📄 {r.primario}</span>
+              <span className="truncate">{r.primario}</span>
               {r.secundario && (
-                <span className="truncate text-[11px] pl-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+                <span className="truncate text-[11px]" style={{ color: "var(--epicor-texto-tenue)" }}>
                   {r.secundario}
                 </span>
               )}
             </Link>
           ))}
           {registros.length === 0 && (
-            <p className="px-2 py-3 text-[12px]" style={{ color: "var(--epicor-texto-tenue)" }}>
+            <p className="px-2.5 py-3 text-[12px]" style={{ color: "var(--epicor-texto-tenue)" }}>
               Sin registros.
             </p>
           )}
         </div>
       </aside>
-      <div className="flex-1 min-w-0 p-4">{children}</div>
+      <div className="flex-1 min-w-0 p-5" style={{ background: "var(--epicor-panel)" }}>
+        {children}
+      </div>
     </div>
   );
 }

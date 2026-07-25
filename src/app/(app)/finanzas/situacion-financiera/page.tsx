@@ -105,10 +105,10 @@ export default async function SituacionFinancieraPage({
 
       <div className="documento max-w-3xl">
         <MembreteEmpresa soloImprimir tituloDocumento="ESTADO DE SITUACIÓN FINANCIERA" />
-        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
+        <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
           Estado de situación financiera
         </h1>
-        <p className="text-[13px] mt-1 capitalize" style={{ color: "var(--epicor-texto-tenue)" }}>
+        <p className="text-sm mt-1 capitalize" style={{ color: "var(--epicor-texto-tenue)" }}>
           Al cierre de {nombreMes} · saldos acumulados desde el inicio, leídos directamente del
           libro mayor.
         </p>
@@ -127,7 +127,7 @@ export default async function SituacionFinancieraPage({
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-6">
             <section>
-              <h2 className="font-semibold text-[13px] uppercase tracking-wide" style={{ color: "var(--epicor-texto)" }}>
+              <h2 className="font-semibold text-sm uppercase tracking-wide" style={{ color: "var(--epicor-texto)" }}>
                 Activo
               </h2>
               <table className="tabla tabla-densa mt-2">
@@ -141,7 +141,7 @@ export default async function SituacionFinancieraPage({
             </section>
 
             <section>
-              <h2 className="font-semibold text-[13px] uppercase tracking-wide" style={{ color: "var(--epicor-texto)" }}>
+              <h2 className="font-semibold text-sm uppercase tracking-wide" style={{ color: "var(--epicor-texto)" }}>
                 Pasivo
               </h2>
               <table className="tabla tabla-densa mt-2">
@@ -153,7 +153,7 @@ export default async function SituacionFinancieraPage({
                 </tbody>
               </table>
 
-              <h2 className="font-semibold text-[13px] uppercase tracking-wide mt-6" style={{ color: "var(--epicor-texto)" }}>
+              <h2 className="font-semibold text-sm uppercase tracking-wide mt-6" style={{ color: "var(--epicor-texto)" }}>
                 Patrimonio
               </h2>
               <table className="tabla tabla-densa mt-2">

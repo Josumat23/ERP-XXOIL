@@ -15,10 +15,10 @@ export default async function PresentacionesPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
             Presentaciones
           </h1>
-          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
             SKUs de venta por producto (pote, balde, cilindro, etc.).
           </p>
         </div>

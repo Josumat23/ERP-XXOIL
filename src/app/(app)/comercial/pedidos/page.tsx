@@ -21,8 +21,8 @@ export default async function PedidosPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Pedidos</h1>
-          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>Pedidos</h1>
+          <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
             El stock se descuenta recién al facturar; un pedido pendiente puede anularse.
           </p>
         </div>

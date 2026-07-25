@@ -25,10 +25,10 @@ export default async function EditarVendedorPage({
       <Link href="/comercial/vendedores" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a vendedores
       </Link>
-      <h1 className="text-xl font-bold mt-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1" style={{ color: "var(--epicor-texto)" }}>
         Editar vendedor
       </h1>
-      <p className="text-[13px] mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         La tasa nueva solo aplica a facturas futuras; las comisiones ya generadas conservan su tasa.
       </p>
 

@@ -16,10 +16,10 @@ export default async function UnidadesMedidaPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold mb-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--epicor-texto)" }}>
         Unidades de medida
       </h1>
-      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Equivalente reducido a UOM Class / UOM Maintenance de Epicor. Estas unidades alimentan los
         selectores de productos e insumos.
       </p>

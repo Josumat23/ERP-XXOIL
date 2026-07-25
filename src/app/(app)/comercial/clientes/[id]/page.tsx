@@ -30,7 +30,7 @@ export default async function EditarClientePage({
       <Link href="/comercial/clientes" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a clientes
       </Link>
-      <h1 className="text-xl font-bold mt-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1" style={{ color: "var(--epicor-texto)" }}>
         Ficha del cliente
       </h1>
       <p className="text-neutral-500 mt-1 text-sm">

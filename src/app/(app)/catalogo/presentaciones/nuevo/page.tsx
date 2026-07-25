@@ -23,7 +23,7 @@ export default async function NuevaPresentacionPage({
       <Link href="/catalogo/presentaciones" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a presentaciones
       </Link>
-      <h1 className="text-xl font-bold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
         Nueva presentación
       </h1>
 

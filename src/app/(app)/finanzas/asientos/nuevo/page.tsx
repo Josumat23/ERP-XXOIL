@@ -33,10 +33,10 @@ export default async function NuevoAsientoPage() {
       <Link href="/finanzas/asientos" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a asientos
       </Link>
-      <h1 className="text-xl font-bold mt-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1" style={{ color: "var(--epicor-texto)" }}>
         Asiento manual
       </h1>
-      <p className="text-[13px] mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         El asiento debe cuadrar (total debe = total haber) y su período fiscal debe estar abierto.
       </p>
 

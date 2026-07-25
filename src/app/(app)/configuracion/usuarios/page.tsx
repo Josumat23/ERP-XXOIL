@@ -24,10 +24,10 @@ export default async function UsuariosPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Usuarios</h1>
+        <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>Usuarios</h1>
         <BotonImprimir />
       </div>
-      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Cuentas de acceso y roles. El rol define qué operaciones puede realizar cada persona.
       </p>
 

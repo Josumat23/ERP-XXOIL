@@ -22,10 +22,10 @@ export default async function SeriesPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold mb-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--epicor-texto)" }}>
         Series de documentos
       </h1>
-      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Numeración legal (equivalente a Legal Number Maintenance de Epicor). Al facturar, crear una
         guía o una nota de crédito, se puede elegir una de estas series para sugerir el siguiente
         número — el número real lo asigna SUNAT al emitir el documento externamente.

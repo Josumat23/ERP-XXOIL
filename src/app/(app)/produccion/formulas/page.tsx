@@ -17,8 +17,8 @@ export default async function FormulasPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Fórmulas</h1>
-          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>Fórmulas</h1>
+          <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
             Recetas de producción por producto. No se editan: cada cambio crea una versión nueva.
           </p>
         </div>

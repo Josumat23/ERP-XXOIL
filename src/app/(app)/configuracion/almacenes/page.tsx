@@ -18,10 +18,10 @@ export default async function AlmacenesPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold mb-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--epicor-texto)" }}>
         Almacenes y zonas
       </h1>
-      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Equivalente reducido a Warehouse / Warehouse Zone de Epicor: define dónde vive físicamente
         cada presentación e insumo, en vez de texto libre.
       </p>

@@ -29,10 +29,10 @@ export default async function NuevoEnvasadoPage({
       <Link href="/produccion/envasados" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a envasados
       </Link>
-      <h1 className="text-xl font-bold mt-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1" style={{ color: "var(--epicor-texto)" }}>
         Nuevo envasado
       </h1>
-      <p className="text-[13px] mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Consume granel aprobado más envases y etiquetas, y genera stock de la presentación elegida.
       </p>
 

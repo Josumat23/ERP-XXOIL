@@ -21,8 +21,8 @@ export default async function InsumosPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Insumos</h1>
-          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>Insumos</h1>
+          <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
             Materia prima, envases y etiquetas usados en producción.
           </p>
         </div>

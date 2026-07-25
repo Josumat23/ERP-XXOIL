@@ -16,8 +16,8 @@ export default async function VendedoresPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Vendedores</h1>
-          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>Vendedores</h1>
+          <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
             Cada vendedor tiene su propia tasa de comisión; las comisiones se generan al facturar.
           </p>
         </div>

@@ -15,7 +15,7 @@ export default async function NuevaOrdenCompraPage() {
       <Link href="/logistica/ordenes-compra" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a órdenes de compra
       </Link>
-      <h1 className="text-xl font-bold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
         Nueva orden de compra
       </h1>
 

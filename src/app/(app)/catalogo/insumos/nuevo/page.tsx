@@ -19,7 +19,7 @@ export default async function NuevoInsumoPage() {
       <Link href="/catalogo/insumos" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a insumos
       </Link>
-      <h1 className="text-xl font-bold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1 mb-4" style={{ color: "var(--epicor-texto)" }}>
         Nuevo insumo
       </h1>
 

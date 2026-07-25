@@ -13,10 +13,10 @@ export default async function GuiasRemisionPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
             Guías de remisión
           </h1>
-          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
             Documentan el traslado de mercadería (formato SUNAT). Se imprimen para acompañar el
             transporte.
           </p>

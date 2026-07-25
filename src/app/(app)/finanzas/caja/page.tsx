@@ -22,10 +22,10 @@ export default async function CajaPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>Libro de caja</h1>
+        <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>Libro de caja</h1>
         <BotonImprimir />
       </div>
-      <p className="text-[13px] mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Los cobros de facturas y pagos a proveedores se registran automáticamente; aquí también se
         anotan movimientos manuales.
       </p>

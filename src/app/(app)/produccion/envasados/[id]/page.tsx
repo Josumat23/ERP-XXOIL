@@ -42,10 +42,10 @@ export default async function DetalleEnvasadoPage({
         }))}
       >
       <div className="max-w-2xl">
-        <h1 className="text-xl font-bold mt-2" style={{ color: "var(--epicor-texto)" }}>
+        <h1 className="text-2xl font-semibold mt-2" style={{ color: "var(--epicor-texto)" }}>
           Envasado {envasado.codigo}
         </h1>
-        <p className="text-[13px] mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
+        <p className="text-sm mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
           {envasado.loteGranel.formula.producto.nombre} — {envasado.presentacion.nombre} · Lote{" "}
           <Link href={`/produccion/lotes/${envasado.loteGranelId}`} className="hover:underline font-mono">
             {envasado.loteGranel.codigo}
@@ -105,7 +105,7 @@ export default async function DetalleEnvasadoPage({
 
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
   return (
-    <div className="border rounded-none p-3" style={{ borderColor: "var(--epicor-borde)" }}>
+    <div className="border rounded-lg p-3" style={{ borderColor: "var(--epicor-borde)" }}>
       <p className="text-xs" style={{ color: "var(--epicor-texto-tenue)" }}>{etiqueta}</p>
       <p className="text-xl font-semibold mt-0.5" style={{ color: "var(--epicor-texto)" }}>{valor}</p>
     </div>

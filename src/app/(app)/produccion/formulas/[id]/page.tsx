@@ -47,7 +47,7 @@ export default async function DetalleFormulaPage({
       >
       <div className="max-w-2xl">
         <div className="flex items-center gap-3 mt-2">
-          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
             {formula.producto.nombre} — versión {formula.version}
           </h1>
           <span
@@ -60,7 +60,7 @@ export default async function DetalleFormulaPage({
             {formula.activo ? "Activa" : "Inactiva"}
           </span>
         </div>
-        <p className="text-[13px] mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
+        <p className="text-sm mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
           Batch de {formatNumero(formula.rendimientoKg, 2)} kg de granel · Creada por{" "}
           {formula.usuarioNombre} el{" "}
           {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(formula.creadoEn)}

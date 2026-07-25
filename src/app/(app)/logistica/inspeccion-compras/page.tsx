@@ -31,7 +31,7 @@ export default async function InspeccionesCompraPage() {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
+        <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
           Inspección de calidad de compras
         </h1>
       </div>
@@ -45,7 +45,7 @@ export default async function InspeccionesCompraPage() {
         }))}
       >
         <div className="max-w-3xl">
-          <p className="text-[13px] mb-3" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <p className="text-sm mb-3" style={{ color: "var(--epicor-texto-tenue)" }}>
             Recepciones de insumos marcados como &quot;requiere inspección&quot;: no suman stock
             disponible hasta que se aprueban aquí.
           </p>

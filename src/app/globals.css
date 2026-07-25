@@ -1,24 +1,27 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f8fafc;
+  --foreground: #0f172a;
 
-  /* Paleta estilo Epicor Kinetic (Windows Forms): cuadrada, densa, gris/azul. */
-  --epicor-azul: #2c5f9e;
-  --epicor-azul-oscuro: #1f4a7d;
-  --epicor-panel: #ececec;
-  --epicor-panel-2: #f5f5f4;
-  --epicor-borde: #a8a8a8;
-  --epicor-borde-suave: #cfcfcf;
-  --epicor-texto: #1a1a1a;
-  --epicor-texto-tenue: #5a5a5a;
-  --epicor-hover: #dcebfa;
-  --epicor-seleccion: #cce4f7;
-  --epicor-grid-header: #e4e4e4;
-  --epicor-grid-alt: #f6f7f9;
-  --epicor-boton: #e8e8e8;
-  --epicor-boton-borde: #8a8a8a;
+  /* Sistema de diseño moderno: tarjetas, esquinas redondeadas, sombras suaves. */
+  --epicor-azul: #2563eb;
+  --epicor-azul-oscuro: #1d4ed8;
+  --epicor-panel: #ffffff;
+  --epicor-panel-2: #ffffff;
+  --epicor-borde: #e2e8f0;
+  --epicor-borde-suave: #eef2f7;
+  --epicor-texto: #0f172a;
+  --epicor-texto-tenue: #64748b;
+  --epicor-hover: #eff6ff;
+  --epicor-seleccion: #dbeafe;
+  --epicor-grid-header: #f8fafc;
+  --epicor-grid-alt: #fafbfc;
+  --epicor-boton: #f1f5f9;
+  --epicor-boton-borde: #d5dce5;
+
+  --sombra-suave: 0 1px 2px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --sombra-media: 0 4px 6px -2px rgba(15, 23, 42, 0.06), 0 10px 15px -3px rgba(15, 23, 42, 0.08);
 }
 
 @theme inline {
@@ -30,31 +33,34 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #1e1e1e;
-    --foreground: #e4e4e4;
+    --background: #0b1120;
+    --foreground: #e2e8f0;
 
-    --epicor-azul: #4a8fd6;
-    --epicor-azul-oscuro: #2c5f9e;
-    --epicor-panel: #2b2b2b;
-    --epicor-panel-2: #262626;
-    --epicor-borde: #565656;
-    --epicor-borde-suave: #3d3d3d;
-    --epicor-texto: #e4e4e4;
-    --epicor-texto-tenue: #a3a3a3;
-    --epicor-hover: #2f4a63;
-    --epicor-seleccion: #2f5a82;
-    --epicor-grid-header: #333333;
-    --epicor-grid-alt: #262b30;
-    --epicor-boton: #3a3a3a;
-    --epicor-boton-borde: #6a6a6a;
+    --epicor-azul: #60a5fa;
+    --epicor-azul-oscuro: #3b82f6;
+    --epicor-panel: #131b2e;
+    --epicor-panel-2: #111827;
+    --epicor-borde: #263244;
+    --epicor-borde-suave: #1c2636;
+    --epicor-texto: #e2e8f0;
+    --epicor-texto-tenue: #8b98ac;
+    --epicor-hover: #16233b;
+    --epicor-seleccion: #1e3a68;
+    --epicor-grid-header: #131b2e;
+    --epicor-grid-alt: #101828;
+    --epicor-boton: #1a2438;
+    --epicor-boton-borde: #334155;
+
+    --sombra-suave: 0 1px 2px rgba(0, 0, 0, 0.25), 0 1px 3px rgba(0, 0, 0, 0.3);
+    --sombra-media: 0 4px 6px -2px rgba(0, 0, 0, 0.3), 0 10px 15px -3px rgba(0, 0, 0, 0.35);
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: "Segoe UI", Tahoma, Arial, Helvetica, sans-serif;
-  font-size: 13px;
+  font-family: var(--font-geist-sans), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
 }
 
 .arbol-epicor {
@@ -64,60 +70,63 @@ body {
 }
 
 @layer components {
-  /* Controles estilo Windows Forms: cuadrados, borde fino gris, sin sombras */
+  /* Controles de formulario: bordes suaves, esquinas redondeadas, foco con anillo. */
   .campo-input {
-    @apply px-2 py-1 text-[13px] rounded-none;
+    @apply px-3 py-1.5 text-[14px] rounded-lg transition-shadow;
     background: var(--background);
     color: var(--epicor-texto);
     border: 1px solid var(--epicor-borde);
   }
   .campo-input:focus {
-    outline: 2px solid var(--epicor-azul);
-    outline-offset: -1px;
+    outline: none;
+    border-color: var(--epicor-azul);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--epicor-azul) 20%, transparent);
   }
 
   .boton-primario {
-    @apply rounded-none px-3 py-1.5 text-[13px] font-semibold transition-colors
+    @apply rounded-lg px-4 py-2 text-[14px] font-semibold transition-colors
       disabled:opacity-50 disabled:cursor-not-allowed;
     background: var(--epicor-azul);
     color: #ffffff;
-    border: 1px solid var(--epicor-azul-oscuro);
+    border: 1px solid transparent;
+    box-shadow: var(--sombra-suave);
   }
   .boton-primario:hover:not(:disabled) {
     background: var(--epicor-azul-oscuro);
   }
 
   .boton-secundario {
-    @apply rounded-none px-3 py-1.5 text-[13px] font-medium transition-colors;
+    @apply rounded-lg px-4 py-2 text-[14px] font-medium transition-colors;
     background: var(--epicor-boton);
     color: var(--epicor-texto);
     border: 1px solid var(--epicor-boton-borde);
   }
   .boton-secundario:hover {
     background: var(--epicor-hover);
+    border-color: var(--epicor-azul);
   }
 
-  /* Grilla densa estilo DataGridView: bordes en todas las celdas, encabezado gris */
+  /* Tabla moderna: sin rejilla dura, filas separadas por línea sutil, encabezado discreto. */
   .tabla {
-    @apply w-full text-[13px] border-collapse;
-    border: 1px solid var(--epicor-borde);
+    @apply w-full text-[14px] border-separate;
+    border-spacing: 0;
   }
 
   .tabla th {
-    @apply text-left font-bold px-2 py-1;
+    @apply text-left font-semibold px-3 py-2 text-[13px] uppercase tracking-wide;
     background: var(--epicor-grid-header);
-    color: var(--epicor-texto);
-    border: 1px solid var(--epicor-borde-suave);
+    color: var(--epicor-texto-tenue);
+    border-bottom: 1px solid var(--epicor-borde);
   }
 
   .tabla td {
-    @apply px-2 py-1;
-    border: 1px solid var(--epicor-borde-suave);
+    @apply px-3 py-2.5;
+    border-bottom: 1px solid var(--epicor-borde-suave);
     color: var(--epicor-texto);
   }
 
-  .tabla tbody tr:nth-child(even) td {
-    background: var(--epicor-grid-alt);
+  .tabla tbody tr:last-child td {
+    border-bottom: none;
   }
 
   .tabla tbody tr:hover td {
@@ -126,41 +135,45 @@ body {
 
   /* Grillas largas (kardex, movimientos de caja): más filas visibles por pantalla. */
   .tabla-densa th {
-    @apply px-1.5 py-0.5 text-[11px];
+    @apply px-2 py-1.5 text-[11px];
   }
 
   .tabla-densa td {
-    @apply px-1.5 py-0.5 text-[11px];
+    @apply px-2 py-1.5 text-[12px];
   }
 
   .insignia {
-    @apply inline-flex items-center rounded-none px-1.5 py-0.5 text-[11px] font-semibold border;
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[12px] font-semibold border border-transparent;
   }
 
-  /* GroupBox estilo Windows Forms: borde fino con la etiqueta montada encima */
+  /* Sección de formulario: tarjeta suave con etiqueta encima (reemplaza el groupbox). */
   .borde-seccion {
-    @apply rounded-none px-4 pb-4 pt-2.5 relative;
+    @apply rounded-xl px-4 pb-4 pt-3 relative;
     border: 1px solid var(--epicor-borde);
+    background: var(--epicor-panel);
+    box-shadow: var(--sombra-suave);
   }
 
   .titulo-seccion {
-    @apply px-1.5 text-[11px] font-bold uppercase tracking-wide absolute -top-2.5 left-2;
+    @apply px-1.5 text-[11px] font-bold uppercase tracking-wide absolute -top-2.5 left-3;
     background: var(--background);
     color: var(--epicor-texto-tenue);
   }
 
-  /* Barra azul de programa (nombre de pantalla, como en Epicor) */
+  /* Encabezado de pantalla: título del módulo/programa activo. */
   .barra-programa-epicor {
-    @apply flex items-center gap-2 px-3 h-8 text-white text-[13px] font-semibold shrink-0;
-    background: linear-gradient(var(--epicor-azul), var(--epicor-azul-oscuro));
+    @apply flex items-center gap-2 px-4 h-12 text-[15px] font-semibold shrink-0;
+    background: var(--epicor-panel);
+    color: var(--epicor-texto);
+    border-bottom: 1px solid var(--epicor-borde);
   }
 
-  /* Barra de herramientas gris (menú + botones de acción) */
+  /* Barra de herramientas: acciones rápidas de la pantalla actual. */
   .barra-herramientas-epicor {
-    @apply flex items-center gap-4 px-3 h-8 text-[12px] shrink-0 border-b;
-    background: var(--epicor-panel);
+    @apply flex items-center gap-3 px-4 h-11 text-[13px] shrink-0 border-b;
+    background: var(--background);
     border-color: var(--epicor-borde);
-    color: var(--epicor-texto);
+    color: var(--epicor-texto-tenue);
   }
 }
 

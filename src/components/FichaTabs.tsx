@@ -23,7 +23,7 @@ export default function FichaTabs({
     <div className={className}>
       <div
         role="tablist"
-        className="flex gap-1 border-b border-black/10 dark:border-white/10 mb-4 overflow-x-auto"
+        className="flex gap-1 border-b border-[var(--epicor-borde)] mb-4 overflow-x-auto"
       >
         {pestanas.map((p) => (
           <button
@@ -34,8 +34,8 @@ export default function FichaTabs({
             onClick={() => setActiva(p.id)}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px whitespace-nowrap transition-colors ${
               activa === p.id
-                ? "border-amber-500 text-neutral-900 dark:text-neutral-100"
-                : "border-transparent text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300"
+                ? "border-[var(--epicor-azul)] text-[var(--epicor-texto)]"
+                : "border-transparent text-[var(--epicor-texto-tenue)] hover:text-[var(--epicor-texto)]"
             }`}
           >
             {p.etiqueta}

@@ -14,10 +14,10 @@ export default async function HojasRutaPage() {
     <div>
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "var(--epicor-texto)" }}>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
             Hojas de ruta
           </h1>
-          <p className="text-[13px]" style={{ color: "var(--epicor-texto-tenue)" }}>
+          <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
             Planificación diaria de visitas por vendedor, con registro de resultados.
           </p>
         </div>

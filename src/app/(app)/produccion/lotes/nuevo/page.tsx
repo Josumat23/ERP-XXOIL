@@ -21,10 +21,10 @@ export default async function NuevoLotePage() {
       <Link href="/produccion/lotes" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a órdenes de producción
       </Link>
-      <h1 className="text-xl font-bold mt-1" style={{ color: "var(--epicor-texto)" }}>
+      <h1 className="text-2xl font-semibold mt-1" style={{ color: "var(--epicor-texto)" }}>
         Nueva orden de producción
       </h1>
-      <p className="text-[13px] mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+      <p className="text-sm mt-1 mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Al crear el lote se descuentan los insumos de la fórmula (escalados a los kg objetivo) y el
         consumo queda registrado en el kardex.
       </p>
