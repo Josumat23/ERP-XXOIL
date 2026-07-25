@@ -6,7 +6,10 @@ const nextConfig: NextConfig = {
     // través del túnel de GitHub Codespaces, cuyo dominio público no
     // coincide con el host interno del servidor.
     serverActions: {
-      allowedOrigins: ["*.app.github.dev"],
+      // "*.app.github.dev" cubre el dominio público del túnel; "localhost:3000"
+      // cubre el Origin que Codespaces reporta en algunas peticiones internas
+      // aunque la página se haya cargado por el dominio público.
+      allowedOrigins: ["*.app.github.dev", "localhost:3000"],
     },
   },
 };
