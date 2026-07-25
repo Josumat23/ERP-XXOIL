@@ -31,6 +31,7 @@ async function main() {
     { usuario: "almacen", nombre: "Encargado de Almacén", rol: "ALMACEN" as const },
     { usuario: "operario", nombre: "Operario de Planta", rol: "PRODUCCION" as const },
     { usuario: "ventas", nombre: "Asistente Comercial", rol: "VENTAS" as const },
+    { usuario: "gerencia", nombre: "Gerencia General", rol: "GERENCIA" as const },
   ];
   for (const u of usuariosSemilla) {
     await prisma.usuario.upsert({
@@ -337,12 +338,20 @@ async function main() {
       finanzas: [true, true, false],
       configuracion: [false, false, false],
     },
+    GERENCIA: {
+      ventas: [true, false, false],
+      materiales: [true, false, false],
+      produccion: [true, false, false],
+      finanzas: [true, false, true],
+      configuracion: [false, false, false],
+    },
   };
   const nombreGrupo: Record<string, string> = {
     ADMIN: "Administrador",
     ALMACEN: "Almacén",
     PRODUCCION: "Producción",
     VENTAS: "Ventas",
+    GERENCIA: "Gerencia",
   };
   for (const [codigo, permisos] of Object.entries(permisosPredefinidos)) {
     const grupo = await prisma.grupoSeguridad.upsert({
@@ -428,7 +437,9 @@ async function main() {
     });
   }
 
-  console.log("Seed completo. Usuarios: admin / almacen / operario / ventas (clave: cambiar123)");
+  console.log(
+    "Seed completo. Usuarios: admin / almacen / operario / ventas / gerencia (clave: cambiar123)"
+  );
 }
 
 main()

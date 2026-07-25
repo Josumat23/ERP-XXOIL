@@ -72,3 +72,10 @@ export const ETIQUETA_ESTADO_HR: Record<$Enums.EstadoHojaRuta, string> = {
   PLANIFICADA: "Planificada",
   COMPLETADA: "Completada",
 };
+
+export const ETIQUETA_ESTADO_APROBACION: Record<$Enums.EstadoAprobacion, string> = {
+  NO_REQUERIDA: "No requiere aprobación",
+  PENDIENTE: "Pendiente de aprobación",
+  APROBADA: "Aprobada",
+  RECHAZADA: "Rechazada",
+};

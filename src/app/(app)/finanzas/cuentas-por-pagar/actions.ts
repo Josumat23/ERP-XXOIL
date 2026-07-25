@@ -6,6 +6,7 @@ import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { postearPagoProveedor } from "@/lib/contabilidad";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type EstadoFormulario = { error?: string };
 
@@ -36,18 +37,25 @@ export async function registrarPagoProveedor(
   if (!Number.isFinite(monto) || monto <= 0) return { error: "El monto debe ser mayor a 0." };
   if (!MEDIOS_VALIDOS.includes(medioPago)) return { error: "Seleccione el medio de pago." };
 
+  const { montoAprobacionPagos } = await obtenerConfiguracionEmpresa();
+
   try {
     await prisma.$transaction(async (tx) => {
       const cuenta = await tx.cuentaPorPagar.findUnique({
         where: { id: cuentaId },
-        include: { proveedor: true },
+        include: { proveedor: true, pagos: true },
       });
       if (!cuenta) throw new Error("La cuenta por pagar no existe.");
+      if (cuenta.pagos.some((p) => p.estadoAprobacion === "PENDIENTE")) {
+        throw new Error("Ya hay un pago pendiente de aprobación para esta cuenta.");
+      }
 
       const saldo = cuenta.saldo.toNumber();
       if (monto > saldo + 1e-9) {
         throw new Error(`El monto supera el saldo pendiente (${saldo.toFixed(2)}).`);
       }
+
+      const requiereAprobacion = monto >= montoAprobacionPagos.toNumber();
 
       await tx.pagoProveedor.create({
         data: {
@@ -55,12 +63,16 @@ export async function registrarPagoProveedor(
           monto,
           medioPago,
           referencia,
+          estadoAprobacion: requiereAprobacion ? "PENDIENTE" : "NO_REQUERIDA",
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
         },
       });
 
-      // Egreso automático en el libro de caja
+      // Si supera el umbral, el pago queda "solicitado": no se descuenta de
+      // caja ni del saldo hasta que Gerencia/Admin lo apruebe.
+      if (requiereAprobacion) return;
+
       await tx.movimientoCaja.create({
         data: {
           tipo: "EGRESO",
@@ -97,5 +109,96 @@ export async function registrarPagoProveedor(
   revalidatePath("/finanzas/cuentas-por-pagar");
   revalidatePath(`/finanzas/cuentas-por-pagar/${cuentaId}`);
   revalidatePath("/finanzas/caja");
+  return {};
+}
+
+// Aprobación por monto: ejecuta recién ahora el egreso de caja y el
+// descuento del saldo (separa "quien pide el pago" de "quien dispone
+// del dinero").
+export async function aprobarPagoProveedor(pagoId: string) {
+  const auth = await requerirRol(["GERENCIA"]);
+  if ("error" in auth) return auth;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const pago = await tx.pagoProveedor.findUnique({
+        where: { id: pagoId },
+        include: { cuentaPorPagar: { include: { proveedor: true } } },
+      });
+      if (!pago) throw new Error("El pago no existe.");
+      if (pago.estadoAprobacion !== "PENDIENTE") {
+        throw new Error("Este pago no está pendiente de aprobación.");
+      }
+
+      const cuenta = pago.cuentaPorPagar;
+      const monto = pago.monto.toNumber();
+
+      await tx.movimientoCaja.create({
+        data: {
+          tipo: "EGRESO",
+          concepto: `Pago a ${cuenta.proveedor.razonSocial} (doc. ${cuenta.numeroDocumento})`,
+          monto,
+          medioPago: pago.medioPago,
+          referencia: cuenta.numeroDocumento,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+
+      const nuevoSaldo = cuenta.saldo.toNumber() - monto;
+      await tx.cuentaPorPagar.update({
+        where: { id: cuenta.id },
+        data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
+      });
+
+      await tx.pagoProveedor.update({
+        where: { id: pagoId },
+        data: { estadoAprobacion: "APROBADA", aprobadoPor: auth.usuario.nombre, aprobadoEn: new Date() },
+      });
+
+      await postearPagoProveedor(
+        tx,
+        { documentoProveedor: cuenta.numeroDocumento, proveedor: cuenta.proveedor.razonSocial, monto },
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      );
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath("/finanzas/cuentas-por-pagar");
+  revalidatePath("/finanzas/caja");
+  return {};
+}
+
+export async function rechazarPagoProveedor(
+  pagoId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["GERENCIA"]);
+  if ("error" in auth) return auth;
+
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
+
+  const pago = await prisma.pagoProveedor.findUnique({ where: { id: pagoId } });
+  if (!pago) return { error: "El pago no existe." };
+  if (pago.estadoAprobacion !== "PENDIENTE") {
+    return { error: "Este pago no está pendiente de aprobación." };
+  }
+
+  await prisma.pagoProveedor.update({
+    where: { id: pagoId },
+    data: {
+      estadoAprobacion: "RECHAZADA",
+      aprobadoPor: auth.usuario.nombre,
+      aprobadoEn: new Date(),
+      motivoRechazo: motivo,
+    },
+  });
+
+  revalidatePath("/finanzas/cuentas-por-pagar");
   return {};
 }

@@ -13,12 +13,12 @@ Interfaz en español, moneda en soles (PEN).
 | **Catálogo** | Categorías, productos, presentaciones/SKU (contenido kg, precio, stock), insumos (materia prima, envases, etiquetas), proveedores |
 | **Inventario** | Kardex inmutable con saldos (nunca se edita ni borra historia), ajustes con motivo obligatorio y auditoría, alertas de stock mínimo |
 | **Producción** | Fórmulas versionadas (sin edición: cada cambio es versión nueva) → órdenes de producción / lotes granel (consumen insumos, registran merma y costo) → control de calidad → envasados (consumen granel + envases, producen stock y calculan costo unitario) |
-| **Logística** | Órdenes de compra a proveedores, recepciones (parciales o totales) que alimentan el kardex y recalculan el costo promedio ponderado, guías de remisión imprimibles (formato SUNAT: transportista, placa, conductor, peso) |
+| **Logística** | Órdenes de compra a proveedores (con aprobación de Gerencia por encima de un monto configurable), recepciones (parciales o totales) que alimentan el kardex y recalculan el costo promedio ponderado, guías de remisión imprimibles (formato SUNAT: transportista, placa, conductor, peso) |
 | **Comercial** | Zonas, vendedores (con básico / solo comisión, tasa individual), clientes, pedidos con detalle, facturas (número SUNAT, contado/15/30 días), cobros, notas de crédito (revierten comisión proporcional), comisiones, hojas de ruta de vendedores con registro de resultados |
-| **Finanzas** | Cuentas por cobrar (facturas pendientes con antigüedad de vencimiento), cuentas por pagar con pagos a proveedores, libro de caja (los cobros y pagos generan movimientos automáticos, admite manuales), reporte de costos y márgenes por presentación, estado de resultados mensual (ventas netas − costo de ventas − comisiones − gastos de caja) con costo congelado al facturar |
+| **Finanzas** | Cuentas por cobrar (facturas pendientes con antigüedad de vencimiento), cuentas por pagar con pagos a proveedores (con aprobación de Gerencia por encima de un monto configurable — separa quien pide el pago de quien dispone del dinero), libro de caja (los cobros y pagos generan movimientos automáticos, admite manuales), reporte de costos y márgenes por presentación, estado de resultados mensual (ventas netas − costo de ventas − comisiones − gastos de caja) con costo congelado al facturar |
 | **Contabilidad** | Plan de cuentas (codificación PCGE), controles contables (mapa transacción → cuenta), asientos automáticos por cada venta/cobro/NC/anulación/compra/pago (best-effort: sin cuentas configuradas la operación sigue, solo sin asiento), asientos manuales cuadrados, reversos inmutables y balance de comprobación mensual |
-| **Configuración del Sistema** | Empresa (membrete + IGV), usuarios, series de documentos SUNAT con correlativo sugerido, almacenes y zonas, unidades de medida, grupos de seguridad (referencia), calendario fiscal con cierre de períodos que bloquea la contabilización |
-| **Configuración** | Usuarios y roles (Administrador, Almacén, Producción, Ventas) |
+| **Configuración del Sistema** | Empresa (membrete + IGV + montos de aprobación de compras/pagos), usuarios, series de documentos SUNAT con correlativo sugerido, almacenes y zonas, unidades de medida, grupos de seguridad (referencia), calendario fiscal con cierre de períodos que bloquea la contabilización |
+| **Configuración** | Usuarios y roles (Administrador, Almacén, Producción, Ventas, Gerencia) |
 
 **Impresión**: factura, orden de compra, guía de remisión y hoja de ruta tienen botón
 "Imprimir / PDF" (usa la impresión del navegador; "Guardar como PDF" genera el archivo).
@@ -79,6 +79,7 @@ actualiza el costo promedio de la presentación, del que sale el margen de venta
 | `almacen` | Almacén | `cambiar123` |
 | `operario` | Producción | `cambiar123` |
 | `ventas` | Ventas | `cambiar123` |
+| `gerencia` | Gerencia | `cambiar123` |
 
 Cambie las contraseñas desde **Configuración → Usuarios** (sesión de admin).
 

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
-import { ETIQUETA_ESTADO_OC } from "@/lib/etiquetas";
+import { ETIQUETA_ESTADO_OC, ETIQUETA_ESTADO_APROBACION } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 
@@ -10,6 +10,12 @@ const COLOR_ESTADO: Record<string, string> = {
   PARCIAL: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
   RECIBIDA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
   ANULADA: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
+};
+
+const COLOR_APROBACION: Record<string, string> = {
+  PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  APROBADA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
+  RECHAZADA: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
 };
 
 export default async function OrdenesCompraPage() {
@@ -53,6 +59,7 @@ export default async function OrdenesCompraPage() {
             <th className="text-right">Total</th>
             <th>Recepciones</th>
             <th>Estado</th>
+            <th>Aprobación</th>
             <th>Fecha</th>
             <th></th>
           </tr>
@@ -69,6 +76,15 @@ export default async function OrdenesCompraPage() {
                   {ETIQUETA_ESTADO_OC[oc.estado]}
                 </span>
               </td>
+              <td>
+                {oc.estadoAprobacion === "NO_REQUERIDA" ? (
+                  <span className="text-xs text-neutral-400">—</span>
+                ) : (
+                  <span className={`insignia ${COLOR_APROBACION[oc.estadoAprobacion]}`}>
+                    {ETIQUETA_ESTADO_APROBACION[oc.estadoAprobacion]}
+                  </span>
+                )}
+              </td>
               <td className="text-xs text-neutral-500 whitespace-nowrap">
                 {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(oc.fecha)}
               </td>
@@ -84,7 +100,7 @@ export default async function OrdenesCompraPage() {
           ))}
           {ordenes.length === 0 && (
             <tr>
-              <td colSpan={7} className="text-center text-neutral-500 py-6">
+              <td colSpan={8} className="text-center text-neutral-500 py-6">
                 No hay órdenes de compra registradas todavía.
               </td>
             </tr>

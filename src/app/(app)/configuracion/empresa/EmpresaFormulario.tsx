@@ -22,6 +22,8 @@ type Props = {
     sitioWeb: string | null;
     tasaIgv: number;
     tarifaHoraManoObra: number;
+    montoAprobacionCompras: number;
+    montoAprobacionPagos: number;
   };
 };
 
@@ -145,6 +147,38 @@ export default function EmpresaFormulario({ valores }: Props) {
         <p className="text-xs text-neutral-500 mt-1">
           Se usa para calcular el costo de mano de obra al finalizar lotes y envasados (horas
           registradas × esta tarifa vigente al momento).
+        </p>
+      </fieldset>
+
+      <fieldset className="borde-seccion">
+        <legend className="titulo-seccion">Aprobaciones por monto</legend>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Campo etiqueta="Compras a partir de (S/)">
+            <input
+              name="montoAprobacionCompras"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              defaultValue={valores.montoAprobacionCompras}
+              className="campo-input"
+            />
+          </Campo>
+          <Campo etiqueta="Pagos a partir de (S/)">
+            <input
+              name="montoAprobacionPagos"
+              type="number"
+              step="0.01"
+              min="0"
+              required
+              defaultValue={valores.montoAprobacionPagos}
+              className="campo-input"
+            />
+          </Campo>
+        </div>
+        <p className="text-xs text-neutral-500 mt-1">
+          Órdenes de compra y pagos a proveedores por encima de estos montos quedan pendientes de
+          aprobación de Gerencia antes de poder recepcionarse / ejecutarse.
         </p>
       </fieldset>
 

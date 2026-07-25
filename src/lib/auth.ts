@@ -75,4 +75,5 @@ export const ETIQUETA_ROL: Record<$Enums.RolUsuario, string> = {
   ALMACEN: "Almacén",
   PRODUCCION: "Producción",
   VENTAS: "Ventas",
+  GERENCIA: "Gerencia",
 };

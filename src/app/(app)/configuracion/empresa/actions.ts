@@ -30,6 +30,8 @@ export async function guardarConfiguracionEmpresa(
   const sitioWeb = String(formData.get("sitioWeb") ?? "").trim() || null;
   const tasaIgv = Number(formData.get("tasaIgv"));
   const tarifaHoraManoObra = Number(formData.get("tarifaHoraManoObra"));
+  const montoAprobacionCompras = Number(formData.get("montoAprobacionCompras"));
+  const montoAprobacionPagos = Number(formData.get("montoAprobacionPagos"));
 
   if (!razonSocial) return { error: "La razón social es obligatoria." };
   if (ruc && !/^\d{11}$/.test(ruc)) return { error: "El RUC debe tener 11 dígitos." };
@@ -38,6 +40,12 @@ export async function guardarConfiguracionEmpresa(
   }
   if (!Number.isFinite(tarifaHoraManoObra) || tarifaHoraManoObra < 0) {
     return { error: "La tarifa de mano de obra debe ser mayor o igual a 0." };
+  }
+  if (!Number.isFinite(montoAprobacionCompras) || montoAprobacionCompras < 0) {
+    return { error: "El monto de aprobación de compras debe ser mayor o igual a 0." };
+  }
+  if (!Number.isFinite(montoAprobacionPagos) || montoAprobacionPagos < 0) {
+    return { error: "El monto de aprobación de pagos debe ser mayor o igual a 0." };
   }
 
   const datos = {
@@ -58,6 +66,8 @@ export async function guardarConfiguracionEmpresa(
     sitioWeb,
     tasaIgv,
     tarifaHoraManoObra,
+    montoAprobacionCompras,
+    montoAprobacionPagos,
   };
 
   await prisma.configuracionEmpresa.upsert({

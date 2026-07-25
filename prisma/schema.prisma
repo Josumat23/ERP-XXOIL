@@ -41,6 +41,10 @@ model ConfiguracionEmpresa {
   moneda          String   @default("PEN")
   tasaIgv         Decimal  @default(18) // % aplicado al facturar
   tarifaHoraManoObra Decimal @default(0) // S/ por hora, usado al costear lotes y envasados
+  // Aprobación por monto (0 = todo requiere aprobación siempre; un número muy
+  // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
+  montoAprobacionCompras Decimal @default(5000)
+  montoAprobacionPagos   Decimal @default(5000)
   actualizadoEn   DateTime @updatedAt
 
   @@map("configuracion_empresa")
@@ -55,6 +59,18 @@ enum RolUsuario {
   ALMACEN
   PRODUCCION
   VENTAS
+  GERENCIA
+}
+
+// Aprobación por monto: NO_REQUERIDA cuando el documento está por debajo del
+// umbral configurado (se comporta exactamente igual que antes de este
+// control); PENDIENTE bloquea el siguiente paso (recepción / pago) hasta
+// que Gerencia o un Administrador la resuelva.
+enum EstadoAprobacion {
+  NO_REQUERIDA
+  PENDIENTE
+  APROBADA
+  RECHAZADA
 }
 
 model Usuario {
@@ -665,6 +681,14 @@ model OrdenCompra {
   usuarioId     String
   usuarioNombre String
 
+  // Aprobación por monto: se calcula al crear la orden contra el umbral
+  // vigente en Configuración → Empresa. Si queda PENDIENTE, no se puede
+  // registrar recepción hasta que Gerencia/Admin la apruebe.
+  estadoAprobacion EstadoAprobacion @default(NO_REQUERIDA)
+  aprobadaPor      String?
+  aprobadaEn       DateTime?
+  motivoRechazo    String?
+
   proveedor   Proveedor            @relation(fields: [proveedorId], references: [id])
   detalles    OrdenCompraDetalle[]
   recepciones RecepcionCompra[]
@@ -825,6 +849,14 @@ model PagoProveedor {
   referencia       String?
   usuarioId        String
   usuarioNombre    String
+
+  // Aprobación por monto: si queda PENDIENTE, el pago se registra pero NO
+  // se descuenta de caja ni del saldo de la cuenta hasta que se apruebe
+  // (separa "quien pide el pago" de "quien dispone del dinero").
+  estadoAprobacion EstadoAprobacion @default(NO_REQUERIDA)
+  aprobadoPor      String?
+  aprobadoEn       DateTime?
+  motivoRechazo    String?
 
   cuentaPorPagar CuentaPorPagar @relation(fields: [cuentaPorPagarId], references: [id])
 

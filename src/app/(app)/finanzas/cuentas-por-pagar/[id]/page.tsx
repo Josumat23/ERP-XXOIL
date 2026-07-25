@@ -2,9 +2,18 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
-import { ETIQUETA_MEDIO_PAGO } from "@/lib/etiquetas";
+import { ETIQUETA_MEDIO_PAGO, ETIQUETA_ESTADO_APROBACION } from "@/lib/etiquetas";
+import { obtenerUsuario } from "@/lib/auth";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PagoFormulario from "./PagoFormulario";
+import { aprobarPagoProveedor } from "../actions";
+import RechazarPagoFormulario from "./RechazarPagoFormulario";
+
+const COLOR_APROBACION: Record<string, string> = {
+  PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  APROBADA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
+  RECHAZADA: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
+};
 
 export default async function DetalleCuentaPorPagarPage({
   params,
@@ -13,7 +22,7 @@ export default async function DetalleCuentaPorPagarPage({
 }) {
   const { id } = await params;
 
-  const [cuenta, cuentas] = await Promise.all([
+  const [cuenta, cuentas, usuario] = await Promise.all([
     prisma.cuentaPorPagar.findUnique({
       where: { id },
       include: {
@@ -23,8 +32,11 @@ export default async function DetalleCuentaPorPagarPage({
       },
     }),
     prisma.cuentaPorPagar.findMany({ include: { proveedor: true }, orderBy: { fechaEmision: "desc" } }),
+    obtenerUsuario(),
   ]);
   if (!cuenta) notFound();
+
+  const puedeAprobar = usuario?.rol === "GERENCIA" || usuario?.rol === "ADMIN";
 
   return (
     <div>
@@ -92,6 +104,7 @@ export default async function DetalleCuentaPorPagarPage({
                 <th>Referencia</th>
                 <th>Registrado por</th>
                 <th className="text-right">Monto</th>
+                <th>Aprobación</th>
               </tr>
             </thead>
             <tbody>
@@ -106,6 +119,15 @@ export default async function DetalleCuentaPorPagarPage({
                   <td className="text-sm text-neutral-500">{p.referencia ?? "—"}</td>
                   <td className="text-sm">{p.usuarioNombre}</td>
                   <td className="text-right">{formatMoneda(p.monto)}</td>
+                  <td>
+                    {p.estadoAprobacion === "NO_REQUERIDA" ? (
+                      <span className="text-xs text-neutral-400">—</span>
+                    ) : (
+                      <span className={`insignia ${COLOR_APROBACION[p.estadoAprobacion]}`}>
+                        {ETIQUETA_ESTADO_APROBACION[p.estadoAprobacion]}
+                      </span>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -113,6 +135,34 @@ export default async function DetalleCuentaPorPagarPage({
         ) : (
           <p className="text-sm text-neutral-500 mt-2">Sin pagos registrados.</p>
         )}
+
+        {puedeAprobar &&
+          cuenta.pagos
+            .filter((p) => p.estadoAprobacion === "PENDIENTE")
+            .map((p) => (
+              <div
+                key={p.id}
+                className="border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-4 mt-4"
+              >
+                <p className="text-sm">
+                  Pago de <span className="font-semibold">{formatMoneda(p.monto)}</span> pendiente de tu
+                  aprobación (supera el monto configurado en Configuración → Empresa).
+                </p>
+                <div className="flex flex-wrap items-center gap-3 mt-3">
+                  <form
+                    action={async () => {
+                      "use server";
+                      await aprobarPagoProveedor(p.id);
+                    }}
+                  >
+                    <button type="submit" className="boton-primario text-sm px-3 py-1.5">
+                      Aprobar pago
+                    </button>
+                  </form>
+                  <RechazarPagoFormulario pagoId={p.id} />
+                </div>
+              </div>
+            ))}
 
         {cuenta.saldo.toNumber() > 0 && (
           <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 mt-4">

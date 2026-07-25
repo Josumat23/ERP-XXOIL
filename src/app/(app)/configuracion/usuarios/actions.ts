@@ -7,7 +7,7 @@ import { requerirRol, hashPassword } from "@/lib/auth";
 
 export type EstadoFormulario = { error?: string };
 
-const ROLES_VALIDOS: $Enums.RolUsuario[] = ["ADMIN", "ALMACEN", "PRODUCCION", "VENTAS"];
+const ROLES_VALIDOS: $Enums.RolUsuario[] = ["ADMIN", "ALMACEN", "PRODUCCION", "VENTAS", "GERENCIA"];
 
 export async function crearUsuario(
   _prevState: EstadoFormulario,

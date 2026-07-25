@@ -43,6 +43,7 @@ export function CrearUsuarioFormulario({ grupos }: { grupos: GrupoOpcion[] }) {
           <option value="ALMACEN">Almacén</option>
           <option value="PRODUCCION">Producción</option>
           <option value="VENTAS">Ventas</option>
+          <option value="GERENCIA">Gerencia</option>
         </select>
         <select name="grupoSeguridadId" defaultValue="" className="campo-input">
           <option value="">Sin grupo (solo el rol)</option>

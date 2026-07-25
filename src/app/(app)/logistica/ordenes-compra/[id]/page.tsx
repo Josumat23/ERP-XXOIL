@@ -2,18 +2,27 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
-import { ETIQUETA_ESTADO_OC } from "@/lib/etiquetas";
+import { ETIQUETA_ESTADO_OC, ETIQUETA_ESTADO_APROBACION } from "@/lib/etiquetas";
+import { obtenerUsuario } from "@/lib/auth";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import RecepcionFormulario from "./RecepcionFormulario";
 import AnularOCFormulario from "./AnularOCFormulario";
+import RechazarOCFormulario from "./RechazarOCFormulario";
+import { aprobarOrdenCompra } from "../actions";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
   PARCIAL: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
   RECIBIDA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
   ANULADA: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
+};
+
+const COLOR_APROBACION: Record<string, string> = {
+  PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  APROBADA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
+  RECHAZADA: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
 };
 
 export default async function DetalleOrdenCompraPage({
@@ -23,7 +32,7 @@ export default async function DetalleOrdenCompraPage({
 }) {
   const { id } = await params;
 
-  const [oc, ordenes] = await Promise.all([
+  const [oc, ordenes, usuario] = await Promise.all([
     prisma.ordenCompra.findUnique({
       where: { id },
       include: {
@@ -37,6 +46,7 @@ export default async function DetalleOrdenCompraPage({
       },
     }),
     prisma.ordenCompra.findMany({ include: { proveedor: true }, orderBy: { fecha: "desc" } }),
+    obtenerUsuario(),
   ]);
   if (!oc) notFound();
 
@@ -50,7 +60,11 @@ export default async function DetalleOrdenCompraPage({
     }))
     .filter((d) => d.pendiente > 1e-9);
 
-  const admiteRecepcion = oc.estado === "PENDIENTE" || oc.estado === "PARCIAL";
+  const puedeAprobar = usuario?.rol === "GERENCIA" || usuario?.rol === "ADMIN";
+  const admiteRecepcion =
+    (oc.estado === "PENDIENTE" || oc.estado === "PARCIAL") &&
+    oc.estadoAprobacion !== "PENDIENTE" &&
+    oc.estadoAprobacion !== "RECHAZADA";
 
   return (
     <div>
@@ -82,6 +96,11 @@ export default async function DetalleOrdenCompraPage({
           <span className={`insignia no-imprimir ${COLOR_ESTADO[oc.estado]}`}>
             {ETIQUETA_ESTADO_OC[oc.estado]}
           </span>
+          {oc.estadoAprobacion !== "NO_REQUERIDA" && (
+            <span className={`insignia no-imprimir ${COLOR_APROBACION[oc.estadoAprobacion]}`}>
+              {ETIQUETA_ESTADO_APROBACION[oc.estadoAprobacion]}
+            </span>
+          )}
         </div>
         <p className="text-neutral-500 mt-1">
           Orden de compra · {oc.proveedor.razonSocial}
@@ -130,6 +149,44 @@ export default async function DetalleOrdenCompraPage({
           </tbody>
         </table>
       </div>
+
+      {oc.estadoAprobacion === "PENDIENTE" && (
+        <section className="mt-8 border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-4 no-imprimir">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-1">
+            Pendiente de aprobación
+          </h2>
+          <p className="text-sm text-neutral-500 mb-3">
+            Esta orden ({formatMoneda(oc.total)}) supera el monto configurado en Configuración → Empresa
+            y no se puede recepcionar hasta que Gerencia la apruebe.
+          </p>
+          {puedeAprobar ? (
+            <div className="flex flex-wrap items-center gap-3">
+              <form
+                action={async () => {
+                  "use server";
+                  await aprobarOrdenCompra(oc.id);
+                }}
+              >
+                <button type="submit" className="boton-primario text-sm px-3 py-1.5">
+                  Aprobar orden
+                </button>
+              </form>
+              <RechazarOCFormulario ordenCompraId={oc.id} />
+            </div>
+          ) : (
+            <p className="text-xs text-neutral-400">Solo Gerencia o un Administrador puede resolverla.</p>
+          )}
+        </section>
+      )}
+      {oc.estadoAprobacion === "RECHAZADA" && (
+        <section className="mt-8 border border-red-200 dark:border-red-900 rounded-lg p-4 no-imprimir">
+          <h2 className="font-medium text-red-700 dark:text-red-400 mb-1">Rechazada por Gerencia</h2>
+          <p className="text-sm text-neutral-500">
+            {oc.motivoRechazo} — {oc.aprobadaPor} el{" "}
+            {oc.aprobadaEn && new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(oc.aprobadaEn)}
+          </p>
+        </section>
+      )}
 
       {admiteRecepcion && pendientes.length > 0 && (
         <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4 no-imprimir">

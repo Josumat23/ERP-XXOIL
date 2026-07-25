@@ -11,6 +11,7 @@ import {
   siguienteNumeroRecepcion,
 } from "@/lib/correlativos";
 import { postearRecepcionCompra } from "@/lib/contabilidad";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type EstadoFormulario = { error?: string };
 
@@ -49,6 +50,8 @@ export async function crearOrdenCompra(
     return { error: "Agregue al menos una línea con cantidad y costo válidos." };
   }
 
+  const { montoAprobacionCompras } = await obtenerConfiguracionEmpresa();
+
   let ocId = "";
   await prisma.$transaction(async (tx) => {
     const numero = await siguienteNumeroOrdenCompra(tx);
@@ -59,6 +62,7 @@ export async function crearOrdenCompra(
         proveedorId,
         total,
         notas,
+        estadoAprobacion: total >= montoAprobacionCompras.toNumber() ? "PENDIENTE" : "NO_REQUERIDA",
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
         detalles: {
@@ -156,6 +160,12 @@ export async function registrarRecepcion(
       if (!oc) throw new Error("La orden de compra no existe.");
       if (oc.estado === "ANULADA" || oc.estado === "RECIBIDA") {
         throw new Error("La orden no admite más recepciones.");
+      }
+      if (oc.estadoAprobacion === "PENDIENTE") {
+        throw new Error("Esta orden supera el monto de aprobación y todavía no fue aprobada por Gerencia.");
+      }
+      if (oc.estadoAprobacion === "RECHAZADA") {
+        throw new Error("Esta orden fue rechazada por Gerencia y no admite recepciones.");
       }
 
       const numero = await siguienteNumeroRecepcion(tx);
@@ -285,5 +295,59 @@ export async function registrarRecepcion(
   revalidatePath(`/logistica/ordenes-compra/${ordenCompraId}`);
   revalidatePath("/finanzas/cuentas-por-pagar");
   revalidatePath("/inventario/kardex");
+  return {};
+}
+
+// Aprobación por monto: solo Gerencia (o un Administrador) puede resolver
+// una orden que superó el umbral configurado en Configuración → Empresa.
+export async function aprobarOrdenCompra(id: string) {
+  const auth = await requerirRol(["GERENCIA"]);
+  if ("error" in auth) return auth;
+
+  const oc = await prisma.ordenCompra.findUnique({ where: { id } });
+  if (!oc) return { error: "La orden no existe." };
+  if (oc.estadoAprobacion !== "PENDIENTE") {
+    return { error: "Esta orden no está pendiente de aprobación." };
+  }
+
+  await prisma.ordenCompra.update({
+    where: { id },
+    data: { estadoAprobacion: "APROBADA", aprobadaPor: auth.usuario.nombre, aprobadaEn: new Date() },
+  });
+
+  revalidatePath("/logistica/ordenes-compra");
+  revalidatePath(`/logistica/ordenes-compra/${id}`);
+  return {};
+}
+
+export async function rechazarOrdenCompra(
+  id: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["GERENCIA"]);
+  if ("error" in auth) return auth;
+
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
+
+  const oc = await prisma.ordenCompra.findUnique({ where: { id } });
+  if (!oc) return { error: "La orden no existe." };
+  if (oc.estadoAprobacion !== "PENDIENTE") {
+    return { error: "Esta orden no está pendiente de aprobación." };
+  }
+
+  await prisma.ordenCompra.update({
+    where: { id },
+    data: {
+      estadoAprobacion: "RECHAZADA",
+      aprobadaPor: auth.usuario.nombre,
+      aprobadaEn: new Date(),
+      motivoRechazo: motivo,
+    },
+  });
+
+  revalidatePath("/logistica/ordenes-compra");
+  revalidatePath(`/logistica/ordenes-compra/${id}`);
   return {};
 }
