@@ -3,10 +3,30 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoCliente } from "./actions";
 
-export default async function ClientesPage() {
+export default async function ClientesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; estado?: string }>;
+}) {
+  const { q, estado } = await searchParams;
+
   const clientes = await prisma.cliente.findMany({
+    where: {
+      ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
+      ...(q
+        ? {
+            OR: [
+              { razonSocial: { contains: q } },
+              { nombreComercial: { contains: q } },
+              { codigo: { contains: q } },
+              { ruc: { contains: q } },
+            ],
+          }
+        : {}),
+    },
     include: {
       zona: true,
       vendedorAsignado: true,
@@ -29,6 +49,17 @@ export default async function ClientesPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Razón social, código o RUC...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={estado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/comercial/clientes/nuevo"

@@ -2,10 +2,31 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoProducto } from "./actions";
 
-export default async function ProductosPage() {
+export default async function ProductosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; categoriaId?: string }>;
+}) {
+  const { q, categoriaId } = await searchParams;
+
+  const categorias = await prisma.categoria.findMany({ orderBy: { nombre: "asc" } });
+
   const productos = await prisma.producto.findMany({
+    where: {
+      ...(categoriaId ? { categoriaId } : {}),
+      ...(q
+        ? {
+            OR: [
+              { nombre: { contains: q } },
+              { codigo: { contains: q } },
+              { marca: { contains: q } },
+            ],
+          }
+        : {}),
+    },
     include: { categoria: true, _count: { select: { presentaciones: true } } },
     orderBy: { creadoEn: "desc" },
   });
@@ -25,6 +46,20 @@ export default async function ProductosPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Nombre, código o marca...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Categoría</span>
+          <select name="categoriaId" defaultValue={categoriaId ?? ""} className="campo-input">
+            <option value="">Todas</option>
+            {categorias.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/catalogo/productos/nuevo"
