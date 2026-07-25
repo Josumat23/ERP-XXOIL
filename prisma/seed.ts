@@ -230,8 +230,8 @@ async function main() {
   }
 
   const clientesSemilla = [
-    { razonSocial: "Lubricentro El Rápido E.I.R.L.", ruc: "20567890123", zonaId: limaNorte.id, direccion: "Av. Túpac Amaru 1520, Comas", telefono: "987654321" },
-    { razonSocial: "Distribuidora Ferretera del Norte S.A.C.", ruc: "20678901234", zonaId: provincias.id, direccion: "Jr. Comercio 345, Trujillo", telefono: "944556677" },
+    { codigo: "CLI-00001", razonSocial: "Lubricentro El Rápido E.I.R.L.", ruc: "20567890123", zonaId: limaNorte.id, direccion: "Av. Túpac Amaru 1520, Comas", telefono: "987654321" },
+    { codigo: "CLI-00002", razonSocial: "Distribuidora Ferretera del Norte S.A.C.", ruc: "20678901234", zonaId: provincias.id, direccion: "Jr. Comercio 345, Trujillo", telefono: "944556677" },
   ];
   for (const c of clientesSemilla) {
     await prisma.cliente.upsert({

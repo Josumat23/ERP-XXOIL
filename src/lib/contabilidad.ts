@@ -159,6 +159,7 @@ export async function postearVenta(
     igv: number;
     total: number;
     costoVentas: number;
+    fecha?: Date;
   },
   audit: Auditoria
 ) {
@@ -166,6 +167,7 @@ export async function postearVenta(
     origen: "VENTA",
     glosa: `Venta según factura ${datos.numeroFactura} — ${datos.cliente}`,
     referencia: datos.numeroFactura,
+    fecha: datos.fecha,
     lineas: [
       { clave: "CUENTAS_POR_COBRAR", debe: datos.total },
       { clave: "VENTAS", haber: datos.subtotal },
@@ -179,6 +181,7 @@ export async function postearVenta(
       origen: "VENTA",
       glosa: `Costo de venta factura ${datos.numeroFactura}`,
       referencia: datos.numeroFactura,
+      fecha: datos.fecha,
       lineas: [
         { clave: "COSTO_VENTAS", debe: datos.costoVentas },
         { clave: "INVENTARIO_PT", haber: datos.costoVentas },
@@ -191,13 +194,14 @@ export async function postearVenta(
 // Cobro: Caja y bancos (debe) / CxC (haber)
 export async function postearCobro(
   tx: Tx,
-  datos: { numeroFactura: string; monto: number },
+  datos: { numeroFactura: string; monto: number; fecha?: Date },
   audit: Auditoria
 ) {
   await postearAsiento(tx, {
     origen: "COBRO",
     glosa: `Cobranza factura ${datos.numeroFactura}`,
     referencia: datos.numeroFactura,
+    fecha: datos.fecha,
     lineas: [
       { clave: "CAJA_BANCOS", debe: datos.monto },
       { clave: "CUENTAS_POR_COBRAR", haber: datos.monto },
@@ -267,13 +271,20 @@ export async function postearAnulacionFactura(
 // Recepción de compra: Inventario de insumos (debe) / CxP (haber)
 export async function postearRecepcionCompra(
   tx: Tx,
-  datos: { numeroRecepcion: string; documentoProveedor: string; proveedor: string; total: number },
+  datos: {
+    numeroRecepcion: string;
+    documentoProveedor: string;
+    proveedor: string;
+    total: number;
+    fecha?: Date;
+  },
   audit: Auditoria
 ) {
   await postearAsiento(tx, {
     origen: "COMPRA",
     glosa: `Compra según ${datos.documentoProveedor} — ${datos.proveedor} (${datos.numeroRecepcion})`,
     referencia: datos.documentoProveedor,
+    fecha: datos.fecha,
     lineas: [
       { clave: "INVENTARIO_INSUMOS", debe: datos.total },
       { clave: "CUENTAS_POR_PAGAR", haber: datos.total },

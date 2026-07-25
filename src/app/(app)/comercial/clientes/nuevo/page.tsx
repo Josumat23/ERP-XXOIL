@@ -27,7 +27,7 @@ export default async function NuevoClientePage() {
           id: c.id,
           href: `/comercial/clientes/${c.id}`,
           primario: c.razonSocial,
-          secundario: c.ruc ?? undefined,
+          secundario: c.codigo,
         }))}
       >
       <div className="max-w-2xl">

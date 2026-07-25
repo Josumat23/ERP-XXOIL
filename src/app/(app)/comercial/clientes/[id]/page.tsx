@@ -30,9 +30,12 @@ export default async function EditarClientePage({
       <Link href="/comercial/clientes" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a clientes
       </Link>
-      <h1 className="text-2xl font-semibold mt-1" style={{ color: "var(--epicor-texto)" }}>
-        Ficha del cliente
-      </h1>
+      <div className="flex items-center gap-2 mt-1">
+        <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
+          {cliente.razonSocial}
+        </h1>
+        <span className="font-mono text-xs text-neutral-400">{cliente.codigo}</span>
+      </div>
       <p className="text-neutral-500 mt-1 text-sm">
         Deuda actual: <span className="font-medium">{formatMoneda(deudaActual)}</span>
         {limite > 0 && (
@@ -60,7 +63,7 @@ export default async function EditarClientePage({
             id: c.id,
             href: `/comercial/clientes/${c.id}`,
             primario: c.razonSocial,
-            secundario: c.ruc ?? undefined,
+            secundario: c.codigo,
           }))}
         >
         <div className="max-w-2xl">

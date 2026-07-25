@@ -37,3 +37,8 @@ export async function siguienteNumeroHojaRuta(tx: Tx): Promise<string> {
   const ultimo = await tx.hojaRuta.findFirst({ orderBy: { numero: "desc" } });
   return siguiente("HR", ultimo?.numero ?? null);
 }
+
+export async function siguienteCodigoCliente(tx: Tx): Promise<string> {
+  const ultimo = await tx.cliente.findFirst({ orderBy: { codigo: "desc" } });
+  return siguiente("CLI", ultimo?.codigo ?? null);
+}

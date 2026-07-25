@@ -37,12 +37,13 @@ export default async function ClientesPage() {
           id: c.id,
           href: `/comercial/clientes/${c.id}`,
           primario: c.razonSocial,
-          secundario: c.ruc ?? undefined,
+          secundario: c.codigo,
         }))}
       >
       <table className="tabla">
         <thead>
           <tr>
+            <th>Código</th>
             <th>Razón social</th>
             <th>RUC / DNI</th>
             <th>Ubicación</th>
@@ -61,6 +62,7 @@ export default async function ClientesPage() {
             const excedido = limite > 0 && deuda >= limite;
             return (
               <tr key={c.id}>
+                <td className="font-mono text-xs">{c.codigo}</td>
                 <td>
                   <span className="font-medium">{c.razonSocial}</span>
                   {c.nombreComercial && (
@@ -119,7 +121,7 @@ export default async function ClientesPage() {
           })}
           {clientes.length === 0 && (
             <tr>
-              <td colSpan={9} className="text-center text-neutral-500 py-6">
+              <td colSpan={10} className="text-center text-neutral-500 py-6">
                 No hay clientes registrados todavía.
               </td>
             </tr>

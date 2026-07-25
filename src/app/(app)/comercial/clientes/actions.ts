@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { siguienteCodigoCliente } from "@/lib/correlativos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -80,7 +81,10 @@ export async function crearCliente(
   if ("error" in resultado) return resultado;
 
   try {
-    await prisma.cliente.create({ data: resultado.datos });
+    await prisma.$transaction(async (tx) => {
+      const codigo = await siguienteCodigoCliente(tx);
+      await tx.cliente.create({ data: { ...resultado.datos, codigo } });
+    });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un cliente con el documento ${resultado.datos.ruc}.` };

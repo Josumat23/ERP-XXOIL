@@ -56,11 +56,17 @@ actualiza el costo promedio de la presentación, del que sale el margen de venta
    npx prisma migrate deploy
    npx prisma db seed
    ```
-4. Levantar el servidor de desarrollo:
+4. (Opcional) Cargar datos de prueba — clientes, compras, producción, ventas
+   y cobros de los últimos 6 meses — para ver el sistema funcionando de
+   punta a punta y los gráficos del panel con información real:
+   ```bash
+   npm run seed:demo
+   ```
+5. Levantar el servidor de desarrollo:
    ```bash
    npm run dev
    ```
-5. Abrir [http://localhost:3000](http://localhost:3000).
+6. Abrir [http://localhost:3000](http://localhost:3000).
 
 > Nota: los scripts `dev` y `build` usan webpack (`--webpack`) porque Turbopack
 > falla al procesar CSS en este entorno Windows/OneDrive.
