@@ -35,7 +35,7 @@ export default function VendedorFormulario({ accion, zonas, valoresIniciales, te
         <input name="nombre" required defaultValue={valoresIniciales?.nombre} className="campo-input" />
       </Campo>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Documento (DNI)">
           <input
             name="documento"
@@ -55,7 +55,7 @@ export default function VendedorFormulario({ accion, zonas, valoresIniciales, te
         </Campo>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Teléfono">
           <input name="telefono" defaultValue={valoresIniciales?.telefono ?? ""} className="campo-input" />
         </Campo>
@@ -64,7 +64,7 @@ export default function VendedorFormulario({ accion, zonas, valoresIniciales, te
         </Campo>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Tipo de remuneración">
           <select name="tipo" required defaultValue={valoresIniciales?.tipo ?? ""} className="campo-input">
             <option value="" disabled>

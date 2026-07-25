@@ -47,7 +47,7 @@ export default function ProveedorFormulario({ accion, valoresIniciales, textoBot
                     className="campo-input"
                   />
                 </Campo>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="RUC">
                     <input
                       name="ruc"
@@ -81,7 +81,7 @@ export default function ProveedorFormulario({ accion, valoresIniciales, textoBot
             etiqueta: "Contacto",
             contenido: (
               <div className="borde-seccion">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Campo etiqueta="Teléfono de la empresa">
                     <input
                       name="telefono"
@@ -112,7 +112,7 @@ export default function ProveedorFormulario({ accion, valoresIniciales, textoBot
             etiqueta: "Condiciones de pago",
             contenido: (
               <div className="borde-seccion">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="Condición habitual">
                     <select
                       name="condicionPagoDias"

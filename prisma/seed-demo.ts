@@ -249,14 +249,27 @@ async function main() {
       );
 
       // Una de las dos compras queda parcialmente pagada, para ver Cuentas por pagar con saldo.
+      // (saldo > 0 sigue siendo "PENDIENTE" — no existe un estado "PARCIAL" en el modelo.)
       if (mesesAtras >= 4) {
         const pago = cantidad * costoUnitario * 0.6;
+        const nuevoSaldo = cantidad * costoUnitario - pago;
         await tx.pagoProveedor.create({
           data: { cuentaPorPagarId: cxp.id, monto: pago, medioPago: "TRANSFERENCIA", ...audit },
         });
+        await tx.movimientoCaja.create({
+          data: {
+            tipo: "EGRESO",
+            concepto: `Pago a ${proveedor.razonSocial} (doc. ${docProveedor})`,
+            monto: pago,
+            medioPago: "TRANSFERENCIA",
+            referencia: docProveedor,
+            fecha: fechaHace(mesesAtras, 20),
+            ...audit,
+          },
+        });
         await tx.cuentaPorPagar.update({
           where: { id: cxp.id },
-          data: { saldo: cantidad * costoUnitario - pago, estado: "PARCIAL" },
+          data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
         });
         await postearPagoProveedor(
           tx,

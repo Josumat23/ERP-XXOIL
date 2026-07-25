@@ -84,7 +84,7 @@ export default function PresentacionFormulario({
         />
       </Campo>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Contenido (kg)">
           <input
             name="contenidoKg"
@@ -109,7 +109,7 @@ export default function PresentacionFormulario({
         </Campo>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {esEdicion ? (
           <Campo etiqueta="Stock actual">
             <input value={valoresIniciales!.stock} disabled className="campo-input opacity-60" />
@@ -138,7 +138,7 @@ export default function PresentacionFormulario({
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Código de barras (EAN-13)">
           <input
             name="codigoBarras"
@@ -160,7 +160,7 @@ export default function PresentacionFormulario({
         </Campo>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Unidades por caja">
           <input
             name="unidadesPorCaja"

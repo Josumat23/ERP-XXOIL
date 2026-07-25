@@ -76,7 +76,7 @@ export default function InsumoFormulario({
         />
       </Campo>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Tipo">
           <select
             name="tipo"
@@ -131,7 +131,7 @@ export default function InsumoFormulario({
         </select>
       </Campo>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {esEdicion ? (
           <Campo etiqueta="Stock actual">
             <input value={valoresIniciales!.stock} disabled className="campo-input opacity-60" />
@@ -170,7 +170,7 @@ export default function InsumoFormulario({
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Código en catálogo del proveedor">
           <input
             name="codigoProveedor"

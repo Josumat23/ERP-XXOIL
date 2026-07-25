@@ -51,7 +51,7 @@ export default function ProductoFormulario({
             etiqueta: "Identificación",
             contenido: (
               <div className="borde-seccion">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="Código de producto *">
                     <input
                       name="codigo"
@@ -88,7 +88,7 @@ export default function ProductoFormulario({
                     className="campo-input"
                   />
                 </Campo>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="Marca">
                     <input
                       name="marca"
@@ -123,7 +123,7 @@ export default function ProductoFormulario({
             etiqueta: "Especificaciones técnicas",
             contenido: (
               <div className="borde-seccion">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="Grado NLGI (grasas)">
                     <select
                       name="gradoNlgi"

@@ -106,9 +106,11 @@ body {
     border-color: var(--epicor-azul);
   }
 
-  /* Tabla moderna: sin rejilla dura, filas separadas por línea sutil, encabezado discreto. */
+  /* Tabla moderna: sin rejilla dura, filas separadas por línea sutil, encabezado discreto.
+     display:block + overflow-x:auto hace que CADA tabla scrollee sola si es más ancha
+     que su contenedor, en vez de forzar el scroll de toda la página o del panel. */
   .tabla {
-    @apply w-full text-[14px] border-separate;
+    @apply w-full text-[14px] border-separate block overflow-x-auto max-w-full;
     border-spacing: 0;
   }
 
@@ -160,9 +162,10 @@ body {
     color: var(--epicor-texto-tenue);
   }
 
-  /* Encabezado de pantalla: título del módulo/programa activo. */
+  /* Encabezado de pantalla: título del módulo/programa activo.
+     pl-14 deja espacio al botón hamburguesa (fixed) en pantallas chicas. */
   .barra-programa-epicor {
-    @apply flex items-center gap-2 px-4 h-12 text-[15px] font-semibold shrink-0;
+    @apply flex items-center gap-2 pl-14 pr-4 lg:px-4 h-12 text-[15px] font-semibold shrink-0;
     background: var(--epicor-panel);
     color: var(--epicor-texto);
     border-bottom: 1px solid var(--epicor-borde);

@@ -42,7 +42,7 @@ export default function AsientoManualFormulario({ cuentas }: { cuentas: Cuenta[]
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Fecha</span>
           <input name="fecha" type="date" required className="campo-input" />

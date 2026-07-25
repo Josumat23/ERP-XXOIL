@@ -69,7 +69,7 @@ export default function GuiaFormulario({
         </p>
       )}
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
             Factura asociada (opcional, autocompleta el detalle)
@@ -91,7 +91,7 @@ export default function GuiaFormulario({
         <SelectorSerieNumero series={series} etiquetaNumero="N° guía (SUNAT)" />
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Cliente</span>
           <select
@@ -117,7 +117,7 @@ export default function GuiaFormulario({
         </label>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Punto de partida</span>
           <input
@@ -133,7 +133,7 @@ export default function GuiaFormulario({
         </label>
       </div>
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Transportista</span>
           <input name="transportista" className="campo-input" />

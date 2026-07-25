@@ -55,7 +55,7 @@ export default function ClienteFormulario({
             etiqueta: "Identificación",
             contenido: (
               <div className="borde-seccion">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="Razón social *">
                     <input
                       name="razonSocial"
@@ -73,7 +73,7 @@ export default function ClienteFormulario({
                     />
                   </Campo>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="RUC / DNI">
                     <input
                       name="ruc"
@@ -99,7 +99,7 @@ export default function ClienteFormulario({
             etiqueta: "Ubicación",
             contenido: (
               <div className="borde-seccion">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Campo etiqueta="Departamento">
                     <input
                       name="departamento"
@@ -140,7 +140,7 @@ export default function ClienteFormulario({
             etiqueta: "Contacto",
             contenido: (
               <div className="borde-seccion">
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <Campo etiqueta="Teléfono de la empresa">
                     <input
                       name="telefono"
@@ -171,7 +171,7 @@ export default function ClienteFormulario({
             etiqueta: "Condiciones comerciales",
             contenido: (
               <div className="borde-seccion">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="Zona">
                     <select name="zonaId" defaultValue={valoresIniciales?.zonaId ?? ""} className="campo-input">
                       <option value="">Sin zona asignada</option>
@@ -197,7 +197,7 @@ export default function ClienteFormulario({
                     </select>
                   </Campo>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="Límite de crédito S/ (0 = sin límite)">
                     <input
                       name="limiteCredito"

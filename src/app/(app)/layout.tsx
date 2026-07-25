@@ -17,9 +17,9 @@ export default async function AppLayout({
           <div className="flex-1 min-w-0">
             <BarraPrograma />
           </div>
-          <header className="h-12 shrink-0 flex items-center gap-3 px-4 text-sm no-imprimir border-b border-l border-[var(--epicor-borde)] bg-[var(--epicor-panel)]">
-            <div className="text-right leading-tight">
-              <p className="font-semibold text-[var(--epicor-texto)]">{usuario.nombre}</p>
+          <header className="h-12 shrink-0 flex items-center gap-2 sm:gap-3 px-2 sm:px-4 text-sm no-imprimir border-b border-l border-[var(--epicor-borde)] bg-[var(--epicor-panel)]">
+            <div className="text-right leading-tight hidden sm:block min-w-0">
+              <p className="font-semibold text-[var(--epicor-texto)] truncate max-w-[38vw] sm:max-w-[160px]">{usuario.nombre}</p>
               <p className="text-[11px] text-[var(--epicor-texto-tenue)]">{ETIQUETA_ROL[usuario.rol]}</p>
             </div>
             <form
@@ -29,13 +29,14 @@ export default async function AppLayout({
                 redirect("/login");
               }}
             >
-              <button type="submit" className="boton-secundario text-[12px] px-3 py-1.5">
-                Cerrar sesión
+              <button type="submit" className="boton-secundario text-[12px] px-2.5 sm:px-3 py-1.5 whitespace-nowrap">
+                <span className="sm:hidden">Salir</span>
+                <span className="hidden sm:inline">Cerrar sesión</span>
               </button>
             </form>
           </header>
         </div>
-        <main className="flex-1 p-6 overflow-x-auto">{children}</main>
+        <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );

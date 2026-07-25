@@ -46,7 +46,7 @@ export default function EmpresaFormulario({ valores }: Props) {
 
       <fieldset className="borde-seccion">
         <legend className="titulo-seccion">Datos fiscales</legend>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Campo etiqueta="Razón social *">
             <input name="razonSocial" required defaultValue={valores.razonSocial} className="campo-input" />
           </Campo>
@@ -54,7 +54,7 @@ export default function EmpresaFormulario({ valores }: Props) {
             <input name="nombreComercial" defaultValue={valores.nombreComercial ?? ""} className="campo-input" />
           </Campo>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Campo etiqueta="RUC">
             <input name="ruc" maxLength={11} defaultValue={valores.ruc ?? ""} className="campo-input font-mono" />
           </Campo>
@@ -75,7 +75,7 @@ export default function EmpresaFormulario({ valores }: Props) {
 
       <fieldset className="borde-seccion">
         <legend className="titulo-seccion">Dirección (aparece en los documentos impresos)</legend>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Campo etiqueta="Dirección">
             <input name="direccion" defaultValue={valores.direccion ?? ""} className="campo-input" />
           </Campo>
@@ -83,7 +83,7 @@ export default function EmpresaFormulario({ valores }: Props) {
             <input name="direccion2" defaultValue={valores.direccion2 ?? ""} className="campo-input" />
           </Campo>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Campo etiqueta="Distrito">
             <input name="distrito" defaultValue={valores.distrito ?? ""} className="campo-input" />
           </Campo>
@@ -94,7 +94,7 @@ export default function EmpresaFormulario({ valores }: Props) {
             <input name="departamento" defaultValue={valores.departamento ?? ""} className="campo-input" />
           </Campo>
         </div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Campo etiqueta="Ciudad">
             <input name="ciudad" defaultValue={valores.ciudad ?? ""} className="campo-input" />
           </Campo>
@@ -109,7 +109,7 @@ export default function EmpresaFormulario({ valores }: Props) {
 
       <fieldset className="borde-seccion">
         <legend className="titulo-seccion">Contacto</legend>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Campo etiqueta="Teléfono">
             <input name="telefono" defaultValue={valores.telefono ?? ""} className="campo-input" />
           </Campo>
@@ -117,7 +117,7 @@ export default function EmpresaFormulario({ valores }: Props) {
             <input name="fax" defaultValue={valores.fax ?? ""} className="campo-input" />
           </Campo>
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Campo etiqueta="Correo electrónico">
             <input name="email" type="email" defaultValue={valores.email ?? ""} className="campo-input" />
           </Campo>
@@ -129,7 +129,7 @@ export default function EmpresaFormulario({ valores }: Props) {
 
       <fieldset className="borde-seccion">
         <legend className="titulo-seccion">Costeo de producción</legend>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Campo etiqueta="Tarifa de mano de obra (S/ por hora)">
             <input
               name="tarifaHoraManoObra"

@@ -17,6 +17,8 @@ export default function Sidebar({ rol }: { rol: Rol }) {
   // parpadeo ni desajuste de hidratación); luego de montar se aplican los
   // módulos que el usuario había colapsado antes.
   const [colapsados, setColapsados] = useState<Set<string>>(new Set());
+  // En pantallas chicas el menú es un panel deslizable (drawer) cerrado por defecto.
+  const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
     try {
@@ -26,6 +28,11 @@ export default function Sidebar({ rol }: { rol: Rol }) {
       // localStorage no disponible: se queda todo expandido
     }
   }, []);
+
+  // Cerrar el drawer móvil al navegar a otra pantalla.
+  useEffect(() => {
+    setAbierto(false);
+  }, [pathname]);
 
   function alternar(titulo: string) {
     setColapsados((prev) => {
@@ -46,17 +53,47 @@ export default function Sidebar({ rol }: { rol: Rol }) {
   }
 
   return (
-    <aside className="w-64 shrink-0 min-h-screen flex flex-col border-r border-[var(--epicor-borde)] bg-[var(--epicor-panel-2)]">
-      <div className="px-4 py-4 flex items-center gap-2.5 border-b border-[var(--epicor-borde)]">
-        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--epicor-azul)] text-white font-bold text-[13px] shadow-sm">
+    <>
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        aria-label="Abrir menú"
+        aria-expanded={abierto}
+        className="lg:hidden fixed top-2.5 left-2.5 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm no-imprimir"
+        style={{ background: "var(--epicor-panel)", borderColor: "var(--epicor-borde)", color: "var(--epicor-texto)" }}
+      >
+        ☰
+      </button>
+      {abierto && (
+        <div
+          className="lg:hidden fixed inset-0 z-40 bg-black/40 no-imprimir"
+          onClick={() => setAbierto(false)}
+          aria-hidden="true"
+        />
+      )}
+      <aside
+        className={`w-64 shrink-0 flex flex-col border-r border-[var(--epicor-borde)] bg-[var(--epicor-panel-2)]
+        fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out
+        ${abierto ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:static lg:min-h-screen`}
+      >
+        <div className="px-4 py-4 flex items-center gap-2.5 border-b border-[var(--epicor-borde)]">
+        <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--epicor-azul)] text-white font-bold text-[13px] shadow-sm shrink-0">
           GL
         </span>
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold text-[var(--epicor-texto)] leading-tight truncate">
             ERP Grasas &amp; Lubricantes
           </p>
           <p className="text-[11px] text-[var(--epicor-texto-tenue)] leading-tight">Sistema de gestión</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setAbierto(false)}
+          aria-label="Cerrar menú"
+          className="lg:hidden shrink-0 text-[var(--epicor-texto-tenue)] hover:text-[var(--epicor-texto)] px-1"
+        >
+          ✕
+        </button>
       </div>
       <nav className="py-3 px-2 pb-8 flex flex-col gap-0.5 overflow-y-auto flex-1 text-[13px]">
         {MODULOS.map((modulo, idx) => {
@@ -129,7 +166,8 @@ export default function Sidebar({ rol }: { rol: Rol }) {
           );
         })}
       </nav>
-    </aside>
+      </aside>
+    </>
   );
 }
 
