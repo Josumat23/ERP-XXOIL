@@ -45,11 +45,22 @@ actualiza el costo promedio de la presentación, del que sale el margen de venta
    ```bash
    npm install
    ```
-2. Levantar el servidor de desarrollo:
+2. Crear el archivo `.env` (no se sube al repositorio):
+   ```bash
+   echo 'DATABASE_URL="file:./dev.db"' > .env
+   ```
+3. Generar el cliente de Prisma y la base de datos (solo la primera vez o
+   tras clonar el repo — `npm install` no lo hace automáticamente):
+   ```bash
+   npx prisma generate
+   npx prisma migrate deploy
+   npx prisma db seed
+   ```
+4. Levantar el servidor de desarrollo:
    ```bash
    npm run dev
    ```
-3. Abrir [http://localhost:3000](http://localhost:3000).
+5. Abrir [http://localhost:3000](http://localhost:3000).
 
 > Nota: los scripts `dev` y `build` usan webpack (`--webpack`) porque Turbopack
 > falla al procesar CSS en este entorno Windows/OneDrive.
