@@ -1,0 +1,89 @@
+import Link from "next/link";
+
+type Reporte = { href: string; titulo: string; descripcion: string };
+type Categoria = { titulo: string; reportes: Reporte[] };
+
+// Directorio central de reportes: los reportes en sí viven en sus módulos
+// naturales (Finanzas, Comercial) para no romper enlaces existentes; esta
+// pantalla solo los junta en un solo lugar para no tener que recordar en
+// qué submenú vive cada uno.
+const CATEGORIAS: Categoria[] = [
+  {
+    titulo: "Comercial",
+    reportes: [
+      {
+        href: "/finanzas/cuentas-por-cobrar",
+        titulo: "Cuentas por cobrar",
+        descripcion: "Facturas pendientes de cobro, con antigüedad de vencimiento (1-15 / 16-30 / +30 días).",
+      },
+    ],
+  },
+  {
+    titulo: "Finanzas",
+    reportes: [
+      {
+        href: "/finanzas/resultados",
+        titulo: "Estado de resultados",
+        descripcion: "Ventas netas, costo de ventas, comisiones y gastos del mes — utilidad operativa.",
+      },
+      {
+        href: "/finanzas/situacion-financiera",
+        titulo: "Estado de situación financiera",
+        descripcion: "Activo, pasivo y patrimonio acumulados al cierre del mes, desde el libro mayor.",
+      },
+      {
+        href: "/finanzas/costos",
+        titulo: "Costos y márgenes",
+        descripcion: "Costo promedio de insumos, costo por kg de lotes y margen por presentación.",
+      },
+      {
+        href: "/finanzas/cuentas-por-pagar",
+        titulo: "Cuentas por pagar",
+        descripcion: "Deudas pendientes con proveedores y pagos registrados.",
+      },
+    ],
+  },
+  {
+    titulo: "Contabilidad",
+    reportes: [
+      {
+        href: "/finanzas/balance",
+        titulo: "Balance de comprobación",
+        descripcion: "Suma de debe y haber por cuenta contable en el período — debe cuadrar siempre.",
+      },
+    ],
+  },
+];
+
+export default function ReportesPage() {
+  return (
+    <div className="max-w-5xl">
+      <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">Reportes</h1>
+      <p className="text-neutral-500 mt-1">
+        Todos los reportes del sistema, en un solo lugar.
+      </p>
+
+      <div className="flex flex-col gap-8 mt-6">
+        {CATEGORIAS.map((cat) => (
+          <section key={cat.titulo}>
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-neutral-500 mb-3">
+              {cat.titulo}
+            </h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {cat.reportes.map((r) => (
+                <Link
+                  key={r.href}
+                  href={r.href}
+                  className="border border-black/10 dark:border-white/10 rounded-lg p-4 hover:border-black/30 dark:hover:border-white/30 transition-colors"
+                >
+                  <p className="font-medium text-neutral-900 dark:text-neutral-100">{r.titulo}</p>
+                  <p className="text-sm text-neutral-500 mt-1">{r.descripcion}</p>
+                </Link>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </div>
+  );
+}

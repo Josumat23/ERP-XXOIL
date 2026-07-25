@@ -11,7 +11,10 @@ export type Modulo = { titulo: string | null; icono?: string; enlaces?: Enlace[]
 export const MODULOS: Modulo[] = [
   {
     titulo: null,
-    enlaces: [{ href: "/", etiqueta: "Panel general" }],
+    enlaces: [
+      { href: "/", etiqueta: "Panel general" },
+      { href: "/reportes", etiqueta: "Reportes" },
+    ],
   },
   {
     titulo: "Ventas",
