@@ -45,6 +45,15 @@ model ConfiguracionEmpresa {
   // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
   montoAprobacionCompras Decimal @default(5000)
   montoAprobacionPagos   Decimal @default(5000)
+  // Capacidad de mano de obra disponible por trimestre, para el chequeo de
+  // capacidad en Proyecciones → Operaciones. 0 = no configurada (se omite el chequeo).
+  horasHombreDisponiblesTrimestre Decimal @default(0)
+  // Tasas para la cascada de financiamiento en Proyecciones → Finanzas
+  // (mismo orden que un modelo de tesorería típico: lo más barato/disponible primero).
+  tasaDescuentoCxC        Decimal @default(9) // % (misma convención que tasaIgv: número entero, no fracción)
+  tasaCreditoCortoPlazo   Decimal @default(9)
+  limiteCreditoCortoPlazo Decimal @default(100000)
+  tasaCreditoLargoPlazo   Decimal @default(10)
   actualizadoEn   DateTime @updatedAt
 
   @@map("configuracion_empresa")
@@ -171,6 +180,7 @@ model Presentacion {
   envasados      Envasado[]
   pedidoDetalles PedidoDetalle[]
   guiaDetalles   GuiaRemisionDetalle[]
+  proyeccionDetalles ProyeccionDetalle[]
 
   @@unique([empresaId, sku])
   @@map("presentaciones")
@@ -1209,4 +1219,61 @@ model ControlContable {
 
   @@unique([empresaId, clave])
   @@map("controles_contables")
+}
+
+// ---------------------------------------------------------------------------
+// PROYECCIONES — Marketing / Operaciones / Finanzas por trimestre.
+// Metodología estilo Business Management Game / S&OP (SAP IBP, Epicor IP&O):
+// estacionalidad calculada de la propia historia de ventas + supuestos
+// cualitativos que ingresa el usuario (crecimiento esperado, factor de
+// competencia) + un factor macro de referencia (BCRP, best-effort).
+// ---------------------------------------------------------------------------
+model Proyeccion {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  anio          Int
+  trimestre     Int // 1-4
+  anioBase      Int // trimestre de referencia (normalmente el anterior)
+  trimestreBase Int
+
+  // Supuestos de Marketing (cualitativos, igual que en el modelo BML)
+  crecimientoMercadoPct Decimal @default(0) // %
+  factorCompetenciaPct  Decimal @default(0) // % (+/-)
+  presupuestoPublicidad Decimal @default(0)
+
+  // Supuestos de Finanzas
+  cajaMinimaDeseada Decimal @default(0)
+
+  // Factor macro de referencia (BCRP), tomado al momento de crear/actualizar
+  macroPbiManufacturaVar Decimal? // variación % interanual
+  macroInflacionVar      Decimal? // variación % interanual
+  macroTipoCambio        Decimal? // S/ por US$, promedio del período
+  macroActualizadoEn     DateTime?
+
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  detalles ProyeccionDetalle[]
+
+  @@unique([empresaId, anio, trimestre])
+  @@map("proyecciones")
+}
+
+model ProyeccionDetalle {
+  id             String @id @default(cuid())
+  proyeccionId   String
+  presentacionId String
+
+  ventasBase           Decimal @default(0) // unidades vendidas en el trimestre base
+  indiceEstacionalidad Decimal @default(1) // trimestre objetivo ÷ trimestre base, de la historia
+  ajusteCualitativoPct Decimal @default(0) // % adicional a criterio del usuario
+  demandaProyectada    Decimal @default(0) // unidades resultantes
+
+  proyeccion   Proyeccion   @relation(fields: [proyeccionId], references: [id], onDelete: Cascade)
+  presentacion Presentacion @relation(fields: [presentacionId], references: [id])
+
+  @@unique([proyeccionId, presentacionId])
+  @@map("proyeccion_detalles")
 }

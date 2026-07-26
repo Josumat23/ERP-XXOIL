@@ -32,6 +32,11 @@ export async function guardarConfiguracionEmpresa(
   const tarifaHoraManoObra = Number(formData.get("tarifaHoraManoObra"));
   const montoAprobacionCompras = Number(formData.get("montoAprobacionCompras"));
   const montoAprobacionPagos = Number(formData.get("montoAprobacionPagos"));
+  const horasHombreDisponiblesTrimestre = Number(formData.get("horasHombreDisponiblesTrimestre") ?? 0);
+  const tasaDescuentoCxC = Number(formData.get("tasaDescuentoCxC"));
+  const tasaCreditoCortoPlazo = Number(formData.get("tasaCreditoCortoPlazo"));
+  const limiteCreditoCortoPlazo = Number(formData.get("limiteCreditoCortoPlazo"));
+  const tasaCreditoLargoPlazo = Number(formData.get("tasaCreditoLargoPlazo"));
 
   if (!razonSocial) return { error: "La razón social es obligatoria." };
   if (ruc && !/^\d{11}$/.test(ruc)) return { error: "El RUC debe tener 11 dígitos." };
@@ -46,6 +51,21 @@ export async function guardarConfiguracionEmpresa(
   }
   if (!Number.isFinite(montoAprobacionPagos) || montoAprobacionPagos < 0) {
     return { error: "El monto de aprobación de pagos debe ser mayor o igual a 0." };
+  }
+  if (!Number.isFinite(horasHombreDisponiblesTrimestre) || horasHombreDisponiblesTrimestre < 0) {
+    return { error: "Las horas-hombre disponibles deben ser mayores o iguales a 0." };
+  }
+  if (
+    !Number.isFinite(tasaDescuentoCxC) ||
+    !Number.isFinite(tasaCreditoCortoPlazo) ||
+    !Number.isFinite(limiteCreditoCortoPlazo) ||
+    !Number.isFinite(tasaCreditoLargoPlazo) ||
+    tasaDescuentoCxC < 0 ||
+    tasaCreditoCortoPlazo < 0 ||
+    limiteCreditoCortoPlazo < 0 ||
+    tasaCreditoLargoPlazo < 0
+  ) {
+    return { error: "Las tasas y el límite de financiamiento deben ser números válidos mayores o iguales a 0." };
   }
 
   const datos = {
@@ -68,6 +88,11 @@ export async function guardarConfiguracionEmpresa(
     tarifaHoraManoObra,
     montoAprobacionCompras,
     montoAprobacionPagos,
+    horasHombreDisponiblesTrimestre,
+    tasaDescuentoCxC,
+    tasaCreditoCortoPlazo,
+    limiteCreditoCortoPlazo,
+    tasaCreditoLargoPlazo,
   };
 
   await prisma.configuracionEmpresa.upsert({

@@ -24,6 +24,11 @@ type Props = {
     tarifaHoraManoObra: number;
     montoAprobacionCompras: number;
     montoAprobacionPagos: number;
+    horasHombreDisponiblesTrimestre: number;
+    tasaDescuentoCxC: number;
+    tasaCreditoCortoPlazo: number;
+    limiteCreditoCortoPlazo: number;
+    tasaCreditoLargoPlazo: number;
   };
 };
 
@@ -143,10 +148,21 @@ export default function EmpresaFormulario({ valores }: Props) {
               className="campo-input"
             />
           </Campo>
+          <Campo etiqueta="Horas-hombre disponibles por trimestre (0 = sin límite configurado)">
+            <input
+              name="horasHombreDisponiblesTrimestre"
+              type="number"
+              step="1"
+              min="0"
+              defaultValue={valores.horasHombreDisponiblesTrimestre}
+              className="campo-input"
+            />
+          </Campo>
         </div>
         <p className="text-xs text-neutral-500 mt-1">
           Se usa para calcular el costo de mano de obra al finalizar lotes y envasados (horas
-          registradas × esta tarifa vigente al momento).
+          registradas × esta tarifa vigente al momento), y para el chequeo de capacidad en
+          Proyecciones → Operaciones.
         </p>
       </fieldset>
 
@@ -179,6 +195,57 @@ export default function EmpresaFormulario({ valores }: Props) {
         <p className="text-xs text-neutral-500 mt-1">
           Órdenes de compra y pagos a proveedores por encima de estos montos quedan pendientes de
           aprobación de Gerencia antes de poder recepcionarse / ejecutarse.
+        </p>
+      </fieldset>
+
+      <fieldset className="borde-seccion">
+        <legend className="titulo-seccion">Financiamiento (para Proyecciones → Finanzas)</legend>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Campo etiqueta="Tasa descuento de CxC (%)">
+            <input
+              name="tasaDescuentoCxC"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={valores.tasaDescuentoCxC}
+              className="campo-input"
+            />
+          </Campo>
+          <Campo etiqueta="Tasa crédito corto plazo (%)">
+            <input
+              name="tasaCreditoCortoPlazo"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={valores.tasaCreditoCortoPlazo}
+              className="campo-input"
+            />
+          </Campo>
+          <Campo etiqueta="Límite crédito corto plazo (S/)">
+            <input
+              name="limiteCreditoCortoPlazo"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={valores.limiteCreditoCortoPlazo}
+              className="campo-input"
+            />
+          </Campo>
+          <Campo etiqueta="Tasa crédito largo plazo (%)">
+            <input
+              name="tasaCreditoLargoPlazo"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={valores.tasaCreditoLargoPlazo}
+              className="campo-input"
+            />
+          </Campo>
+        </div>
+        <p className="text-xs text-neutral-500 mt-1">
+          Orden de la cascada de financiamiento cuando una proyección necesita cubrir un déficit de
+          caja: primero descuento de CxC, luego corto plazo (hasta el límite), y el resto a largo
+          plazo.
         </p>
       </fieldset>
 
