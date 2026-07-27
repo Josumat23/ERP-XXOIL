@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { horasDisponiblesEnRango, type ResumenCalendario } from "@/lib/calendarioProduccion";
 
 // ---------------------------------------------------------------------------
 // Motor de proyecciones trimestrales (Marketing / Operaciones / Finanzas).
@@ -130,6 +131,7 @@ export type ResultadoOperaciones = {
   costoProduccionProyectado: number;
   horasHombreProyectadas: number;
   horasHombreDisponibles: number;
+  capacidadPorAlmacen: ResumenCalendario[];
   insumos: NecesidadInsumo[];
   presentacionesSinFormula: string[];
 };
@@ -138,11 +140,19 @@ export type ResultadoOperaciones = {
  * Plan de producción: para cada presentación con demanda proyectada, cubre el
  * faltante contra stock (con stock mínimo como colchón) y consume la fórmula
  * activa más reciente del producto para estimar insumos, costo y mano de obra.
+ * La capacidad disponible sale del calendario de producción de los almacenes
+ * (Configuración → Almacenes) para el rango de fechas del trimestre proyectado.
  */
 export async function calcularOperaciones(
   detalles: DetalleCalculado[],
-  horasHombreDisponibles: number
+  anio: number,
+  trimestre: number
 ): Promise<ResultadoOperaciones> {
+  const { inicio, fin } = rangoTrimestre(anio, trimestre);
+  const { total: horasHombreDisponibles, porAlmacen: capacidadPorAlmacen } = await horasDisponiblesEnRango(
+    inicio,
+    fin
+  );
   const productoIds = [...new Set(detalles.map((d) => d.productoId))];
   const formulas = await prisma.formula.findMany({
     where: { productoId: { in: productoIds }, activo: true },
@@ -205,6 +215,7 @@ export async function calcularOperaciones(
     costoProduccionProyectado,
     horasHombreProyectadas: kgGranelTotal * horasPorKg,
     horasHombreDisponibles,
+    capacidadPorAlmacen,
     insumos,
     presentacionesSinFormula,
   };

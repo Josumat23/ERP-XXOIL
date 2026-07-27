@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { AlmacenFormulario, ZonaFormulario } from "./AlmacenFormularios";
+import { CalendarioProduccionFormulario } from "./CalendarioProduccionFormulario";
 import { alternarActivoAlmacen, alternarActivoZona } from "./actions";
 
 export default async function AlmacenesPage() {
@@ -12,6 +13,7 @@ export default async function AlmacenesPage() {
   const almacenes = await prisma.almacen.findMany({
     include: {
       zonas: { include: { _count: { select: { presentaciones: true, insumos: true } } } },
+      calendarioProduccion: { include: { diasNoLaborables: { orderBy: { fecha: "asc" } } } },
     },
     orderBy: { codigo: "asc" },
   });
@@ -142,6 +144,24 @@ export default async function AlmacenesPage() {
                 )}
               </tbody>
             </table>
+
+            <CalendarioProduccionFormulario
+              almacenId={a.id}
+              horas={{
+                horasLunes: a.calendarioProduccion?.horasLunes.toNumber() ?? 8,
+                horasMartes: a.calendarioProduccion?.horasMartes.toNumber() ?? 8,
+                horasMiercoles: a.calendarioProduccion?.horasMiercoles.toNumber() ?? 8,
+                horasJueves: a.calendarioProduccion?.horasJueves.toNumber() ?? 8,
+                horasViernes: a.calendarioProduccion?.horasViernes.toNumber() ?? 8,
+                horasSabado: a.calendarioProduccion?.horasSabado.toNumber() ?? 0,
+                horasDomingo: a.calendarioProduccion?.horasDomingo.toNumber() ?? 0,
+              }}
+              diasNoLaborables={(a.calendarioProduccion?.diasNoLaborables ?? []).map((d) => ({
+                id: d.id,
+                fecha: d.fecha.toISOString().slice(0, 10),
+                motivo: d.motivo,
+              }))}
+            />
           </div>
         ))}
         {almacenes.length === 0 && (

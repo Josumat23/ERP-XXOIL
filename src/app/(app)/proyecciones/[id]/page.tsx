@@ -23,13 +23,10 @@ export default async function DetalleProyeccionPage({
 }) {
   const { id } = await params;
 
-  const [proyeccion, config] = await Promise.all([
-    prisma.proyeccion.findUnique({
-      where: { id },
-      include: { detalles: { include: { presentacion: { include: { producto: true } } } } },
-    }),
-    prisma.configuracionEmpresa.findUniqueOrThrow({ where: { id: "1" } }),
-  ]);
+  const proyeccion = await prisma.proyeccion.findUnique({
+    where: { id },
+    include: { detalles: { include: { presentacion: { include: { producto: true } } } } },
+  });
   if (!proyeccion) notFound();
 
   const detallesBase = proyeccion.detalles.map((d) => ({
@@ -55,7 +52,7 @@ export default async function DetalleProyeccionPage({
   ).map((d, i) => ({ ...d, detalleId: detallesBase[i].detalleId }));
 
   const [operaciones, finanzas] = await Promise.all([
-    calcularOperaciones(detalles, config.horasHombreDisponiblesTrimestre.toNumber()),
+    calcularOperaciones(detalles, proyeccion.anio, proyeccion.trimestre),
     calcularFinanzas(
       detalles,
       proyeccion.presupuestoPublicidad.toNumber(),
@@ -211,6 +208,15 @@ export default async function DetalleProyeccionPage({
               La demanda proyectada supera la capacidad disponible — evaluar horas extra, subcontrata o mover
               producción al siguiente trimestre.
             </p>
+          )}
+          {operaciones.capacidadPorAlmacen.length > 1 && (
+            <ul className="text-xs text-neutral-500 mt-3 flex flex-col gap-0.5">
+              {operaciones.capacidadPorAlmacen.map((a) => (
+                <li key={a.almacenId}>
+                  {a.almacenNombre}: {formatNumero(a.horasDisponibles, 0)} h-h disponibles
+                </li>
+              ))}
+            </ul>
           )}
         </section>
       )}

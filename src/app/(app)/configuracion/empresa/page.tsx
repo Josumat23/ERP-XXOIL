@@ -41,7 +41,6 @@ export default async function EmpresaPage() {
             tarifaHoraManoObra: config.tarifaHoraManoObra.toNumber(),
             montoAprobacionCompras: config.montoAprobacionCompras.toNumber(),
             montoAprobacionPagos: config.montoAprobacionPagos.toNumber(),
-            horasHombreDisponiblesTrimestre: config.horasHombreDisponiblesTrimestre.toNumber(),
             tasaDescuentoCxC: config.tasaDescuentoCxC.toNumber(),
             tasaCreditoCortoPlazo: config.tasaCreditoCortoPlazo.toNumber(),
             limiteCreditoCortoPlazo: config.limiteCreditoCortoPlazo.toNumber(),

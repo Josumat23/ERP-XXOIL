@@ -24,7 +24,6 @@ type Props = {
     tarifaHoraManoObra: number;
     montoAprobacionCompras: number;
     montoAprobacionPagos: number;
-    horasHombreDisponiblesTrimestre: number;
     tasaDescuentoCxC: number;
     tasaCreditoCortoPlazo: number;
     limiteCreditoCortoPlazo: number;
@@ -148,21 +147,12 @@ export default function EmpresaFormulario({ valores }: Props) {
               className="campo-input"
             />
           </Campo>
-          <Campo etiqueta="Horas-hombre disponibles por trimestre (0 = sin límite configurado)">
-            <input
-              name="horasHombreDisponiblesTrimestre"
-              type="number"
-              step="1"
-              min="0"
-              defaultValue={valores.horasHombreDisponiblesTrimestre}
-              className="campo-input"
-            />
-          </Campo>
         </div>
         <p className="text-xs text-neutral-500 mt-1">
           Se usa para calcular el costo de mano de obra al finalizar lotes y envasados (horas
-          registradas × esta tarifa vigente al momento), y para el chequeo de capacidad en
-          Proyecciones → Operaciones.
+          registradas × esta tarifa vigente al momento). La capacidad disponible para el chequeo
+          de Proyecciones → Operaciones se configura por almacén en Configuración → Almacenes
+          (calendario de producción).
         </p>
       </fieldset>
 

@@ -45,9 +45,6 @@ model ConfiguracionEmpresa {
   // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
   montoAprobacionCompras Decimal @default(5000)
   montoAprobacionPagos   Decimal @default(5000)
-  // Capacidad de mano de obra disponible por trimestre, para el chequeo de
-  // capacidad en Proyecciones → Operaciones. 0 = no configurada (se omite el chequeo).
-  horasHombreDisponiblesTrimestre Decimal @default(0)
   // Tasas para la cascada de financiamiento en Proyecciones → Finanzas
   // (mismo orden que un modelo de tesorería típico: lo más barato/disponible primero).
   tasaDescuentoCxC        Decimal @default(9) // % (misma convención que tasaIgv: número entero, no fracción)
@@ -986,9 +983,43 @@ model Almacen {
   creadoEn     DateTime @default(now())
 
   zonas ZonaAlmacen[]
+  calendarioProduccion CalendarioProduccion?
 
   @@unique([empresaId, codigo])
   @@map("almacenes")
+}
+
+// Calendario de producción por almacén/planta: horas laborables por día de
+// semana + excepciones (feriados, mantenimiento). Reemplaza el número único
+// que usaba Proyecciones para el chequeo de capacidad.
+model CalendarioProduccion {
+  id        String @id @default(cuid())
+  almacenId String @unique
+
+  horasLunes     Decimal @default(8)
+  horasMartes    Decimal @default(8)
+  horasMiercoles Decimal @default(8)
+  horasJueves    Decimal @default(8)
+  horasViernes   Decimal @default(8)
+  horasSabado    Decimal @default(0)
+  horasDomingo   Decimal @default(0)
+
+  almacen           Almacen             @relation(fields: [almacenId], references: [id], onDelete: Cascade)
+  diasNoLaborables  DiaNoLaborable[]
+
+  @@map("calendarios_produccion")
+}
+
+model DiaNoLaborable {
+  id           String   @id @default(cuid())
+  calendarioId String
+  fecha        DateTime
+  motivo       String? // "Feriado nacional", "Mantenimiento", etc.
+
+  calendario CalendarioProduccion @relation(fields: [calendarioId], references: [id], onDelete: Cascade)
+
+  @@unique([calendarioId, fecha])
+  @@map("dias_no_laborables")
 }
 
 model ZonaAlmacen {

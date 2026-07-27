@@ -32,7 +32,6 @@ export async function guardarConfiguracionEmpresa(
   const tarifaHoraManoObra = Number(formData.get("tarifaHoraManoObra"));
   const montoAprobacionCompras = Number(formData.get("montoAprobacionCompras"));
   const montoAprobacionPagos = Number(formData.get("montoAprobacionPagos"));
-  const horasHombreDisponiblesTrimestre = Number(formData.get("horasHombreDisponiblesTrimestre") ?? 0);
   const tasaDescuentoCxC = Number(formData.get("tasaDescuentoCxC"));
   const tasaCreditoCortoPlazo = Number(formData.get("tasaCreditoCortoPlazo"));
   const limiteCreditoCortoPlazo = Number(formData.get("limiteCreditoCortoPlazo"));
@@ -51,9 +50,6 @@ export async function guardarConfiguracionEmpresa(
   }
   if (!Number.isFinite(montoAprobacionPagos) || montoAprobacionPagos < 0) {
     return { error: "El monto de aprobación de pagos debe ser mayor o igual a 0." };
-  }
-  if (!Number.isFinite(horasHombreDisponiblesTrimestre) || horasHombreDisponiblesTrimestre < 0) {
-    return { error: "Las horas-hombre disponibles deben ser mayores o iguales a 0." };
   }
   if (
     !Number.isFinite(tasaDescuentoCxC) ||
@@ -88,7 +84,6 @@ export async function guardarConfiguracionEmpresa(
     tarifaHoraManoObra,
     montoAprobacionCompras,
     montoAprobacionPagos,
-    horasHombreDisponiblesTrimestre,
     tasaDescuentoCxC,
     tasaCreditoCortoPlazo,
     limiteCreditoCortoPlazo,
