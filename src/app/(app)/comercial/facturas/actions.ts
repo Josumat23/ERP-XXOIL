@@ -7,10 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { liberarAsignacionesLote } from "@/lib/trazabilidad";
-
-// Prefijo que distingue, dentro del ledger de asignación de lote, una
-// liberación por devolución física de una por anulación de factura.
-export const MOTIVO_DEVOLUCION_PREFIJO = "Devolución";
+import { MOTIVO_DEVOLUCION_PREFIJO } from "@/lib/etiquetas";
 import { avanzarSerie } from "@/lib/series";
 import {
   postearCobro,

@@ -1,5 +1,11 @@
 import type { $Enums } from "@/generated/prisma/client";
 
+// Prefijo que distingue, dentro del ledger de asignación de lote, una
+// liberación por devolución física de una por anulación de factura.
+// Vive acá (no en actions.ts) porque un archivo "use server" solo puede
+// exportar funciones async — no puede exportar una constante de texto.
+export const MOTIVO_DEVOLUCION_PREFIJO = "Devolución";
+
 export const ETIQUETA_ORIGEN: Record<$Enums.OrigenMovimiento, string> = {
   STOCK_INICIAL: "Stock inicial",
   COMPRA: "Compra",

@@ -7,6 +7,7 @@ import {
   ETIQUETA_ESTADO_FACTURA,
   ETIQUETA_CONDICION_PAGO,
   ETIQUETA_MEDIO_PAGO,
+  MOTIVO_DEVOLUCION_PREFIJO,
 } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
@@ -19,7 +20,6 @@ import {
   DevolucionFormulario,
 } from "./FormulariosFactura";
 import {
-  MOTIVO_DEVOLUCION_PREFIJO,
   aplicarRecargoMora,
   enviarComprobanteFactura,
   enviarComprobanteNotaCredito,
