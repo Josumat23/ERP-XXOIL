@@ -23,6 +23,13 @@ import {
   siguienteCodigoOrdenMantenimiento,
 } from "../src/lib/correlativos";
 import { avanzarSerie, formatearNumeroSerie } from "../src/lib/series";
+import {
+  trimestreDe,
+  trimestreAnterior,
+  ventasHistoricasPorTrimestre,
+  calcularIndiceEstacionalidad,
+} from "../src/lib/proyecciones";
+import { obtenerFactorMacro } from "../src/lib/bcrp";
 
 // ---------------------------------------------------------------------------
 // Datos de prueba: reproduce el flujo real de negocio (compras → producción →
@@ -47,18 +54,85 @@ function fechaHace(mesesAtras: number, dia: number): Date {
 }
 const DIAS_CONDICION = { CONTADO: 0, DIAS_15: 15, DIAS_30: 30 } as const;
 
+// Crea las proyecciones de los últimos 2 trimestres si todavía no existen.
+// Separada del resto del seed (que solo corre una vez, la primera vez) para
+// que se pueda volver a ejecutar `npm run seed:demo` más adelante y esto se
+// mantenga al día sin duplicar ni tocar los datos ya cargados.
+async function seedProyeccionesHistoricas(audit: { usuarioId: string; usuarioNombre: string }) {
+  const trimestreActual = trimestreDe(hoy);
+  const trimestre1Atras = trimestreAnterior(trimestreActual.anio, trimestreActual.trimestre);
+  const trimestre2Atras = trimestreAnterior(trimestre1Atras.anio, trimestre1Atras.trimestre);
+
+  const presentacionesActivas = await prisma.presentacion.findMany({ where: { activo: true } });
+  const historicoVentas = await ventasHistoricasPorTrimestre();
+  const macro = await obtenerFactorMacro();
+
+  let creadas = 0;
+  for (const objetivo of [trimestre2Atras, trimestre1Atras]) {
+    const base = trimestreAnterior(objetivo.anio, objetivo.trimestre);
+    const yaExiste = await prisma.proyeccion.findUnique({
+      where: {
+        empresaId_anio_trimestre: { empresaId: "1", anio: objetivo.anio, trimestre: objetivo.trimestre },
+      },
+    });
+    if (yaExiste) continue;
+
+    await prisma.proyeccion.create({
+      data: {
+        anio: objetivo.anio,
+        trimestre: objetivo.trimestre,
+        anioBase: base.anio,
+        trimestreBase: base.trimestre,
+        macroPbiManufacturaVar: macro.pbiManufacturaVar,
+        macroInflacionVar: macro.inflacionVar,
+        macroTipoCambio: macro.tipoCambio,
+        macroActualizadoEn: new Date(),
+        ...audit,
+        detalles: {
+          create: presentacionesActivas.map((p) => {
+            const historicoPresentacion = historicoVentas.get(p.id);
+            const ventasBase = historicoPresentacion?.get(`${base.anio}-${base.trimestre}`) ?? 0;
+            const indice = calcularIndiceEstacionalidad(
+              historicoPresentacion,
+              objetivo.trimestre,
+              base.trimestre
+            );
+            return {
+              presentacionId: p.id,
+              ventasBase,
+              indiceEstacionalidad: indice ?? 1,
+            };
+          }),
+        },
+      },
+    });
+    creadas++;
+  }
+  if (creadas > 0) {
+    console.log(
+      `Proyecciones creadas para ${trimestre2Atras.anio}-T${trimestre2Atras.trimestre} y/o ${trimestre1Atras.anio}-T${trimestre1Atras.trimestre} (estacionalidad calculada de la historia real de ventas).`
+    );
+  } else {
+    console.log("Las proyecciones de los últimos 2 trimestres ya existían.");
+  }
+}
+
 async function main() {
+  const admin = await prisma.usuario.findUniqueOrThrow({
+    where: { empresaId_usuario: { empresaId: "1", usuario: "admin" } },
+  });
+  const audit = { usuarioId: admin.id, usuarioNombre: admin.nombre };
+
+  // Corre siempre (es idempotente por trimestre), incluso si el resto del
+  // seed de abajo ya se saltó por tener pedidos cargados.
+  await seedProyeccionesHistoricas(audit);
+
   if ((await prisma.pedido.count()) > 0) {
     console.log(
       "Ya hay pedidos registrados: se omite la carga de datos de prueba (para no duplicar)."
     );
     return;
   }
-
-  const admin = await prisma.usuario.findUniqueOrThrow({
-    where: { empresaId_usuario: { empresaId: "1", usuario: "admin" } },
-  });
-  const audit = { usuarioId: admin.id, usuarioNombre: admin.nombre };
 
   // --- referencias a lo ya sembrado por prisma/seed.ts -----------------------
   const grasaChasis = await prisma.producto.findUniqueOrThrow({
