@@ -7,7 +7,7 @@ import GraficoLinea from "@/components/GraficoLinea";
 import BarraRanking from "@/components/BarraRanking";
 import FichaTabs from "@/components/FichaTabs";
 
-const MESES_TENDENCIA = 6;
+const MESES_TENDENCIA = 12;
 
 // Base imponible de una factura (sin IGV); las antiguas sin desglose usan su total.
 const baseFactura = (f: { subtotal: { toNumber(): number }; total: { toNumber(): number } }) =>

@@ -510,7 +510,7 @@ async function main() {
   await envasar(lote3, presPote.id, 80, envPote.id);
   console.log("Envasados registrados: stock de presentaciones actualizado con su costo real.");
 
-  // --------------------------------------------- 6. Ventas (últimos 6 meses)
+  // --------------------------------------------- 6. Ventas (último año)
   type Venta = {
     mesesAtras: number;
     dia: number;
@@ -520,7 +520,19 @@ async function main() {
     cobro: "TOTAL" | "PARCIAL" | "NINGUNO";
   };
 
+  // Los primeros 6 meses (11 a 6 meses atrás) usan cantidades chicas a
+  // propósito: el granel de este seed solo produce 200 potes / 11 baldes en
+  // total, y ya se compromete la mayoría en los 6 meses más recientes de
+  // abajo. Cantidades chicas acá cuentan además una historia realista de
+  // crecimiento (ventas subiendo mes a mes) sin quedarse sin stock a mitad
+  // del seed.
   const ventas: Venta[] = [
+    { mesesAtras: 11, dia: 8, cliente: carteraClientes[1], condicionPago: "CONTADO", lineas: [{ presentacion: presPote, cantidad: 2 }], cobro: "TOTAL" },
+    { mesesAtras: 10, dia: 14, cliente: carteraClientes[3], condicionPago: "DIAS_15", lineas: [{ presentacion: presPote, cantidad: 2 }], cobro: "TOTAL" },
+    { mesesAtras: 9, dia: 5, cliente: carteraClientes[0], condicionPago: "CONTADO", lineas: [{ presentacion: presPote, cantidad: 3 }], cobro: "TOTAL" },
+    { mesesAtras: 8, dia: 19, cliente: carteraClientes[4], condicionPago: "DIAS_30", lineas: [{ presentacion: presPote, cantidad: 3 }], cobro: "TOTAL" },
+    { mesesAtras: 7, dia: 11, cliente: carteraClientes[2], condicionPago: "CONTADO", lineas: [{ presentacion: presPote, cantidad: 4 }], cobro: "TOTAL" },
+    { mesesAtras: 6, dia: 23, cliente: carteraClientes[1], condicionPago: "DIAS_15", lineas: [{ presentacion: presPote, cantidad: 4 }], cobro: "TOTAL" },
     { mesesAtras: 5, dia: 6, cliente: carteraClientes[0], condicionPago: "CONTADO", lineas: [{ presentacion: presPote, cantidad: 10 }], cobro: "TOTAL" },
     { mesesAtras: 5, dia: 18, cliente: carteraClientes[2], condicionPago: "DIAS_15", lineas: [{ presentacion: presPote, cantidad: 15 }, { presentacion: presBalde, cantidad: 1 }], cobro: "TOTAL" },
     { mesesAtras: 4, dia: 4, cliente: carteraClientes[1], condicionPago: "CONTADO", lineas: [{ presentacion: presPote, cantidad: 8 }], cobro: "TOTAL" },
