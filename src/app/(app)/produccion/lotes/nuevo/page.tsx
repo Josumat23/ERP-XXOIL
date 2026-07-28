@@ -4,7 +4,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import LoteFormulario from "../LoteFormulario";
 
 export default async function NuevoLotePage() {
-  const [formulas, lotes] = await Promise.all([
+  const [formulas, lotes, lotesRechazados] = await Promise.all([
     prisma.formula.findMany({
       where: { activo: true },
       include: { producto: true, detalles: { include: { insumo: true } } },
@@ -13,6 +13,11 @@ export default async function NuevoLotePage() {
     prisma.loteGranel.findMany({
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaInicio: "desc" },
+    }),
+    prisma.loteGranel.findMany({
+      where: { estado: "RECHAZADO" },
+      include: { formula: { include: { producto: true } } },
+      orderBy: { fechaFin: "desc" },
     }),
   ]);
 
@@ -51,6 +56,10 @@ export default async function NuevoLotePage() {
               cantidad: d.cantidad.toNumber(),
               stock: d.insumo.stock.toNumber(),
             })),
+          }))}
+          lotesRechazados={lotesRechazados.map((l) => ({
+            id: l.id,
+            etiqueta: `${l.codigo} — ${l.formula.producto.nombre} (${l.kgProducidos.toNumber()} kg rechazados)`,
           }))}
         />
       </div>

@@ -80,12 +80,21 @@ export async function crearEnvasado(
 
       const codigo = await siguienteCodigoEnvasado(tx);
 
+      const vidaUtilMeses = lote.formula.producto.vidaUtilMeses;
+      const fecha = new Date();
+      const fechaVencimiento = vidaUtilMeses
+        ? new Date(fecha.getFullYear(), fecha.getMonth() + vidaUtilMeses, fecha.getDate())
+        : null;
+
       const envasado = await tx.envasado.create({
         data: {
           codigo,
           loteGranelId,
           presentacionId,
           unidades,
+          unidadesDisponibles: unidades,
+          fecha,
+          fechaVencimiento,
           kgConsumidos,
           horasManoObra,
           costoManoObra,

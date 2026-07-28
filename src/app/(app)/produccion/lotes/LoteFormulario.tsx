@@ -10,8 +10,15 @@ type FormulaOpcion = {
   rendimientoKg: number;
   detalles: { nombre: string; unidad: string; cantidad: number; stock: number }[];
 };
+type LoteRechazadoOpcion = { id: string; etiqueta: string };
 
-export default function LoteFormulario({ formulas }: { formulas: FormulaOpcion[] }) {
+export default function LoteFormulario({
+  formulas,
+  lotesRechazados = [],
+}: {
+  formulas: FormulaOpcion[];
+  lotesRechazados?: LoteRechazadoOpcion[];
+}) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(crearLote, {});
   const [formulaId, setFormulaId] = useState("");
   const [kgObjetivo, setKgObjetivo] = useState("");
@@ -98,6 +105,26 @@ export default function LoteFormulario({ formulas }: { formulas: FormulaOpcion[]
             </tbody>
           </table>
         </div>
+      )}
+
+      {lotesRechazados.length > 0 && (
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            ¿Reprocesa un lote rechazado? (opcional)
+          </span>
+          <select name="loteOrigenId" defaultValue="" className="campo-input">
+            <option value="">No, es un lote nuevo</option>
+            {lotesRechazados.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.etiqueta}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-neutral-500">
+            Solo queda registrada la referencia para trazabilidad — este lote sigue consumiendo su
+            propia fórmula normalmente.
+          </span>
+        </label>
       )}
 
       <label className="flex flex-col gap-1 text-sm">

@@ -29,6 +29,12 @@ export async function guardarConfiguracionEmpresa(
   const email = String(formData.get("email") ?? "").trim() || null;
   const sitioWeb = String(formData.get("sitioWeb") ?? "").trim() || null;
   const tasaIgv = Number(formData.get("tasaIgv"));
+  const registroHidrocarburosOsinergmin =
+    String(formData.get("registroHidrocarburosOsinergmin") ?? "").trim() || null;
+  const registroHidrocarburosVigenciaRaw = String(formData.get("registroHidrocarburosVigencia") ?? "").trim();
+  const registroHidrocarburosVigencia = registroHidrocarburosVigenciaRaw
+    ? new Date(`${registroHidrocarburosVigenciaRaw}T00:00:00`)
+    : null;
   const tarifaHoraManoObra = Number(formData.get("tarifaHoraManoObra"));
   const montoAprobacionCompras = Number(formData.get("montoAprobacionCompras"));
   const montoAprobacionPagos = Number(formData.get("montoAprobacionPagos"));
@@ -36,6 +42,9 @@ export async function guardarConfiguracionEmpresa(
   const tasaCreditoCortoPlazo = Number(formData.get("tasaCreditoCortoPlazo"));
   const limiteCreditoCortoPlazo = Number(formData.get("limiteCreditoCortoPlazo"));
   const tasaCreditoLargoPlazo = Number(formData.get("tasaCreditoLargoPlazo"));
+  const tasaRecargoMora = Number(formData.get("tasaRecargoMora") ?? 0);
+  const oseProveedor = String(formData.get("oseProveedor") ?? "SIMULADO");
+  const oseToken = String(formData.get("oseToken") ?? "").trim() || null;
 
   if (!razonSocial) return { error: "La razón social es obligatoria." };
   if (ruc && !/^\d{11}$/.test(ruc)) return { error: "El RUC debe tener 11 dígitos." };
@@ -63,6 +72,17 @@ export async function guardarConfiguracionEmpresa(
   ) {
     return { error: "Las tasas y el límite de financiamiento deben ser números válidos mayores o iguales a 0." };
   }
+  if (!Number.isFinite(tasaRecargoMora) || tasaRecargoMora < 0) {
+    return { error: "La tasa de recargo por mora debe ser un número válido mayor o igual a 0." };
+  }
+  if (!["SIMULADO", "NUBEFACT"].includes(oseProveedor)) {
+    return { error: "Seleccione un proveedor OSE válido." };
+  }
+  if (oseProveedor !== "SIMULADO" && (!ruc || !oseToken)) {
+    return {
+      error: "Para usar un OSE real, complete el RUC de la empresa y el token del proveedor.",
+    };
+  }
 
   const datos = {
     razonSocial,
@@ -81,6 +101,8 @@ export async function guardarConfiguracionEmpresa(
     email,
     sitioWeb,
     tasaIgv,
+    registroHidrocarburosOsinergmin,
+    registroHidrocarburosVigencia,
     tarifaHoraManoObra,
     montoAprobacionCompras,
     montoAprobacionPagos,
@@ -88,6 +110,9 @@ export async function guardarConfiguracionEmpresa(
     tasaCreditoCortoPlazo,
     limiteCreditoCortoPlazo,
     tasaCreditoLargoPlazo,
+    tasaRecargoMora,
+    oseProveedor,
+    oseToken,
   };
 
   await prisma.configuracionEmpresa.upsert({

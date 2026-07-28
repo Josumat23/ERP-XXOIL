@@ -3,7 +3,16 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, type $Enums } from "@/generated/prisma/client";
+
+const SEGMENTOS_VALIDOS: $Enums.SegmentoMercado[] = [
+  "AUTOMOTRIZ",
+  "INDUSTRIAL",
+  "MINERO",
+  "AGRICOLA",
+  "MARINO",
+  "OTRO",
+];
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 
@@ -23,9 +32,23 @@ function leerDatos(formData: FormData) {
   const gradoNlgi = String(formData.get("gradoNlgi") ?? "").trim() || null;
   const viscosidad = String(formData.get("viscosidad") ?? "").trim() || null;
   const notasTecnicas = String(formData.get("notasTecnicas") ?? "").trim() || null;
+  const vidaUtilMesesRaw = String(formData.get("vidaUtilMeses") ?? "").trim();
+  const vidaUtilMeses = vidaUtilMesesRaw ? Number(vidaUtilMesesRaw) : null;
+  const fichaTecnicaUrl = String(formData.get("fichaTecnicaUrl") ?? "").trim() || null;
+  const hojaSeguridadUrl = String(formData.get("hojaSeguridadUrl") ?? "").trim() || null;
+  const segmentoMercadoRaw = String(formData.get("segmentoMercado") ?? "").trim();
+  const segmentoMercado = segmentoMercadoRaw
+    ? (segmentoMercadoRaw as $Enums.SegmentoMercado)
+    : null;
 
   if (!codigo || !nombre || !categoriaId) {
     return { error: "Código, nombre y categoría son obligatorios." } as const;
+  }
+  if (vidaUtilMeses !== null && (!Number.isInteger(vidaUtilMeses) || vidaUtilMeses <= 0)) {
+    return { error: "La vida útil debe ser un número entero de meses mayor a 0 (o déjelo vacío si no vence)." } as const;
+  }
+  if (segmentoMercado !== null && !SEGMENTOS_VALIDOS.includes(segmentoMercado)) {
+    return { error: "Seleccione un segmento de mercado válido." } as const;
   }
 
   return {
@@ -38,6 +61,10 @@ function leerDatos(formData: FormData) {
       marca,
       gradoNlgi,
       viscosidad,
+      vidaUtilMeses,
+      segmentoMercado,
+      fichaTecnicaUrl,
+      hojaSeguridadUrl,
       notasTecnicas,
     },
   } as const;

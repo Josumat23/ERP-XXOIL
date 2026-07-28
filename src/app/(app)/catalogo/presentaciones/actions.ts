@@ -19,6 +19,8 @@ function leerDatos(formData: FormData) {
   const sku = String(formData.get("sku") ?? "").trim().toUpperCase();
   const nombre = String(formData.get("nombre") ?? "").trim();
   const contenidoKg = Number(formData.get("contenidoKg"));
+  const contenidoLitrosRaw = String(formData.get("contenidoLitros") ?? "").trim();
+  const contenidoLitros = contenidoLitrosRaw ? Number(contenidoLitrosRaw) : null;
   const precio = Number(formData.get("precio"));
   const stockMinimo = Number(formData.get("stockMinimo") ?? 0);
   const codigoBarras = String(formData.get("codigoBarras") ?? "").trim() || null;
@@ -33,6 +35,9 @@ function leerDatos(formData: FormData) {
   }
   if (!Number.isFinite(contenidoKg) || contenidoKg <= 0) {
     return { error: "El contenido en kg debe ser un número mayor a 0." } as const;
+  }
+  if (contenidoLitros !== null && (!Number.isFinite(contenidoLitros) || contenidoLitros <= 0)) {
+    return { error: "El contenido en litros debe ser un número mayor a 0 (o déjelo vacío)." } as const;
   }
   if (!Number.isFinite(precio) || precio < 0) {
     return { error: "El precio debe ser un número válido." } as const;
@@ -56,6 +61,7 @@ function leerDatos(formData: FormData) {
       sku,
       nombre,
       contenidoKg,
+      contenidoLitros,
       precio,
       stockMinimo,
       codigoBarras,
@@ -149,4 +155,50 @@ export async function alternarActivoPresentacion(id: string, activo: boolean) {
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
   await prisma.presentacion.update({ where: { id }, data: { activo } });
   revalidatePath("/catalogo/presentaciones");
+}
+
+// --- Escalones de precio por volumen ----------------------------------------
+
+export async function crearEscalonPrecio(
+  presentacionId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Ventas." };
+  }
+
+  const cantidadMinima = Number(formData.get("cantidadMinima"));
+  const precio = Number(formData.get("precio"));
+
+  if (!Number.isInteger(cantidadMinima) || cantidadMinima <= 1) {
+    return { error: "La cantidad mínima debe ser un entero mayor a 1 (para 1 unidad ya está el precio base)." };
+  }
+  if (!Number.isFinite(precio) || precio < 0) {
+    return { error: "El precio debe ser un número válido." };
+  }
+
+  try {
+    await prisma.escalonPrecio.create({ data: { presentacionId, cantidadMinima, precio } });
+  } catch (e) {
+    if (esErrorDuplicado(e)) {
+      return { error: `Ya existe un escalón para ${cantidadMinima} unidades.` };
+    }
+    throw e;
+  }
+
+  revalidatePath(`/catalogo/presentaciones/${presentacionId}`);
+  revalidatePath("/comercial/pedidos/nuevo");
+  return {};
+}
+
+export async function eliminarEscalonPrecio(id: string, presentacionId: string) {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
+  await prisma.escalonPrecio.delete({ where: { id } });
+  revalidatePath(`/catalogo/presentaciones/${presentacionId}`);
+  revalidatePath("/comercial/pedidos/nuevo");
 }

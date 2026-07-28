@@ -3,20 +3,24 @@ import { prisma } from "@/lib/prisma";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { ETIQUETA_SEGMENTO_MERCADO } from "@/lib/etiquetas";
 import { alternarActivoProducto } from "./actions";
 
 export default async function ProductosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; categoriaId?: string }>;
+  searchParams: Promise<{ q?: string; categoriaId?: string; segmentoMercado?: string }>;
 }) {
-  const { q, categoriaId } = await searchParams;
+  const { q, categoriaId, segmentoMercado } = await searchParams;
+  const segmentos = Object.keys(ETIQUETA_SEGMENTO_MERCADO) as (keyof typeof ETIQUETA_SEGMENTO_MERCADO)[];
+  const filtroSegmento = segmentos.find((s) => s === segmentoMercado);
 
   const categorias = await prisma.categoria.findMany({ orderBy: { nombre: "asc" } });
 
   const productos = await prisma.producto.findMany({
     where: {
       ...(categoriaId ? { categoriaId } : {}),
+      ...(filtroSegmento ? { segmentoMercado: filtroSegmento } : {}),
       ...(q
         ? {
             OR: [
@@ -59,6 +63,17 @@ export default async function ProductosPage({
             ))}
           </select>
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Segmento de mercado</span>
+          <select name="segmentoMercado" defaultValue={filtroSegmento ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {segmentos.map((s) => (
+              <option key={s} value={s}>
+                {ETIQUETA_SEGMENTO_MERCADO[s]}
+              </option>
+            ))}
+          </select>
+        </label>
       </BarraFiltro>
 
       <PanelMaestroDetalle
@@ -77,6 +92,7 @@ export default async function ProductosPage({
             <th>Código</th>
             <th>Nombre</th>
             <th>Categoría</th>
+            <th>Segmento</th>
             <th>Marca</th>
             <th>UM base</th>
             <th>Especificación</th>
@@ -91,6 +107,9 @@ export default async function ProductosPage({
               <td className="font-mono text-xs">{p.codigo}</td>
               <td>{p.nombre}</td>
               <td>{p.categoria.nombre}</td>
+              <td className="text-sm text-neutral-500">
+                {p.segmentoMercado ? ETIQUETA_SEGMENTO_MERCADO[p.segmentoMercado] : "—"}
+              </td>
               <td>{p.marca ?? "—"}</td>
               <td>{p.unidadMedidaBase}</td>
               <td className="text-sm text-neutral-500">
@@ -132,7 +151,7 @@ export default async function ProductosPage({
           ))}
           {productos.length === 0 && (
             <tr>
-              <td colSpan={9} className="text-center text-neutral-500 py-6">
+              <td colSpan={10} className="text-center text-neutral-500 py-6">
                 No hay productos registrados todavía.
               </td>
             </tr>

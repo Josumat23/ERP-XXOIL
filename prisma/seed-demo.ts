@@ -1,12 +1,15 @@
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaClient } from "../src/generated/prisma/client";
+import { PrismaClient, type $Enums } from "../src/generated/prisma/client";
 import { registrarMovimiento } from "../src/lib/inventario";
+import { asignarLoteVenta, asignarLoteInsumo } from "../src/lib/trazabilidad";
 import {
   postearVenta,
   postearCobro,
   postearNotaCredito,
   postearRecepcionCompra,
   postearPagoProveedor,
+  postearDepreciacion,
+  postearMantenimiento,
 } from "../src/lib/contabilidad";
 import {
   siguienteCodigoCliente,
@@ -15,6 +18,9 @@ import {
   siguienteNumeroRecepcion,
   siguienteCodigoLote,
   siguienteCodigoEnvasado,
+  siguienteCodigoActivoFijo,
+  siguienteCodigoEquipo,
+  siguienteCodigoOrdenMantenimiento,
 } from "../src/lib/correlativos";
 import { avanzarSerie, formatearNumeroSerie } from "../src/lib/series";
 
@@ -201,7 +207,7 @@ async function main() {
           numero: numeroRecepcion,
           ordenCompraId: oc.id,
           ...audit,
-          detalles: { create: [{ insumoId, cantidad, costoUnitario }] },
+          detalles: { create: [{ insumoId, cantidad, costoUnitario, cantidadDisponible: cantidad }] },
         },
       });
 
@@ -308,6 +314,8 @@ async function main() {
           ...audit,
         });
         if (!mov.ok) throw new Error(mov.error);
+
+        await asignarLoteInsumo(tx, { loteGranelId: lote.id, insumoId: detalle.insumoId, cantidad });
       }
 
       const costoManoObra = 0; // tarifaHoraManoObra no configurada en el seed base
@@ -356,6 +364,7 @@ async function main() {
           loteGranelId: lote.id,
           presentacionId,
           unidades,
+          unidadesDisponibles: unidades,
           kgConsumidos,
           ...audit,
           insumos: {
@@ -512,6 +521,12 @@ async function main() {
           ...audit,
         });
         if (!mov.ok) throw new Error(mov.error);
+
+        await asignarLoteVenta(tx, {
+          pedidoDetalleId: d.id,
+          presentacionId: d.presentacionId,
+          cantidad: d.cantidad,
+        });
       }
 
       const montoInicial = venta.cobro === "NINGUNO" ? 0 : venta.cobro === "PARCIAL" ? totalConIgv * 0.5 : totalConIgv;
@@ -625,6 +640,200 @@ async function main() {
     });
     console.log("Nota de crédito de ejemplo registrada.");
   }
+
+  // ------------------------------------------------- 8. Activos fijos
+  const planta = await prisma.almacen.findUniqueOrThrow({
+    where: { empresaId_codigo: { empresaId: "1", codigo: "PLANTA" } },
+  });
+
+  type ActivoSeed = {
+    nombre: string;
+    categoria: $Enums.CategoriaActivoFijo;
+    mesesAntiguedad: number;
+    costo: number;
+    residual: number;
+    vidaUtilAnios: number;
+  };
+  const activosSeed: ActivoSeed[] = [
+    {
+      nombre: "Mezcladora de grasas MG-500",
+      categoria: "MAQUINARIA",
+      mesesAntiguedad: 24,
+      costo: 45000,
+      residual: 4500,
+      vidaUtilAnios: 10,
+    },
+    {
+      nombre: "Camioneta de reparto Hyundai H100",
+      categoria: "VEHICULO",
+      mesesAntiguedad: 14,
+      costo: 68000,
+      residual: 8000,
+      vidaUtilAnios: 5,
+    },
+    {
+      nombre: "Laptop administrativa Dell Latitude",
+      categoria: "EQUIPO_OFICINA",
+      mesesAntiguedad: 8,
+      costo: 4200,
+      residual: 200,
+      vidaUtilAnios: 4,
+    },
+  ];
+
+  // Simula haber corrido "Registrar depreciación" cada mes desde la compra: un
+  // asiento consolidado por mes (mismo comportamiento que registrarDepreciacionMes).
+  const cargosPorMes = new Map<string, number>();
+  const activoFijoPorNombre = new Map<string, string>();
+  for (const a of activosSeed) {
+    const fechaAdquisicion = fechaHace(a.mesesAntiguedad, 1);
+    const cuotaMensual = (a.costo - a.residual) / (a.vidaUtilAnios * 12);
+
+    const activoFijo = await prisma.$transaction(async (tx) => {
+      const codigo = await siguienteCodigoActivoFijo(tx);
+      return tx.activoFijo.create({
+        data: {
+          codigo,
+          nombre: a.nombre,
+          categoria: a.categoria,
+          almacenId: planta.id,
+          fechaAdquisicion,
+          costoAdquisicion: a.costo,
+          valorResidual: a.residual,
+          vidaUtilAnios: a.vidaUtilAnios,
+          ...audit,
+        },
+      });
+    });
+
+    let acumulada = 0;
+    const mesesACargar = Math.min(a.mesesAntiguedad, a.vidaUtilAnios * 12);
+    for (let k = mesesACargar; k >= 1; k--) {
+      const pendiente = a.costo - a.residual - acumulada;
+      const cargo = Math.min(cuotaMensual, pendiente);
+      if (cargo <= 0.01) break;
+      const fecha = fechaHace(k, 1);
+      const anio = fecha.getFullYear();
+      const mes = fecha.getMonth() + 1;
+      await prisma.depreciacionActivo.create({
+        data: { activoFijoId: activoFijo.id, anio, mes, monto: cargo },
+      });
+      acumulada += cargo;
+      const clave = `${anio}-${mes}`;
+      cargosPorMes.set(clave, (cargosPorMes.get(clave) ?? 0) + cargo);
+    }
+    await prisma.activoFijo.update({
+      where: { id: activoFijo.id },
+      data: { depreciacionAcumulada: acumulada },
+    });
+    activoFijoPorNombre.set(a.nombre, activoFijo.id);
+  }
+
+  const clavesOrdenadas = [...cargosPorMes.keys()].sort((a, b) => {
+    const [aAnio, aMes] = a.split("-").map(Number);
+    const [bAnio, bMes] = b.split("-").map(Number);
+    return aAnio - bAnio || aMes - bMes;
+  });
+  for (const clave of clavesOrdenadas) {
+    const [anio, mes] = clave.split("-").map(Number);
+    const monto = Math.round(cargosPorMes.get(clave)! * 100) / 100;
+    await prisma.$transaction(async (tx) => {
+      await postearDepreciacion(tx, { anio, mes, monto }, audit);
+    });
+  }
+  console.log(`Activos fijos creados: ${activosSeed.length}, con historial de depreciación mensual.`);
+
+  // ------------------------------------------- 9. Equipos y mantenimiento
+  const mezcladora = await prisma.$transaction(async (tx) => {
+    const codigo = await siguienteCodigoEquipo(tx);
+    return tx.equipo.create({
+      data: {
+        codigo,
+        nombre: "Mezcladora de grasas MG-500",
+        almacenId: planta.id,
+        activoFijoId: activoFijoPorNombre.get("Mezcladora de grasas MG-500"),
+      },
+    });
+  });
+  const camioneta = await prisma.$transaction(async (tx) => {
+    const codigo = await siguienteCodigoEquipo(tx);
+    return tx.equipo.create({
+      data: {
+        codigo,
+        nombre: "Camioneta de reparto Hyundai H100",
+        almacenId: planta.id,
+        activoFijoId: activoFijoPorNombre.get("Camioneta de reparto Hyundai H100"),
+      },
+    });
+  });
+
+  // Orden correctiva ya completada (con costo posteado a contabilidad y caja).
+  await prisma.$transaction(async (tx) => {
+    const codigo = await siguienteCodigoOrdenMantenimiento(tx);
+    const fechaProgramada = fechaHace(2, 10);
+    const costoManoObra = 180;
+    const costoRepuestos = 320;
+    await tx.ordenMantenimiento.create({
+      data: {
+        codigo,
+        equipoId: mezcladora.id,
+        tipo: "CORRECTIVO",
+        estado: "COMPLETADA",
+        descripcion: "Fuga de aceite en el sistema hidráulico de la mezcladora.",
+        fechaProgramada,
+        fechaInicio: fechaProgramada,
+        fechaFin: fechaProgramada,
+        costoManoObra,
+        costoRepuestos,
+        observaciones: "Se cambiaron los retenes hidráulicos y se purgó el circuito.",
+        ...audit,
+      },
+    });
+    const total = costoManoObra + costoRepuestos;
+    await tx.movimientoCaja.create({
+      data: {
+        tipo: "EGRESO",
+        concepto: `Mantenimiento ${codigo} — ${mezcladora.nombre}`,
+        monto: total,
+        medioPago: "EFECTIVO",
+        referencia: codigo,
+        fecha: fechaProgramada,
+        ...audit,
+      },
+    });
+    await postearMantenimiento(
+      tx,
+      { codigoOrden: codigo, equipo: mezcladora.nombre, monto: total, fecha: fechaProgramada },
+      audit
+    );
+  });
+
+  // Orden preventiva programada a futuro (demuestra el bloqueo de calendario
+  // si el almacén ya tiene CalendarioProduccion configurado).
+  await prisma.$transaction(async (tx) => {
+    const codigo = await siguienteCodigoOrdenMantenimiento(tx);
+    const fechaProgramada = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 5);
+    await tx.ordenMantenimiento.create({
+      data: {
+        codigo,
+        equipoId: camioneta.id,
+        tipo: "PREVENTIVO",
+        descripcion: "Mantenimiento preventivo de 20,000 km: aceite, filtros y frenos.",
+        fechaProgramada,
+        duracionDias: 1,
+        ...audit,
+      },
+    });
+    const calendario = await tx.calendarioProduccion.findUnique({ where: { almacenId: planta.id } });
+    if (calendario) {
+      await tx.diaNoLaborable.upsert({
+        where: { calendarioId_fecha: { calendarioId: calendario.id, fecha: fechaProgramada } },
+        update: {},
+        create: { calendarioId: calendario.id, fecha: fechaProgramada, motivo: `Mantenimiento ${codigo}` },
+      });
+    }
+  });
+  console.log("Equipos y órdenes de mantenimiento de ejemplo creados.");
 
   console.log("Datos de prueba cargados. Ya podés navegar el ERP con información real.");
 }

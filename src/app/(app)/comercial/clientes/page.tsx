@@ -4,18 +4,23 @@ import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { ETIQUETA_CANAL_CLIENTE } from "@/lib/etiquetas";
 import { alternarActivoCliente } from "./actions";
+
+const CANALES = Object.keys(ETIQUETA_CANAL_CLIENTE) as (keyof typeof ETIQUETA_CANAL_CLIENTE)[];
 
 export default async function ClientesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; estado?: string }>;
+  searchParams: Promise<{ q?: string; estado?: string; canal?: string }>;
 }) {
-  const { q, estado } = await searchParams;
+  const { q, estado, canal } = await searchParams;
+  const filtroCanal = CANALES.find((c) => c === canal);
 
   const clientes = await prisma.cliente.findMany({
     where: {
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
+      ...(filtroCanal ? { canal: filtroCanal } : {}),
       ...(q
         ? {
             OR: [
@@ -59,6 +64,17 @@ export default async function ClientesPage({
             <option value="inactivo">Inactivos</option>
           </select>
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Canal</span>
+          <select name="canal" defaultValue={filtroCanal ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {CANALES.map((c) => (
+              <option key={c} value={c}>
+                {ETIQUETA_CANAL_CLIENTE[c]}
+              </option>
+            ))}
+          </select>
+        </label>
       </BarraFiltro>
 
       <PanelMaestroDetalle
@@ -77,6 +93,7 @@ export default async function ClientesPage({
             <th>Código</th>
             <th>Razón social</th>
             <th>RUC / DNI</th>
+            <th>Canal</th>
             <th>Ubicación</th>
             <th>Zona</th>
             <th>Vendedor</th>
@@ -101,6 +118,9 @@ export default async function ClientesPage({
                   )}
                 </td>
                 <td className="font-mono text-xs">{c.ruc ?? "—"}</td>
+                <td className="text-sm text-neutral-500">
+                  {c.canal ? ETIQUETA_CANAL_CLIENTE[c.canal] : "—"}
+                </td>
                 <td className="text-sm text-neutral-500">
                   {[c.distrito, c.departamento].filter(Boolean).join(", ") || "—"}
                 </td>
@@ -152,7 +172,7 @@ export default async function ClientesPage({
           })}
           {clientes.length === 0 && (
             <tr>
-              <td colSpan={10} className="text-center text-neutral-500 py-6">
+              <td colSpan={11} className="text-center text-neutral-500 py-6">
                 No hay clientes registrados todavía.
               </td>
             </tr>

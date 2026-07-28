@@ -21,11 +21,14 @@ export const MODULOS: Modulo[] = [
     titulo: "Ventas",
     icono: "◆",
     enlaces: [
+      { href: "/comercial/cotizaciones", etiqueta: "Cotizaciones" },
       { href: "/comercial/pedidos", etiqueta: "Pedidos" },
       { href: "/comercial/facturas", etiqueta: "Facturas" },
       { href: "/comercial/hojas-ruta", etiqueta: "Hojas de ruta" },
       { href: "/comercial/comisiones", etiqueta: "Comisiones" },
       { href: "/comercial/clientes", etiqueta: "Clientes" },
+      { href: "/comercial/descuentos-canal", etiqueta: "Descuento por canal", roles: ["ADMIN", "VENTAS", "GERENCIA"] },
+      { href: "/comercial/cascos", etiqueta: "Cascos pendientes" },
       { href: "/comercial/vendedores", etiqueta: "Vendedores" },
       { href: "/comercial/zonas", etiqueta: "Zonas" },
     ],
@@ -43,6 +46,8 @@ export const MODULOS: Modulo[] = [
           { href: "/catalogo/categorias", etiqueta: "Categorías" },
           { href: "/inventario/kardex", etiqueta: "Kardex" },
           { href: "/inventario/ajustes", etiqueta: "Ajustes", roles: ["ADMIN", "ALMACEN"] },
+          { href: "/inventario/traslados", etiqueta: "Traslados entre almacenes", roles: ["ADMIN", "ALMACEN"] },
+          { href: "/inventario/conteos", etiqueta: "Conteo cíclico", roles: ["ADMIN", "ALMACEN"] },
         ],
       },
       {
@@ -64,6 +69,9 @@ export const MODULOS: Modulo[] = [
       { href: "/produccion/lotes", etiqueta: "Órdenes de producción" },
       { href: "/produccion/calidad", etiqueta: "Control de calidad" },
       { href: "/produccion/envasados", etiqueta: "Envasados" },
+      { href: "/produccion/lotes/recall", etiqueta: "Trazabilidad / recall" },
+      { href: "/produccion/equipos", etiqueta: "Equipos" },
+      { href: "/produccion/mantenimiento", etiqueta: "Mantenimiento" },
     ],
   },
   {
@@ -84,6 +92,7 @@ export const MODULOS: Modulo[] = [
           { href: "/finanzas/asientos", etiqueta: "Asientos contables" },
           { href: "/finanzas/balance", etiqueta: "Balance de comprobación" },
           { href: "/finanzas/plan-cuentas", etiqueta: "Plan de cuentas", roles: ["ADMIN"] },
+          { href: "/finanzas/activos-fijos", etiqueta: "Activos fijos" },
         ],
       },
       {

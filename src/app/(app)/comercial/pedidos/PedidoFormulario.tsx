@@ -5,8 +5,29 @@ import { useActionState } from "react";
 import { crearPedido, type EstadoFormulario } from "./actions";
 
 type Opcion = { id: string; etiqueta: string };
-type ClienteOpcion = { id: string; etiqueta: string; vendedorId: string | null };
-type PresentacionOpcion = { id: string; etiqueta: string; precio: number; stock: number };
+type ClienteOpcion = { id: string; etiqueta: string; vendedorId: string | null; canal: string | null };
+type EscalonPrecio = { cantidadMinima: number; precio: number };
+type PresentacionOpcion = {
+  id: string;
+  etiqueta: string;
+  precio: number;
+  stock: number;
+  escalones: EscalonPrecio[];
+};
+
+// El escalón más alto que la cantidad alcance (o el precio base), con el
+// descuento por canal del cliente ya aplicado encima.
+function precioSugerido(
+  pres: PresentacionOpcion,
+  cantidad: number,
+  descuentoPct: number
+): number {
+  const aplicable = pres.escalones
+    .filter((e) => cantidad >= e.cantidadMinima)
+    .sort((a, b) => b.cantidadMinima - a.cantidadMinima)[0];
+  const base = aplicable ? aplicable.precio : pres.precio;
+  return Math.round(base * (1 - descuentoPct / 100) * 100) / 100;
+}
 
 type Linea = { presentacionId: string; cantidad: string; precioUnitario: string };
 
@@ -14,14 +35,21 @@ type Props = {
   clientes: ClienteOpcion[];
   vendedores: Opcion[];
   presentaciones: PresentacionOpcion[];
+  descuentoPorCanal: Record<string, number>;
 };
 
-export default function PedidoFormulario({ clientes, vendedores, presentaciones }: Props) {
+export default function PedidoFormulario({
+  clientes,
+  vendedores,
+  presentaciones,
+  descuentoPorCanal,
+}: Props) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     crearPedido,
     {}
   );
   const [vendedorId, setVendedorId] = useState("");
+  const [descuentoPct, setDescuentoPct] = useState(0);
   const [lineas, setLineas] = useState<Linea[]>([
     { presentacionId: "", cantidad: "", precioUnitario: "" },
   ]);
@@ -62,6 +90,7 @@ export default function PedidoFormulario({ clientes, vendedores, presentaciones 
             onChange={(e) => {
               const cliente = clientes.find((c) => c.id === e.target.value);
               if (cliente?.vendedorId) setVendedorId(cliente.vendedorId);
+              setDescuentoPct(cliente?.canal ? descuentoPorCanal[cliente.canal] ?? 0 : 0);
             }}
             className="campo-input"
           >
@@ -98,6 +127,12 @@ export default function PedidoFormulario({ clientes, vendedores, presentaciones 
         </label>
       </div>
 
+      {descuentoPct > 0 && (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Descuento por canal aplicado a los precios sugeridos: {descuentoPct}%
+        </p>
+      )}
+
       <div>
         <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
           Líneas del pedido
@@ -109,9 +144,12 @@ export default function PedidoFormulario({ clientes, vendedores, presentaciones 
                 value={linea.presentacionId}
                 onChange={(e) => {
                   const pres = presentaciones.find((p) => p.id === e.target.value);
+                  const cantidad = Number(linea.cantidad) || 1;
                   actualizarLinea(idx, {
                     presentacionId: e.target.value,
-                    precioUnitario: pres ? String(pres.precio) : linea.precioUnitario,
+                    precioUnitario: pres
+                      ? String(precioSugerido(pres, cantidad, descuentoPct))
+                      : linea.precioUnitario,
                   });
                 }}
                 className="campo-input flex-1"
@@ -121,7 +159,7 @@ export default function PedidoFormulario({ clientes, vendedores, presentaciones 
                 </option>
                 {presentaciones.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.etiqueta} (stock: {p.stock})
+                    {p.etiqueta} (disponible: {p.stock})
                   </option>
                 ))}
               </select>
@@ -131,7 +169,16 @@ export default function PedidoFormulario({ clientes, vendedores, presentaciones 
                 min="1"
                 placeholder="Cant."
                 value={linea.cantidad}
-                onChange={(e) => actualizarLinea(idx, { cantidad: e.target.value })}
+                onChange={(e) => {
+                  const cantidad = Number(e.target.value) || 0;
+                  const pres = presentaciones.find((p) => p.id === linea.presentacionId);
+                  actualizarLinea(idx, {
+                    cantidad: e.target.value,
+                    precioUnitario: pres
+                      ? String(precioSugerido(pres, cantidad, descuentoPct))
+                      : linea.precioUnitario,
+                  });
+                }}
                 className="campo-input w-24"
               />
               <input

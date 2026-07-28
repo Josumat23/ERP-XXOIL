@@ -28,6 +28,9 @@ function leerDatos(formData: FormData) {
   const zonaAlmacenId = String(formData.get("zonaAlmacenId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
   const requiereInspeccion = formData.get("requiereInspeccion") === "on";
+  const esRetornable = formData.get("esRetornable") === "on";
+  const montoDepositoRaw = String(formData.get("montoDeposito") ?? "").trim();
+  const montoDeposito = montoDepositoRaw ? Number(montoDepositoRaw) : null;
 
   if (!codigo || !nombre || !unidadMedida || !TIPOS_VALIDOS.includes(tipo)) {
     return { error: "Código, nombre, tipo y unidad de medida son obligatorios." } as const;
@@ -37,6 +40,9 @@ function leerDatos(formData: FormData) {
   }
   if (!Number.isFinite(costoUnitario) || costoUnitario < 0) {
     return { error: "El costo unitario debe ser un número válido." } as const;
+  }
+  if (montoDeposito !== null && (!Number.isFinite(montoDeposito) || montoDeposito < 0)) {
+    return { error: "El monto del depósito debe ser un número válido." } as const;
   }
 
   return {
@@ -52,6 +58,8 @@ function leerDatos(formData: FormData) {
       zonaAlmacenId,
       notas,
       requiereInspeccion,
+      esRetornable,
+      montoDeposito,
       moneda: "PEN",
     },
   } as const;

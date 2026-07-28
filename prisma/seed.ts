@@ -91,6 +91,7 @@ async function main() {
       nombre: "Grasa Chasis",
       descripcion: "Grasa multipropósito para chasis",
       categoriaId: grasas.id,
+      vidaUtilMeses: 24,
     },
   });
   const grasaLitio = await prisma.producto.upsert({
@@ -101,6 +102,7 @@ async function main() {
       nombre: "Grasa de Litio",
       descripcion: "Grasa a base de litio de alto desempeño",
       categoriaId: grasas.id,
+      vidaUtilMeses: 24,
     },
   });
 
@@ -137,14 +139,24 @@ async function main() {
 
   // ------------------------------------------------- kardex de stock inicial
   // Solo si el kardex está vacío, para que el historial arranque cuadrado.
+  // El almacén "PLANTA" se crea aquí de forma anticipada (idempotente: el
+  // upsert de más abajo, en la sección Almacén y zonas, no lo duplica) porque
+  // todo movimiento de kardex necesita un almacenId.
   const movimientos = await prisma.movimientoKardex.count();
   if (movimientos === 0) {
+    const plantaSemilla = await prisma.almacen.upsert({
+      where: { empresaId_codigo: { empresaId: "1", codigo: "PLANTA" } },
+      update: {},
+      create: { codigo: "PLANTA", nombre: "Planta de producción" },
+    });
+
     const presentaciones = await prisma.presentacion.findMany();
     for (const p of presentaciones) {
       const stock = p.stock.toNumber();
       if (stock > 0) {
         await prisma.movimientoKardex.create({
           data: {
+            almacenId: plantaSemilla.id,
             tipoItem: "PRESENTACION",
             presentacionId: p.id,
             tipoMovimiento: "ENTRADA",
@@ -156,6 +168,18 @@ async function main() {
             ...audit,
           },
         });
+        await prisma.saldoAlmacen.upsert({
+          where: {
+            almacenId_tipoItem_presentacionId_insumoId: {
+              almacenId: plantaSemilla.id,
+              tipoItem: "PRESENTACION",
+              presentacionId: p.id,
+              insumoId: null,
+            },
+          },
+          update: { cantidad: stock },
+          create: { almacenId: plantaSemilla.id, tipoItem: "PRESENTACION", presentacionId: p.id, cantidad: stock },
+        });
       }
     }
     const insumos = await prisma.insumo.findMany();
@@ -164,6 +188,7 @@ async function main() {
       if (stock > 0) {
         await prisma.movimientoKardex.create({
           data: {
+            almacenId: plantaSemilla.id,
             tipoItem: "INSUMO",
             insumoId: i.id,
             tipoMovimiento: "ENTRADA",
@@ -174,6 +199,18 @@ async function main() {
             referencia: "Carga inicial del sistema",
             ...audit,
           },
+        });
+        await prisma.saldoAlmacen.upsert({
+          where: {
+            almacenId_tipoItem_presentacionId_insumoId: {
+              almacenId: plantaSemilla.id,
+              tipoItem: "INSUMO",
+              presentacionId: null,
+              insumoId: i.id,
+            },
+          },
+          update: { cantidad: stock },
+          create: { almacenId: plantaSemilla.id, tipoItem: "INSUMO", insumoId: i.id, cantidad: stock },
         });
       }
     }
@@ -399,6 +436,12 @@ async function main() {
     { codigo: "7411", nombre: "Devoluciones y descuentos concedidos", tipo: "GASTO" },
     { codigo: "6911", nombre: "Costo de ventas — productos terminados", tipo: "GASTO" },
     { codigo: "6311", nombre: "Gastos de servicios — operativos", tipo: "GASTO" },
+    { codigo: "6814", nombre: "Depreciación — activos de producción", tipo: "GASTO" },
+    { codigo: "3913", nombre: "Depreciación acumulada — inmuebles, maquinaria y equipo", tipo: "ACTIVO" },
+    { codigo: "6353", nombre: "Mantenimiento y reparación de maquinaria y equipo", tipo: "GASTO" },
+    { codigo: "3361", nombre: "Maquinarias y equipos de explotación (costo bruto)", tipo: "ACTIVO" },
+    { codigo: "7564", nombre: "Enajenación de activos inmovilizados — ingreso", tipo: "INGRESO" },
+    { codigo: "6552", nombre: "Costo neto de enajenación de activos inmovilizados", tipo: "GASTO" },
   ];
   const cuentaPorCodigo = new Map<string, string>();
   for (const c of cuentasSemilla) {
@@ -427,6 +470,12 @@ async function main() {
     ["CAJA_BANCOS", "1041"],
     ["CUENTAS_POR_PAGAR", "4212"],
     ["DEVOLUCIONES", "7411"],
+    ["GASTO_DEPRECIACION", "6814"],
+    ["DEPRECIACION_ACUMULADA", "3913"],
+    ["GASTO_MANTENIMIENTO", "6353"],
+    ["ACTIVO_FIJO_BRUTO", "3361"],
+    ["INGRESO_VENTA_ACTIVO", "7564"],
+    ["PERDIDA_VENTA_ACTIVO", "6552"],
   ];
   for (const [clave, codigo] of controlesSemilla) {
     const cuentaId = cuentaPorCodigo.get(codigo)!;

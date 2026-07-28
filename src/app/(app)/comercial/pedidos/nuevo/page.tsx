@@ -4,16 +4,20 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PedidoFormulario from "../PedidoFormulario";
 
 export default async function NuevoPedidoPage() {
-  const [clientes, vendedores, presentaciones, pedidos] = await Promise.all([
+  const [clientes, vendedores, presentaciones, pedidos, descuentosCanal] = await Promise.all([
     prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.presentacion.findMany({
       where: { activo: true },
-      include: { producto: true },
+      include: { producto: true, escalonesPrecio: { orderBy: { cantidadMinima: "asc" } } },
       orderBy: { sku: "asc" },
     }),
     prisma.pedido.findMany({ include: { cliente: true }, orderBy: { fecha: "desc" } }),
+    prisma.descuentoCanal.findMany(),
   ]);
+  const descuentoPorCanal = Object.fromEntries(
+    descuentosCanal.map((d) => [d.canal, d.descuentoPct.toNumber()])
+  );
 
   return (
     <div>
@@ -40,13 +44,19 @@ export default async function NuevoPedidoPage() {
             id: c.id,
             etiqueta: c.razonSocial,
             vendedorId: c.vendedorId,
+            canal: c.canal,
           }))}
           vendedores={vendedores.map((v) => ({ id: v.id, etiqueta: v.nombre }))}
+          descuentoPorCanal={descuentoPorCanal}
           presentaciones={presentaciones.map((p) => ({
             id: p.id,
             etiqueta: `${p.producto.nombre} — ${p.nombre}`,
             precio: p.precio.toNumber(),
-            stock: p.stock.toNumber(),
+            stock: p.stock.toNumber() - p.stockReservado.toNumber(),
+            escalones: p.escalonesPrecio.map((e) => ({
+              cantidadMinima: e.cantidadMinima,
+              precio: e.precio.toNumber(),
+            })),
           }))}
         />
       </div>

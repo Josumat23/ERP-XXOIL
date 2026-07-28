@@ -75,6 +75,7 @@ export default async function EditarClientePage({
               razonSocial: cliente.razonSocial,
               nombreComercial: cliente.nombreComercial,
               ruc: cliente.ruc,
+              canal: cliente.canal,
               departamento: cliente.departamento,
               provincia: cliente.provincia,
               distrito: cliente.distrito,

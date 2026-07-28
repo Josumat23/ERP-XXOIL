@@ -16,6 +16,7 @@ type Props = {
     sku: string;
     nombre: string;
     contenidoKg: number;
+    contenidoLitros: number | null;
     precio: number;
     stock: number;
     stockMinimo: number;
@@ -96,6 +97,20 @@ export default function PresentacionFormulario({
             className="campo-input"
           />
         </Campo>
+        <Campo etiqueta="Contenido en litros (aceites/líquidos, opcional)">
+          <input
+            name="contenidoLitros"
+            type="number"
+            step="0.001"
+            min="0"
+            defaultValue={valoresIniciales?.contenidoLitros ?? ""}
+            placeholder="Solo si se vende por volumen"
+            className="campo-input"
+          />
+        </Campo>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Precio (S/)">
           <input
             name="precio"

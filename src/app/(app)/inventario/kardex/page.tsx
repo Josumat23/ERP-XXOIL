@@ -7,24 +7,26 @@ import BotonImprimir from "@/components/BotonImprimir";
 export default async function KardexPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tipo?: string; item?: string }>;
+  searchParams: Promise<{ tipo?: string; item?: string; almacenId?: string }>;
 }) {
-  const { tipo, item } = await searchParams;
+  const { tipo, item, almacenId } = await searchParams;
   const filtroTipo = tipo === "PRESENTACION" || tipo === "INSUMO" ? tipo : undefined;
 
-  const [movimientos, presentaciones, insumos] = await Promise.all([
+  const [movimientos, presentaciones, insumos, almacenes] = await Promise.all([
     prisma.movimientoKardex.findMany({
       where: {
         ...(filtroTipo ? { tipoItem: filtroTipo } : {}),
         ...(item && filtroTipo === "PRESENTACION" ? { presentacionId: item } : {}),
         ...(item && filtroTipo === "INSUMO" ? { insumoId: item } : {}),
+        ...(almacenId ? { almacenId } : {}),
       },
-      include: { presentacion: { include: { producto: true } }, insumo: true },
+      include: { presentacion: { include: { producto: true } }, insumo: true, almacen: true },
       orderBy: { creadoEn: "desc" },
       take: 200,
     }),
     prisma.presentacion.findMany({ orderBy: { sku: "asc" } }),
     prisma.insumo.findMany({ orderBy: { codigo: "asc" } }),
+    prisma.almacen.findMany({ orderBy: { codigo: "asc" } }),
   ]);
 
   return (
@@ -67,6 +69,17 @@ export default async function KardexPage({
             </optgroup>
           </select>
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Almacén</span>
+          <select name="almacenId" defaultValue={almacenId ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {almacenes.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
         <button type="submit" className="boton-secundario">
           Filtrar
         </button>
@@ -78,6 +91,7 @@ export default async function KardexPage({
             <tr>
               <th>Fecha</th>
               <th>Ítem</th>
+              <th>Almacén</th>
               <th>Origen</th>
               <th className="text-right">Cantidad</th>
               <th className="text-right">Saldo</th>
@@ -106,6 +120,7 @@ export default async function KardexPage({
                       {m.tipoItem === "PRESENTACION" ? m.presentacion?.sku : m.insumo?.codigo}
                     </span>
                   </td>
+                  <td className="text-sm text-neutral-500">{m.almacen.nombre}</td>
                   <td>
                     <span
                       className={`insignia ${
@@ -135,7 +150,7 @@ export default async function KardexPage({
             })}
             {movimientos.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-center text-neutral-500 py-6">
+                <td colSpan={8} className="text-center text-neutral-500 py-6">
                   Sin movimientos para el filtro seleccionado.
                 </td>
               </tr>

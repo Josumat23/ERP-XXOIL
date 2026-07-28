@@ -55,6 +55,11 @@ export async function resolverInspeccionCompra(
       const costo = detalle.costoUnitario.toNumber();
 
       if (resultado === "APROBADO") {
+        await tx.recepcionCompraDetalle.update({
+          where: { id: detalle.id },
+          data: { cantidadDisponible: cantidad },
+        });
+
         const stockActual = insumo.stock.toNumber();
         const costoActual = insumo.costoUnitario.toNumber();
         const nuevoCosto =

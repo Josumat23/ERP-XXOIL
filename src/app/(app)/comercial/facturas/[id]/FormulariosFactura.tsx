@@ -6,10 +6,12 @@ import {
   registrarCobro,
   crearNotaCredito,
   anularFactura,
+  registrarDevolucion,
   type EstadoFormulario,
 } from "../actions";
 
 type Serie = { id: string; serie: string; correlativoActual: number };
+type LineaDevolvible = { pedidoDetalleId: string; etiqueta: string; maxDevolvible: number };
 
 export function CobroFormulario({ facturaId, saldo }: { facturaId: string; saldo: number }) {
   const accion = registrarCobro.bind(null, facturaId);
@@ -138,6 +140,59 @@ export function AnularFacturaFormulario({ facturaId }: { facturaId: string }) {
       <p className="text-xs text-neutral-500">
         Reingresa el stock vendido al inventario y revierte la comisión completa. Solo es posible si
         la factura no tiene cobros ni notas de crédito.
+      </p>
+    </form>
+  );
+}
+
+export function DevolucionFormulario({
+  facturaId,
+  lineas,
+}: {
+  facturaId: string;
+  lineas: LineaDevolvible[];
+}) {
+  const accion = registrarDevolucion.bind(null, facturaId);
+  const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
+  const disponibles = lineas.filter((l) => l.maxDevolvible > 0);
+
+  return (
+    <form action={formAction} className="flex flex-col gap-3">
+      {estado.error && <MensajeError texto={estado.error} />}
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="flex flex-col gap-1 text-sm flex-1 min-w-56">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Línea devuelta</span>
+          <select name="pedidoDetalleId" required defaultValue="" className="campo-input">
+            <option value="" disabled>
+              Seleccione
+            </option>
+            {disponibles.map((l) => (
+              <option key={l.pedidoDetalleId} value={l.pedidoDetalleId}>
+                {l.etiqueta} (máx. {l.maxDevolvible})
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Cantidad</span>
+          <input name="cantidad" type="number" step="1" min="1" required className="campo-input w-28" />
+        </label>
+        <label className="flex flex-col gap-1 text-sm flex-1 min-w-44">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Motivo</span>
+          <input
+            name="motivo"
+            required
+            placeholder="Producto vencido, defecto, cambio..."
+            className="campo-input"
+          />
+        </label>
+        <button type="submit" disabled={enviando || disponibles.length === 0} className="boton-primario">
+          {enviando ? "Registrando..." : "Registrar devolución"}
+        </button>
+      </div>
+      <p className="text-xs text-neutral-500">
+        Reingresa el producto al inventario (kardex). No ajusta el saldo por cobrar — si además
+        corresponde devolver dinero, registre una Nota de Crédito por separado.
       </p>
     </form>
   );

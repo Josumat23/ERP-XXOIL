@@ -21,6 +21,8 @@ type Props = {
     email: string | null;
     sitioWeb: string | null;
     tasaIgv: number;
+    registroHidrocarburosOsinergmin: string | null;
+    registroHidrocarburosVigencia: string | null; // yyyy-mm-dd
     tarifaHoraManoObra: number;
     montoAprobacionCompras: number;
     montoAprobacionPagos: number;
@@ -28,6 +30,9 @@ type Props = {
     tasaCreditoCortoPlazo: number;
     limiteCreditoCortoPlazo: number;
     tasaCreditoLargoPlazo: number;
+    tasaRecargoMora: number;
+    oseProveedor: string;
+    oseToken: string | null;
   };
 };
 
@@ -77,6 +82,33 @@ export default function EmpresaFormulario({ valores }: Props) {
             />
           </Campo>
         </div>
+      </fieldset>
+
+      <fieldset className="borde-seccion">
+        <legend className="titulo-seccion">Registro de Hidrocarburos (OSINERGMIN)</legend>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Campo etiqueta="N° de registro (OPDH)">
+            <input
+              name="registroHidrocarburosOsinergmin"
+              defaultValue={valores.registroHidrocarburosOsinergmin ?? ""}
+              placeholder="RHO-..."
+              className="campo-input font-mono"
+            />
+          </Campo>
+          <Campo etiqueta="Vigente hasta">
+            <input
+              name="registroHidrocarburosVigencia"
+              type="date"
+              defaultValue={valores.registroHidrocarburosVigencia ?? ""}
+              className="campo-input"
+            />
+          </Campo>
+        </div>
+        <p className="text-xs text-neutral-500 mt-1">
+          Fabricar y comercializar lubricantes en Perú requiere inscripción en el Registro de
+          Hidrocarburos de OSINERGMIN (categoría OPDH). Referencia informativa: no bloquea ninguna
+          operación del sistema.
+        </p>
       </fieldset>
 
       <fieldset className="borde-seccion">
@@ -236,6 +268,50 @@ export default function EmpresaFormulario({ valores }: Props) {
           Orden de la cascada de financiamiento cuando una proyección necesita cubrir un déficit de
           caja: primero descuento de CxC, luego corto plazo (hasta el límite), y el resto a largo
           plazo.
+        </p>
+      </fieldset>
+
+      <fieldset className="borde-seccion">
+        <legend className="titulo-seccion">Recargo por mora</legend>
+        <Campo etiqueta="Tasa mensual sobre facturas vencidas (%, 0 = no se cobra)">
+          <input
+            name="tasaRecargoMora"
+            type="number"
+            step="0.01"
+            min="0"
+            defaultValue={valores.tasaRecargoMora}
+            className="campo-input w-40"
+          />
+        </Campo>
+        <p className="text-xs text-neutral-500 mt-1">
+          Se aplica manualmente desde el detalle de cada factura vencida — nunca de forma
+          automática — y solo cobra los días de atraso no cobrados todavía.
+        </p>
+      </fieldset>
+
+      <fieldset className="borde-seccion">
+        <legend className="titulo-seccion">Facturación electrónica SUNAT (OSE)</legend>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <Campo etiqueta="Proveedor OSE">
+            <select name="oseProveedor" defaultValue={valores.oseProveedor} className="campo-input">
+              <option value="SIMULADO">Simulado (no envía nada real)</option>
+              <option value="NUBEFACT">Nubefact</option>
+            </select>
+          </Campo>
+          <Campo etiqueta="Token del proveedor">
+            <input
+              name="oseToken"
+              type="password"
+              defaultValue={valores.oseToken ?? ""}
+              placeholder="Token que entrega el OSE al contratarlo"
+              className="campo-input"
+            />
+          </Campo>
+        </div>
+        <p className="text-xs text-neutral-500 mt-1">
+          Usa el RUC de la sección "Datos fiscales" para autenticar contra el OSE. En "Simulado" el
+          sistema completa el flujo (estado, historial) sin enviar nada real a SUNAT — útil para
+          probar antes de contratar un proveedor real.
         </p>
       </fieldset>
 

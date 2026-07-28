@@ -65,6 +65,11 @@ export default async function PresentacionesPage() {
                     {formatNumero(p.stock, 0)}
                   </span>
                   <span className="text-neutral-400"> / mín. {formatNumero(p.stockMinimo, 0)}</span>
+                  {p.stockReservado.toNumber() > 0 && (
+                    <span className="block text-xs text-amber-700 dark:text-amber-400">
+                      {formatNumero(p.stockReservado, 0)} reservado en pedidos pendientes
+                    </span>
+                  )}
                 </td>
                 <td>
                   <span

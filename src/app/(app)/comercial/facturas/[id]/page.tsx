@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import {
@@ -15,12 +16,37 @@ import {
   CobroFormulario,
   NotaCreditoFormulario,
   AnularFacturaFormulario,
+  DevolucionFormulario,
 } from "./FormulariosFactura";
+import {
+  MOTIVO_DEVOLUCION_PREFIJO,
+  aplicarRecargoMora,
+  enviarComprobanteFactura,
+  enviarComprobanteNotaCredito,
+} from "../actions";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
   PAGADA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
   ANULADA: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
+};
+
+const ETIQUETA_ESTADO_SUNAT: Record<string, string> = {
+  PENDIENTE: "Pendiente de envío",
+  ENVIADO: "Enviado, esperando confirmación",
+  ACEPTADO: "Aceptado por SUNAT",
+  RECHAZADO: "Rechazado por SUNAT",
+  OBSERVADO: "Observado por SUNAT",
+  ERROR: "Error al enviar",
+};
+
+const COLOR_ESTADO_SUNAT: Record<string, string> = {
+  PENDIENTE: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
+  ENVIADO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
+  ACEPTADO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
+  RECHAZADO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
+  OBSERVADO: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  ERROR: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
 };
 
 export default async function DetalleFacturaPage({
@@ -30,7 +56,7 @@ export default async function DetalleFacturaPage({
 }) {
   const { id } = await params;
 
-  const [factura, facturas] = await Promise.all([
+  const [factura, facturas, config] = await Promise.all([
     prisma.factura.findUnique({
       where: { id },
       include: {
@@ -41,17 +67,54 @@ export default async function DetalleFacturaPage({
         notasCredito: { orderBy: { fecha: "asc" } },
         comisiones: { orderBy: { creadoEn: "asc" } },
         guias: true,
+        recargosMora: { orderBy: { fecha: "asc" } },
       },
     }),
     prisma.factura.findMany({ include: { cliente: true }, orderBy: { fechaEmision: "desc" } }),
+    prisma.configuracionEmpresa.findUnique({ where: { id: "1" } }),
   ]);
   if (!factura) notFound();
+
+  const comprobantes = await prisma.comprobanteElectronico.findMany({
+    where: {
+      OR: [
+        { tipoDocumento: "FACTURA", documentoId: id },
+        { tipoDocumento: "NOTA_CREDITO", documentoId: { in: factura.notasCredito.map((nc) => nc.id) } },
+      ],
+    },
+  });
+  const comprobanteFactura = comprobantes.find((c) => c.tipoDocumento === "FACTURA");
+  const comprobantePorNotaCredito = new Map(
+    comprobantes.filter((c) => c.tipoDocumento === "NOTA_CREDITO").map((c) => [c.documentoId, c])
+  );
+
+  const vencida = factura.estado === "PENDIENTE" && factura.fechaVencimiento < new Date();
+  const puedeAplicarMora = vencida && (config?.tasaRecargoMora.toNumber() ?? 0) > 0;
 
   const totalNC = factura.notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
   const maximoNC = factura.total.toNumber() - totalNC;
   const puedeOperar = factura.estado !== "ANULADA";
   const sinCobrosNiNC = factura.cobros.length === 0 && factura.notasCredito.length === 0;
   const seriesNC = puedeOperar && maximoNC > 0 ? await seriesActivas("NOTA_CREDITO") : [];
+
+  // Devoluciones: cuánto de cada línea ya se devolvió, para saber cuánto falta.
+  const liberacionesPorDevolucion = await prisma.asignacionLoteVenta.findMany({
+    where: {
+      tipo: "LIBERADA",
+      motivo: { startsWith: MOTIVO_DEVOLUCION_PREFIJO },
+      pedidoDetalleId: { in: factura.pedido.detalles.map((d) => d.id) },
+    },
+    orderBy: { creadoEn: "asc" },
+  });
+  const yaDevueltoPorLinea = new Map<string, number>();
+  for (const l of liberacionesPorDevolucion) {
+    yaDevueltoPorLinea.set(l.pedidoDetalleId, (yaDevueltoPorLinea.get(l.pedidoDetalleId) ?? 0) + l.cantidad);
+  }
+  const lineasDevolvibles = factura.pedido.detalles.map((d) => ({
+    pedidoDetalleId: d.id,
+    etiqueta: `${d.presentacion.producto.nombre} — ${d.presentacion.nombre}`,
+    maxDevolvible: d.cantidad - (yaDevueltoPorLinea.get(d.id) ?? 0),
+  }));
 
   return (
     <div>
@@ -100,6 +163,44 @@ export default async function DetalleFacturaPage({
           . Motivo: {factura.motivoAnulacion}
         </p>
       )}
+
+      <div className="mt-4 flex items-center gap-3 no-imprimir">
+        <span
+          className={`insignia ${
+            COLOR_ESTADO_SUNAT[comprobanteFactura?.estado ?? "PENDIENTE"]
+          }`}
+        >
+          SUNAT: {ETIQUETA_ESTADO_SUNAT[comprobanteFactura?.estado ?? "PENDIENTE"]}
+        </span>
+        {comprobanteFactura?.sunatDescripcion && (
+          <span className="text-xs text-neutral-500">{comprobanteFactura.sunatDescripcion}</span>
+        )}
+        {comprobanteFactura?.enlacePdf && (
+          <a
+            href={comprobanteFactura.enlacePdf}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-neutral-600 dark:text-neutral-400 hover:underline"
+          >
+            Ver PDF SUNAT
+          </a>
+        )}
+        {factura.estado !== "ANULADA" &&
+          comprobanteFactura?.estado !== "ACEPTADO" &&
+          comprobanteFactura?.estado !== "OBSERVADO" && (
+          <form
+            action={async () => {
+              "use server";
+              await enviarComprobanteFactura(factura.id);
+              revalidatePath(`/comercial/facturas/${factura.id}`);
+            }}
+          >
+            <button type="submit" className="text-xs text-neutral-600 dark:text-neutral-400 hover:underline">
+              {comprobanteFactura ? "Reenviar a SUNAT" : "Enviar a SUNAT"}
+            </button>
+          </form>
+        )}
+      </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
         <Dato
@@ -238,6 +339,49 @@ export default async function DetalleFacturaPage({
         )}
       </section>
 
+      {(factura.recargosMora.length > 0 || puedeAplicarMora) && (
+        <section className="mt-8">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Recargo por mora</h2>
+          {factura.recargosMora.length > 0 && (
+            <table className="tabla mt-2">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th className="text-right">Días</th>
+                  <th className="text-right">Tasa</th>
+                  <th className="text-right">Monto</th>
+                </tr>
+              </thead>
+              <tbody>
+                {factura.recargosMora.map((r) => (
+                  <tr key={r.id}>
+                    <td className="text-xs text-neutral-500 whitespace-nowrap">
+                      {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(r.fecha)}
+                    </td>
+                    <td className="text-right">{r.diasCalculados}</td>
+                    <td className="text-right">{r.tasaAplicada.toNumber()}%/mes</td>
+                    <td className="text-right">{formatMoneda(r.monto)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {puedeAplicarMora && (
+            <form
+              action={async () => {
+                "use server";
+                await aplicarRecargoMora(factura.id);
+              }}
+              className="mt-3"
+            >
+              <button type="submit" className="boton-secundario text-xs">
+                Aplicar recargo por mora ({config?.tasaRecargoMora.toNumber()}%/mes)
+              </button>
+            </form>
+          )}
+        </section>
+      )}
+
       <section className="mt-8">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Notas de crédito</h2>
         {factura.notasCredito.length > 0 && (
@@ -249,20 +393,46 @@ export default async function DetalleFacturaPage({
                 <th>Motivo</th>
                 <th>Registrado por</th>
                 <th className="text-right">Monto</th>
+                <th className="no-imprimir">SUNAT</th>
               </tr>
             </thead>
             <tbody>
-              {factura.notasCredito.map((nc) => (
-                <tr key={nc.id}>
-                  <td className="font-mono text-xs">{nc.numero}</td>
-                  <td className="text-xs text-neutral-500 whitespace-nowrap">
-                    {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(nc.fecha)}
-                  </td>
-                  <td className="text-sm">{nc.motivo}</td>
-                  <td className="text-sm">{nc.usuarioNombre}</td>
-                  <td className="text-right">{formatMoneda(nc.monto)}</td>
-                </tr>
-              ))}
+              {factura.notasCredito.map((nc) => {
+                const comprobanteNc = comprobantePorNotaCredito.get(nc.id);
+                return (
+                  <tr key={nc.id}>
+                    <td className="font-mono text-xs">{nc.numero}</td>
+                    <td className="text-xs text-neutral-500 whitespace-nowrap">
+                      {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(nc.fecha)}
+                    </td>
+                    <td className="text-sm">{nc.motivo}</td>
+                    <td className="text-sm">{nc.usuarioNombre}</td>
+                    <td className="text-right">{formatMoneda(nc.monto)}</td>
+                    <td className="no-imprimir">
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`insignia ${COLOR_ESTADO_SUNAT[comprobanteNc?.estado ?? "PENDIENTE"]}`}
+                        >
+                          {ETIQUETA_ESTADO_SUNAT[comprobanteNc?.estado ?? "PENDIENTE"]}
+                        </span>
+                        {comprobanteNc?.estado !== "ACEPTADO" && comprobanteNc?.estado !== "OBSERVADO" && (
+                          <form
+                            action={async () => {
+                              "use server";
+                              await enviarComprobanteNotaCredito(nc.id);
+                              revalidatePath(`/comercial/facturas/${factura.id}`);
+                            }}
+                          >
+                            <button type="submit" className="text-xs text-neutral-500 hover:underline">
+                              Enviar
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -282,6 +452,43 @@ export default async function DetalleFacturaPage({
         {factura.notasCredito.length === 0 && (!puedeOperar || maximoNC === 0) && (
           <p className="text-sm text-neutral-500 mt-2">Sin notas de crédito.</p>
         )}
+      </section>
+
+      <section className="mt-8">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+          Devoluciones de mercadería
+        </h2>
+        {liberacionesPorDevolucion.length > 0 && (
+          <table className="tabla mt-2">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Motivo</th>
+                <th className="text-right">Unidades</th>
+              </tr>
+            </thead>
+            <tbody>
+              {liberacionesPorDevolucion.map((l) => (
+                <tr key={l.id}>
+                  <td className="text-xs text-neutral-500 whitespace-nowrap">
+                    {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(l.creadoEn)}
+                  </td>
+                  <td className="text-sm">{l.motivo}</td>
+                  <td className="text-right">{l.cantidad}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {puedeOperar && lineasDevolvibles.some((l) => l.maxDevolvible > 0) && (
+          <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 mt-3">
+            <DevolucionFormulario facturaId={factura.id} lineas={lineasDevolvibles} />
+          </div>
+        )}
+        {liberacionesPorDevolucion.length === 0 &&
+          (!puedeOperar || !lineasDevolvibles.some((l) => l.maxDevolvible > 0)) && (
+            <p className="text-sm text-neutral-500 mt-2">Sin devoluciones registradas.</p>
+          )}
       </section>
 
       <section className="mt-8">

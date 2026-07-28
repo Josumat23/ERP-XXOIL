@@ -20,6 +20,10 @@ type Props = {
     marca: string | null;
     gradoNlgi: string | null;
     viscosidad: string | null;
+    vidaUtilMeses: number | null;
+    segmentoMercado: string | null;
+    fichaTecnicaUrl: string | null;
+    hojaSeguridadUrl: string | null;
     notasTecnicas: string | null;
   };
   textoBoton: string;
@@ -88,6 +92,21 @@ export default function ProductoFormulario({
                     className="campo-input"
                   />
                 </Campo>
+                <Campo etiqueta="Segmento de mercado">
+                  <select
+                    name="segmentoMercado"
+                    defaultValue={valoresIniciales?.segmentoMercado ?? ""}
+                    className="campo-input"
+                  >
+                    <option value="">Sin clasificar</option>
+                    <option value="AUTOMOTRIZ">Automotriz</option>
+                    <option value="INDUSTRIAL">Industrial</option>
+                    <option value="MINERO">Minero</option>
+                    <option value="AGRICOLA">Agrícola</option>
+                    <option value="MARINO">Marino</option>
+                    <option value="OTRO">Otro</option>
+                  </select>
+                </Campo>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Campo etiqueta="Marca">
                     <input
@@ -147,6 +166,17 @@ export default function ProductoFormulario({
                     />
                   </Campo>
                 </div>
+                <Campo etiqueta="Vida útil (meses desde el envasado, vacío = no vence)">
+                  <input
+                    name="vidaUtilMeses"
+                    type="number"
+                    step="1"
+                    min="1"
+                    defaultValue={valoresIniciales?.vidaUtilMeses ?? ""}
+                    placeholder="24"
+                    className="campo-input w-32"
+                  />
+                </Campo>
                 <Campo etiqueta="Descripción comercial">
                   <textarea
                     name="descripcion"
@@ -163,6 +193,30 @@ export default function ProductoFormulario({
                     className="campo-input"
                   />
                 </Campo>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Campo etiqueta="Ficha técnica (TDS) — enlace">
+                    <input
+                      name="fichaTecnicaUrl"
+                      type="url"
+                      defaultValue={valoresIniciales?.fichaTecnicaUrl ?? ""}
+                      placeholder="https://..."
+                      className="campo-input"
+                    />
+                  </Campo>
+                  <Campo etiqueta="Hoja de seguridad (FDS/MSDS) — enlace">
+                    <input
+                      name="hojaSeguridadUrl"
+                      type="url"
+                      defaultValue={valoresIniciales?.hojaSeguridadUrl ?? ""}
+                      placeholder="https://..."
+                      className="campo-input"
+                    />
+                  </Campo>
+                </div>
+                <p className="text-xs text-neutral-500">
+                  Suba el PDF a Drive/similar y pegue aquí el enlace compartido — el sistema no
+                  almacena archivos.
+                </p>
               </div>
             ),
           },

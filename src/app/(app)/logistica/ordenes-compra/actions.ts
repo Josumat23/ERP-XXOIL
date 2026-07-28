@@ -115,7 +115,12 @@ export async function anularOrdenCompra(
   return {};
 }
 
-type LineaRecepcion = { detalleId: string; cantidad: number; costoUnitario: number };
+type LineaRecepcion = {
+  detalleId: string;
+  cantidad: number;
+  costoUnitario: number;
+  numeroLoteProveedor?: string;
+};
 
 // Recepción de mercadería: entra al kardex (origen COMPRA), actualiza el costo
 // promedio ponderado del insumo y genera la cuenta por pagar al proveedor.
@@ -202,16 +207,23 @@ export async function registrarRecepcion(
             insumoId: detalle.insumoId,
             cantidad: linea.cantidad,
             costoUnitario: costo,
+            numeroLoteProveedor: linea.numeroLoteProveedor?.trim() || null,
           },
         });
 
         const insumo = detalle.insumo;
         if (insumo.requiereInspeccion) {
-          // No suma stock ni recalcula costo promedio hasta que calidad apruebe.
+          // No suma stock ni recalcula costo promedio hasta que calidad
+          // apruebe — cantidadDisponible se activa recién ahí (ver
+          // resolverInspeccionCompra).
           await tx.inspeccionCompra.create({
             data: { recepcionCompraDetalleId: detalleRecepcion.id },
           });
         } else {
+          await tx.recepcionCompraDetalle.update({
+            where: { id: detalleRecepcion.id },
+            data: { cantidadDisponible: linea.cantidad },
+          });
           // Costo promedio ponderado ANTES de mover el stock
           const stockActual = insumo.stock.toNumber();
           const costoActual = insumo.costoUnitario.toNumber();

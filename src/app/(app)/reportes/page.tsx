@@ -16,6 +16,51 @@ const CATEGORIAS: Categoria[] = [
         titulo: "Cuentas por cobrar",
         descripcion: "Facturas pendientes de cobro, con antigüedad de vencimiento (1-15 / 16-30 / +30 días).",
       },
+      {
+        href: "/comercial/cotizaciones",
+        titulo: "Cotizaciones",
+        descripcion: "Pendientes, aceptadas, rechazadas y convertidas a pedido — tasa de conversión.",
+      },
+      {
+        href: "/comercial/cascos",
+        titulo: "Cascos pendientes",
+        descripcion: "Envases retornables entregados y no devueltos por cliente, con el depósito comprometido.",
+      },
+      {
+        href: "/comercial/descuentos-canal",
+        titulo: "Descuento por canal",
+        descripcion: "Porcentaje de descuento configurado por canal de cliente (distribuidor, mayorista, taller...).",
+      },
+    ],
+  },
+  {
+    titulo: "Inventario",
+    reportes: [
+      {
+        href: "/inventario/kardex",
+        titulo: "Kardex",
+        descripcion: "Historial de movimientos, filtrable por ítem y por almacén.",
+      },
+      {
+        href: "/inventario/traslados",
+        titulo: "Traslados entre almacenes",
+        descripcion: "Stock por almacén y movimientos de traslado recientes.",
+      },
+      {
+        href: "/inventario/conteos",
+        titulo: "Conteos cíclicos",
+        descripcion: "Historial de conteos físicos y las diferencias ajustadas contra el sistema.",
+      },
+      {
+        href: "/produccion/lotes/recall",
+        titulo: "Trazabilidad / recall",
+        descripcion: "Busca un lote granel y ve de un vistazo todos los envasados y clientes afectados.",
+      },
+      {
+        href: "/produccion/mantenimiento",
+        titulo: "Mantenimiento de planta",
+        descripcion: "Órdenes de mantenimiento preventivo y correctivo, costos y paradas de equipo.",
+      },
     ],
   },
   {
@@ -40,6 +85,11 @@ const CATEGORIAS: Categoria[] = [
         href: "/finanzas/cuentas-por-pagar",
         titulo: "Cuentas por pagar",
         descripcion: "Deudas pendientes con proveedores y pagos registrados.",
+      },
+      {
+        href: "/finanzas/activos-fijos",
+        titulo: "Activos fijos",
+        descripcion: "Costo, depreciación acumulada y valor en libros de maquinaria, vehículos y equipos.",
       },
     ],
   },

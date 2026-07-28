@@ -31,6 +31,8 @@ type Props = {
     zonaAlmacenId: string | null;
     notas: string | null;
     requiereInspeccion: boolean;
+    esRetornable: boolean;
+    montoDeposito: number | null;
   };
   textoBoton: string;
 };
@@ -216,6 +218,31 @@ export default function InsumoFormulario({
       <p className="text-xs text-neutral-500 -mt-3">
         Si está marcado, las recepciones de este insumo quedan pendientes de aprobación de calidad
         antes de sumar stock disponible.
+      </p>
+
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="esRetornable"
+          defaultChecked={valoresIniciales?.esRetornable ?? false}
+        />
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">
+          Envase retornable (con depósito)
+        </span>
+      </label>
+      <Campo etiqueta="Monto del depósito (S/, si es retornable)">
+        <input
+          name="montoDeposito"
+          type="number"
+          step="0.01"
+          min="0"
+          defaultValue={valoresIniciales?.montoDeposito ?? ""}
+          className="campo-input w-40"
+        />
+      </Campo>
+      <p className="text-xs text-neutral-500 -mt-3">
+        Ej. tambor metálico de 55 gal: el cliente paga el depósito y lo recupera al devolver el
+        casco vacío. El control de cascos pendientes por cliente se lleva manualmente por ahora.
       </p>
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">

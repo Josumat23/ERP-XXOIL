@@ -40,6 +40,15 @@ model ConfiguracionEmpresa {
   sitioWeb        String?
   moneda          String   @default("PEN")
   tasaIgv         Decimal  @default(18) // % aplicado al facturar
+  // Fabricar/comercializar lubricantes en Perú exige inscripción en el
+  // Registro de Hidrocarburos de OSINERGMIN (categoría OPDH — Otros
+  // Productos Derivados de Hidrocarburos). Referencia informativa; no
+  // bloquea ninguna operación.
+  registroHidrocarburosOsinergmin String?
+  registroHidrocarburosVigencia   DateTime?
+  // % mensual sobre el saldo vencido. 0 = no se cobra recargo por mora
+  // (default: no cambia el comportamiento hasta que el usuario lo configure).
+  tasaRecargoMora Decimal @default(0)
   tarifaHoraManoObra Decimal @default(0) // S/ por hora, usado al costear lotes y envasados
   // Aprobación por monto (0 = todo requiere aprobación siempre; un número muy
   // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
@@ -51,6 +60,13 @@ model ConfiguracionEmpresa {
   tasaCreditoCortoPlazo   Decimal @default(9)
   limiteCreditoCortoPlazo Decimal @default(100000)
   tasaCreditoLargoPlazo   Decimal @default(10)
+  // Facturación electrónica SUNAT vía OSE (Operador de Servicios Electrónicos).
+  // "SIMULADO" = no envía nada real, solo prueba el flujo interno (estado por
+  // defecto: nadie debe recibir CDR falsos por accidente antes de contratar
+  // un OSE de verdad). oseToken se guarda en texto plano a propósito: es un
+  // token de servicio para llamadas salientes, no una contraseña de usuario.
+  oseProveedor String  @default("SIMULADO")
+  oseToken     String?
   actualizadoEn   DateTime @updatedAt
 
   @@map("configuracion_empresa")
@@ -127,6 +143,18 @@ model Categoria {
   @@map("categorias")
 }
 
+// Segmento de negocio al que apunta comercialmente el producto (así organiza
+// su catálogo la competencia del rubro, ej. Vistony: automotriz/industrial/
+// minero/agrícola). No sustituye a Categoria (línea de producto interna).
+enum SegmentoMercado {
+  AUTOMOTRIZ
+  INDUSTRIAL
+  MINERO
+  AGRICOLA
+  MARINO
+  OTRO
+}
+
 model Producto {
   id               String   @id @default(cuid())
   empresaId        String   @default("1")
@@ -135,9 +163,16 @@ model Producto {
   nombre           String
   descripcion      String?
   unidadMedidaBase String   @default("kg") // UM en que se produce y controla el granel
+  segmentoMercado  SegmentoMercado?
   marca            String?
   gradoNlgi        String? // grasas: NLGI 000..6
   viscosidad       String? // aceites: ISO VG / SAE
+  vidaUtilMeses    Int? // vida útil desde el envasado; null = no vence / no se controla
+  // Enlaces a los documentos que un cliente industrial/distribuidor pide antes
+  // de comprar (alojados fuera del sistema: Drive, S3, etc. — no hay
+  // almacenamiento de archivos en esta app). null = no cargado todavía.
+  fichaTecnicaUrl    String?
+  hojaSeguridadUrl   String?
   notasTecnicas    String?
   activo           Boolean  @default(true)
   creadoEn         DateTime @default(now())
@@ -158,9 +193,17 @@ model Presentacion {
   sku           String
   nombre        String
   contenidoKg     Decimal
+  // Informativo para aceites/líquidos que se cotizan por volumen (litro,
+  // galón) en vez de por peso — el costeo de producción sigue en kg
+  // (contenidoKg), esto solo cambia cómo se muestra/imprime la presentación.
+  contenidoLitros Decimal?
   precio          Decimal
   moneda          String   @default("PEN")
   stock           Decimal  @default(0)
+  // Comprometido en pedidos PENDIENTE (aún no facturados). "Disponible para
+  // vender" = stock - stockReservado. Se libera al facturar (pasa a ser
+  // salida real de kardex) o al anular el pedido.
+  stockReservado  Decimal  @default(0)
   stockMinimo     Decimal  @default(0)
   costoPromedio   Decimal  @default(0) // costo unitario promedio ponderado (se actualiza al envasar)
   codigoBarras    String? // EAN-13
@@ -174,13 +217,32 @@ model Presentacion {
   producto       Producto           @relation(fields: [productoId], references: [id])
   zonaAlmacen    ZonaAlmacen?       @relation(fields: [zonaAlmacenId], references: [id])
   movimientos    MovimientoKardex[]
+  saldosAlmacen  SaldoAlmacen[]
   envasados      Envasado[]
   pedidoDetalles PedidoDetalle[]
   guiaDetalles   GuiaRemisionDetalle[]
   proyeccionDetalles ProyeccionDetalle[]
+  escalonesPrecio EscalonPrecio[]
+  conteoDetalles ConteoInventarioDetalle[]
+  cotizacionDetalles CotizacionDetalle[]
 
   @@unique([empresaId, sku])
   @@map("presentaciones")
+}
+
+// Precio por volumen: a partir de cantidadMinima unidades en una misma línea
+// de pedido, se sugiere este precio en vez del precio base de la
+// Presentación. Se aplica el escalón más alto que la cantidad alcance.
+model EscalonPrecio {
+  id             String  @id @default(cuid())
+  presentacionId String
+  cantidadMinima Int
+  precio         Decimal
+
+  presentacion Presentacion @relation(fields: [presentacionId], references: [id])
+
+  @@unique([presentacionId, cantidadMinima])
+  @@map("escalones_precio")
 }
 
 model Proveedor {
@@ -222,6 +284,12 @@ model Insumo {
   nombre        String
   tipo            TipoInsumo
   unidadMedida    String
+  // Envases retornables (ej. tambor metálico de 55 gal): el cliente paga un
+  // depósito y lo recupera al devolver el casco vacío. Solo aplica cuando
+  // tipo = ENVASE. El control de cascos pendientes por cliente es manual por
+  // ahora (no hay todavía un módulo de seguimiento automático).
+  esRetornable    Boolean    @default(false)
+  montoDeposito   Decimal?
   stock           Decimal    @default(0)
   stockMinimo     Decimal    @default(0)
   costoUnitario   Decimal    @default(0)
@@ -237,13 +305,42 @@ model Insumo {
   proveedor       Proveedor?         @relation(fields: [proveedorId], references: [id])
   zonaAlmacen     ZonaAlmacen?       @relation(fields: [zonaAlmacenId], references: [id])
   movimientos     MovimientoKardex[]
+  saldosAlmacen   SaldoAlmacen[]
   formulaDetalles FormulaDetalle[]
   envasadoInsumos EnvasadoInsumo[]
   ordenCompraDetalles OrdenCompraDetalle[]
   recepcionDetalles   RecepcionCompraDetalle[]
+  conteoDetalles      ConteoInventarioDetalle[]
+  movimientosCasco    MovimientoCasco[]
+  repuestosMantenimiento RepuestoOrdenMantenimiento[]
 
   @@unique([empresaId, codigo])
   @@map("insumos")
+}
+
+enum TipoMovimientoCasco {
+  ENTREGADO // se le entregó el envase retornable al cliente (con su depósito)
+  DEVUELTO // el cliente devolvió el casco vacío
+}
+
+// Ledger manual (no se deriva automáticamente de las ventas: un envasado no
+// siempre implica un casco nuevo entregado, podría ser un refill de uno que
+// el cliente ya tiene). Pendiente por (cliente, insumo) = ENTREGADO − DEVUELTO.
+model MovimientoCasco {
+  id            String              @id @default(cuid())
+  clienteId     String
+  insumoId      String
+  tipo          TipoMovimientoCasco
+  cantidad      Int
+  fecha         DateTime            @default(now())
+  referencia    String? // factura/guía asociada, opcional
+  usuarioId     String
+  usuarioNombre String
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+  insumo  Insumo  @relation(fields: [insumoId], references: [id])
+
+  @@map("movimientos_casco")
 }
 
 // ---------------------------------------------------------------------------
@@ -267,6 +364,8 @@ enum OrigenMovimiento {
   ENVASADO // consumo de envases/etiquetas y entrada de presentaciones
   VENTA
   ANULACION_VENTA
+  DEVOLUCION_CLIENTE // el cliente devuelve mercadería físicamente (no es anulación ni NC)
+  TRASLADO // movimiento entre dos almacenes: una SALIDA en el origen + una ENTRADA en el destino
   AJUSTE // regularización manual: motivo obligatorio
 }
 
@@ -274,25 +373,86 @@ model MovimientoKardex {
   id             String           @id @default(cuid())
   empresaId      String           @default("1")
   fecha          DateTime         @default(now())
+  almacenId      String
   tipoItem       TipoItemKardex
   presentacionId String?
   insumoId       String?
   tipoMovimiento TipoMovimiento
   origen         OrigenMovimiento
   cantidad       Decimal // siempre positiva; el signo lo da tipoMovimiento
-  saldoAnterior  Decimal
+  saldoAnterior  Decimal // saldo DEL ALMACÉN indicado (no el total de la empresa)
   saldoNuevo     Decimal
   motivo         String? // obligatorio cuando origen = AJUSTE
-  referencia     String? // código de lote, envasado, factura, etc.
+  referencia     String? // código de lote, envasado, factura, traslado, etc.
   usuarioId      String
   usuarioNombre  String
   creadoEn       DateTime         @default(now())
 
+  almacen      Almacen       @relation(fields: [almacenId], references: [id])
   presentacion Presentacion? @relation(fields: [presentacionId], references: [id])
   insumo       Insumo?       @relation(fields: [insumoId], references: [id])
 
   @@index([tipoItem, presentacionId, insumoId])
+  @@index([almacenId, tipoItem, presentacionId, insumoId])
   @@map("movimientos_kardex")
+}
+
+// Saldo de stock por almacén (la "verdad" granular); Presentacion.stock e
+// Insumo.stock siguen existiendo como el total agregado de todos los
+// almacenes, mantenido en sincronía en la misma transacción que este saldo.
+model SaldoAlmacen {
+  id             String         @id @default(cuid())
+  almacenId      String
+  tipoItem       TipoItemKardex
+  presentacionId String?
+  insumoId       String?
+  cantidad       Decimal        @default(0)
+  actualizadoEn  DateTime       @updatedAt
+
+  almacen      Almacen       @relation(fields: [almacenId], references: [id])
+  presentacion Presentacion? @relation(fields: [presentacionId], references: [id])
+  insumo       Insumo?       @relation(fields: [insumoId], references: [id])
+
+  @@unique([almacenId, tipoItem, presentacionId, insumoId])
+  @@map("saldos_almacen")
+}
+
+// ---------------------------------------------------------------------------
+// INVENTARIO — CONTEO CÍCLICO (proceso estructurado, en vez de ajustes sueltos)
+// ---------------------------------------------------------------------------
+
+// Un conteo cíclico se registra ya cerrado: se cuenta físicamente, se anota
+// lo contado y al guardar se generan los AJUSTE de kardex necesarios para
+// las líneas con diferencia. No hay estado "abierto" — es un proceso de un
+// solo paso (contar → guardar → se ajusta solo).
+model ConteoInventario {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  codigo        String   @unique // CI-00001
+  fecha         DateTime @default(now())
+  usuarioId     String
+  usuarioNombre String
+
+  detalles ConteoInventarioDetalle[]
+
+  @@map("conteos_inventario")
+}
+
+model ConteoInventarioDetalle {
+  id              String         @id @default(cuid())
+  conteoId        String
+  tipoItem        TipoItemKardex
+  presentacionId  String?
+  insumoId        String?
+  cantidadSistema Decimal // stock según el sistema al momento del conteo
+  cantidadContada Decimal // lo contado físicamente
+  diferencia      Decimal // cantidadContada - cantidadSistema
+
+  conteo       ConteoInventario @relation(fields: [conteoId], references: [id])
+  presentacion Presentacion?    @relation(fields: [presentacionId], references: [id])
+  insumo       Insumo?          @relation(fields: [insumoId], references: [id])
+
+  @@map("conteo_inventario_detalles")
 }
 
 // ---------------------------------------------------------------------------
@@ -343,6 +503,11 @@ model LoteGranel {
   empresaId     String     @default("1")
   codigo        String     @unique // LG-00001
   formulaId     String
+  // Si este lote reprocesa un lote rechazado por calidad, referencia de dónde
+  // viene (trazabilidad de la no conformidad). No transfiere kg/costo
+  // automáticamente: el nuevo lote consume su propia fórmula igual que
+  // cualquier otro; esto solo documenta el origen para auditoría.
+  loteOrigenId  String?
   kgObjetivo    Decimal
   kgProducidos  Decimal    @default(0)
   mermaKg       Decimal    @default(0)
@@ -359,8 +524,11 @@ model LoteGranel {
   usuarioNombre String
 
   formula        Formula         @relation(fields: [formulaId], references: [id])
+  loteOrigen     LoteGranel?     @relation("Reproceso", fields: [loteOrigenId], references: [id])
+  reprocesos     LoteGranel[]    @relation("Reproceso")
   controlCalidad ControlCalidad?
   envasados      Envasado[]
+  asignacionesLoteInsumo AsignacionLoteInsumo[]
 
   @@map("lotes_granel")
 }
@@ -375,6 +543,10 @@ model ControlCalidad {
   loteGranelId  String           @unique
   resultado     ResultadoCalidad
   observaciones String?
+  // No conformidad (solo cuando resultado = RECHAZADO): por qué falló y qué
+  // se hizo al respecto (reproceso, descarte, ajuste de fórmula, etc.).
+  causaRaiz        String?
+  accionCorrectiva String?
   fecha         DateTime         @default(now())
   usuarioId     String
   usuarioNombre String
@@ -395,20 +567,55 @@ model Envasado {
   loteGranelId   String
   presentacionId String
   unidades       Int
+  // Unidades de este lote de envasado que todavía no se asignaron a ninguna
+  // venta (arranca en `unidades`, baja al facturar y sube si se anula/
+  // devuelve). Permite trazar, ante un recall, qué facturas/clientes
+  // recibieron un lote específico (ver AsignacionLoteVenta).
+  unidadesDisponibles Int @default(0)
   kgConsumidos   Decimal // unidades * contenidoKg de la presentación
   horasManoObra  Decimal  @default(0) // horas-hombre invertidas en el envasado
   costoManoObra  Decimal  @default(0) // horasManoObra * tarifa vigente al envasar
   costoTotal     Decimal  @default(0) // granel consumido + envases/etiquetas + mano de obra
   costoUnitario  Decimal  @default(0) // costoTotal / unidades
   fecha          DateTime @default(now())
+  // El código del envasado (ENV-00001) YA funciona como número de lote. Esta
+  // fecha se calcula sola desde Producto.vidaUtilMeses al envasar (editable);
+  // null si el producto no tiene vida útil configurada.
+  fechaVencimiento DateTime?
   usuarioId      String
   usuarioNombre  String
 
-  loteGranel   LoteGranel       @relation(fields: [loteGranelId], references: [id])
-  presentacion Presentacion     @relation(fields: [presentacionId], references: [id])
-  insumos      EnvasadoInsumo[]
+  loteGranel        LoteGranel            @relation(fields: [loteGranelId], references: [id])
+  presentacion      Presentacion          @relation(fields: [presentacionId], references: [id])
+  insumos           EnvasadoInsumo[]
+  asignacionesLote  AsignacionLoteVenta[]
 
   @@map("envasados")
+}
+
+enum TipoAsignacionLote {
+  ASIGNADA // se vendió (facturó) esta cantidad de este lote de envasado
+  LIBERADA // se liberó por anulación de factura o devolución de mercadería
+}
+
+// Ledger inmutable (mismo patrón que Comision GENERADA/REVERSION) que
+// permite responder, ante un reclamo de calidad o un recall, "¿qué
+// facturas/clientes recibieron unidades del lote de envasado X?". El saldo
+// vigente de un PedidoDetalle en un Envasado es la suma de ASIGNADA menos
+// LIBERADA.
+model AsignacionLoteVenta {
+  id              String             @id @default(cuid())
+  pedidoDetalleId String
+  envasadoId      String
+  tipo            TipoAsignacionLote @default(ASIGNADA)
+  cantidad        Int // siempre positiva; el signo real lo da "tipo"
+  motivo          String? // ej. "Anulación factura F001-123" (null en la asignación original)
+  creadoEn        DateTime           @default(now())
+
+  pedidoDetalle PedidoDetalle @relation(fields: [pedidoDetalleId], references: [id])
+  envasado      Envasado      @relation(fields: [envasadoId], references: [id])
+
+  @@map("asignaciones_lote_venta")
 }
 
 model EnvasadoInsumo {
@@ -465,8 +672,32 @@ model Vendedor {
   comisiones        Comision[]
   hojasRuta         HojaRuta[]
   clientesAsignados Cliente[]  @relation("ClienteVendedor")
+  cotizaciones      Cotizacion[]
 
   @@map("vendedores")
+}
+
+// Canal comercial del cliente: determina el tipo de descuentos/condiciones
+// que aplican (un distribuidor mayorista no se maneja igual que un taller).
+enum CanalCliente {
+  DISTRIBUIDOR
+  MAYORISTA
+  TALLER
+  FLOTA
+  MINERA_INDUSTRIA
+  MINORISTA
+  OTRO
+}
+
+// Descuento por defecto según el canal del cliente (además del escalón por
+// volumen de EscalonPrecio). Se aplica sobre el precio ya resuelto por
+// cantidad: precioFinal = precioEscalonOBase * (1 - descuentoPct/100).
+model DescuentoCanal {
+  id           String       @id @default(cuid())
+  canal        CanalCliente @unique
+  descuentoPct Decimal      @default(0)
+
+  @@map("descuentos_canal")
 }
 
 model Cliente {
@@ -476,6 +707,7 @@ model Cliente {
   razonSocial          String
   nombreComercial      String?
   ruc                  String?
+  canal                CanalCliente?
   pais                 String        @default("Peru")
   departamento         String?
   provincia            String?
@@ -499,6 +731,8 @@ model Cliente {
   facturas         Factura[]
   guias            GuiaRemision[]
   visitas          HojaRutaVisita[]
+  cotizaciones     Cotizacion[]
+  movimientosCasco MovimientoCasco[]
 
   @@unique([empresaId, ruc])
   @@unique([empresaId, codigo])
@@ -509,6 +743,54 @@ enum EstadoPedido {
   PENDIENTE
   FACTURADO
   ANULADO
+}
+
+enum EstadoCotizacion {
+  PENDIENTE
+  ACEPTADA
+  RECHAZADA
+  VENCIDA
+  CONVERTIDA // ya generó un Pedido
+}
+
+// Cotización: etapa opcional antes del Pedido (frecuente en ventas
+// industriales/mineras donde se piden specs y precio antes de comprar). No
+// toca stock ni kardex — solo al convertirla se crea un Pedido real.
+model Cotizacion {
+  id            String           @id @default(cuid())
+  empresaId     String           @default("1")
+  numero        String           @unique // COT-00001
+  clienteId     String
+  vendedorId    String
+  fecha         DateTime         @default(now())
+  validaHasta   DateTime
+  estado        EstadoCotizacion @default(PENDIENTE)
+  total         Decimal
+  notas         String?
+  pedidoId      String?          @unique // si ya se convirtió
+  usuarioId     String
+  usuarioNombre String
+
+  cliente  Cliente             @relation(fields: [clienteId], references: [id])
+  vendedor Vendedor            @relation(fields: [vendedorId], references: [id])
+  pedido   Pedido?             @relation(fields: [pedidoId], references: [id])
+  detalles CotizacionDetalle[]
+
+  @@map("cotizaciones")
+}
+
+model CotizacionDetalle {
+  id             String  @id @default(cuid())
+  cotizacionId   String
+  presentacionId String
+  cantidad       Int
+  precioUnitario Decimal
+  subtotal       Decimal
+
+  cotizacion   Cotizacion   @relation(fields: [cotizacionId], references: [id])
+  presentacion Presentacion @relation(fields: [presentacionId], references: [id])
+
+  @@map("cotizacion_detalles")
 }
 
 model Pedido {
@@ -528,6 +810,7 @@ model Pedido {
   vendedor Vendedor        @relation(fields: [vendedorId], references: [id])
   detalles PedidoDetalle[]
   factura  Factura?
+  cotizacionOrigen Cotizacion?
 
   @@map("pedidos")
 }
@@ -543,6 +826,7 @@ model PedidoDetalle {
 
   pedido       Pedido       @relation(fields: [pedidoId], references: [id])
   presentacion Presentacion @relation(fields: [presentacionId], references: [id])
+  asignacionesLote AsignacionLoteVenta[]
 
   @@map("pedido_detalles")
 }
@@ -590,8 +874,73 @@ model Factura {
   notasCredito NotaCredito[]
   comisiones   Comision[]
   guias        GuiaRemision[]
+  recargosMora RecargoMora[]
 
   @@map("facturas")
+}
+
+// Recargo por mora sobre facturas vencidas: incrementa el saldo por cobrar
+// (nunca el total original de la factura, que refleja el valor de venta
+// emitido en SUNAT). Cada aplicación cubre solo los días transcurridos desde
+// el último recargo (o desde el vencimiento, si es el primero) — no se
+// puede duplicar el cobro de los mismos días de atraso.
+model RecargoMora {
+  id             String   @id @default(cuid())
+  facturaId      String
+  fecha          DateTime @default(now())
+  diasCalculados Int
+  tasaAplicada   Decimal // % mensual vigente al momento de aplicar
+  monto          Decimal
+  usuarioId      String
+  usuarioNombre  String
+
+  factura Factura @relation(fields: [facturaId], references: [id])
+
+  @@map("recargos_mora")
+}
+
+// --- Facturación electrónica SUNAT (vía OSE) --------------------------------
+
+enum TipoComprobanteElectronico {
+  FACTURA
+  NOTA_CREDITO
+  GUIA_REMISION
+}
+
+enum EstadoEnvioSunat {
+  PENDIENTE // aún no se intentó enviar
+  ENVIADO // se envió al OSE, esperando confirmación de SUNAT
+  ACEPTADO
+  RECHAZADO // SUNAT rechazó el comprobante (ej. datos inválidos)
+  OBSERVADO // SUNAT lo aceptó con observaciones
+  ERROR // falló la llamada al OSE (red, credenciales, etc.), no es un rechazo de SUNAT
+}
+
+// Ledger de envíos a un OSE (Operador de Servicios Electrónicos: Nubefact,
+// Bizlinks, etc.) para dar validez tributaria real a Factura/NotaCredito/
+// GuiaRemision. Independiente del documento comercial: si un envío falla o
+// queda observado, se puede reintentar sin tocar el documento original.
+// "Best-effort" igual que el motor contable: si el envío falla, el documento
+// comercial ya está creado y la operación no se bloquea.
+model ComprobanteElectronico {
+  id               String                     @id @default(cuid())
+  empresaId        String                     @default("1")
+  tipoDocumento    TipoComprobanteElectronico
+  documentoId      String
+  numeroDocumento  String // copia del numero de Factura/NotaCredito/GuiaRemision, para no resolver la relación polimórfica solo para mostrarlo
+  estado           EstadoEnvioSunat           @default(PENDIENTE)
+  proveedorOse     String // snapshot del proveedor usado en este envío (ConfiguracionEmpresa.oseProveedor al momento)
+  codigoHash       String?
+  sunatDescripcion String?
+  enlacePdf        String?
+  enlaceXml        String?
+  enlaceCdr        String?
+  intentos         Int                        @default(0)
+  ultimoIntentoEn  DateTime?
+  creadoEn         DateTime                   @default(now())
+
+  @@unique([empresaId, tipoDocumento, documentoId])
+  @@map("comprobantes_electronicos")
 }
 
 enum MedioPago {
@@ -741,12 +1090,36 @@ model RecepcionCompraDetalle {
   insumoId      String
   cantidad      Decimal
   costoUnitario Decimal // costo real de esta recepción (actualiza el promedio ponderado)
+  // Trazabilidad de materia prima: número de lote/certificado del proveedor.
+  // cantidadDisponible arranca en `cantidad` cuando el stock queda disponible
+  // (de inmediato, o al aprobar inspección de calidad) y baja según se
+  // consume en producción (ver AsignacionLoteInsumo) — mismo patrón que
+  // Envasado.unidadesDisponibles para la venta.
+  numeroLoteProveedor String?
+  cantidadDisponible  Decimal @default(0)
 
   recepcion   RecepcionCompra    @relation(fields: [recepcionId], references: [id])
   insumo      Insumo             @relation(fields: [insumoId], references: [id])
   inspeccion  InspeccionCompra?
+  asignacionesLote AsignacionLoteInsumo[]
 
   @@map("recepcion_compra_detalles")
+}
+
+// Ledger de consumo (solo ida, sin reversos: un LoteGranel no se "anula")
+// que permite responder, ante un problema de calidad de materia prima,
+// "¿qué lotes granel consumieron el lote de proveedor X?".
+model AsignacionLoteInsumo {
+  id                       String   @id @default(cuid())
+  loteGranelId             String
+  recepcionCompraDetalleId String
+  cantidad                 Decimal
+  creadoEn                 DateTime @default(now())
+
+  loteGranel             LoteGranel             @relation(fields: [loteGranelId], references: [id])
+  recepcionCompraDetalle RecepcionCompraDetalle @relation(fields: [recepcionCompraDetalleId], references: [id])
+
+  @@map("asignaciones_lote_insumo")
 }
 
 enum ResultadoInspeccion {
@@ -984,6 +1357,10 @@ model Almacen {
 
   zonas ZonaAlmacen[]
   calendarioProduccion CalendarioProduccion?
+  saldos SaldoAlmacen[]
+  movimientosKardex MovimientoKardex[]
+  activosFijos ActivoFijo[]
+  equipos Equipo[]
 
   @@unique([empresaId, codigo])
   @@map("almacenes")
@@ -1193,6 +1570,9 @@ enum OrigenAsiento {
   ANULACION_VENTA
   COMPRA
   PAGO_PROVEEDOR
+  DEPRECIACION
+  MANTENIMIENTO
+  VENTA_ACTIVO_FIJO
   REVERSO
 }
 
@@ -1250,6 +1630,148 @@ model ControlContable {
 
   @@unique([empresaId, clave])
   @@map("controles_contables")
+}
+
+// ---------------------------------------------------------------------------
+// FINANZAS — ACTIVOS FIJOS Y DEPRECIACIÓN (línea recta, la más simple y la
+// que exige la SUNAT como método por defecto salvo pedido expreso de otro).
+// ---------------------------------------------------------------------------
+
+enum CategoriaActivoFijo {
+  MAQUINARIA
+  VEHICULO
+  EQUIPO_OFICINA
+  INMUEBLE
+  OTRO
+}
+
+model ActivoFijo {
+  id                    String              @id @default(cuid())
+  empresaId             String              @default("1")
+  codigo                String // AF-00001
+  nombre                String
+  categoria             CategoriaActivoFijo
+  almacenId             String?
+  fechaAdquisicion      DateTime
+  costoAdquisicion      Decimal
+  valorResidual         Decimal             @default(0)
+  vidaUtilAnios         Int
+  // Se actualiza con cada DepreciacionActivo (nunca se edita a mano — mismo
+  // principio que el kardex: la historia se compensa, no se sobrescribe).
+  depreciacionAcumulada Decimal             @default(0)
+  activo                Boolean             @default(true) // false = dado de baja
+  fechaBaja             DateTime?
+  motivoBaja            String?
+  precioVenta           Decimal? // si se vendió el activo (no un castigo puro): precio de venta pactado
+  notas                 String?
+  usuarioId             String
+  usuarioNombre         String
+  creadoEn              DateTime            @default(now())
+
+  almacen        Almacen?             @relation(fields: [almacenId], references: [id])
+  depreciaciones DepreciacionActivo[]
+  equipo         Equipo?
+
+  @@unique([empresaId, codigo])
+  @@map("activos_fijos")
+}
+
+// Ledger inmutable de cargos de depreciación mensual — nunca se edita ni se
+// borra; @@unique evita cargar el mismo mes dos veces para el mismo activo.
+model DepreciacionActivo {
+  id           String   @id @default(cuid())
+  activoFijoId String
+  anio         Int
+  mes          Int
+  monto        Decimal
+  creadoEn     DateTime @default(now())
+
+  activoFijo ActivoFijo @relation(fields: [activoFijoId], references: [id])
+
+  @@unique([activoFijoId, anio, mes])
+  @@map("depreciaciones_activo")
+}
+
+// --- Mantenimiento de planta -------------------------------------------------
+
+// El equipo es el activo físico que se mantiene; activoFijoId es opcional y lo
+// enlaza con su registro contable/depreciación cuando corresponde (no todo
+// equipo mantenible está capitalizado, ej. equipos menores ya depreciados).
+model Equipo {
+  id           String   @id @default(cuid())
+  empresaId    String   @default("1")
+  codigo       String // EQ-00001
+  nombre       String
+  almacenId    String
+  activoFijoId String?  @unique
+  activo       Boolean  @default(true)
+  notas        String?
+  creadoEn     DateTime @default(now())
+
+  almacen              Almacen              @relation(fields: [almacenId], references: [id])
+  activoFijo           ActivoFijo?          @relation(fields: [activoFijoId], references: [id])
+  ordenesMantenimiento OrdenMantenimiento[]
+
+  @@unique([empresaId, codigo])
+  @@map("equipos")
+}
+
+enum TipoMantenimiento {
+  PREVENTIVO
+  CORRECTIVO
+}
+
+enum EstadoOrdenMantenimiento {
+  PROGRAMADA
+  EN_PROCESO
+  COMPLETADA
+  CANCELADA
+}
+
+// Al programarse (estado PROGRAMADA) bloquea los días de la ventana en el
+// CalendarioProduccion del almacén del equipo (DiaNoLaborable), para que
+// Proyecciones refleje la parada de capacidad. Al cancelarse, libera esos días.
+model OrdenMantenimiento {
+  id              String                   @id @default(cuid())
+  codigo          String                   @unique // OM-00001
+  equipoId        String
+  tipo            TipoMantenimiento
+  estado          EstadoOrdenMantenimiento @default(PROGRAMADA)
+  descripcion     String
+  fechaProgramada DateTime
+  duracionDias    Int                      @default(1)
+  fechaInicio     DateTime?
+  fechaFin        DateTime?
+  costoManoObra   Decimal                  @default(0)
+  costoRepuestos  Decimal                  @default(0)
+  observaciones   String?
+  usuarioId       String
+  usuarioNombre   String
+  creadoEn        DateTime                 @default(now())
+
+  equipo     Equipo                       @relation(fields: [equipoId], references: [id])
+  repuestos  RepuestoOrdenMantenimiento[]
+
+  @@map("ordenes_mantenimiento")
+}
+
+// Repuestos consumidos por una orden, con costo unitario "congelado" al
+// momento del consumo (igual que EnvasadoInsumo con la fórmula): si el costo
+// promedio del insumo cambia después, el histórico de esta orden no se altera.
+// Al crearse, descuenta stock real vía registrarMovimiento (origen AJUSTE),
+// así el costoRepuestos de la orden queda como la suma de estas líneas.
+model RepuestoOrdenMantenimiento {
+  id                   String   @id @default(cuid())
+  ordenMantenimientoId String
+  insumoId             String
+  cantidad             Decimal
+  costoUnitario        Decimal
+  creadoEn             DateTime @default(now())
+
+  orden  OrdenMantenimiento @relation(fields: [ordenMantenimientoId], references: [id])
+  insumo Insumo             @relation(fields: [insumoId], references: [id])
+
+  @@map("repuestos_orden_mantenimiento")
 }
 
 // ---------------------------------------------------------------------------

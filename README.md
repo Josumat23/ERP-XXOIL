@@ -11,7 +11,7 @@ Interfaz en español, moneda en soles (PEN).
 | Módulo | Contenido |
 | --- | --- |
 | **Catálogo** | Categorías, productos, presentaciones/SKU (contenido kg, precio, stock), insumos (materia prima, envases, etiquetas), proveedores |
-| **Inventario** | Kardex inmutable con saldos (nunca se edita ni borra historia), ajustes con motivo obligatorio y auditoría, alertas de stock mínimo |
+| **Inventario** | Kardex inmutable con saldos (nunca se edita ni borra historia), ajustes con motivo obligatorio y auditoría, alertas de stock mínimo, **stock por almacén** (además del total agregado) con traslados entre almacenes |
 | **Producción** | Fórmulas versionadas (sin edición: cada cambio es versión nueva) → órdenes de producción / lotes granel (consumen insumos, registran merma y costo) → control de calidad → envasados (consumen granel + envases, producen stock y calculan costo unitario) |
 | **Logística** | Órdenes de compra a proveedores (con aprobación de Gerencia por encima de un monto configurable), recepciones (parciales o totales) que alimentan el kardex y recalculan el costo promedio ponderado, guías de remisión imprimibles (formato SUNAT: transportista, placa, conductor, peso) |
 | **Comercial** | Zonas, vendedores (con básico / solo comisión, tasa individual), clientes, pedidos con detalle, facturas (número SUNAT, contado/15/30 días), cobros, notas de crédito (revierten comisión proporcional), comisiones, hojas de ruta de vendedores con registro de resultados |

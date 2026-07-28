@@ -18,6 +18,8 @@ function leerDatos(formData: FormData) {
   const razonSocial = String(formData.get("razonSocial") ?? "").trim();
   const nombreComercial = String(formData.get("nombreComercial") ?? "").trim() || null;
   const ruc = String(formData.get("ruc") ?? "").trim() || null;
+  const canalRaw = String(formData.get("canal") ?? "").trim();
+  const canal = canalRaw ? (canalRaw as $Enums.CanalCliente) : null;
   const departamento = String(formData.get("departamento") ?? "").trim() || null;
   const provincia = String(formData.get("provincia") ?? "").trim() || null;
   const distrito = String(formData.get("distrito") ?? "").trim() || null;
@@ -50,6 +52,7 @@ function leerDatos(formData: FormData) {
       razonSocial,
       nombreComercial,
       ruc,
+      canal,
       departamento,
       provincia,
       distrito,

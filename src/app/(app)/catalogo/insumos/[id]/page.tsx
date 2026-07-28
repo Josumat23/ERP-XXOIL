@@ -63,6 +63,8 @@ export default async function EditarInsumoPage({
             zonaAlmacenId: insumo.zonaAlmacenId,
             notas: insumo.notas,
             requiereInspeccion: insumo.requiereInspeccion,
+            esRetornable: insumo.esRetornable,
+            montoDeposito: insumo.montoDeposito ? insumo.montoDeposito.toNumber() : null,
           }}
           textoBoton="Guardar cambios"
         />

@@ -6,14 +6,108 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
+import { liberarAsignacionesLote } from "@/lib/trazabilidad";
+
+// Prefijo que distingue, dentro del ledger de asignación de lote, una
+// liberación por devolución física de una por anulación de factura.
+export const MOTIVO_DEVOLUCION_PREFIJO = "Devolución";
 import { avanzarSerie } from "@/lib/series";
 import {
   postearCobro,
   postearNotaCredito,
   postearAnulacionFactura,
 } from "@/lib/contabilidad";
+import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
 
 export type EstadoFormulario = { error?: string };
+
+// Arma los datos SUNAT de una factura ya creada y la envía al OSE configurado
+// (best-effort: nunca lanza). Se usa tanto al facturar un pedido como desde
+// el botón "Reenviar a SUNAT" en la ficha de la factura.
+export async function enviarComprobanteFactura(facturaId: string): Promise<void> {
+  const factura = await prisma.factura.findUnique({
+    where: { id: facturaId },
+    include: {
+      cliente: true,
+      pedido: { include: { detalles: { include: { presentacion: true } } } },
+    },
+  });
+  if (!factura) return;
+
+  const [serie, numeroStr] = factura.numero.split("-");
+  const numero = parseInt(numeroStr ?? "", 10);
+
+  await enviarComprobanteElectronico({
+    tipoDocumento: "FACTURA",
+    documentoId: factura.id,
+    numeroDocumento: factura.numero,
+    datos: {
+      tipoDocumento: "FACTURA",
+      serie: serie || factura.numero,
+      numero: Number.isFinite(numero) ? numero : 0,
+      clienteRuc: factura.cliente.ruc ?? "",
+      clienteDenominacion: factura.cliente.razonSocial,
+      clienteDireccion: factura.cliente.direccion,
+      fechaEmision: factura.fechaEmision,
+      moneda: factura.moneda,
+      totalGravada: factura.subtotal.toNumber(),
+      totalIgv: factura.igv.toNumber(),
+      total: factura.total.toNumber(),
+      items: factura.pedido.detalles.map((d) => ({
+        descripcion: d.presentacion.nombre,
+        unidadMedida: "NIU",
+        cantidad: d.cantidad,
+        valorUnitario: d.precioUnitario.toNumber(),
+      })),
+    },
+  });
+}
+
+// Arma los datos SUNAT de una nota de crédito ya creada y la envía al OSE.
+export async function enviarComprobanteNotaCredito(notaCreditoId: string): Promise<void> {
+  const nc = await prisma.notaCredito.findUnique({
+    where: { id: notaCreditoId },
+    include: { factura: { include: { cliente: true } } },
+  });
+  if (!nc) return;
+
+  const [serie, numeroStr] = nc.numero.split("-");
+  const numero = parseInt(numeroStr ?? "", 10);
+  const [facturaSerie, facturaNumeroStr] = nc.factura.numero.split("-");
+
+  const montoBase = nc.monto.toNumber() / (1 + nc.factura.tasaIgv.toNumber() / 100);
+  const montoIgv = nc.monto.toNumber() - montoBase;
+
+  await enviarComprobanteElectronico({
+    tipoDocumento: "NOTA_CREDITO",
+    documentoId: nc.id,
+    numeroDocumento: nc.numero,
+    datos: {
+      tipoDocumento: "NOTA_CREDITO",
+      serie: serie || nc.numero,
+      numero: Number.isFinite(numero) ? numero : 0,
+      clienteRuc: nc.factura.cliente.ruc ?? "",
+      clienteDenominacion: nc.factura.cliente.razonSocial,
+      clienteDireccion: nc.factura.cliente.direccion,
+      fechaEmision: nc.fecha,
+      moneda: nc.factura.moneda,
+      totalGravada: montoBase,
+      totalIgv: montoIgv,
+      total: nc.monto.toNumber(),
+      items: [
+        {
+          descripcion: nc.motivo,
+          unidadMedida: "NIU",
+          cantidad: 1,
+          valorUnitario: montoBase,
+        },
+      ],
+      facturaAfectadaSerie: facturaSerie || nc.factura.numero,
+      facturaAfectadaNumero: facturaNumeroStr || "",
+      motivo: nc.motivo,
+    },
+  });
+}
 
 const MEDIOS_VALIDOS: $Enums.MedioPago[] = [
   "EFECTIVO",
@@ -129,6 +223,7 @@ export async function crearNotaCredito(
   if (!Number.isFinite(monto) || monto <= 0) return { error: "El monto debe ser mayor a 0." };
   if (!motivo) return { error: "El motivo es obligatorio." };
 
+  let notaCreditoId = "";
   try {
     await prisma.$transaction(async (tx) => {
       const factura = await tx.factura.findUnique({
@@ -146,7 +241,7 @@ export async function crearNotaCredito(
         );
       }
 
-      await tx.notaCredito.create({
+      const nc = await tx.notaCredito.create({
         data: {
           numero,
           facturaId,
@@ -156,6 +251,7 @@ export async function crearNotaCredito(
           usuarioNombre: auth.usuario.nombre,
         },
       });
+      notaCreditoId = nc.id;
 
       // El saldo por cobrar baja hasta un mínimo de cero.
       const nuevoSaldo = Math.max(0, factura.saldo.toNumber() - monto);
@@ -204,6 +300,8 @@ export async function crearNotaCredito(
     if (e instanceof Error) return { error: e.message };
     throw e;
   }
+
+  await enviarComprobanteNotaCredito(notaCreditoId);
 
   revalidatePath(`/comercial/facturas/${facturaId}`);
   revalidatePath("/comercial/facturas");
@@ -261,6 +359,11 @@ export async function anularFactura(
           usuarioNombre: auth.usuario.nombre,
         });
         if (!mov.ok) throw new Error(mov.error);
+
+        await liberarAsignacionesLote(tx, {
+          pedidoDetalleId: d.id,
+          motivo: `Anulación factura ${factura.numero}`,
+        });
       }
 
       // Reversión total de la comisión generada
@@ -325,5 +428,139 @@ export async function anularFactura(
   revalidatePath("/comercial/facturas");
   revalidatePath("/comercial/pedidos");
   revalidatePath("/comercial/comisiones");
+  return {};
+}
+
+// Devolución física de mercadería: reingresa stock al kardex y libera la
+// asignación de lote correspondiente. A diferencia de la Nota de Crédito
+// (que solo ajusta dinero/comisión) y de la Anulación (que revierte TODO),
+// esto es una cantidad parcial que no toca el saldo por cobrar — si además
+// corresponde devolver dinero, se registra una Nota de Crédito aparte.
+export async function registrarDevolucion(
+  facturaId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
+
+  const pedidoDetalleId = String(formData.get("pedidoDetalleId") ?? "");
+  const cantidad = Number(formData.get("cantidad"));
+  const motivo = String(formData.get("motivo") ?? "").trim();
+
+  if (!pedidoDetalleId) return { error: "Seleccione la línea a devolver." };
+  if (!Number.isInteger(cantidad) || cantidad <= 0) {
+    return { error: "La cantidad debe ser un entero mayor a 0." };
+  }
+  if (!motivo) return { error: "El motivo es obligatorio." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const factura = await tx.factura.findUnique({ where: { id: facturaId } });
+      if (!factura) throw new Error("La factura no existe.");
+      if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
+
+      const detalle = await tx.pedidoDetalle.findUnique({ where: { id: pedidoDetalleId } });
+      if (!detalle || detalle.pedidoId !== factura.pedidoId) {
+        throw new Error("La línea seleccionada no pertenece a esta factura.");
+      }
+
+      const liberacionesPrevias = await tx.asignacionLoteVenta.findMany({
+        where: { pedidoDetalleId, tipo: "LIBERADA", motivo: { startsWith: MOTIVO_DEVOLUCION_PREFIJO } },
+      });
+      const yaDevuelto = liberacionesPrevias.reduce((acc, l) => acc + l.cantidad, 0);
+      const maxDevolvible = detalle.cantidad - yaDevuelto;
+      if (cantidad > maxDevolvible) {
+        throw new Error(
+          `Solo puede devolver hasta ${maxDevolvible} unidad(es) de esta línea (ya se devolvieron ${yaDevuelto} de ${detalle.cantidad}).`
+        );
+      }
+
+      const mov = await registrarMovimiento(tx, {
+        tipoItem: "PRESENTACION",
+        presentacionId: detalle.presentacionId,
+        tipoMovimiento: "ENTRADA",
+        origen: "DEVOLUCION_CLIENTE",
+        cantidad,
+        motivo,
+        referencia: `Devolución factura ${factura.numero}`,
+        usuarioId: auth.usuario.id,
+        usuarioNombre: auth.usuario.nombre,
+      });
+      if (!mov.ok) throw new Error(mov.error);
+
+      await liberarAsignacionesLote(tx, {
+        pedidoDetalleId,
+        cantidad,
+        motivo: `${MOTIVO_DEVOLUCION_PREFIJO} factura ${factura.numero}: ${motivo}`,
+      });
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath(`/comercial/facturas/${facturaId}`);
+  revalidatePath("/inventario/kardex");
+  return {};
+}
+
+// Recargo por mora: solo cubre los días transcurridos desde el último
+// recargo aplicado (o desde el vencimiento, si es el primero) — nunca se
+// puede duplicar el cobro de los mismos días. Incrementa el saldo por
+// cobrar, no el total original de la factura (valor de venta emitido).
+export async function aplicarRecargoMora(facturaId: string): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const factura = await tx.factura.findUnique({
+        where: { id: facturaId },
+        include: { recargosMora: { orderBy: { fecha: "desc" }, take: 1 } },
+      });
+      if (!factura) throw new Error("La factura no existe.");
+      if (factura.estado !== "PENDIENTE") throw new Error("Solo aplica a facturas pendientes.");
+
+      const hoy = new Date();
+      if (factura.fechaVencimiento >= hoy) throw new Error("La factura todavía no está vencida.");
+
+      const config = await tx.configuracionEmpresa.findUniqueOrThrow({ where: { id: "1" } });
+      const tasa = config.tasaRecargoMora.toNumber();
+      if (tasa <= 0) throw new Error("La tasa de recargo por mora no está configurada (Configuración → Empresa).");
+
+      const desde = factura.recargosMora[0]?.fecha ?? factura.fechaVencimiento;
+      const diasCalculados = Math.floor((hoy.getTime() - desde.getTime()) / (24 * 60 * 60 * 1000));
+      if (diasCalculados <= 0) throw new Error("Ya se cobró el recargo hasta el día de hoy.");
+
+      const monto = factura.saldo.toNumber() * (tasa / 100) * (diasCalculados / 30);
+
+      await tx.recargoMora.create({
+        data: {
+          facturaId,
+          diasCalculados,
+          tasaAplicada: tasa,
+          monto,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+      await tx.factura.update({
+        where: { id: facturaId },
+        data: { saldo: { increment: monto } },
+      });
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath(`/comercial/facturas/${facturaId}`);
   return {};
 }

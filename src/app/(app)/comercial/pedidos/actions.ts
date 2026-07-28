@@ -7,10 +7,12 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
+import { asignarLoteVenta } from "@/lib/trazabilidad";
 import { siguienteNumeroPedido } from "@/lib/correlativos";
 import { DIAS_CONDICION } from "@/lib/etiquetas";
 import { avanzarSerie } from "@/lib/series";
 import { postearVenta } from "@/lib/contabilidad";
+import { enviarComprobanteFactura } from "@/app/(app)/comercial/facturas/actions";
 
 export type EstadoFormulario = { error?: string };
 
@@ -52,30 +54,52 @@ export async function crearPedido(
   }
 
   let pedidoId = "";
-  await prisma.$transaction(async (tx) => {
-    const numero = await siguienteNumeroPedido(tx);
-    const total = lineas.reduce((acc, l) => acc + l.cantidad * l.precioUnitario, 0);
-    const pedido = await tx.pedido.create({
-      data: {
-        numero,
-        clienteId,
-        vendedorId,
-        total,
-        notas,
-        usuarioId: auth.usuario.id,
-        usuarioNombre: auth.usuario.nombre,
-        detalles: {
-          create: lineas.map((l) => ({
-            presentacionId: l.presentacionId,
-            cantidad: l.cantidad,
-            precioUnitario: l.precioUnitario,
-            subtotal: l.cantidad * l.precioUnitario,
-          })),
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Reserva de stock: un pedido pendiente compromete stock disponible
+      // para que dos vendedores no ofrezcan lo mismo dos veces antes de
+      // facturar. Se libera al anular o al facturar (kardex real).
+      for (const l of lineas) {
+        const presentacion = await tx.presentacion.findUniqueOrThrow({ where: { id: l.presentacionId } });
+        const disponible = presentacion.stock.toNumber() - presentacion.stockReservado.toNumber();
+        if (l.cantidad > disponible) {
+          throw new Error(
+            `Stock disponible insuficiente de "${presentacion.nombre}": disponible ${disponible} (ya hay reservas de otros pedidos pendientes), se pide ${l.cantidad}.`
+          );
+        }
+        await tx.presentacion.update({
+          where: { id: l.presentacionId },
+          data: { stockReservado: { increment: l.cantidad } },
+        });
+      }
+
+      const numero = await siguienteNumeroPedido(tx);
+      const total = lineas.reduce((acc, l) => acc + l.cantidad * l.precioUnitario, 0);
+      const pedido = await tx.pedido.create({
+        data: {
+          numero,
+          clienteId,
+          vendedorId,
+          total,
+          notas,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+          detalles: {
+            create: lineas.map((l) => ({
+              presentacionId: l.presentacionId,
+              cantidad: l.cantidad,
+              precioUnitario: l.precioUnitario,
+              subtotal: l.cantidad * l.precioUnitario,
+            })),
+          },
         },
-      },
+      });
+      pedidoId = pedido.id;
     });
-    pedidoId = pedido.id;
-  });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
 
   revalidatePath("/comercial/pedidos");
   redirect(`/comercial/pedidos/${pedidoId}`);
@@ -86,10 +110,21 @@ export async function anularPedido(id: string) {
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
 
-  const pedido = await prisma.pedido.findUnique({ where: { id } });
-  if (!pedido || pedido.estado !== "PENDIENTE") return;
+  await prisma.$transaction(async (tx) => {
+    const pedido = await tx.pedido.findUnique({ where: { id }, include: { detalles: true } });
+    if (!pedido || pedido.estado !== "PENDIENTE") return;
 
-  await prisma.pedido.update({ where: { id }, data: { estado: "ANULADO" } });
+    // Libera la reserva de stock (el pedido nunca llegó a facturarse).
+    for (const d of pedido.detalles) {
+      await tx.presentacion.update({
+        where: { id: d.presentacionId },
+        data: { stockReservado: { decrement: d.cantidad } },
+      });
+    }
+
+    await tx.pedido.update({ where: { id }, data: { estado: "ANULADO" } });
+  });
+
   revalidatePath("/comercial/pedidos");
   revalidatePath(`/comercial/pedidos/${id}`);
 }
@@ -203,6 +238,19 @@ export async function facturarPedido(
           usuarioNombre: auth.usuario.nombre,
         });
         if (!mov.ok) throw new Error(mov.error);
+
+        // Trazabilidad: qué lote(s) de envasado cubrieron esta venta (FIFO).
+        await asignarLoteVenta(tx, {
+          pedidoDetalleId: d.id,
+          presentacionId: d.presentacionId,
+          cantidad: d.cantidad,
+        });
+
+        // La reserva ya cumplió su propósito: el stock se descontó de verdad arriba.
+        await tx.presentacion.update({
+          where: { id: d.presentacionId },
+          data: { stockReservado: { decrement: d.cantidad } },
+        });
       }
 
       // Comisión generada con la tasa vigente del vendedor, sobre la base
@@ -243,6 +291,10 @@ export async function facturarPedido(
     if (e instanceof Error) return { error: e.message };
     throw e;
   }
+
+  // Envío al OSE fuera de la transacción (llamada de red): best-effort, si
+  // falla la factura ya quedó creada y se puede reintentar desde su ficha.
+  await enviarComprobanteFactura(facturaId);
 
   revalidatePath("/comercial/pedidos");
   revalidatePath("/comercial/facturas");

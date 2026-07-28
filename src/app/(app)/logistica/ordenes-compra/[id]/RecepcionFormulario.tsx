@@ -19,12 +19,14 @@ export default function RecepcionFormulario({ ordenCompraId, pendientes }: Props
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
   const [cantidades, setCantidades] = useState<Record<string, string>>({});
   const [costos, setCostos] = useState<Record<string, string>>({});
+  const [lotes, setLotes] = useState<Record<string, string>>({});
 
   const lineasJson = JSON.stringify(
     pendientes.map((p) => ({
       detalleId: p.detalleId,
       cantidad: Number(cantidades[p.detalleId] ?? 0),
       costoUnitario: Number(costos[p.detalleId] ?? p.costoUnitario),
+      numeroLoteProveedor: lotes[p.detalleId] ?? "",
     }))
   );
 
@@ -43,6 +45,7 @@ export default function RecepcionFormulario({ ordenCompraId, pendientes }: Props
             <th className="text-right">Pendiente</th>
             <th className="text-right">Cant. recibida</th>
             <th className="text-right">Costo unit. real (S/)</th>
+            <th>Lote del proveedor</th>
           </tr>
         </thead>
         <tbody>
@@ -75,6 +78,14 @@ export default function RecepcionFormulario({ ordenCompraId, pendientes }: Props
                     setCostos((prev) => ({ ...prev, [p.detalleId]: e.target.value }))
                   }
                   className="campo-input w-28 text-right"
+                />
+              </td>
+              <td>
+                <input
+                  value={lotes[p.detalleId] ?? ""}
+                  onChange={(e) => setLotes((prev) => ({ ...prev, [p.detalleId]: e.target.value }))}
+                  placeholder="Opcional"
+                  className="campo-input w-32 font-mono text-xs"
                 />
               </td>
             </tr>

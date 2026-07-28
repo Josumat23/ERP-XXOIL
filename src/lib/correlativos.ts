@@ -42,3 +42,40 @@ export async function siguienteCodigoCliente(tx: Tx): Promise<string> {
   const ultimo = await tx.cliente.findFirst({ orderBy: { codigo: "desc" } });
   return siguiente("CLI", ultimo?.codigo ?? null);
 }
+
+// El traslado no tiene tabla propia (son dos MovimientoKardex con la misma
+// referencia): el correlativo se calcula contando cuántas referencias
+// "TR-" distintas ya existen en el kardex.
+export async function siguienteCodigoTraslado(tx: Tx): Promise<string> {
+  const ultimo = await tx.movimientoKardex.findFirst({
+    where: { origen: "TRASLADO", referencia: { startsWith: "TR-" } },
+    orderBy: { referencia: "desc" },
+    select: { referencia: true },
+  });
+  return siguiente("TR", ultimo?.referencia ?? null);
+}
+
+export async function siguienteCodigoConteo(tx: Tx): Promise<string> {
+  const ultimo = await tx.conteoInventario.findFirst({ orderBy: { codigo: "desc" } });
+  return siguiente("CI", ultimo?.codigo ?? null);
+}
+
+export async function siguienteNumeroCotizacion(tx: Tx): Promise<string> {
+  const ultimo = await tx.cotizacion.findFirst({ orderBy: { numero: "desc" } });
+  return siguiente("COT", ultimo?.numero ?? null);
+}
+
+export async function siguienteCodigoActivoFijo(tx: Tx): Promise<string> {
+  const ultimo = await tx.activoFijo.findFirst({ orderBy: { codigo: "desc" } });
+  return siguiente("AF", ultimo?.codigo ?? null);
+}
+
+export async function siguienteCodigoEquipo(tx: Tx): Promise<string> {
+  const ultimo = await tx.equipo.findFirst({ orderBy: { codigo: "desc" } });
+  return siguiente("EQ", ultimo?.codigo ?? null);
+}
+
+export async function siguienteCodigoOrdenMantenimiento(tx: Tx): Promise<string> {
+  const ultimo = await tx.ordenMantenimiento.findFirst({ orderBy: { codigo: "desc" } });
+  return siguiente("OM", ultimo?.codigo ?? null);
+}

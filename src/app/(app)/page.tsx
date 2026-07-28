@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { formatMoneda, formatNumero } from "@/lib/format";
+import { formatMoneda, formatNumero, formatFecha } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import GraficoLinea from "@/components/GraficoLinea";
@@ -35,6 +35,11 @@ export default async function PanelPage() {
     cuentasPorPagarPendientes,
     asientoDetalles,
     clientesActivosCount,
+    envasadosPorVencer,
+    cotizacionesPorVencer,
+    conteosRecientes,
+    movimientosCasco,
+    ordenesMantenimientoPendientes,
   ] = await Promise.all([
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicioRango } },
@@ -70,7 +75,68 @@ export default async function PanelPage() {
     prisma.cuentaPorPagar.findMany({ where: { estado: "PENDIENTE" }, include: { proveedor: true } }),
     prisma.asientoDetalle.findMany({ include: { cuenta: true } }),
     prisma.cliente.count({ where: { activo: true } }),
+    prisma.envasado.findMany({
+      where: {
+        unidadesDisponibles: { gt: 0 },
+        fechaVencimiento: { lte: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 60) },
+      },
+      include: { presentacion: { include: { producto: true } } },
+      orderBy: { fechaVencimiento: "asc" },
+    }),
+    prisma.cotizacion.findMany({
+      where: {
+        estado: "PENDIENTE",
+        validaHasta: { lte: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 7) },
+      },
+      include: { cliente: true },
+      orderBy: { validaHasta: "asc" },
+    }),
+    prisma.conteoInventario.findMany({
+      where: { fecha: { gte: new Date(hoy.getFullYear(), hoy.getMonth() - 2, hoy.getDate()) } },
+      include: { detalles: { include: { presentacion: true, insumo: true } } },
+      orderBy: { fecha: "desc" },
+    }),
+    prisma.movimientoCasco.findMany({ include: { insumo: true } }),
+    prisma.ordenMantenimiento.findMany({
+      where: { estado: { in: ["PROGRAMADA", "EN_PROCESO"] } },
+      include: { equipo: true },
+      orderBy: { fechaProgramada: "asc" },
+    }),
   ]);
+
+  // Conteos con diferencia grande (posible merma/robo): >= 10% del saldo del
+  // sistema, o stock encontrado donde el sistema no tenía nada.
+  const diferenciasGrandes = conteosRecientes.flatMap((c) =>
+    c.detalles
+      .filter((d) => {
+        const sistema = d.cantidadSistema.toNumber();
+        const diferencia = Math.abs(d.diferencia.toNumber());
+        if (diferencia <= 0) return false;
+        return sistema > 0 ? diferencia / sistema >= 0.1 : true;
+      })
+      .map((d) => ({
+        conteoCodigo: c.codigo,
+        nombreItem: d.tipoItem === "PRESENTACION" ? d.presentacion?.nombre ?? "" : d.insumo?.nombre ?? "",
+        diferencia: d.diferencia.toNumber(),
+      }))
+  );
+
+  // Depósito total comprometido en cascos: neto (ENTREGADO − DEVUELTO) por
+  // insumo retornable, sin desglosar por cliente (esto es solo el KPI).
+  const netoCascoPorInsumo = new Map<string, number>();
+  for (const m of movimientosCasco) {
+    const actual = netoCascoPorInsumo.get(m.insumoId) ?? 0;
+    netoCascoPorInsumo.set(m.insumoId, actual + (m.tipo === "ENTREGADO" ? m.cantidad : -m.cantidad));
+  }
+  const totalDepositoCascos = movimientosCasco.reduce((acc, m) => {
+    const neto = netoCascoPorInsumo.get(m.insumoId) ?? 0;
+    netoCascoPorInsumo.set(m.insumoId, 0); // ya contado, no duplicar por cada movimiento del mismo insumo
+    return acc + Math.max(0, neto) * (m.insumo.montoDeposito?.toNumber() ?? 0);
+  }, 0);
+
+  const mantenimientoVencido = ordenesMantenimientoPendientes.filter(
+    (o) => o.fechaProgramada < hoy
+  );
 
   // ---------------------------------------------------------------------
   // Tendencia de ventas: un balde por mes (los últimos MESES_TENDENCIA, el
@@ -373,6 +439,13 @@ export default async function PanelPage() {
         <Kpi etiqueta="Pedidos del mes" valor={String(pedidosMes.length)} detalle={`${pedidosFacturadosMes} facturados, ${pedidosMes.length - pedidosFacturadosMes} sin facturar`} href="/comercial/pedidos" />
         <Kpi etiqueta="Ticket promedio" valor={formatMoneda(ticketPromedio)} detalle="valor de venta por factura" href="/comercial/facturas" deltaPct={deltaTicket} />
         <Kpi etiqueta="Clientes activos" valor={String(clientesActivosCount)} detalle="en cartera" href="/comercial/clientes" />
+        <Kpi
+          etiqueta="Cotizaciones por vencer"
+          valor={String(cotizacionesPorVencer.length)}
+          detalle="pendientes, vencen en 7 días o menos"
+          alerta={cotizacionesPorVencer.length > 0}
+          href="/comercial/cotizaciones"
+        />
       </div>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
@@ -386,6 +459,30 @@ export default async function PanelPage() {
         <RankingSeccion titulo="Top vendedores del mes" href="/comercial/vendedores" datos={topVendedores} max={maxVendedor} vacio="Sin ventas este mes todavía." />
       </div>
       <RankingSeccion titulo="Top clientes del mes" href="/comercial/clientes" datos={topClientes} max={maxCliente} vacio="Sin ventas este mes todavía." ancho />
+      {cotizacionesPorVencer.length > 0 && (
+        <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Cotizaciones por vencer</h2>
+            <Link href="/comercial/cotizaciones" className="text-xs text-neutral-500 hover:underline">Ver todas</Link>
+          </div>
+          <ul className="mt-3 divide-y divide-black/5 dark:divide-white/10">
+            {cotizacionesPorVencer.map((c) => (
+              <li key={c.id} className="py-2 text-sm flex justify-between">
+                <span>
+                  <Link href={`/comercial/cotizaciones/${c.id}`} className="font-mono text-xs hover:underline">{c.numero}</Link>{" "}
+                  {c.cliente.razonSocial}
+                </span>
+                <span
+                  className={`font-medium ${c.validaHasta < hoy ? "text-red-600 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}
+                >
+                  {c.validaHasta < hoy ? "vencida" : "vence"}{" "}
+                  {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(c.validaHasta)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 
@@ -396,6 +493,13 @@ export default async function PanelPage() {
         <Kpi etiqueta="Cumplimiento" valor={cumplimientoPromedio !== null ? `${cumplimientoPromedio.toFixed(0)}%` : "—"} detalle="kg producidos / objetivo" href="/produccion/lotes" />
         <Kpi etiqueta="Merma promedio" valor={mermaPromedio !== null ? `${mermaPromedio.toFixed(1)}%` : "—"} detalle="de lotes finalizados este mes" href="/produccion/lotes" />
         <Kpi etiqueta="Envasados del mes" valor={String(envasadosMes.length)} detalle={`${formatNumero(unidadesEnvasadasMes, 0)} unidades`} href="/produccion/envasados" />
+        <Kpi
+          etiqueta="Mantenimiento pendiente"
+          valor={String(ordenesMantenimientoPendientes.length)}
+          detalle={`${mantenimientoVencido.length} vencida(s)`}
+          alerta={mantenimientoVencido.length > 0}
+          href="/produccion/mantenimiento"
+        />
       </div>
       <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
         <div className="flex items-center justify-between">
@@ -438,6 +542,32 @@ export default async function PanelPage() {
                 </span>
               </li>
             ))}
+          </ul>
+        )}
+      </section>
+      <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Mantenimiento pendiente</h2>
+          <Link href="/produccion/mantenimiento" className="text-xs text-neutral-500 hover:underline">Ver todos</Link>
+        </div>
+        {ordenesMantenimientoPendientes.length === 0 ? (
+          <p className="text-sm text-neutral-500 mt-3">Sin alertas.</p>
+        ) : (
+          <ul className="mt-3 divide-y divide-black/5 dark:divide-white/10">
+            {ordenesMantenimientoPendientes.map((o) => {
+              const vencida = o.fechaProgramada < hoy;
+              return (
+                <li key={o.id} className="py-2 text-sm flex justify-between items-center">
+                  <span>
+                    <Link href={`/produccion/mantenimiento/${o.id}`} className="font-mono text-xs hover:underline">{o.codigo}</Link>{" "}
+                    {o.equipo.nombre} · {o.tipo === "PREVENTIVO" ? "Preventivo" : "Correctivo"} · {formatFecha(o.fechaProgramada)}
+                  </span>
+                  <span className={`insignia ${vencida ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400"}`}>
+                    {vencida ? "Vencida" : "Programada"}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         )}
       </section>
@@ -487,6 +617,19 @@ export default async function PanelPage() {
         <Kpi etiqueta="Rotación (mensual)" valor={rotacionInventario !== null ? `${rotacionInventario.toFixed(1)}x` : "—"} detalle="costo de ventas / inventario" href="/finanzas/costos" />
         <Kpi etiqueta="Ítems bajo mínimo" valor={String(presentacionesBajoMinimo.length + insumosBajoMinimo.length)} detalle={`${presentacionesBajoMinimo.length} presentación(es), ${insumosBajoMinimo.length} insumo(s)`} alerta={presentacionesBajoMinimo.length + insumosBajoMinimo.length > 0} href="/catalogo/presentaciones" />
         <Kpi etiqueta="SKUs activos" valor={String(presentaciones.length)} detalle="presentaciones" href="/catalogo/presentaciones" />
+        <Kpi
+          etiqueta="Depósito comprometido en cascos"
+          valor={formatMoneda(totalDepositoCascos)}
+          detalle="envases retornables sin devolver"
+          href="/comercial/cascos"
+        />
+        <Kpi
+          etiqueta="Conteos con diferencia grande"
+          valor={String(diferenciasGrandes.length)}
+          detalle="últimos 2 meses, ≥10% del saldo"
+          alerta={diferenciasGrandes.length > 0}
+          href="/inventario/conteos"
+        />
       </div>
       <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Top 5 ítems por valor en stock</h2>
@@ -549,6 +692,33 @@ export default async function PanelPage() {
           )}
         </section>
       </div>
+      {envasadosPorVencer.length > 0 && (
+        <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+              Lotes próximos a vencer o vencidos (próximos 60 días)
+            </h2>
+            <Link href="/produccion/envasados" className="text-xs text-neutral-500 hover:underline">Ver envasados</Link>
+          </div>
+          <ul className="mt-3 divide-y divide-black/5 dark:divide-white/10">
+            {envasadosPorVencer.map((e) => {
+              const vencido = e.fechaVencimiento! < hoy;
+              return (
+                <li key={e.id} className="py-2 text-sm flex justify-between">
+                  <span>
+                    {e.codigo} — {e.presentacion.producto.nombre} {e.presentacion.nombre}
+                  </span>
+                  <span className={`font-medium ${vencido ? "text-red-600 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>
+                    {e.unidadesDisponibles} un. sin vender · vence{" "}
+                    {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(e.fechaVencimiento!)}
+                    {vencido && " (VENCIDO)"}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      )}
       <section className="border border-black/10 dark:border-white/10 rounded-lg p-4 no-imprimir">
         <div className="flex items-center justify-between">
           <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Facturas por vencer / vencidas</h2>
@@ -572,6 +742,29 @@ export default async function PanelPage() {
           </ul>
         )}
       </section>
+      {diferenciasGrandes.length > 0 && (
+        <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+              Conteos con diferencia grande (posible merma)
+            </h2>
+            <Link href="/inventario/conteos" className="text-xs text-neutral-500 hover:underline">Ver conteos</Link>
+          </div>
+          <ul className="mt-3 divide-y divide-black/5 dark:divide-white/10">
+            {diferenciasGrandes.map((d, i) => (
+              <li key={i} className="py-2 text-sm flex justify-between">
+                <span>
+                  <span className="font-mono text-xs">{d.conteoCodigo}</span> — {d.nombreItem}
+                </span>
+                <span className={`font-medium ${d.diferencia < 0 ? "text-red-600 dark:text-red-400" : "text-green-700 dark:text-green-400"}`}>
+                  {d.diferencia > 0 ? "+" : ""}
+                  {formatNumero(d.diferencia, 2)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </div>
   );
 

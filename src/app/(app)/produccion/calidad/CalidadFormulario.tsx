@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useActionState } from "react";
 import { registrarCalidad, type EstadoFormulario } from "./actions";
 
@@ -8,6 +9,8 @@ export default function CalidadFormulario({ loteId }: { loteId: string }) {
     registrarCalidad,
     {}
   );
+  const [resultado, setResultado] = useState("");
+  const esRechazo = resultado === "RECHAZADO";
 
   return (
     <form action={formAction} className="flex flex-col gap-3">
@@ -20,7 +23,13 @@ export default function CalidadFormulario({ loteId }: { loteId: string }) {
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Resultado</span>
-          <select name="resultado" required defaultValue="" className="campo-input w-40">
+          <select
+            name="resultado"
+            required
+            value={resultado}
+            onChange={(e) => setResultado(e.target.value)}
+            className="campo-input w-40"
+          >
             <option value="" disabled>
               Seleccione
             </option>
@@ -34,10 +43,34 @@ export default function CalidadFormulario({ loteId }: { loteId: string }) {
           </span>
           <input name="observaciones" className="campo-input" />
         </label>
-        <button type="submit" disabled={enviando} className="boton-primario">
-          {enviando ? "Registrando..." : "Registrar resultado"}
-        </button>
       </div>
+      {esRechazo && (
+        <div className="flex flex-wrap items-end gap-3 border-t border-black/10 dark:border-white/10 pt-3">
+          <label className="flex flex-col gap-1 text-sm flex-1 min-w-56">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              Causa raíz (no conformidad)
+            </span>
+            <input
+              name="causaRaiz"
+              placeholder="Ej.: viscosidad fuera de rango, contaminación..."
+              className="campo-input"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm flex-1 min-w-56">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              Acción correctiva
+            </span>
+            <input
+              name="accionCorrectiva"
+              placeholder="Ej.: reproceso, descarte, ajuste de fórmula..."
+              className="campo-input"
+            />
+          </label>
+        </div>
+      )}
+      <button type="submit" disabled={enviando} className="boton-primario self-start">
+        {enviando ? "Registrando..." : "Registrar resultado"}
+      </button>
     </form>
   );
 }

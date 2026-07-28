@@ -27,6 +27,8 @@ export default async function DetalleLotePage({
         formula: { include: { producto: true, detalles: { include: { insumo: true } } } },
         controlCalidad: true,
         envasados: { include: { presentacion: true } },
+        loteOrigen: { include: { formula: { include: { producto: true } } } },
+        reprocesos: { include: { formula: { include: { producto: true } } } },
       },
     }),
     prisma.loteGranel.findMany({
@@ -39,6 +41,12 @@ export default async function DetalleLotePage({
   const consumos = await prisma.movimientoKardex.findMany({
     where: { origen: "PRODUCCION", referencia: { contains: lote.codigo } },
     include: { insumo: true },
+    orderBy: { creadoEn: "asc" },
+  });
+
+  const asignacionesLoteInsumo = await prisma.asignacionLoteInsumo.findMany({
+    where: { loteGranelId: id },
+    include: { recepcionCompraDetalle: { include: { insumo: true, recepcion: true } } },
     orderBy: { creadoEn: "asc" },
   });
 
@@ -108,6 +116,29 @@ export default async function DetalleLotePage({
         <p className="text-sm text-neutral-500 mt-4">Observaciones: {lote.observaciones}</p>
       )}
 
+      {lote.loteOrigen && (
+        <p className="text-sm text-amber-700 dark:text-amber-400 mt-2">
+          Reprocesa el lote rechazado{" "}
+          <Link href={`/produccion/lotes/${lote.loteOrigen.id}`} className="hover:underline font-mono">
+            {lote.loteOrigen.codigo}
+          </Link>
+          .
+        </p>
+      )}
+      {lote.reprocesos.length > 0 && (
+        <p className="text-sm text-neutral-500 mt-2">
+          Reprocesado en:{" "}
+          {lote.reprocesos.map((r, i) => (
+            <span key={r.id}>
+              {i > 0 && ", "}
+              <Link href={`/produccion/lotes/${r.id}`} className="hover:underline font-mono">
+                {r.codigo}
+              </Link>
+            </span>
+          ))}
+        </p>
+      )}
+
       {lote.estado === "EN_PROCESO" && (
         <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4">
           <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
@@ -135,6 +166,14 @@ export default async function DetalleLotePage({
             </p>
             {lote.controlCalidad.observaciones && (
               <p className="text-neutral-500 mt-1">{lote.controlCalidad.observaciones}</p>
+            )}
+            {lote.controlCalidad.causaRaiz && (
+              <p className="text-neutral-500 mt-1">Causa raíz: {lote.controlCalidad.causaRaiz}</p>
+            )}
+            {lote.controlCalidad.accionCorrectiva && (
+              <p className="text-neutral-500 mt-1">
+                Acción correctiva: {lote.controlCalidad.accionCorrectiva}
+              </p>
             )}
             <p className="text-xs text-neutral-400 mt-2">
               Evaluado por {lote.controlCalidad.usuarioNombre} el{" "}
@@ -168,6 +207,46 @@ export default async function DetalleLotePage({
               <tr>
                 <td colSpan={2} className="text-center text-neutral-500 py-4">
                   Sin consumos registrados.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </section>
+
+      <section className="mt-8">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+          Trazabilidad de materia prima
+        </h2>
+        <p className="text-xs mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Ante un problema de calidad de un insumo, esta es la lista de recepciones (y lotes del
+          proveedor) que se consumieron en este lote.
+        </p>
+        <table className="tabla mt-2">
+          <thead>
+            <tr>
+              <th>Insumo</th>
+              <th>Recepción</th>
+              <th>Lote del proveedor</th>
+              <th className="text-right">Cantidad</th>
+            </tr>
+          </thead>
+          <tbody>
+            {asignacionesLoteInsumo.map((a) => (
+              <tr key={a.id}>
+                <td>{a.recepcionCompraDetalle.insumo.nombre}</td>
+                <td className="font-mono text-xs">{a.recepcionCompraDetalle.recepcion.numero}</td>
+                <td className="font-mono text-xs">
+                  {a.recepcionCompraDetalle.numeroLoteProveedor ?? "—"}
+                </td>
+                <td className="text-right">{formatNumero(a.cantidad, 3)}</td>
+              </tr>
+            ))}
+            {asignacionesLoteInsumo.length === 0 && (
+              <tr>
+                <td colSpan={4} className="text-center text-neutral-500 py-4">
+                  Sin trazabilidad registrada (puede ser stock cargado antes de habilitar esta
+                  función).
                 </td>
               </tr>
             )}

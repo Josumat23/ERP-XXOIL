@@ -21,7 +21,13 @@ export type ClaveControl =
   | "INVENTARIO_INSUMOS"
   | "CAJA_BANCOS"
   | "CUENTAS_POR_PAGAR"
-  | "DEVOLUCIONES";
+  | "DEVOLUCIONES"
+  | "GASTO_DEPRECIACION"
+  | "DEPRECIACION_ACUMULADA"
+  | "GASTO_MANTENIMIENTO"
+  | "ACTIVO_FIJO_BRUTO"
+  | "INGRESO_VENTA_ACTIVO"
+  | "PERDIDA_VENTA_ACTIVO";
 
 export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   CUENTAS_POR_COBRAR: "Cuentas por cobrar comerciales",
@@ -33,6 +39,12 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   CAJA_BANCOS: "Caja y bancos",
   CUENTAS_POR_PAGAR: "Cuentas por pagar comerciales",
   DEVOLUCIONES: "Devoluciones y descuentos concedidos",
+  GASTO_DEPRECIACION: "Gasto por depreciación",
+  DEPRECIACION_ACUMULADA: "Depreciación acumulada (activo contra cuenta)",
+  GASTO_MANTENIMIENTO: "Gasto de mantenimiento y reparaciones",
+  ACTIVO_FIJO_BRUTO: "Inmuebles, maquinaria y equipo (costo bruto)",
+  INGRESO_VENTA_ACTIVO: "Ingreso por venta de activo fijo",
+  PERDIDA_VENTA_ACTIVO: "Pérdida por venta de activo fijo",
 };
 
 type LineaAsiento = { clave: ClaveControl; glosa?: string; debe?: number; haber?: number };
@@ -288,6 +300,91 @@ export async function postearRecepcionCompra(
     lineas: [
       { clave: "INVENTARIO_INSUMOS", debe: datos.total },
       { clave: "CUENTAS_POR_PAGAR", haber: datos.total },
+    ],
+    ...audit,
+  });
+}
+
+// Depreciación del mes: un solo asiento consolidado por el total de todos
+// los activos depreciados ese mes (Gasto por depreciación / Depreciación
+// acumulada), en vez de un asiento por activo.
+export async function postearDepreciacion(
+  tx: Tx,
+  datos: { mes: number; anio: number; monto: number },
+  audit: Auditoria
+) {
+  await postearAsiento(tx, {
+    origen: "DEPRECIACION",
+    glosa: `Depreciación del período ${String(datos.mes).padStart(2, "0")}/${datos.anio}`,
+    referencia: `DEP-${datos.anio}-${String(datos.mes).padStart(2, "0")}`,
+    fecha: new Date(datos.anio, datos.mes - 1, 1),
+    lineas: [
+      { clave: "GASTO_DEPRECIACION", debe: datos.monto },
+      { clave: "DEPRECIACION_ACUMULADA", haber: datos.monto },
+    ],
+    ...audit,
+  });
+}
+
+// Venta de un activo fijo usado: retira el costo bruto y su depreciación
+// acumulada de los libros, registra el ingreso de caja (con IGV incluido, ya
+// que es lo que efectivamente cobra la empresa) y postea la diferencia entre
+// el precio de venta SIN IGV y el valor en libros como utilidad (haber) o
+// pérdida (debe) — la utilidad/pérdida nunca incluye el IGV, que es de
+// terceros (SUNAT), no un resultado de la empresa.
+export async function postearVentaActivoFijo(
+  tx: Tx,
+  datos: {
+    codigoActivo: string;
+    nombreActivo: string;
+    costoAdquisicion: number;
+    depreciacionAcumulada: number;
+    montoBase: number;
+    montoIgv: number;
+    fecha?: Date;
+  },
+  audit: Auditoria
+) {
+  const valorEnLibros = datos.costoAdquisicion - datos.depreciacionAcumulada;
+  const resultado = datos.montoBase - valorEnLibros;
+  const precioVenta = datos.montoBase + datos.montoIgv;
+
+  await postearAsiento(tx, {
+    origen: "VENTA_ACTIVO_FIJO",
+    glosa: `Venta del activo ${datos.codigoActivo} — ${datos.nombreActivo}`,
+    referencia: datos.codigoActivo,
+    fecha: datos.fecha,
+    lineas: [
+      { clave: "CAJA_BANCOS", debe: precioVenta },
+      { clave: "DEPRECIACION_ACUMULADA", debe: datos.depreciacionAcumulada },
+      { clave: "ACTIVO_FIJO_BRUTO", haber: datos.costoAdquisicion },
+      { clave: "IGV_POR_PAGAR", haber: datos.montoIgv },
+      ...(resultado > 0
+        ? [{ clave: "INGRESO_VENTA_ACTIVO" as const, haber: resultado }]
+        : resultado < 0
+          ? [{ clave: "PERDIDA_VENTA_ACTIVO" as const, debe: -resultado }]
+          : []),
+    ],
+    ...audit,
+  });
+}
+
+// Mantenimiento completado con costo: Gasto de mantenimiento (debe) / Caja y
+// bancos (haber). Se asume pagado al contado (mano de obra + repuestos), igual
+// que el resto de gastos operativos menores de este ERP.
+export async function postearMantenimiento(
+  tx: Tx,
+  datos: { codigoOrden: string; equipo: string; monto: number; fecha?: Date },
+  audit: Auditoria
+) {
+  await postearAsiento(tx, {
+    origen: "MANTENIMIENTO",
+    glosa: `Mantenimiento ${datos.codigoOrden} — ${datos.equipo}`,
+    referencia: datos.codigoOrden,
+    fecha: datos.fecha,
+    lineas: [
+      { clave: "GASTO_MANTENIMIENTO", debe: datos.monto },
+      { clave: "CAJA_BANCOS", haber: datos.monto },
     ],
     ...audit,
   });

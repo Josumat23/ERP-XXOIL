@@ -2,7 +2,10 @@
 
 import { useActionState } from "react";
 import FichaTabs from "@/components/FichaTabs";
+import { ETIQUETA_CANAL_CLIENTE } from "@/lib/etiquetas";
 import type { EstadoFormulario } from "./actions";
+
+const CANALES = Object.keys(ETIQUETA_CANAL_CLIENTE) as (keyof typeof ETIQUETA_CANAL_CLIENTE)[];
 
 type Opcion = { id: string; nombre: string };
 
@@ -14,6 +17,7 @@ type Props = {
     razonSocial: string;
     nombreComercial: string | null;
     ruc: string | null;
+    canal: string | null;
     departamento: string | null;
     provincia: string | null;
     distrito: string | null;
@@ -91,6 +95,16 @@ export default function ClienteFormulario({
                     />
                   </Campo>
                 </div>
+                <Campo etiqueta="Canal comercial">
+                  <select name="canal" defaultValue={valoresIniciales?.canal ?? ""} className="campo-input">
+                    <option value="">Sin clasificar</option>
+                    {CANALES.map((c) => (
+                      <option key={c} value={c}>
+                        {ETIQUETA_CANAL_CLIENTE[c]}
+                      </option>
+                    ))}
+                  </select>
+                </Campo>
               </div>
             ),
           },

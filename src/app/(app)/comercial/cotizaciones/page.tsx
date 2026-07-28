@@ -1,0 +1,97 @@
+import Link from "next/link";
+import { prisma } from "@/lib/prisma";
+import { formatMoneda } from "@/lib/format";
+import BotonImprimir from "@/components/BotonImprimir";
+import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+
+const ETIQUETA_ESTADO: Record<string, string> = {
+  PENDIENTE: "Pendiente",
+  ACEPTADA: "Aceptada",
+  RECHAZADA: "Rechazada",
+  VENCIDA: "Vencida",
+  CONVERTIDA: "Convertida a pedido",
+};
+
+const COLOR_ESTADO: Record<string, string> = {
+  PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  ACEPTADA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
+  RECHAZADA: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
+  VENCIDA: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
+  CONVERTIDA: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
+};
+
+export default async function CotizacionesPage() {
+  const cotizaciones = await prisma.cotizacion.findMany({
+    include: { cliente: true, vendedor: true },
+    orderBy: { fecha: "desc" },
+  });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
+            Cotizaciones
+          </h1>
+          <p className="text-sm no-imprimir" style={{ color: "var(--epicor-texto-tenue)" }}>
+            Etapa opcional antes del pedido — al aceptarse, se convierte en un pedido real.
+          </p>
+        </div>
+        <div className="flex gap-2 no-imprimir">
+          <BotonImprimir />
+        </div>
+      </div>
+
+      <PanelMaestroDetalle
+        nuevoHref="/comercial/cotizaciones/nuevo"
+        nuevoTexto="Nueva cotización"
+        registros={cotizaciones.map((c) => ({
+          id: c.id,
+          href: `/comercial/cotizaciones/${c.id}`,
+          primario: c.numero,
+          secundario: c.cliente.razonSocial,
+        }))}
+      >
+      <table className="tabla">
+        <thead>
+          <tr>
+            <th>Número</th>
+            <th>Cliente</th>
+            <th>Vendedor</th>
+            <th>Válida hasta</th>
+            <th className="text-right">Total</th>
+            <th>Estado</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cotizaciones.map((c) => (
+            <tr key={c.id}>
+              <td className="font-mono text-xs">
+                <Link href={`/comercial/cotizaciones/${c.id}`} className="hover:underline">
+                  {c.numero}
+                </Link>
+              </td>
+              <td>{c.cliente.razonSocial}</td>
+              <td className="text-sm">{c.vendedor.nombre}</td>
+              <td className="text-sm text-neutral-500">
+                {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(c.validaHasta)}
+              </td>
+              <td className="text-right">{formatMoneda(c.total)}</td>
+              <td>
+                <span className={`insignia ${COLOR_ESTADO[c.estado]}`}>{ETIQUETA_ESTADO[c.estado]}</span>
+              </td>
+            </tr>
+          ))}
+          {cotizaciones.length === 0 && (
+            <tr>
+              <td colSpan={6} className="text-center text-neutral-500 py-6">
+                No hay cotizaciones registradas todavía.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+      </PanelMaestroDetalle>
+    </div>
+  );
+}

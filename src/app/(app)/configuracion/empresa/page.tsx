@@ -38,6 +38,10 @@ export default async function EmpresaPage() {
             email: config.email,
             sitioWeb: config.sitioWeb,
             tasaIgv: config.tasaIgv.toNumber(),
+            registroHidrocarburosOsinergmin: config.registroHidrocarburosOsinergmin,
+            registroHidrocarburosVigencia: config.registroHidrocarburosVigencia
+              ? config.registroHidrocarburosVigencia.toISOString().slice(0, 10)
+              : null,
             tarifaHoraManoObra: config.tarifaHoraManoObra.toNumber(),
             montoAprobacionCompras: config.montoAprobacionCompras.toNumber(),
             montoAprobacionPagos: config.montoAprobacionPagos.toNumber(),
@@ -45,6 +49,9 @@ export default async function EmpresaPage() {
             tasaCreditoCortoPlazo: config.tasaCreditoCortoPlazo.toNumber(),
             limiteCreditoCortoPlazo: config.limiteCreditoCortoPlazo.toNumber(),
             tasaCreditoLargoPlazo: config.tasaCreditoLargoPlazo.toNumber(),
+            tasaRecargoMora: config.tasaRecargoMora.toNumber(),
+            oseProveedor: config.oseProveedor,
+            oseToken: config.oseToken,
           }}
         />
       </div>

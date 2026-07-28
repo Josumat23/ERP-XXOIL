@@ -67,6 +67,7 @@ export default async function CalidadPage() {
               <th>Producto</th>
               <th>Resultado</th>
               <th>Observaciones</th>
+              <th>Causa raíz / acción correctiva</th>
               <th>Evaluador</th>
               <th>Fecha</th>
             </tr>
@@ -92,6 +93,16 @@ export default async function CalidadPage() {
                   </span>
                 </td>
                 <td className="text-sm text-neutral-500 max-w-56">{c.observaciones ?? "—"}</td>
+                <td className="text-xs text-neutral-500 max-w-64">
+                  {c.causaRaiz || c.accionCorrectiva ? (
+                    <>
+                      {c.causaRaiz && <span className="block">Causa: {c.causaRaiz}</span>}
+                      {c.accionCorrectiva && <span className="block">Acción: {c.accionCorrectiva}</span>}
+                    </>
+                  ) : (
+                    "—"
+                  )}
+                </td>
                 <td className="text-sm">{c.usuarioNombre}</td>
                 <td className="text-xs text-neutral-500 whitespace-nowrap">
                   {new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" }).format(
@@ -102,7 +113,7 @@ export default async function CalidadPage() {
             ))}
             {evaluados.length === 0 && (
               <tr>
-                <td colSpan={6} className="text-center text-neutral-500 py-4">
+                <td colSpan={7} className="text-center text-neutral-500 py-4">
                   Sin evaluaciones registradas.
                 </td>
               </tr>

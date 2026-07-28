@@ -7,6 +7,8 @@ export const ETIQUETA_ORIGEN: Record<$Enums.OrigenMovimiento, string> = {
   ENVASADO: "Envasado",
   VENTA: "Venta",
   ANULACION_VENTA: "Anulación de venta",
+  DEVOLUCION_CLIENTE: "Devolución de cliente",
+  TRASLADO: "Traslado entre almacenes",
   AJUSTE: "Ajuste",
 };
 
@@ -21,6 +23,25 @@ export const ETIQUETA_TIPO_INSUMO: Record<$Enums.TipoInsumo, string> = {
   MATERIA_PRIMA: "Materia prima",
   ENVASE: "Envase",
   ETIQUETA: "Etiqueta",
+};
+
+export const ETIQUETA_CANAL_CLIENTE: Record<$Enums.CanalCliente, string> = {
+  DISTRIBUIDOR: "Distribuidor",
+  MAYORISTA: "Mayorista",
+  TALLER: "Taller",
+  FLOTA: "Flota",
+  MINERA_INDUSTRIA: "Minera / Industria",
+  MINORISTA: "Minorista",
+  OTRO: "Otro",
+};
+
+export const ETIQUETA_SEGMENTO_MERCADO: Record<$Enums.SegmentoMercado, string> = {
+  AUTOMOTRIZ: "Automotriz",
+  INDUSTRIAL: "Industrial",
+  MINERO: "Minero",
+  AGRICOLA: "Agrícola",
+  MARINO: "Marino",
+  OTRO: "Otro",
 };
 
 export const ETIQUETA_TIPO_VENDEDOR: Record<$Enums.TipoVendedor, string> = {

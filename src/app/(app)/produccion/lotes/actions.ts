@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
+import { asignarLoteInsumo } from "@/lib/trazabilidad";
 import { siguienteCodigoLote } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
@@ -26,6 +27,7 @@ export async function crearLote(
   const formulaId = String(formData.get("formulaId") ?? "");
   const kgObjetivo = Number(formData.get("kgObjetivo"));
   const observaciones = String(formData.get("observaciones") ?? "").trim() || null;
+  const loteOrigenId = String(formData.get("loteOrigenId") ?? "") || null;
 
   if (!formulaId) return { error: "Seleccione la fórmula." };
   if (!Number.isFinite(kgObjetivo) || kgObjetivo <= 0) {
@@ -40,6 +42,14 @@ export async function crearLote(
       });
       if (!formula || !formula.activo) throw new Error("La fórmula no existe o está inactiva.");
 
+      if (loteOrigenId) {
+        const origen = await tx.loteGranel.findUnique({ where: { id: loteOrigenId } });
+        if (!origen) throw new Error("El lote de origen del reproceso no existe.");
+        if (origen.estado !== "RECHAZADO") {
+          throw new Error("Solo se puede referenciar como reproceso un lote rechazado por calidad.");
+        }
+      }
+
       const codigo = await siguienteCodigoLote(tx);
       const factor = kgObjetivo / formula.rendimientoKg.toNumber();
 
@@ -47,6 +57,7 @@ export async function crearLote(
         data: {
           codigo,
           formulaId,
+          loteOrigenId,
           kgObjetivo,
           observaciones,
           usuarioId: auth.usuario.id,
@@ -72,6 +83,14 @@ export async function crearLote(
           usuarioNombre: auth.usuario.nombre,
         });
         if (!mov.ok) throw new Error(mov.error);
+
+        // Trazabilidad: qué recepción(es) de compra (lote del proveedor)
+        // cubrieron este consumo (FIFO por fecha de recepción).
+        await asignarLoteInsumo(tx, {
+          loteGranelId: lote.id,
+          insumoId: detalle.insumoId,
+          cantidad,
+        });
       }
 
       await tx.loteGranel.update({ where: { id: lote.id }, data: { costoInsumos } });
