@@ -2,10 +2,23 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoProveedor } from "./actions";
 
-export default async function ProveedoresPage() {
+export default async function ProveedoresPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; estado?: string }>;
+}) {
+  const { q, estado } = await searchParams;
+
   const proveedores = await prisma.proveedor.findMany({
+    where: {
+      ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
+      ...(q
+        ? { OR: [{ razonSocial: { contains: q } }, { ruc: { contains: q } }] }
+        : {}),
+    },
     include: { _count: { select: { insumos: true } } },
     orderBy: { razonSocial: "asc" },
   });
@@ -23,6 +36,17 @@ export default async function ProveedoresPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Razón social o RUC...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={estado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/catalogo/proveedores/nuevo"

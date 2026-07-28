@@ -4,11 +4,16 @@ import { obtenerUsuario } from "@/lib/auth";
 import { formatNumero } from "@/lib/format";
 import TrasladoFormulario from "./TrasladoFormulario";
 
-export default async function TrasladosPage() {
+export default async function TrasladosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ almacenId?: string }>;
+}) {
   const usuario = await obtenerUsuario();
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "ALMACEN")) {
     redirect("/inventario/kardex");
   }
+  const { almacenId } = await searchParams;
 
   const [presentaciones, insumos, almacenes, saldos, movimientos] = await Promise.all([
     prisma.presentacion.findMany({
@@ -19,7 +24,7 @@ export default async function TrasladosPage() {
     prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.almacen.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.saldoAlmacen.findMany({
-      where: { cantidad: { gt: 0 } },
+      where: { cantidad: { gt: 0 }, ...(almacenId ? { almacenId } : {}) },
       include: {
         almacen: true,
         presentacion: { include: { producto: true } },
@@ -68,7 +73,25 @@ export default async function TrasladosPage() {
       </div>
 
       <section className="mt-8">
-        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Stock actual por almacén</h2>
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Stock actual por almacén</h2>
+          <form method="get" className="flex items-end gap-2 no-imprimir">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">Almacén</span>
+              <select name="almacenId" defaultValue={almacenId ?? ""} className="campo-input">
+                <option value="">Todos</option>
+                {almacenes.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.nombre}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button type="submit" className="boton-secundario">
+              Filtrar
+            </button>
+          </form>
+        </div>
         <div className="overflow-x-auto mt-3">
           <table className="tabla tabla-densa">
             <thead>

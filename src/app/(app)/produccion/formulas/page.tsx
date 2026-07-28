@@ -3,9 +3,20 @@ import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
-export default async function FormulasPage() {
+export default async function FormulasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; estado?: string }>;
+}) {
+  const { q, estado } = await searchParams;
+
   const formulas = await prisma.formula.findMany({
+    where: {
+      ...(estado === "activa" ? { activo: true } : estado === "inactiva" ? { activo: false } : {}),
+      ...(q ? { producto: { nombre: { contains: q } } } : {}),
+    },
     include: {
       producto: true,
       _count: { select: { detalles: true, lotes: true } },
@@ -26,6 +37,17 @@ export default async function FormulasPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Producto...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={estado ?? ""} className="campo-input">
+            <option value="">Todas</option>
+            <option value="activa">Activas</option>
+            <option value="inactiva">Inactivas</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/produccion/formulas/nueva"

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatFecha, formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   PROGRAMADA: "Programada",
@@ -10,6 +11,7 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   COMPLETADA: "Completada",
   CANCELADA: "Cancelada",
 };
+const ESTADOS = Object.keys(ETIQUETA_ESTADO) as (keyof typeof ETIQUETA_ESTADO)[];
 
 const COLOR_ESTADO: Record<string, string> = {
   PROGRAMADA: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -18,13 +20,31 @@ const COLOR_ESTADO: Record<string, string> = {
   CANCELADA: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
 };
 
-export default async function MantenimientoPage() {
-  const ordenes = await prisma.ordenMantenimiento.findMany({
-    include: { equipo: { include: { almacen: true } } },
-    orderBy: { fechaProgramada: "desc" },
-  });
+export default async function MantenimientoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; tipo?: string; estado?: string }>;
+}) {
+  const { q, tipo, estado } = await searchParams;
+  const filtroTipo = tipo === "PREVENTIVO" || tipo === "CORRECTIVO" ? tipo : undefined;
+  const filtroEstado = ESTADOS.find((e) => e === estado);
 
-  const pendientes = ordenes.filter((o) => o.estado === "PROGRAMADA" || o.estado === "EN_PROCESO");
+  const [ordenes, todasOrdenes] = await Promise.all([
+    prisma.ordenMantenimiento.findMany({
+      where: {
+        ...(filtroTipo ? { tipo: filtroTipo } : {}),
+        ...(filtroEstado ? { estado: filtroEstado } : {}),
+        ...(q
+          ? { OR: [{ codigo: { contains: q } }, { equipo: { nombre: { contains: q } } }] }
+          : {}),
+      },
+      include: { equipo: { include: { almacen: true } } },
+      orderBy: { fechaProgramada: "desc" },
+    }),
+    prisma.ordenMantenimiento.findMany(),
+  ]);
+
+  const pendientes = todasOrdenes.filter((o) => o.estado === "PROGRAMADA" || o.estado === "EN_PROCESO");
 
   return (
     <div>
@@ -50,12 +70,34 @@ export default async function MantenimientoPage() {
         <Dato
           etiqueta="Costo acumulado (completadas)"
           valor={formatMoneda(
-            ordenes
+            todasOrdenes
               .filter((o) => o.estado === "COMPLETADA")
               .reduce((acc, o) => acc + o.costoManoObra.toNumber() + o.costoRepuestos.toNumber(), 0)
           )}
         />
       </div>
+
+      <BarraFiltro q={q} placeholder="Código o equipo...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Tipo</span>
+          <select name="tipo" defaultValue={filtroTipo ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="PREVENTIVO">Preventivo</option>
+            <option value="CORRECTIVO">Correctivo</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={filtroEstado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {ESTADOS.map((e) => (
+              <option key={e} value={e}>
+                {ETIQUETA_ESTADO[e]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/produccion/mantenimiento/nuevo"

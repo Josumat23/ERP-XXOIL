@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoInsumo } from "./actions";
 
 const ETIQUETA_TIPO: Record<string, string> = {
@@ -10,9 +11,24 @@ const ETIQUETA_TIPO: Record<string, string> = {
   ENVASE: "Envase",
   ETIQUETA: "Etiqueta",
 };
+const TIPOS = Object.keys(ETIQUETA_TIPO);
 
-export default async function InsumosPage() {
+export default async function InsumosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; tipo?: string; estado?: string }>;
+}) {
+  const { q, tipo, estado } = await searchParams;
+  const filtroTipo = TIPOS.find((t) => t === tipo);
+
   const insumos = await prisma.insumo.findMany({
+    where: {
+      ...(filtroTipo ? { tipo: filtroTipo as "MATERIA_PRIMA" | "ENVASE" | "ETIQUETA" } : {}),
+      ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
+      ...(q
+        ? { OR: [{ nombre: { contains: q } }, { codigo: { contains: q } }] }
+        : {}),
+    },
     include: { proveedor: true },
     orderBy: { creadoEn: "desc" },
   });
@@ -30,6 +46,28 @@ export default async function InsumosPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Nombre o código...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Tipo</span>
+          <select name="tipo" defaultValue={filtroTipo ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {TIPOS.map((t) => (
+              <option key={t} value={t}>
+                {ETIQUETA_TIPO[t]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={estado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/catalogo/insumos/nuevo"

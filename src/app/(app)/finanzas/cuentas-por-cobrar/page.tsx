@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import BarraFiltro from "@/components/BarraFiltro";
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
 
@@ -18,9 +19,20 @@ function tramoVencimiento(diasVencidos: number): { etiqueta: string; color: stri
   return { etiqueta: "+30 días", color: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400" };
 }
 
-export default async function CuentasPorCobrarPage() {
+export default async function CuentasPorCobrarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+
   const facturas = await prisma.factura.findMany({
-    where: { estado: "PENDIENTE" },
+    where: {
+      estado: "PENDIENTE",
+      ...(q
+        ? { OR: [{ numero: { contains: q } }, { cliente: { razonSocial: { contains: q } } }] }
+        : {}),
+    },
     include: { cliente: true, vendedor: true },
     orderBy: { fechaVencimiento: "asc" },
   });
@@ -65,6 +77,8 @@ export default async function CuentasPorCobrarPage() {
           </p>
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Número o cliente..." />
 
       <table className="tabla mt-6">
         <thead>

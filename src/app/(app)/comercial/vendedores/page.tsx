@@ -4,10 +4,21 @@ import { formatNumero } from "@/lib/format";
 import { ETIQUETA_TIPO_VENDEDOR } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoVendedor } from "./actions";
 
-export default async function VendedoresPage() {
+export default async function VendedoresPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; estado?: string }>;
+}) {
+  const { q, estado } = await searchParams;
+
   const vendedores = await prisma.vendedor.findMany({
+    where: {
+      ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
+      ...(q ? { nombre: { contains: q } } : {}),
+    },
     include: { zona: true, _count: { select: { facturas: true } } },
     orderBy: { nombre: "asc" },
   });
@@ -25,6 +36,17 @@ export default async function VendedoresPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Nombre...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={estado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/comercial/vendedores/nuevo"

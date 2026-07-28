@@ -12,6 +12,20 @@ export const ETIQUETA_ORIGEN: Record<$Enums.OrigenMovimiento, string> = {
   AJUSTE: "Ajuste",
 };
 
+export const ETIQUETA_ORIGEN_ASIENTO: Record<$Enums.OrigenAsiento, string> = {
+  MANUAL: "Manual",
+  VENTA: "Venta",
+  COBRO: "Cobro",
+  NOTA_CREDITO: "Nota de crédito",
+  ANULACION_VENTA: "Anulación de venta",
+  COMPRA: "Compra",
+  PAGO_PROVEEDOR: "Pago a proveedor",
+  DEPRECIACION: "Depreciación",
+  MANTENIMIENTO: "Mantenimiento",
+  VENTA_ACTIVO_FIJO: "Venta de activo fijo",
+  REVERSO: "Reverso",
+};
+
 export const ETIQUETA_ESTADO_LOTE: Record<$Enums.EstadoLote, string> = {
   EN_PROCESO: "En proceso",
   PENDIENTE_CALIDAD: "Pendiente de calidad",

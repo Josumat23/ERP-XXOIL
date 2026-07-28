@@ -3,9 +3,24 @@ import { prisma } from "@/lib/prisma";
 import { ETIQUETA_ESTADO_HR } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
-export default async function HojasRutaPage() {
+export default async function HojasRutaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; vendedorId?: string; estado?: string }>;
+}) {
+  const { q, vendedorId, estado } = await searchParams;
+  const filtroEstado = estado === "PLANIFICADA" || estado === "COMPLETADA" ? estado : undefined;
+
+  const vendedores = await prisma.vendedor.findMany({ orderBy: { nombre: "asc" } });
+
   const hojas = await prisma.hojaRuta.findMany({
+    where: {
+      ...(vendedorId ? { vendedorId } : {}),
+      ...(filtroEstado ? { estado: filtroEstado } : {}),
+      ...(q ? { numero: { contains: q } } : {}),
+    },
     include: { vendedor: true, _count: { select: { visitas: true } } },
     orderBy: { fecha: "desc" },
   });
@@ -25,6 +40,28 @@ export default async function HojasRutaPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Número...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Vendedor</span>
+          <select name="vendedorId" defaultValue={vendedorId ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {vendedores.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={filtroEstado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="PLANIFICADA">{ETIQUETA_ESTADO_HR.PLANIFICADA}</option>
+            <option value="COMPLETADA">{ETIQUETA_ESTADO_HR.COMPLETADA}</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/comercial/hojas-ruta/nueva"

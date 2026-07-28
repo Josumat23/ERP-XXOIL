@@ -488,7 +488,7 @@ export default async function PanelPage() {
 
   const contenidoProduccion = (
     <div className="flex flex-col gap-6">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <Kpi etiqueta="Lotes en curso" valor={String(lotesActivos.length)} detalle={`${lotesActivos.filter((l) => l.estado === "PENDIENTE_CALIDAD").length} en calidad`} href="/produccion/lotes" />
         <Kpi etiqueta="Cumplimiento" valor={cumplimientoPromedio !== null ? `${cumplimientoPromedio.toFixed(0)}%` : "—"} detalle="kg producidos / objetivo" href="/produccion/lotes" />
         <Kpi etiqueta="Merma promedio" valor={mermaPromedio !== null ? `${mermaPromedio.toFixed(1)}%` : "—"} detalle="de lotes finalizados este mes" href="/produccion/lotes" />

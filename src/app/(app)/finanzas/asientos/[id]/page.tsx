@@ -6,18 +6,8 @@ import { obtenerUsuario } from "@/lib/auth";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import { ETIQUETA_ORIGEN_ASIENTO } from "@/lib/etiquetas";
 import ReversarFormulario from "./ReversarFormulario";
-
-const ETIQUETA_ORIGEN: Record<string, string> = {
-  MANUAL: "Manual",
-  VENTA: "Venta",
-  COBRO: "Cobro",
-  NOTA_CREDITO: "Nota de crédito",
-  ANULACION_VENTA: "Anulación de venta",
-  COMPRA: "Compra",
-  PAGO_PROVEEDOR: "Pago a proveedor",
-  REVERSO: "Reverso",
-};
 
 export default async function DetalleAsientoPage({
   params,
@@ -56,7 +46,7 @@ export default async function DetalleAsientoPage({
           id: a.id,
           href: `/finanzas/asientos/${a.id}`,
           primario: a.numero,
-          secundario: ETIQUETA_ORIGEN[a.origen],
+          secundario: ETIQUETA_ORIGEN_ASIENTO[a.origen],
         }))}
       >
       <div className="max-w-3xl">

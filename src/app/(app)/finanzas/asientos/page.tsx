@@ -3,20 +3,24 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
+import { ETIQUETA_ORIGEN_ASIENTO } from "@/lib/etiquetas";
 
-const ETIQUETA_ORIGEN: Record<string, string> = {
-  MANUAL: "Manual",
-  VENTA: "Venta",
-  COBRO: "Cobro",
-  NOTA_CREDITO: "Nota de crédito",
-  ANULACION_VENTA: "Anulación de venta",
-  COMPRA: "Compra",
-  PAGO_PROVEEDOR: "Pago a proveedor",
-  REVERSO: "Reverso",
-};
+const ORIGENES = Object.keys(ETIQUETA_ORIGEN_ASIENTO) as (keyof typeof ETIQUETA_ORIGEN_ASIENTO)[];
 
-export default async function AsientosPage() {
+export default async function AsientosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; origen?: string }>;
+}) {
+  const { q, origen } = await searchParams;
+  const filtroOrigen = ORIGENES.find((o) => o === origen);
+
   const asientos = await prisma.asientoContable.findMany({
+    where: {
+      ...(filtroOrigen ? { origen: filtroOrigen } : {}),
+      ...(q ? { OR: [{ numero: { contains: q } }, { glosa: { contains: q } }] } : {}),
+    },
     include: { detalles: true },
     orderBy: { numero: "desc" },
     take: 100,
@@ -37,6 +41,20 @@ export default async function AsientosPage() {
         pagos); los asientos nunca se editan: se corrigen con un reverso.
       </p>
 
+      <BarraFiltro q={q} placeholder="Número o glosa...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Origen</span>
+          <select name="origen" defaultValue={filtroOrigen ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {ORIGENES.map((o) => (
+              <option key={o} value={o}>
+                {ETIQUETA_ORIGEN_ASIENTO[o]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </BarraFiltro>
+
       <PanelMaestroDetalle
         nuevoHref="/finanzas/asientos/nuevo"
         nuevoTexto="Asiento manual"
@@ -44,7 +62,7 @@ export default async function AsientosPage() {
           id: a.id,
           href: `/finanzas/asientos/${a.id}`,
           primario: a.numero,
-          secundario: ETIQUETA_ORIGEN[a.origen],
+          secundario: ETIQUETA_ORIGEN_ASIENTO[a.origen],
         }))}
       >
       <table className="tabla tabla-densa">
@@ -75,7 +93,7 @@ export default async function AsientosPage() {
                 <td className="whitespace-nowrap">
                   {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(a.fecha)}
                 </td>
-                <td>{ETIQUETA_ORIGEN[a.origen]}</td>
+                <td>{ETIQUETA_ORIGEN_ASIENTO[a.origen]}</td>
                 <td className="max-w-72 truncate">{a.glosa}</td>
                 <td className="text-right">{formatMoneda(importe)}</td>
                 <td>{a.usuarioNombre}</td>

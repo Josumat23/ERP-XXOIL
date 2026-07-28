@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
 const ETIQUETA_RESULTADO: Record<string, string> = {
   PENDIENTE: "Pendiente",
@@ -15,8 +16,21 @@ const COLOR_RESULTADO: Record<string, string> = {
   RECHAZADO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
 };
 
-export default async function InspeccionesCompraPage() {
+const RESULTADOS = Object.keys(ETIQUETA_RESULTADO) as (keyof typeof ETIQUETA_RESULTADO)[];
+
+export default async function InspeccionesCompraPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; resultado?: string }>;
+}) {
+  const { q, resultado } = await searchParams;
+  const filtroResultado = RESULTADOS.find((r) => r === resultado);
+
   const inspecciones = await prisma.inspeccionCompra.findMany({
+    where: {
+      ...(filtroResultado ? { resultado: filtroResultado } : {}),
+      ...(q ? { recepcionDetalle: { insumo: { nombre: { contains: q } } } } : {}),
+    },
     include: {
       recepcionDetalle: {
         include: {
@@ -49,6 +63,19 @@ export default async function InspeccionesCompraPage() {
             Recepciones de insumos marcados como &quot;requiere inspección&quot;: no suman stock
             disponible hasta que se aprueban aquí.
           </p>
+          <BarraFiltro q={q} placeholder="Insumo...">
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">Resultado</span>
+              <select name="resultado" defaultValue={filtroResultado ?? ""} className="campo-input">
+                <option value="">Todos</option>
+                {RESULTADOS.map((r) => (
+                  <option key={r} value={r}>
+                    {ETIQUETA_RESULTADO[r]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </BarraFiltro>
           <table className="tabla">
             <thead>
               <tr>

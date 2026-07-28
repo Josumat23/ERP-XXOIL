@@ -3,18 +3,8 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import { ETIQUETA_ORIGEN_ASIENTO } from "@/lib/etiquetas";
 import AsientoManualFormulario from "../AsientoManualFormulario";
-
-const ETIQUETA_ORIGEN: Record<string, string> = {
-  MANUAL: "Manual",
-  VENTA: "Venta",
-  COBRO: "Cobro",
-  NOTA_CREDITO: "Nota de crédito",
-  ANULACION_VENTA: "Anulación de venta",
-  COMPRA: "Compra",
-  PAGO_PROVEEDOR: "Pago a proveedor",
-  REVERSO: "Reverso",
-};
 
 export default async function NuevoAsientoPage() {
   const usuario = await obtenerUsuario();
@@ -47,7 +37,7 @@ export default async function NuevoAsientoPage() {
           id: a.id,
           href: `/finanzas/asientos/${a.id}`,
           primario: a.numero,
-          secundario: ETIQUETA_ORIGEN[a.origen],
+          secundario: ETIQUETA_ORIGEN_ASIENTO[a.origen],
         }))}
       >
       <div className="max-w-3xl">

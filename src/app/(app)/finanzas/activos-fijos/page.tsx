@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatFecha } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 import { registrarDepreciacionMes } from "./actions";
 import DepreciacionFormulario from "./DepreciacionFormulario";
 
@@ -13,9 +14,22 @@ const ETIQUETA_CATEGORIA: Record<string, string> = {
   INMUEBLE: "Inmueble",
   OTRO: "Otro",
 };
+const CATEGORIAS = Object.keys(ETIQUETA_CATEGORIA) as (keyof typeof ETIQUETA_CATEGORIA)[];
 
-export default async function ActivosFijosPage() {
+export default async function ActivosFijosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; categoria?: string; estado?: string }>;
+}) {
+  const { q, categoria, estado } = await searchParams;
+  const filtroCategoria = CATEGORIAS.find((c) => c === categoria);
+
   const activos = await prisma.activoFijo.findMany({
+    where: {
+      ...(filtroCategoria ? { categoria: filtroCategoria } : {}),
+      ...(estado === "activo" ? { activo: true } : estado === "baja" ? { activo: false } : {}),
+      ...(q ? { OR: [{ nombre: { contains: q } }, { codigo: { contains: q } }] } : {}),
+    },
     include: { almacen: true },
     orderBy: { creadoEn: "desc" },
   });
@@ -56,6 +70,28 @@ export default async function ActivosFijosPage() {
           anioActual={ahora.getFullYear()}
         />
       </section>
+
+      <BarraFiltro q={q} placeholder="Nombre o código...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Categoría</span>
+          <select name="categoria" defaultValue={filtroCategoria ?? ""} className="campo-input">
+            <option value="">Todas</option>
+            {CATEGORIAS.map((c) => (
+              <option key={c} value={c}>
+                {ETIQUETA_CATEGORIA[c]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={estado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="baja">Dados de baja</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/finanzas/activos-fijos/nuevo"

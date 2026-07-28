@@ -3,10 +3,26 @@ import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_MEDIO_PAGO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 import CajaFormulario from "./CajaFormulario";
 
-export default async function CajaPage() {
+const MEDIOS = Object.keys(ETIQUETA_MEDIO_PAGO) as (keyof typeof ETIQUETA_MEDIO_PAGO)[];
+
+export default async function CajaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; tipo?: string; medioPago?: string }>;
+}) {
+  const { q, tipo, medioPago } = await searchParams;
+  const filtroTipo = tipo === "INGRESO" || tipo === "EGRESO" ? tipo : undefined;
+  const filtroMedio = MEDIOS.find((m) => m === medioPago);
+
   const movimientos = await prisma.movimientoCaja.findMany({
+    where: {
+      ...(filtroTipo ? { tipo: filtroTipo } : {}),
+      ...(filtroMedio ? { medioPago: filtroMedio } : {}),
+      ...(q ? { concepto: { contains: q } } : {}),
+    },
     orderBy: { fecha: "desc" },
     take: 200,
   });
@@ -50,6 +66,28 @@ export default async function CajaPage() {
         </h2>
         <CajaFormulario />
       </div>
+
+      <BarraFiltro q={q} placeholder="Concepto...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Tipo</span>
+          <select name="tipo" defaultValue={filtroTipo ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="INGRESO">Ingresos</option>
+            <option value="EGRESO">Egresos</option>
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Medio</span>
+          <select name="medioPago" defaultValue={filtroMedio ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {MEDIOS.map((m) => (
+              <option key={m} value={m}>
+                {ETIQUETA_MEDIO_PAGO[m]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </BarraFiltro>
 
       <table className="tabla tabla-densa mt-6">
         <thead>

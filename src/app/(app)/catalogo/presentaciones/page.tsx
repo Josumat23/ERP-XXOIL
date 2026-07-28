@@ -3,10 +3,29 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoPresentacion } from "./actions";
 
-export default async function PresentacionesPage() {
+export default async function PresentacionesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; estado?: string }>;
+}) {
+  const { q, estado } = await searchParams;
+
   const presentaciones = await prisma.presentacion.findMany({
+    where: {
+      ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
+      ...(q
+        ? {
+            OR: [
+              { nombre: { contains: q } },
+              { sku: { contains: q } },
+              { producto: { nombre: { contains: q } } },
+            ],
+          }
+        : {}),
+    },
     include: { producto: true },
     orderBy: { creadoEn: "desc" },
   });
@@ -26,6 +45,17 @@ export default async function PresentacionesPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="SKU, nombre o producto...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={estado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/catalogo/presentaciones/nuevo"

@@ -2,10 +2,24 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoEquipo } from "./actions";
 
-export default async function EquiposPage() {
+export default async function EquiposPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; almacenId?: string; estado?: string }>;
+}) {
+  const { q, almacenId, estado } = await searchParams;
+
+  const almacenes = await prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } });
+
   const equipos = await prisma.equipo.findMany({
+    where: {
+      ...(almacenId ? { almacenId } : {}),
+      ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
+      ...(q ? { OR: [{ nombre: { contains: q } }, { codigo: { contains: q } }] } : {}),
+    },
     include: {
       almacen: true,
       activoFijo: true,
@@ -34,6 +48,28 @@ export default async function EquiposPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Nombre o código...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Almacén / planta</span>
+          <select name="almacenId" defaultValue={almacenId ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {almacenes.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={estado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="activo">Activos</option>
+            <option value="inactivo">Inactivos</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/produccion/equipos/nuevo"

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   PENDIENTE: "Pendiente",
@@ -20,8 +21,28 @@ const COLOR_ESTADO: Record<string, string> = {
   CONVERTIDA: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
 };
 
-export default async function CotizacionesPage() {
+const ESTADOS = Object.keys(ETIQUETA_ESTADO) as (keyof typeof ETIQUETA_ESTADO)[];
+
+export default async function CotizacionesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; estado?: string }>;
+}) {
+  const { q, estado } = await searchParams;
+  const filtroEstado = ESTADOS.find((e) => e === estado);
+
   const cotizaciones = await prisma.cotizacion.findMany({
+    where: {
+      ...(filtroEstado ? { estado: filtroEstado } : {}),
+      ...(q
+        ? {
+            OR: [
+              { numero: { contains: q } },
+              { cliente: { razonSocial: { contains: q } } },
+            ],
+          }
+        : {}),
+    },
     include: { cliente: true, vendedor: true },
     orderBy: { fecha: "desc" },
   });
@@ -41,6 +62,20 @@ export default async function CotizacionesPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Número o cliente...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={filtroEstado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {ESTADOS.map((e) => (
+              <option key={e} value={e}>
+                {ETIQUETA_ESTADO[e]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/comercial/cotizaciones/nuevo"

@@ -2,9 +2,19 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
-export default async function GuiasRemisionPage() {
+export default async function GuiasRemisionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+
   const guias = await prisma.guiaRemision.findMany({
+    where: q
+      ? { OR: [{ numero: { contains: q } }, { cliente: { razonSocial: { contains: q } } }] }
+      : {},
     include: { cliente: true, factura: true, _count: { select: { detalles: true } } },
     orderBy: { creadoEn: "desc" },
   });
@@ -25,6 +35,8 @@ export default async function GuiasRemisionPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Número o cliente..." />
 
       <PanelMaestroDetalle
         nuevoHref="/logistica/guias-remision/nueva"

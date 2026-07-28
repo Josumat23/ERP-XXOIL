@@ -3,9 +3,25 @@ import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
-export default async function EnvasadosPage() {
+export default async function EnvasadosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string }>;
+}) {
+  const { q } = await searchParams;
+
   const envasados = await prisma.envasado.findMany({
+    where: q
+      ? {
+          OR: [
+            { codigo: { contains: q } },
+            { presentacion: { nombre: { contains: q } } },
+            { presentacion: { sku: { contains: q } } },
+          ],
+        }
+      : {},
     include: {
       loteGranel: { include: { formula: { include: { producto: true } } } },
       presentacion: true,
@@ -27,6 +43,8 @@ export default async function EnvasadosPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Código, SKU o presentación..." />
 
       <PanelMaestroDetalle
         nuevoHref="/produccion/envasados/nuevo"

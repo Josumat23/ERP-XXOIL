@@ -4,6 +4,7 @@ import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
 const COLOR_ESTADO: Record<string, string> = {
   EN_PROCESO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
@@ -11,9 +12,23 @@ const COLOR_ESTADO: Record<string, string> = {
   APROBADO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
   RECHAZADO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
 };
+const ESTADOS = Object.keys(ETIQUETA_ESTADO_LOTE) as (keyof typeof ETIQUETA_ESTADO_LOTE)[];
 
-export default async function LotesPage() {
+export default async function LotesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; estado?: string }>;
+}) {
+  const { q, estado } = await searchParams;
+  const filtroEstado = ESTADOS.find((e) => e === estado);
+
   const lotes = await prisma.loteGranel.findMany({
+    where: {
+      ...(filtroEstado ? { estado: filtroEstado } : {}),
+      ...(q
+        ? { OR: [{ codigo: { contains: q } }, { formula: { producto: { nombre: { contains: q } } } }] }
+        : {}),
+    },
     include: { formula: { include: { producto: true } } },
     orderBy: { fechaInicio: "desc" },
   });
@@ -33,6 +48,20 @@ export default async function LotesPage() {
           <BotonImprimir />
         </div>
       </div>
+
+      <BarraFiltro q={q} placeholder="Código o producto...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={filtroEstado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {ESTADOS.map((e) => (
+              <option key={e} value={e}>
+                {ETIQUETA_ESTADO_LOTE[e]}
+              </option>
+            ))}
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         nuevoHref="/produccion/lotes/nuevo"

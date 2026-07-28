@@ -1,11 +1,19 @@
 import { prisma } from "@/lib/prisma";
+import BarraFiltro from "@/components/BarraFiltro";
 import CascoFormulario from "./CascoFormulario";
 
-export default async function CascosPage() {
+export default async function CascosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ clienteId?: string }>;
+}) {
+  const { clienteId } = await searchParams;
+
   const [clientes, insumosRetornables, movimientos] = await Promise.all([
     prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.insumo.findMany({ where: { esRetornable: true }, orderBy: { codigo: "asc" } }),
     prisma.movimientoCasco.findMany({
+      where: { ...(clienteId ? { clienteId } : {}) },
       include: { cliente: true, insumo: true },
       orderBy: { fecha: "desc" },
     }),
@@ -42,6 +50,28 @@ export default async function CascosPage() {
         Envases retornables (ej. tambores metálicos) entregados a clientes y aún no devueltos, con
         su depósito asociado. Registro manual — no se deriva automáticamente de las ventas.
       </p>
+
+      <form method="get" className="mt-5 flex flex-wrap items-end gap-3 no-imprimir">
+        <label className="flex flex-col gap-1 text-sm min-w-[220px]">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Cliente</span>
+          <select name="clienteId" defaultValue={clienteId ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.razonSocial}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button type="submit" className="boton-secundario">
+          Filtrar
+        </button>
+        {clienteId && (
+          <a href="." className="text-sm text-neutral-500 hover:underline pb-2">
+            Limpiar
+          </a>
+        )}
+      </form>
 
       {insumosRetornables.length === 0 ? (
         <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2 mt-4">

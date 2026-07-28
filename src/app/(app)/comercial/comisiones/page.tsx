@@ -3,9 +3,23 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
-export default async function ComisionesPage() {
+export default async function ComisionesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; vendedorId?: string; estado?: string }>;
+}) {
+  const { q, vendedorId, estado } = await searchParams;
+
+  const vendedores = await prisma.vendedor.findMany({ orderBy: { nombre: "asc" } });
+
   const comisiones = await prisma.comision.findMany({
+    where: {
+      ...(vendedorId ? { vendedorId } : {}),
+      ...(estado === "pagada" ? { estado: "PAGADA" } : estado === "pendiente" ? { estado: "PENDIENTE" } : {}),
+      ...(q ? { factura: { numero: { contains: q } } } : {}),
+    },
     include: { vendedor: true, factura: true },
     orderBy: { creadoEn: "desc" },
   });
@@ -29,6 +43,28 @@ export default async function ComisionesPage() {
         Se generan al facturar y se revierten con anulaciones o notas de crédito. Los registros no se
         editan: cada reversión es un movimiento nuevo.
       </p>
+
+      <BarraFiltro q={q} placeholder="Número de factura...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Vendedor</span>
+          <select name="vendedorId" defaultValue={vendedorId ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {vendedores.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={estado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="pagada">Pagadas</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         registros={comisiones.map((c) => ({

@@ -3,9 +3,29 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BarraFiltro from "@/components/BarraFiltro";
 
-export default async function CuentasPorPagarPage() {
+export default async function CuentasPorPagarPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; estado?: string }>;
+}) {
+  const { q, estado } = await searchParams;
+  const filtroEstado = estado === "pendiente" || estado === "pagada" ? estado : undefined;
+
   const cuentas = await prisma.cuentaPorPagar.findMany({
+    where: {
+      ...(filtroEstado === "pendiente" ? { estado: "PENDIENTE" } : {}),
+      ...(filtroEstado === "pagada" ? { estado: "PAGADA" } : {}),
+      ...(q
+        ? {
+            OR: [
+              { numeroDocumento: { contains: q } },
+              { proveedor: { razonSocial: { contains: q } } },
+            ],
+          }
+        : {}),
+    },
     include: { proveedor: true, ordenCompra: true },
     orderBy: { fechaEmision: "desc" },
   });
@@ -27,6 +47,17 @@ export default async function CuentasPorPagarPage() {
           {formatMoneda(totalPorPagar)}
         </span>
       </p>
+
+      <BarraFiltro q={q} placeholder="Documento o proveedor...">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
+          <select name="estado" defaultValue={filtroEstado ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            <option value="pendiente">Pendientes</option>
+            <option value="pagada">Pagadas</option>
+          </select>
+        </label>
+      </BarraFiltro>
 
       <PanelMaestroDetalle
         registros={cuentas.map((c) => ({

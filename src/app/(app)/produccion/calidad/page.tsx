@@ -2,9 +2,17 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import BarraFiltro from "@/components/BarraFiltro";
 import CalidadFormulario from "./CalidadFormulario";
 
-export default async function CalidadPage() {
+export default async function CalidadPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; resultado?: string }>;
+}) {
+  const { q, resultado } = await searchParams;
+  const filtroResultado = resultado === "APROBADO" || resultado === "RECHAZADO" ? resultado : undefined;
+
   const [pendientes, evaluados] = await Promise.all([
     prisma.loteGranel.findMany({
       where: { estado: "PENDIENTE_CALIDAD" },
@@ -12,6 +20,10 @@ export default async function CalidadPage() {
       orderBy: { fechaFin: "asc" },
     }),
     prisma.controlCalidad.findMany({
+      where: {
+        ...(filtroResultado ? { resultado: filtroResultado } : {}),
+        ...(q ? { loteGranel: { OR: [{ codigo: { contains: q } }, { formula: { producto: { nombre: { contains: q } } } }] } } : {}),
+      },
       include: { loteGranel: { include: { formula: { include: { producto: true } } } } },
       orderBy: { fecha: "desc" },
       take: 20,
@@ -60,6 +72,16 @@ export default async function CalidadPage() {
 
       <section className="mt-10">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Últimas evaluaciones</h2>
+        <BarraFiltro q={q} placeholder="Código de lote o producto...">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Resultado</span>
+            <select name="resultado" defaultValue={filtroResultado ?? ""} className="campo-input">
+              <option value="">Todos</option>
+              <option value="APROBADO">Aprobado</option>
+              <option value="RECHAZADO">Rechazado</option>
+            </select>
+          </label>
+        </BarraFiltro>
         <table className="tabla mt-3">
           <thead>
             <tr>
