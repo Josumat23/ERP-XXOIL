@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: file:/app/data/erp.db
+      NODE_ENV: production
+    volumes:
+      - erp_db_data:/app/data
+    restart: unless-stopped
+
+volumes:
+  erp_db_data:

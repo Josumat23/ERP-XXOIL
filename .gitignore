@@ -49,3 +49,4 @@ next-env.d.ts
 
 # local claude code settings (per-user)
 .claude/settings.local.json
+.claude/worktrees/
