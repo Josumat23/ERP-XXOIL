@@ -111,6 +111,7 @@ export async function postearAsiento(
   const r2 = (n: number) => Math.round(n * 100) / 100;
   const lineas = params.lineas
     .map((l) => ({
+      clave: l.clave,
       cuentaId: cuentaPorClave.get(l.clave)!,
       glosa: l.glosa ?? null,
       debe: r2(l.debe ?? 0),
@@ -134,6 +135,66 @@ export async function postearAsiento(
     else ultima.debe = r2(ultima.debe - diferencia);
   }
 
+  // Dimensión de centro de costo (best-effort: si una clave no tiene control
+  // de centro configurado, esa línea se postea igual sin centro). Si el
+  // control apunta a una regla de prorrateo, esta línea se reparte en varias
+  // AsientoDetalle según el % de cada centro de la regla.
+  const controlesCosto = await tx.centroCostoControl.findMany({
+    where: { clave: { in: claves } },
+    include: { regla: { include: { lineas: true } } },
+  });
+  const controlCostoPorClave = new Map(controlesCosto.map((c) => [c.clave, c]));
+
+  const detallesFinales: {
+    cuentaId: string;
+    centroCostoId: string | null;
+    glosa: string | null;
+    debe: number;
+    haber: number;
+  }[] = [];
+
+  for (const l of lineas) {
+    const control = controlCostoPorClave.get(l.clave);
+    if (control?.centroCostoId) {
+      detallesFinales.push({
+        cuentaId: l.cuentaId,
+        centroCostoId: control.centroCostoId,
+        glosa: l.glosa,
+        debe: l.debe,
+        haber: l.haber,
+      });
+    } else if (control?.regla && control.regla.lineas.length > 0) {
+      const totalPct = control.regla.lineas.reduce((acc, rl) => acc + rl.porcentaje.toNumber(), 0);
+      let debeRepartido = 0;
+      let haberRepartido = 0;
+      control.regla.lineas.forEach((rl, i) => {
+        const esUltima = i === control.regla!.lineas.length - 1;
+        const pct = rl.porcentaje.toNumber() / (totalPct || 100);
+        const debe = esUltima ? r2(l.debe - debeRepartido) : r2(l.debe * pct);
+        const haber = esUltima ? r2(l.haber - haberRepartido) : r2(l.haber * pct);
+        debeRepartido = r2(debeRepartido + debe);
+        haberRepartido = r2(haberRepartido + haber);
+        if (debe > 0 || haber > 0) {
+          detallesFinales.push({
+            cuentaId: l.cuentaId,
+            centroCostoId: rl.centroCostoId,
+            glosa: l.glosa,
+            debe,
+            haber,
+          });
+        }
+      });
+    } else {
+      detallesFinales.push({
+        cuentaId: l.cuentaId,
+        centroCostoId: null,
+        glosa: l.glosa,
+        debe: l.debe,
+        haber: l.haber,
+      });
+    }
+  }
+
   const libro = await libroDiario(tx);
   const numero = await siguienteNumeroAsiento(tx);
 
@@ -149,7 +210,7 @@ export async function postearAsiento(
       referencia: params.referencia ?? null,
       usuarioId: params.usuarioId,
       usuarioNombre: params.usuarioNombre,
-      detalles: { create: lineas },
+      detalles: { create: detallesFinales },
     },
   });
 

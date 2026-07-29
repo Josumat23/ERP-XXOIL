@@ -1365,6 +1365,7 @@ model Almacen {
   activosFijos ActivoFijo[]
   equipos Equipo[]
   ordenesCompra OrdenCompra[]
+  centrosCosto CentroCosto[]
 
   @@unique([empresaId, codigo])
   @@map("almacenes")
@@ -1605,17 +1606,20 @@ model AsientoContable {
 }
 
 model AsientoDetalle {
-  id        String  @id @default(cuid())
-  asientoId String
-  cuentaId  String
-  glosa     String?
-  debe      Decimal @default(0)
-  haber     Decimal @default(0)
+  id            String  @id @default(cuid())
+  asientoId     String
+  cuentaId      String
+  centroCostoId String? // dimensión de centro de costo (opcional; ver CentroCostoControl)
+  glosa         String?
+  debe          Decimal @default(0)
+  haber         Decimal @default(0)
 
-  asiento AsientoContable @relation(fields: [asientoId], references: [id])
-  cuenta  CuentaContable  @relation(fields: [cuentaId], references: [id])
+  asiento     AsientoContable @relation(fields: [asientoId], references: [id])
+  cuenta      CuentaContable  @relation(fields: [cuentaId], references: [id])
+  centroCosto CentroCosto?    @relation(fields: [centroCostoId], references: [id])
 
   @@index([cuentaId])
+  @@index([centroCostoId])
   @@map("asiento_detalles")
 }
 
@@ -1634,6 +1638,110 @@ model ControlContable {
 
   @@unique([empresaId, clave])
   @@map("controles_contables")
+}
+
+// ---------------------------------------------------------------------------
+// FINANZAS — CENTROS DE COSTO (contabilidad de gestión, estilo SAP CO)
+//
+// Independiente del plan de cuentas: el plan de cuentas dice QUÉ es el gasto
+// (naturaleza — depreciación, mantenimiento, sueldos); el centro de costo
+// dice DÓNDE se originó (planta, ventas, administración). Un mismo gasto
+// puede repartirse entre varios centros mediante una regla de prorrateo.
+// ---------------------------------------------------------------------------
+
+enum TipoCentroCosto {
+  PRODUCCION
+  VENTAS
+  ADMINISTRACION
+  LOGISTICA
+  OTRO
+}
+
+model CentroCosto {
+  id        String          @id @default(cuid())
+  empresaId String          @default("1")
+  codigo    String // CC-PLANTA, CC-VENTAS
+  nombre    String
+  tipo      TipoCentroCosto
+  almacenId String? // opcional: si el centro corresponde a una planta/almacén físico
+  activo    Boolean         @default(true)
+  creadoEn  DateTime        @default(now())
+
+  almacen      Almacen?                      @relation(fields: [almacenId], references: [id])
+  presupuestos PresupuestoCentroCosto[]
+  asientos     AsientoDetalle[]
+  controles    CentroCostoControl[]
+  reglaLineas  ReglaAsignacionCostoDetalle[]
+
+  @@unique([empresaId, codigo])
+  @@map("centros_costo")
+}
+
+// Presupuesto mensual por centro, para el reporte de variación (presupuesto
+// vs. real). Cargado a mano por Gerencia/Finanzas al planificar el período.
+model PresupuestoCentroCosto {
+  id                 String   @id @default(cuid())
+  centroCostoId      String
+  anio               Int
+  mes                Int
+  montoPresupuestado Decimal
+  usuarioId          String
+  usuarioNombre      String
+  creadoEn           DateTime @default(now())
+
+  centroCosto CentroCosto @relation(fields: [centroCostoId], references: [id])
+
+  @@unique([centroCostoId, anio, mes])
+  @@map("presupuestos_centro_costo")
+}
+
+// Prorrateo automático: cuando una clave de control (ej. GASTO_DEPRECIACION)
+// no corresponde a un solo centro sino que se reparte entre varios (ej. la
+// depreciación de una mezcladora que sirve a Planta y a Logística), esta
+// regla define el % que le toca a cada uno. Los porcentajes de sus líneas
+// deben sumar 100 (se valida al guardar, no en la base).
+model ReglaAsignacionCosto {
+  id       String   @id @default(cuid())
+  nombre   String // "Depreciación prorrateada Planta/Logística"
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now())
+
+  lineas    ReglaAsignacionCostoDetalle[]
+  controles CentroCostoControl[]
+
+  @@map("reglas_asignacion_costo")
+}
+
+model ReglaAsignacionCostoDetalle {
+  id            String  @id @default(cuid())
+  reglaId       String
+  centroCostoId String
+  porcentaje    Decimal // 0-100
+
+  regla       ReglaAsignacionCosto @relation(fields: [reglaId], references: [id], onDelete: Cascade)
+  centroCosto CentroCosto          @relation(fields: [centroCostoId], references: [id])
+
+  @@unique([reglaId, centroCostoId])
+  @@map("reglas_asignacion_costo_detalles")
+}
+
+// Qué centro (o regla de prorrateo) le corresponde a cada clave de control
+// contable. Exactamente uno de los dos debe estar definido, nunca ambos —
+// se valida en el server action, no en la base. Si una clave no tiene
+// entrada acá, el asiento se postea igual pero sin centro de costo
+// (best-effort, como el resto del motor contable).
+model CentroCostoControl {
+  id            String @id @default(cuid())
+  empresaId     String @default("1")
+  clave         String // mismo universo que ControlContable.clave
+  centroCostoId String?
+  reglaId       String?
+
+  centroCosto CentroCosto?          @relation(fields: [centroCostoId], references: [id])
+  regla       ReglaAsignacionCosto? @relation(fields: [reglaId], references: [id])
+
+  @@unique([empresaId, clave])
+  @@map("centro_costo_controles")
 }
 
 // ---------------------------------------------------------------------------
