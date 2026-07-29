@@ -13,6 +13,7 @@ import {
 import { actualizarDetalleProyeccion, refrescarFactorMacro } from "../actions";
 import SupuestosMarketingFormulario from "./SupuestosMarketingFormulario";
 import CajaMinimaFormulario from "./CajaMinimaFormulario";
+import SimuladorPrecios from "./SimuladorPrecios";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
 
@@ -43,13 +44,24 @@ export default async function DetalleProyeccionPage({
     sinHistorico: d.ventasBase.toNumber() === 0,
     ajusteCualitativoPct: d.ajusteCualitativoPct.toNumber(),
     detalleId: d.id,
+    precioSimuladoGuardado: d.precioSimulado?.toNumber() ?? null,
+    precioCompetidorRefGuardado: d.precioCompetidorRef?.toNumber() ?? null,
   }));
 
-  const detalles: (DetalleCalculado & { detalleId: string })[] = calcularDemanda(
+  const detalles: (DetalleCalculado & {
+    detalleId: string;
+    precioSimuladoGuardado: number | null;
+    precioCompetidorRefGuardado: number | null;
+  })[] = calcularDemanda(
     detallesBase,
     proyeccion.crecimientoMercadoPct.toNumber(),
     proyeccion.factorCompetenciaPct.toNumber()
-  ).map((d, i) => ({ ...d, detalleId: detallesBase[i].detalleId }));
+  ).map((d, i) => ({
+    ...d,
+    detalleId: detallesBase[i].detalleId,
+    precioSimuladoGuardado: detallesBase[i].precioSimuladoGuardado,
+    precioCompetidorRefGuardado: detallesBase[i].precioCompetidorRefGuardado,
+  }));
 
   const [operaciones, finanzas] = await Promise.all([
     calcularOperaciones(detalles, proyeccion.anio, proyeccion.trimestre),
@@ -337,6 +349,31 @@ export default async function DetalleProyeccionPage({
     </div>
   );
 
+  const contenidoSimulador = (
+    <SimuladorPrecios
+      proyeccionId={proyeccion.id}
+      lineas={detalles.map((d) => ({
+        detalleId: d.detalleId,
+        presentacionId: d.presentacionId,
+        nombre: d.nombre,
+        costoPromedio: d.costoPromedio,
+        demandaProyectada: d.demandaProyectada,
+        precioActual: d.precio,
+        precioSimuladoGuardado: d.precioSimuladoGuardado,
+        precioCompetidorRefGuardado: d.precioCompetidorRefGuardado,
+      }))}
+      tasaComisionPromedio={finanzas.tasaComisionPromedio}
+      costoVentasProyectado={finanzas.costoVentasProyectado}
+      gastosOperativosProyectados={finanzas.gastosOperativosProyectados}
+      ventasBase={finanzas.ventasProyectadas}
+      comisionesBase={finanzas.comisionesProyectadas}
+      metaUtilidadOperativaGuardada={proyeccion.metaUtilidadOperativa?.toNumber() ?? null}
+      horasHombreProyectadas={operaciones.horasHombreProyectadas}
+      horasHombreDisponibles={operaciones.horasHombreDisponibles}
+      insumosFaltantes={operaciones.insumos.filter((i) => i.aComprar > 0).length}
+    />
+  );
+
   return (
     <div className="max-w-6xl">
       <Link href="/proyecciones" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
@@ -367,6 +404,7 @@ export default async function DetalleProyeccionPage({
             { id: "mkt", etiqueta: "Marketing", contenido: contenidoMarketing },
             { id: "ops", etiqueta: "Operaciones", contenido: contenidoOperaciones },
             { id: "fin", etiqueta: "Finanzas", contenido: contenidoFinanzas },
+            { id: "sim", etiqueta: "Simulador de precios", contenido: contenidoSimulador },
           ]}
         />
       </div>

@@ -1918,7 +1918,8 @@ model Proyeccion {
   presupuestoPublicidad Decimal @default(0)
 
   // Supuestos de Finanzas
-  cajaMinimaDeseada Decimal @default(0)
+  cajaMinimaDeseada     Decimal  @default(0)
+  metaUtilidadOperativa Decimal? // meta del trimestre, para el simulador de precios
 
   // Factor macro de referencia (BCRP), tomado al momento de crear/actualizar
   macroPbiManufacturaVar Decimal? // variación % interanual
@@ -1946,6 +1947,11 @@ model ProyeccionDetalle {
   indiceEstacionalidad Decimal @default(1) // trimestre objetivo ÷ trimestre base, de la historia
   ajusteCualitativoPct Decimal @default(0) // % adicional a criterio del usuario
   demandaProyectada    Decimal @default(0) // unidades resultantes
+
+  // Simulador de precios: hipótesis de "a qué precio necesito vender", no el
+  // precio real del maestro (Presentacion.precio no se toca desde acá).
+  precioSimulado      Decimal? // si es null, el simulador parte del precio actual
+  precioCompetidorRef Decimal? // precio de referencia del competidor, ingresado a criterio
 
   proyeccion   Proyeccion   @relation(fields: [proyeccionId], references: [id], onDelete: Cascade)
   presentacion Presentacion @relation(fields: [presentacionId], references: [id])

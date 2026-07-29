@@ -228,6 +228,7 @@ export type ResultadoFinanzas = {
   costoVentasProyectado: number;
   utilidadBruta: number;
   comisionesProyectadas: number;
+  tasaComisionPromedio: number;
   gastosOperativosProyectados: number;
   utilidadOperativa: number;
   cajaActual: number;
@@ -320,6 +321,7 @@ export async function calcularFinanzas(
     costoVentasProyectado,
     utilidadBruta,
     comisionesProyectadas,
+    tasaComisionPromedio,
     gastosOperativosProyectados,
     utilidadOperativa,
     cajaActual,

@@ -141,6 +141,43 @@ export async function actualizarDetalleProyeccion(
   revalidatePath(`/proyecciones/${detalle.proyeccionId}`);
 }
 
+// Guarda la hipótesis del simulador de precios (no toca Presentacion.precio,
+// que es el precio real de venta — esto es solo el escenario "qué pasaría si").
+export async function guardarSimulacionPrecios(
+  proyeccionId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol([...ROLES_PROYECCIONES]);
+  if ("error" in auth) return auth;
+
+  const metaRaw = String(formData.get("metaUtilidadOperativa") ?? "").trim();
+  const metaUtilidadOperativa = metaRaw ? Number(metaRaw) : null;
+  if (metaRaw && !Number.isFinite(metaUtilidadOperativa)) {
+    return { error: "La meta de utilidad debe ser un número válido." };
+  }
+
+  let lineas: { detalleId: string; precioSimulado: number | null; precioCompetidorRef: number | null }[];
+  try {
+    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+  } catch {
+    return { error: "El detalle de la simulación es inválido." };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.proyeccion.update({ where: { id: proyeccionId }, data: { metaUtilidadOperativa } });
+    for (const l of lineas) {
+      await tx.proyeccionDetalle.update({
+        where: { id: l.detalleId },
+        data: { precioSimulado: l.precioSimulado, precioCompetidorRef: l.precioCompetidorRef },
+      });
+    }
+  });
+
+  revalidatePath(`/proyecciones/${proyeccionId}`);
+  return {};
+}
+
 export async function refrescarFactorMacro(proyeccionId: string) {
   const auth = await requerirRol([...ROLES_PROYECCIONES]);
   if ("error" in auth) return;
