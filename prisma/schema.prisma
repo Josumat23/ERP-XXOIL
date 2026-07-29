@@ -1463,11 +1463,13 @@ model UnidadMedida {
 
 // --- Grupos de seguridad (Security Group Maintenance) -----------------------
 //
-// Modelo de referencia/consulta: documenta qué puede hacer cada grupo por
-// módulo, como en Epicor. Los 4 roles existentes (RolUsuario) se muestran
-// como grupos predefinidos no editables; la aplicación real de permisos
-// sigue haciéndose con requerirRol() sobre RolUsuario — conectar estos
-// permisos al enforcement en tiempo real es un cambio aparte, más profundo.
+// Aplicado de verdad: puedeRealizar() (src/lib/permisos.ts) consulta estos
+// permisos y su resultado SÍ bloquea crear/editar/aprobar en las acciones de
+// cada módulo — no es solo referencia. Los 4 roles existentes (RolUsuario) se
+// muestran como grupos predefinidos no editables porque el acceso base a cada
+// pantalla sigue viniendo de requerirRol(); un grupo personalizado asignado a
+// un usuario solo puede RESTRINGIR una acción dentro de lo que su rol ya
+// permite, nunca ampliarla.
 
 model GrupoSeguridad {
   id            String   @id @default(cuid())
@@ -1488,10 +1490,14 @@ model GrupoSeguridad {
 model PermisoGrupo {
   id        String  @id @default(cuid())
   grupoId   String
-  modulo    String // ventas | materiales | produccion | finanzas | configuracion
+  modulo    String // ventas | materiales | produccion | finanzas | rrhh | configuracion
   puedeVer  Boolean @default(true)
   puedeCrear Boolean @default(false)
   puedeEditar Boolean @default(false)
+  // Segregación de funciones: separado de editar porque aprobar/rechazar
+  // (órdenes de compra, pagos, vacaciones) es una autoridad distinta a la de
+  // quien crea o edita el registro.
+  puedeAprobar Boolean @default(true)
 
   grupo GrupoSeguridad @relation(fields: [grupoId], references: [id])
 

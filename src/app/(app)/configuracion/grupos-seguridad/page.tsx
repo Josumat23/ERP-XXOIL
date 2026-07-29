@@ -26,8 +26,11 @@ export default async function GruposSeguridadPage() {
         (Administrador, Almacén, Producción, Ventas) aparecen como grupos predefinidos de solo
         lectura: el acceso a cada pantalla sigue controlado por el rol. Los grupos personalizados
         sí tienen efecto real: al asignarle uno a un usuario (en Configuración → Usuarios), sus
-        casillas &quot;Crear&quot;/&quot;Editar&quot; por módulo restringen esas acciones para ese
-        usuario, sin ampliar nunca lo que su rol ya permite.
+        casillas &quot;Crear&quot;/&quot;Editar&quot;/&quot;Aprobar&quot; por módulo restringen esas
+        acciones para ese usuario, sin ampliar nunca lo que su rol ya permite. &quot;Aprobar&quot;
+        cubre las autorizaciones de gerencia (órdenes de compra, pagos a proveedores, vacaciones):
+        separado de &quot;Editar&quot; porque quien aprueba no debería ser la misma persona que crea
+        o edita el registro (segregación de funciones).
       </p>
 
       <PanelMaestroDetalle
@@ -95,6 +98,7 @@ export default async function GruposSeguridadPage() {
                   <th className="text-center">Ver</th>
                   <th className="text-center">Crear</th>
                   <th className="text-center">Editar</th>
+                  <th className="text-center">Aprobar</th>
                 </tr>
               </thead>
               <tbody>
@@ -125,6 +129,14 @@ export default async function GruposSeguridadPage() {
                           permisoId={permiso.id}
                           campo="puedeEditar"
                           valorInicial={permiso.puedeEditar}
+                          disabled={g.esPredefinido}
+                        />
+                      </td>
+                      <td className="text-center">
+                        <PermisoCheckbox
+                          permisoId={permiso.id}
+                          campo="puedeAprobar"
+                          valorInicial={permiso.puedeAprobar}
                           disabled={g.esPredefinido}
                         />
                       </td>

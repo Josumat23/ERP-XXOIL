@@ -12,7 +12,7 @@ export type ClaveModulo = (typeof MODULOS)[number]["clave"];
 export async function puedeRealizar(
   usuario: Usuario,
   modulo: ClaveModulo,
-  accion: "crear" | "editar"
+  accion: "crear" | "editar" | "aprobar"
 ): Promise<boolean> {
   if (usuario.rol === "ADMIN") return true;
   if (!usuario.grupoSeguridadId) return true;
@@ -22,5 +22,7 @@ export async function puedeRealizar(
   });
   if (!permiso) return true;
 
-  return accion === "crear" ? permiso.puedeCrear : permiso.puedeEditar;
+  if (accion === "crear") return permiso.puedeCrear;
+  if (accion === "editar") return permiso.puedeEditar;
+  return permiso.puedeAprobar;
 }

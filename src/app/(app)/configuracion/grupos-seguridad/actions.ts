@@ -43,7 +43,7 @@ export async function crearGrupoSeguridad(
 
 export async function actualizarPermiso(
   permisoId: string,
-  campo: "puedeVer" | "puedeCrear" | "puedeEditar",
+  campo: "puedeVer" | "puedeCrear" | "puedeEditar" | "puedeAprobar",
   valor: boolean
 ) {
   const auth = await requerirRol([]);

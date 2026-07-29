@@ -175,6 +175,7 @@ export async function solicitarVacaciones(
 export async function aprobarVacaciones(id: string) {
   const auth = await requerirRol([...ROLES_RRHH]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "aprobar"))) return;
 
   const solicitud = await prisma.solicitudVacaciones.findUnique({ where: { id } });
   if (!solicitud || solicitud.estado !== "PENDIENTE") return;
@@ -195,6 +196,9 @@ export async function rechazarVacaciones(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([...ROLES_RRHH]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "aprobar"))) {
+    return { error: "Su grupo de seguridad no permite resolver solicitudes de vacaciones." };
+  }
 
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo del rechazo es obligatorio." };

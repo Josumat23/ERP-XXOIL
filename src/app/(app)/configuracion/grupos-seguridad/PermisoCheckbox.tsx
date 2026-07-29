@@ -10,7 +10,7 @@ export default function PermisoCheckbox({
   disabled,
 }: {
   permisoId: string;
-  campo: "puedeVer" | "puedeCrear" | "puedeEditar";
+  campo: "puedeVer" | "puedeCrear" | "puedeEditar" | "puedeAprobar";
   valorInicial: boolean;
   disabled: boolean;
 }) {

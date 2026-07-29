@@ -118,6 +118,9 @@ export async function registrarPagoProveedor(
 export async function aprobarPagoProveedor(pagoId: string) {
   const auth = await requerirRol(["GERENCIA"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "finanzas", "aprobar"))) {
+    return { error: "Su grupo de seguridad no permite aprobar pagos a proveedores." };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -179,6 +182,9 @@ export async function rechazarPagoProveedor(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["GERENCIA"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "finanzas", "aprobar"))) {
+    return { error: "Su grupo de seguridad no permite resolver pagos a proveedores." };
+  }
 
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo del rechazo es obligatorio." };

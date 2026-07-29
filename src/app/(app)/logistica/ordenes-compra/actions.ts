@@ -347,6 +347,9 @@ export async function registrarRecepcion(
 export async function aprobarOrdenCompra(id: string) {
   const auth = await requerirRol(["GERENCIA"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "aprobar"))) {
+    return { error: "Su grupo de seguridad no permite aprobar órdenes de compra." };
+  }
 
   const oc = await prisma.ordenCompra.findUnique({ where: { id } });
   if (!oc) return { error: "La orden no existe." };
@@ -371,6 +374,9 @@ export async function rechazarOrdenCompra(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol(["GERENCIA"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "aprobar"))) {
+    return { error: "Su grupo de seguridad no permite resolver órdenes de compra." };
+  }
 
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
