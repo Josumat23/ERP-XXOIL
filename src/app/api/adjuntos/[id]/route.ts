@@ -1,0 +1,30 @@
+import { NextResponse } from "next/server";
+import { readFile } from "fs/promises";
+import path from "path";
+import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { DIRECTORIO_ADJUNTOS } from "@/lib/adjuntos";
+
+export async function GET(
+  _req: Request,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const usuario = await obtenerUsuario();
+  if (!usuario) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+
+  const { id } = await params;
+  const adjunto = await prisma.adjunto.findUnique({ where: { id } });
+  if (!adjunto) return NextResponse.json({ error: "Adjunto no encontrado." }, { status: 404 });
+
+  try {
+    const buffer = await readFile(path.join(DIRECTORIO_ADJUNTOS, adjunto.nombreArchivo));
+    return new NextResponse(new Uint8Array(buffer), {
+      headers: {
+        "Content-Type": adjunto.mimeType,
+        "Content-Disposition": `inline; filename="${encodeURIComponent(adjunto.nombreOriginal)}"`,
+      },
+    });
+  } catch {
+    return NextResponse.json({ error: "El archivo ya no existe en disco." }, { status: 404 });
+  }
+}

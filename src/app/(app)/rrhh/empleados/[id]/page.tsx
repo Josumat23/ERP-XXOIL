@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatFecha } from "@/lib/format";
 import { saldoVacaciones } from "@/lib/vacaciones";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import PanelAdjuntos from "@/components/PanelAdjuntos";
 import VacacionesFormulario from "./VacacionesFormulario";
 import BajaEmpleadoFormulario from "./BajaEmpleadoFormulario";
 import { aprobarVacaciones } from "../actions";
@@ -181,6 +182,14 @@ export default async function DetalleEmpleadoPage({
             </tbody>
           </table>
         </section>
+
+        <div className="mt-8">
+          <PanelAdjuntos
+            entidadTipo="Empleado"
+            entidadId={empleado.id}
+            rutaRevalidar={`/rrhh/empleados/${empleado.id}`}
+          />
+        </div>
 
         {empleado.estado === "ACTIVO" && (
           <section className="mt-8 border border-red-200 dark:border-red-900 rounded-lg p-4">

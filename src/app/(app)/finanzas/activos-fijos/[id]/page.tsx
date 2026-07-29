@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatFecha, formatNumero } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import PanelAdjuntos from "@/components/PanelAdjuntos";
 import BajaFormulario from "../BajaFormulario";
 import VentaFormulario from "../VentaFormulario";
 import { darDeBajaActivoFijo, venderActivoFijo } from "../actions";
@@ -156,6 +157,14 @@ export default async function DetalleActivoFijoPage({
             base depreciable ({formatNumero((acumulada / (costo - residual || 1)) * 100, 0)}%).
           </p>
         </section>
+
+        <div className="mt-8">
+          <PanelAdjuntos
+            entidadTipo="ActivoFijo"
+            entidadId={activo.id}
+            rutaRevalidar={`/finanzas/activos-fijos/${activo.id}`}
+          />
+        </div>
 
         {activo.activo && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mt-8">

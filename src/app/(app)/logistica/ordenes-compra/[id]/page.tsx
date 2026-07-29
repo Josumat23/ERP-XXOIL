@@ -7,6 +7,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import PanelAdjuntos from "@/components/PanelAdjuntos";
 import RecepcionFormulario from "./RecepcionFormulario";
 import AnularOCFormulario from "./AnularOCFormulario";
 import RechazarOCFormulario from "./RechazarOCFormulario";
@@ -283,6 +284,14 @@ export default async function DetalleOrdenCompraPage({
           </ul>
         </section>
       )}
+
+      <div className="mt-8 no-imprimir">
+        <PanelAdjuntos
+          entidadTipo="OrdenCompra"
+          entidadId={oc.id}
+          rutaRevalidar={`/logistica/ordenes-compra/${oc.id}`}
+        />
+      </div>
 
       {oc.estado === "PENDIENTE" && oc.recepciones.length === 0 && (
         <section className="mt-8 border border-red-200 dark:border-red-900 rounded-lg p-4 no-imprimir">

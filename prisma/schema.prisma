@@ -2073,3 +2073,27 @@ model SolicitudVacaciones {
 
   @@map("solicitudes_vacaciones")
 }
+
+// ---------------------------------------------------------------------------
+// Adjuntos de archivos (DMS reducido): asociación genérica por
+// entidadTipo/entidadId en vez de una tabla de unión por cada modelo — así un
+// mismo componente (PanelAdjuntos) sirve para Empleado, ActivoFijo, Equipo,
+// OrdenCompra, etc. sin migraciones nuevas cada vez que se agrega a un módulo
+// más. El archivo físico vive en disco (ver src/lib/adjuntos.ts), no en la BD.
+// ---------------------------------------------------------------------------
+model Adjunto {
+  id             String   @id @default(cuid())
+  empresaId      String   @default("1")
+  entidadTipo    String // "Empleado", "ActivoFijo", "Equipo", "OrdenCompra", etc.
+  entidadId      String
+  nombreArchivo  String // nombre físico en disco (con prefijo único)
+  nombreOriginal String // nombre tal como lo subió el usuario
+  mimeType       String
+  tamanioBytes   Int
+  usuarioId      String
+  usuarioNombre  String
+  creadoEn       DateTime @default(now())
+
+  @@index([entidadTipo, entidadId])
+  @@map("adjuntos")
+}

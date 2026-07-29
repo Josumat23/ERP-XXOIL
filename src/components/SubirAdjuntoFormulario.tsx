@@ -1,0 +1,31 @@
+"use client";
+
+import { useActionState } from "react";
+import { subirAdjunto, type EstadoFormulario } from "@/app/(app)/adjuntos/actions";
+
+export default function SubirAdjuntoFormulario({
+  entidadTipo,
+  entidadId,
+  rutaRevalidar,
+}: {
+  entidadTipo: string;
+  entidadId: string;
+  rutaRevalidar: string;
+}) {
+  const accion = subirAdjunto.bind(null, entidadTipo, entidadId, rutaRevalidar);
+  const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
+
+  return (
+    <form action={formAction} className="flex items-end gap-3 flex-wrap">
+      {estado.error && (
+        <p className="w-full text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-2 py-1">
+          {estado.error}
+        </p>
+      )}
+      <input type="file" name="archivo" required className="text-sm" />
+      <button type="submit" disabled={enviando} className="boton-secundario text-xs">
+        {enviando ? "Subiendo..." : "Adjuntar archivo"}
+      </button>
+    </form>
+  );
+}

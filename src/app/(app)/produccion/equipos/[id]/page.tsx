@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatFecha, formatMoneda } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import PanelAdjuntos from "@/components/PanelAdjuntos";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   PROGRAMADA: "Programada",
@@ -151,6 +152,14 @@ export default async function DetalleEquipoPage({
             </tbody>
           </table>
         </section>
+
+        <div className="mt-8">
+          <PanelAdjuntos
+            entidadTipo="Equipo"
+            entidadId={equipo.id}
+            rutaRevalidar={`/produccion/equipos/${equipo.id}`}
+          />
+        </div>
       </div>
       </PanelMaestroDetalle>
     </div>

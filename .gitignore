@@ -47,6 +47,9 @@ next-env.d.ts
 /prisma/dev.db
 *.db-journal
 
+# adjuntos subidos por el usuario (archivos físicos, no van al repo)
+/data/adjuntos
+
 # local claude code settings (per-user)
 .claude/settings.local.json
 .claude/worktrees/
