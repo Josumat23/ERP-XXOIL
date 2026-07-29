@@ -108,6 +108,7 @@ model Usuario {
 
   grupoSeguridad GrupoSeguridad? @relation(fields: [grupoSeguridadId], references: [id])
   sesiones       Sesion[]
+  empleado       Empleado?
 
   @@unique([empresaId, usuario])
   @@map("usuarios")
@@ -1377,6 +1378,7 @@ model Almacen {
   equipos Equipo[]
   ordenesCompra OrdenCompra[]
   centrosCosto CentroCosto[]
+  empleados     Empleado[]
 
   @@unique([empresaId, codigo])
   @@map("almacenes")
@@ -1686,6 +1688,7 @@ model CentroCosto {
   equipos              Equipo[]
   activosFijos         ActivoFijo[]
   ordenesMantenimiento OrdenMantenimiento[]
+  empleados            Empleado[]
 
   @@unique([empresaId, codigo])
   @@map("centros_costo")
@@ -1989,4 +1992,84 @@ model TipoCambio {
   creadoEn DateTime @default(now())
 
   @@map("tipos_cambio")
+}
+
+// ---------------------------------------------------------------------------
+// RRHH básico: ficha de personal + vacaciones. Deliberadamente NO incluye
+// cálculo de planilla/nómina (AFP/ONP/EsSalud/gratificaciones/CTS) — eso
+// requiere expertise legal-tributaria específica y queda fuera de alcance,
+// igual que SuccessFactors/Ariba en el resto del sistema.
+// ---------------------------------------------------------------------------
+
+enum TipoContrato {
+  PLAZO_FIJO
+  PLAZO_INDETERMINADO
+  LOCACION_SERVICIOS
+}
+
+enum EstadoEmpleado {
+  ACTIVO
+  CESADO
+}
+
+model Empleado {
+  id              String         @id @default(cuid())
+  empresaId       String         @default("1")
+  codigo          String // EMP-00001
+  nombres         String
+  apellidos       String
+  dni             String?
+  fechaNacimiento DateTime?
+  fechaIngreso    DateTime
+  fechaCese       DateTime?
+  motivoCese      String?
+  cargo           String
+  area            String
+  tipoContrato    TipoContrato
+  sueldoBasico    Decimal        @default(0)
+  telefono        String?
+  correo          String?
+  almacenId       String? // planta/local donde trabaja (opcional)
+  centroCostoId   String? // para que su costo pese en el centro correcto
+  usuarioId       String?        @unique // cuenta de acceso al ERP, si tiene (opcional, 1 a 1)
+  estado          EstadoEmpleado @default(ACTIVO)
+  notas           String?
+  creadoEn        DateTime       @default(now())
+
+  almacen     Almacen?              @relation(fields: [almacenId], references: [id])
+  centroCosto CentroCosto?          @relation(fields: [centroCostoId], references: [id])
+  usuario     Usuario?              @relation(fields: [usuarioId], references: [id])
+  vacaciones  SolicitudVacaciones[]
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, dni])
+  @@map("empleados")
+}
+
+enum EstadoSolicitudVacaciones {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+}
+
+// Ledger inmutable de solicitudes — el saldo disponible se calcula al vuelo
+// (30 días/año según ley peruana, proporcional al tiempo trabajado, menos lo
+// ya APROBADA) en vez de guardarse, mismo principio que el resto del sistema.
+model SolicitudVacaciones {
+  id              String                    @id @default(cuid())
+  empleadoId      String
+  fechaInicio     DateTime
+  fechaFin        DateTime
+  diasSolicitados Int
+  estado          EstadoSolicitudVacaciones @default(PENDIENTE)
+  motivoRechazo   String?
+  aprobadaPor     String?
+  aprobadaEn      DateTime?
+  usuarioId       String
+  usuarioNombre   String
+  creadoEn        DateTime                  @default(now())
+
+  empleado Empleado @relation(fields: [empleadoId], references: [id])
+
+  @@map("solicitudes_vacaciones")
 }

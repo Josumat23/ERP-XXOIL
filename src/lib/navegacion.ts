@@ -1,4 +1,4 @@
-export type Rol = "ADMIN" | "ALMACEN" | "PRODUCCION" | "VENTAS";
+export type Rol = "ADMIN" | "ALMACEN" | "PRODUCCION" | "VENTAS" | "GERENCIA";
 
 export type Enlace = { href: string; etiqueta: string; roles?: Rol[] };
 export type Grupo = { titulo: string; enlaces: Enlace[] };
@@ -104,6 +104,14 @@ export const MODULOS: Modulo[] = [
           { href: "/finanzas/situacion-financiera", etiqueta: "Situación financiera" },
         ],
       },
+    ],
+  },
+  {
+    titulo: "Recursos Humanos",
+    icono: "◈",
+    enlaces: [
+      { href: "/rrhh/empleados", etiqueta: "Empleados", roles: ["ADMIN", "GERENCIA"] },
+      { href: "/rrhh/vacaciones", etiqueta: "Solicitudes de vacaciones", roles: ["ADMIN", "GERENCIA"] },
     ],
   },
   {
