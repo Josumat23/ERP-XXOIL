@@ -1028,6 +1028,7 @@ model OrdenCompra {
   empresaId     String            @default("1")
   numero        String            @unique // OC-00001
   proveedorId   String
+  almacenId     String? // almacén/planta de destino (opcional: si no se elige, la recepción resuelve el almacén como siempre)
   fecha         DateTime          @default(now())
   estado        EstadoOrdenCompra @default(PENDIENTE)
   moneda        String            @default("PEN")
@@ -1046,6 +1047,7 @@ model OrdenCompra {
   motivoRechazo    String?
 
   proveedor   Proveedor            @relation(fields: [proveedorId], references: [id])
+  almacen     Almacen?             @relation(fields: [almacenId], references: [id])
   detalles    OrdenCompraDetalle[]
   recepciones RecepcionCompra[]
   cuentasPorPagar CuentaPorPagar[]
@@ -1054,13 +1056,14 @@ model OrdenCompra {
 }
 
 model OrdenCompraDetalle {
-  id               String  @id @default(cuid())
-  ordenCompraId    String
-  insumoId         String
-  cantidad         Decimal
-  costoUnitario    Decimal
-  subtotal         Decimal
-  cantidadRecibida Decimal @default(0)
+  id                   String    @id @default(cuid())
+  ordenCompraId        String
+  insumoId             String
+  cantidad             Decimal
+  costoUnitario        Decimal
+  subtotal             Decimal
+  cantidadRecibida     Decimal   @default(0)
+  fechaEntregaEsperada DateTime? // fecha pactada con el proveedor para esta línea
 
   ordenCompra OrdenCompra @relation(fields: [ordenCompraId], references: [id])
   insumo      Insumo      @relation(fields: [insumoId], references: [id])
@@ -1361,6 +1364,7 @@ model Almacen {
   movimientosKardex MovimientoKardex[]
   activosFijos ActivoFijo[]
   equipos Equipo[]
+  ordenesCompra OrdenCompra[]
 
   @@unique([empresaId, codigo])
   @@map("almacenes")

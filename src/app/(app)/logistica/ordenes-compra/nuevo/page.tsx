@@ -4,9 +4,10 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import OrdenCompraFormulario from "../OrdenCompraFormulario";
 
 export default async function NuevaOrdenCompraPage() {
-  const [proveedores, insumos, ordenes] = await Promise.all([
+  const [proveedores, insumos, almacenes, ordenes] = await Promise.all([
     prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.ordenCompra.findMany({ include: { proveedor: true }, orderBy: { fecha: "desc" } }),
   ]);
 
@@ -38,6 +39,7 @@ export default async function NuevaOrdenCompraPage() {
             costo: i.costoUnitario.toNumber(),
             unidad: i.unidadMedida,
           }))}
+          almacenes={almacenes.map((a) => ({ id: a.id, etiqueta: a.nombre }))}
         />
       </div>
       </PanelMaestroDetalle>

@@ -15,7 +15,12 @@ import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type EstadoFormulario = { error?: string };
 
-type LineaOC = { insumoId: string; cantidad: number; costoUnitario: number };
+type LineaOC = {
+  insumoId: string;
+  cantidad: number;
+  costoUnitario: number;
+  fechaEntregaEsperada?: string;
+};
 
 export async function crearOrdenCompra(
   _prevState: EstadoFormulario,
@@ -28,6 +33,7 @@ export async function crearOrdenCompra(
   }
 
   const proveedorId = String(formData.get("proveedorId") ?? "");
+  const almacenId = String(formData.get("almacenId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   let lineas: LineaOC[];
@@ -60,6 +66,7 @@ export async function crearOrdenCompra(
       data: {
         numero,
         proveedorId,
+        almacenId,
         total,
         notas,
         estadoAprobacion: total >= montoAprobacionCompras.toNumber() ? "PENDIENTE" : "NO_REQUERIDA",
@@ -71,6 +78,7 @@ export async function crearOrdenCompra(
             cantidad: l.cantidad,
             costoUnitario: l.costoUnitario,
             subtotal: l.cantidad * l.costoUnitario,
+            fechaEntregaEsperada: l.fechaEntregaEsperada ? new Date(l.fechaEntregaEsperada) : null,
           })),
         },
       },
@@ -242,6 +250,10 @@ export async function registrarRecepcion(
             tipoMovimiento: "ENTRADA",
             origen: "COMPRA",
             cantidad: linea.cantidad,
+            // Si la OC tiene almacén de destino, la recepción entra ahí
+            // directo; si no, se resuelve como siempre (zona del insumo o
+            // el almacén activo más antiguo).
+            almacenId: oc.almacenId ?? undefined,
             referencia: `Recepción ${numero} (${oc.numero}, doc. ${numeroDocumento})`,
             usuarioId: auth.usuario.id,
             usuarioNombre: auth.usuario.nombre,

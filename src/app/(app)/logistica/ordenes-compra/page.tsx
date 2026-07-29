@@ -36,7 +36,7 @@ export default async function OrdenesCompraPage({
         ? { OR: [{ numero: { contains: q } }, { proveedor: { razonSocial: { contains: q } } }] }
         : {}),
     },
-    include: { proveedor: true, _count: { select: { recepciones: true } } },
+    include: { proveedor: true, almacen: true, _count: { select: { recepciones: true } } },
     orderBy: { fecha: "desc" },
   });
 
@@ -86,6 +86,7 @@ export default async function OrdenesCompraPage({
           <tr>
             <th>Número</th>
             <th>Proveedor</th>
+            <th>Almacén</th>
             <th className="text-right">Total</th>
             <th>Recepciones</th>
             <th>Estado</th>
@@ -99,6 +100,7 @@ export default async function OrdenesCompraPage({
             <tr key={oc.id}>
               <td className="font-mono text-xs">{oc.numero}</td>
               <td>{oc.proveedor.razonSocial}</td>
+              <td className="text-sm text-neutral-500">{oc.almacen?.nombre ?? "—"}</td>
               <td className="text-right">{formatMoneda(oc.total)}</td>
               <td>{oc._count.recepciones}</td>
               <td>
@@ -130,7 +132,7 @@ export default async function OrdenesCompraPage({
           ))}
           {ordenes.length === 0 && (
             <tr>
-              <td colSpan={8} className="text-center text-neutral-500 py-6">
+              <td colSpan={9} className="text-center text-neutral-500 py-6">
                 No hay órdenes de compra registradas todavía.
               </td>
             </tr>

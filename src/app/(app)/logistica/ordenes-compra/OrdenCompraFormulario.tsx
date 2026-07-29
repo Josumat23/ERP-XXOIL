@@ -7,20 +7,21 @@ import { crearOrdenCompra, type EstadoFormulario } from "./actions";
 type Opcion = { id: string; etiqueta: string };
 type InsumoOpcion = { id: string; etiqueta: string; costo: number; unidad: string };
 
-type Linea = { insumoId: string; cantidad: string; costoUnitario: string };
+type Linea = { insumoId: string; cantidad: string; costoUnitario: string; fechaEntregaEsperada: string };
 
 type Props = {
   proveedores: Opcion[];
   insumos: InsumoOpcion[];
+  almacenes: Opcion[];
 };
 
-export default function OrdenCompraFormulario({ proveedores, insumos }: Props) {
+export default function OrdenCompraFormulario({ proveedores, insumos, almacenes }: Props) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     crearOrdenCompra,
     {}
   );
   const [lineas, setLineas] = useState<Linea[]>([
-    { insumoId: "", cantidad: "", costoUnitario: "" },
+    { insumoId: "", cantidad: "", costoUnitario: "", fechaEntregaEsperada: "" },
   ]);
 
   const lineasJson = JSON.stringify(
@@ -28,6 +29,7 @@ export default function OrdenCompraFormulario({ proveedores, insumos }: Props) {
       insumoId: l.insumoId,
       cantidad: Number(l.cantidad),
       costoUnitario: Number(l.costoUnitario),
+      fechaEntregaEsperada: l.fechaEntregaEsperada || undefined,
     }))
   );
 
@@ -49,19 +51,34 @@ export default function OrdenCompraFormulario({ proveedores, insumos }: Props) {
         </p>
       )}
 
-      <label className="flex flex-col gap-1 text-sm max-w-md">
-        <span className="font-medium text-neutral-700 dark:text-neutral-300">Proveedor</span>
-        <select name="proveedorId" required defaultValue="" className="campo-input">
-          <option value="" disabled>
-            Seleccione
-          </option>
-          {proveedores.map((p) => (
-            <option key={p.id} value={p.id}>
-              {p.etiqueta}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Proveedor</span>
+          <select name="proveedorId" required defaultValue="" className="campo-input">
+            <option value="" disabled>
+              Seleccione
             </option>
-          ))}
-        </select>
-      </label>
+            {proveedores.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.etiqueta}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Almacén / planta de destino (opcional)
+          </span>
+          <select name="almacenId" defaultValue="" className="campo-input">
+            <option value="">Sin definir (se resuelve al recepcionar)</option>
+            {almacenes.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.etiqueta}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
 
       <div>
         <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
@@ -108,6 +125,13 @@ export default function OrdenCompraFormulario({ proveedores, insumos }: Props) {
                 onChange={(e) => actualizarLinea(idx, { costoUnitario: e.target.value })}
                 className="campo-input w-28"
               />
+              <input
+                type="date"
+                title="Fecha de entrega esperada"
+                value={linea.fechaEntregaEsperada}
+                onChange={(e) => actualizarLinea(idx, { fechaEntregaEsperada: e.target.value })}
+                className="campo-input w-40"
+              />
               <span className="w-28 text-right text-sm text-neutral-500">
                 {(Number(linea.cantidad) * Number(linea.costoUnitario) || 0).toLocaleString(
                   "es-PE",
@@ -129,7 +153,10 @@ export default function OrdenCompraFormulario({ proveedores, insumos }: Props) {
         <button
           type="button"
           onClick={() =>
-            setLineas((prev) => [...prev, { insumoId: "", cantidad: "", costoUnitario: "" }])
+            setLineas((prev) => [
+              ...prev,
+              { insumoId: "", cantidad: "", costoUnitario: "", fechaEntregaEsperada: "" },
+            ])
           }
           className="boton-secundario mt-2 text-xs"
         >

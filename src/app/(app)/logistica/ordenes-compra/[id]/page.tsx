@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatMoneda, formatNumero } from "@/lib/format";
+import { formatMoneda, formatNumero, formatFecha } from "@/lib/format";
 import { ETIQUETA_ESTADO_OC, ETIQUETA_ESTADO_APROBACION } from "@/lib/etiquetas";
 import { obtenerUsuario } from "@/lib/auth";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -37,6 +37,7 @@ export default async function DetalleOrdenCompraPage({
       where: { id },
       include: {
         proveedor: true,
+        almacen: true,
         detalles: { include: { insumo: true } },
         recepciones: {
           include: { detalles: { include: { insumo: true, inspeccion: true } } },
@@ -106,7 +107,8 @@ export default async function DetalleOrdenCompraPage({
           Orden de compra · {oc.proveedor.razonSocial}
           {oc.proveedor.ruc ? ` (RUC ${oc.proveedor.ruc})` : ""} · Emitida el{" "}
           {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(oc.fecha)} por{" "}
-          {oc.usuarioNombre}
+          {oc.usuarioNombre} · Moneda {oc.moneda}
+          {oc.almacen ? ` · Destino: ${oc.almacen.nombre}` : ""}
         </p>
         {oc.notas && <p className="text-sm text-neutral-500 mt-1">Notas: {oc.notas}</p>}
         {oc.estado === "ANULADA" && (
@@ -123,6 +125,7 @@ export default async function DetalleOrdenCompraPage({
               <th className="text-right">Recibido</th>
               <th className="text-right">Costo unit.</th>
               <th className="text-right">Subtotal</th>
+              <th>Entrega esperada</th>
             </tr>
           </thead>
           <tbody>
@@ -138,6 +141,9 @@ export default async function DetalleOrdenCompraPage({
                 <td className="text-right">{formatNumero(d.cantidadRecibida, 2)}</td>
                 <td className="text-right">{formatMoneda(d.costoUnitario)}</td>
                 <td className="text-right">{formatMoneda(d.subtotal)}</td>
+                <td className="text-sm text-neutral-500">
+                  {d.fechaEntregaEsperada ? formatFecha(d.fechaEntregaEsperada) : "—"}
+                </td>
               </tr>
             ))}
             <tr>
@@ -145,6 +151,7 @@ export default async function DetalleOrdenCompraPage({
                 Total
               </td>
               <td className="text-right font-semibold">{formatMoneda(oc.total)}</td>
+              <td></td>
             </tr>
           </tbody>
         </table>
