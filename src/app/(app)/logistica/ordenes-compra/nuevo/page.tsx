@@ -2,13 +2,15 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import OrdenCompraFormulario from "../OrdenCompraFormulario";
+import { obtenerTipoCambioVigente } from "@/lib/tipoCambio";
 
 export default async function NuevaOrdenCompraPage() {
-  const [proveedores, insumos, almacenes, ordenes] = await Promise.all([
+  const [proveedores, insumos, almacenes, ordenes, tipoCambioSugerido] = await Promise.all([
     prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.ordenCompra.findMany({ include: { proveedor: true }, orderBy: { fecha: "desc" } }),
+    obtenerTipoCambioVigente(),
   ]);
 
   return (
@@ -40,6 +42,7 @@ export default async function NuevaOrdenCompraPage() {
             unidad: i.unidadMedida,
           }))}
           almacenes={almacenes.map((a) => ({ id: a.id, etiqueta: a.nombre }))}
+          tipoCambioSugerido={tipoCambioSugerido}
         />
       </div>
       </PanelMaestroDetalle>

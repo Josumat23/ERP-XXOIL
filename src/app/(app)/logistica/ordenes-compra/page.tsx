@@ -101,7 +101,7 @@ export default async function OrdenesCompraPage({
               <td className="font-mono text-xs">{oc.numero}</td>
               <td>{oc.proveedor.razonSocial}</td>
               <td className="text-sm text-neutral-500">{oc.almacen?.nombre ?? "—"}</td>
-              <td className="text-right">{formatMoneda(oc.total)}</td>
+              <td className="text-right">{formatMoneda(oc.total, oc.moneda)}</td>
               <td>{oc._count.recepciones}</td>
               <td>
                 <span className={`insignia ${COLOR_ESTADO[oc.estado]}`}>

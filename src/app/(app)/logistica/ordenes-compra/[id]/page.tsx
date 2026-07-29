@@ -108,6 +108,7 @@ export default async function DetalleOrdenCompraPage({
           {oc.proveedor.ruc ? ` (RUC ${oc.proveedor.ruc})` : ""} · Emitida el{" "}
           {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(oc.fecha)} por{" "}
           {oc.usuarioNombre} · Moneda {oc.moneda}
+          {oc.moneda !== "PEN" ? ` (T.C. ${oc.tipoCambio.toFixed(3)})` : ""}
           {oc.almacen ? ` · Destino: ${oc.almacen.nombre}` : ""}
         </p>
         {oc.notas && <p className="text-sm text-neutral-500 mt-1">Notas: {oc.notas}</p>}
@@ -139,8 +140,8 @@ export default async function DetalleOrdenCompraPage({
                   {formatNumero(d.cantidad, 2)} {d.insumo.unidadMedida}
                 </td>
                 <td className="text-right">{formatNumero(d.cantidadRecibida, 2)}</td>
-                <td className="text-right">{formatMoneda(d.costoUnitario)}</td>
-                <td className="text-right">{formatMoneda(d.subtotal)}</td>
+                <td className="text-right">{formatMoneda(d.costoUnitario, oc.moneda)}</td>
+                <td className="text-right">{formatMoneda(d.subtotal, oc.moneda)}</td>
                 <td className="text-sm text-neutral-500">
                   {d.fechaEntregaEsperada ? formatFecha(d.fechaEntregaEsperada) : "—"}
                 </td>
@@ -150,11 +151,17 @@ export default async function DetalleOrdenCompraPage({
               <td colSpan={4} className="text-right font-semibold">
                 Total
               </td>
-              <td className="text-right font-semibold">{formatMoneda(oc.total)}</td>
+              <td className="text-right font-semibold">{formatMoneda(oc.total, oc.moneda)}</td>
               <td></td>
             </tr>
           </tbody>
         </table>
+        {oc.moneda !== "PEN" && (
+          <p className="text-xs text-neutral-500 mt-1">
+            ≈ {formatMoneda(oc.total.toNumber() * oc.tipoCambio.toNumber())} al tipo de cambio de la
+            orden
+          </p>
+        )}
       </div>
 
       {oc.estadoAprobacion === "PENDIENTE" && (
@@ -163,8 +170,9 @@ export default async function DetalleOrdenCompraPage({
             Pendiente de aprobación
           </h2>
           <p className="text-sm text-neutral-500 mb-3">
-            Esta orden ({formatMoneda(oc.total)}) supera el monto configurado en Configuración → Empresa
-            y no se puede recepcionar hasta que Gerencia la apruebe.
+            Esta orden ({formatMoneda(oc.total.toNumber() * oc.tipoCambio.toNumber())}) supera el
+            monto configurado en Configuración → Empresa y no se puede recepcionar hasta que Gerencia
+            la apruebe.
           </p>
           {puedeAprobar ? (
             <div className="flex flex-wrap items-center gap-3">
@@ -221,7 +229,7 @@ export default async function DetalleOrdenCompraPage({
                   {r.detalles.map((rd) => (
                     <li key={rd.id}>
                       {rd.insumo.nombre}: {formatNumero(rd.cantidad, 2)} {rd.insumo.unidadMedida} a{" "}
-                      {formatMoneda(rd.costoUnitario)}
+                      {formatMoneda(rd.costoUnitario, oc.moneda)}
                       {rd.inspeccion && (
                         <Link
                           href={`/logistica/inspeccion-compras/${rd.inspeccion.id}`}
@@ -264,6 +272,12 @@ export default async function DetalleOrdenCompraPage({
                   {cxp.numeroDocumento}
                 </Link>{" "}
                 — {formatMoneda(cxp.total)} (saldo {formatMoneda(cxp.saldo)})
+                {cxp.montoOriginal && cxp.monedaOriginal && (
+                  <span className="text-neutral-400">
+                    {" "}
+                    · {formatMoneda(cxp.montoOriginal, cxp.monedaOriginal)} original
+                  </span>
+                )}
               </li>
             ))}
           </ul>

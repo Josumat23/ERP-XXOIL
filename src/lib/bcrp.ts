@@ -52,6 +52,12 @@ export type FactorMacro = {
   tipoCambio: number | null;
 };
 
+// Reutilizado por src/lib/tipoCambio.ts para compras en USD (independiente
+// del factor macro de Proyecciones).
+export async function obtenerTipoCambioBcrp(): Promise<number | null> {
+  return obtenerUltimoValor(SERIES.tipoCambio);
+}
+
 // Best-effort: si el BCRP no responde (caído, cambió de código, sin
 // internet), devuelve null en cada campo en vez de fallar la proyección.
 export async function obtenerFactorMacro(): Promise<FactorMacro> {

@@ -12,6 +12,7 @@ import {
 } from "@/lib/correlativos";
 import { postearRecepcionCompra } from "@/lib/contabilidad";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { convertirAPen } from "@/lib/tipoCambio";
 
 export type EstadoFormulario = { error?: string };
 
@@ -35,6 +36,12 @@ export async function crearOrdenCompra(
   const proveedorId = String(formData.get("proveedorId") ?? "");
   const almacenId = String(formData.get("almacenId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
+  const moneda = String(formData.get("moneda") ?? "PEN") === "USD" ? "USD" : "PEN";
+  const tipoCambio = moneda === "USD" ? Number(formData.get("tipoCambio")) : 1;
+
+  if (moneda === "USD" && (!Number.isFinite(tipoCambio) || tipoCambio <= 0)) {
+    return { error: "Ingrese un tipo de cambio válido para la orden en dólares." };
+  }
 
   let lineas: LineaOC[];
   try {
@@ -62,14 +69,17 @@ export async function crearOrdenCompra(
   await prisma.$transaction(async (tx) => {
     const numero = await siguienteNumeroOrdenCompra(tx);
     const total = lineas.reduce((acc, l) => acc + l.cantidad * l.costoUnitario, 0);
+    const totalPen = convertirAPen(total, moneda, tipoCambio);
     const oc = await tx.ordenCompra.create({
       data: {
         numero,
         proveedorId,
         almacenId,
+        moneda,
+        tipoCambio,
         total,
         notas,
-        estadoAprobacion: total >= montoAprobacionCompras.toNumber() ? "PENDIENTE" : "NO_REQUERIDA",
+        estadoAprobacion: totalPen >= montoAprobacionCompras.toNumber() ? "PENDIENTE" : "NO_REQUERIDA",
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
         detalles: {
@@ -192,7 +202,8 @@ export async function registrarRecepcion(
         },
       });
 
-      let totalRecepcion = 0;
+      let totalRecepcion = 0; // en la moneda de la OC (lo que dice el documento del proveedor)
+      let totalRecepcionPen = 0; // convertido a PEN — lo que usan CxP y el asiento contable
 
       for (const linea of lineas) {
         const detalle = oc.detalles.find((d) => d.id === linea.detalleId);
@@ -205,9 +216,13 @@ export async function registrarRecepcion(
           );
         }
 
+        // costo queda en la moneda de la OC (lo que dice el documento);
+        // costoPen es lo que se usa para valorizar inventario y contabilizar
+        // (el kardex/costo promedio del insumo siempre vive en PEN).
         const costo = Number.isFinite(linea.costoUnitario) && linea.costoUnitario >= 0
           ? linea.costoUnitario
           : detalle.costoUnitario.toNumber();
+        const costoPen = convertirAPen(costo, oc.moneda, oc.tipoCambio.toNumber());
 
         const detalleRecepcion = await tx.recepcionCompraDetalle.create({
           data: {
@@ -232,13 +247,13 @@ export async function registrarRecepcion(
             where: { id: detalleRecepcion.id },
             data: { cantidadDisponible: linea.cantidad },
           });
-          // Costo promedio ponderado ANTES de mover el stock
+          // Costo promedio ponderado ANTES de mover el stock (siempre en PEN)
           const stockActual = insumo.stock.toNumber();
           const costoActual = insumo.costoUnitario.toNumber();
           const nuevoCosto =
             stockActual + linea.cantidad > 0
-              ? (stockActual * costoActual + linea.cantidad * costo) / (stockActual + linea.cantidad)
-              : costo;
+              ? (stockActual * costoActual + linea.cantidad * costoPen) / (stockActual + linea.cantidad)
+              : costoPen;
           await tx.insumo.update({
             where: { id: insumo.id },
             data: { costoUnitario: nuevoCosto },
@@ -267,6 +282,7 @@ export async function registrarRecepcion(
         });
 
         totalRecepcion += linea.cantidad * costo;
+        totalRecepcionPen += linea.cantidad * costoPen;
       }
 
       // Estado de la OC según lo recibido acumulado
@@ -292,8 +308,12 @@ export async function registrarRecepcion(
           ordenCompraId,
           numeroDocumento,
           fechaVencimiento,
-          total: totalRecepcion,
-          saldo: totalRecepcion,
+          moneda: "PEN",
+          total: totalRecepcionPen,
+          saldo: totalRecepcionPen,
+          ...(oc.moneda !== "PEN"
+            ? { montoOriginal: totalRecepcion, monedaOriginal: oc.moneda, tipoCambio: oc.tipoCambio }
+            : {}),
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
         },
@@ -305,7 +325,7 @@ export async function registrarRecepcion(
           numeroRecepcion: numero,
           documentoProveedor: numeroDocumento,
           proveedor: oc.proveedor.razonSocial,
-          total: totalRecepcion,
+          total: totalRecepcionPen,
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
       );

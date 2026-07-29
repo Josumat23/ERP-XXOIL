@@ -13,9 +13,15 @@ type Props = {
   proveedores: Opcion[];
   insumos: InsumoOpcion[];
   almacenes: Opcion[];
+  tipoCambioSugerido: number | null;
 };
 
-export default function OrdenCompraFormulario({ proveedores, insumos, almacenes }: Props) {
+export default function OrdenCompraFormulario({
+  proveedores,
+  insumos,
+  almacenes,
+  tipoCambioSugerido,
+}: Props) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     crearOrdenCompra,
     {}
@@ -23,6 +29,10 @@ export default function OrdenCompraFormulario({ proveedores, insumos, almacenes 
   const [lineas, setLineas] = useState<Linea[]>([
     { insumoId: "", cantidad: "", costoUnitario: "", fechaEntregaEsperada: "" },
   ]);
+  const [moneda, setMoneda] = useState<"PEN" | "USD">("PEN");
+  const [tipoCambio, setTipoCambio] = useState(
+    tipoCambioSugerido ? String(tipoCambioSugerido) : ""
+  );
 
   const lineasJson = JSON.stringify(
     lineas.map((l) => ({
@@ -51,7 +61,7 @@ export default function OrdenCompraFormulario({ proveedores, insumos, almacenes 
         </p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-3xl">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Proveedor</span>
           <select name="proveedorId" required defaultValue="" className="campo-input">
@@ -78,7 +88,42 @@ export default function OrdenCompraFormulario({ proveedores, insumos, almacenes 
             ))}
           </select>
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Moneda</span>
+          <select
+            name="moneda"
+            value={moneda}
+            onChange={(e) => setMoneda(e.target.value as "PEN" | "USD")}
+            className="campo-input"
+          >
+            <option value="PEN">Soles (PEN)</option>
+            <option value="USD">Dólares (USD)</option>
+          </select>
+        </label>
       </div>
+
+      {moneda === "USD" && (
+        <label className="flex flex-col gap-1 text-sm max-w-xs">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Tipo de cambio (S/ por US$)
+          </span>
+          <input
+            name="tipoCambio"
+            type="number"
+            step="0.001"
+            min="0"
+            required
+            value={tipoCambio}
+            onChange={(e) => setTipoCambio(e.target.value)}
+            className="campo-input"
+          />
+          {tipoCambioSugerido && (
+            <span className="text-xs text-neutral-500">
+              Sugerido (BCRP): {tipoCambioSugerido.toFixed(3)}
+            </span>
+          )}
+        </label>
+      )}
 
       <div>
         <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
@@ -120,7 +165,7 @@ export default function OrdenCompraFormulario({ proveedores, insumos, almacenes 
                 type="number"
                 step="0.01"
                 min="0"
-                placeholder="Costo S/"
+                placeholder={moneda === "USD" ? "Costo US$" : "Costo S/"}
                 value={linea.costoUnitario}
                 onChange={(e) => actualizarLinea(idx, { costoUnitario: e.target.value })}
                 className="campo-input w-28"
@@ -135,7 +180,7 @@ export default function OrdenCompraFormulario({ proveedores, insumos, almacenes 
               <span className="w-28 text-right text-sm text-neutral-500">
                 {(Number(linea.cantidad) * Number(linea.costoUnitario) || 0).toLocaleString(
                   "es-PE",
-                  { style: "currency", currency: "PEN" }
+                  { style: "currency", currency: moneda }
                 )}
               </span>
               <button
@@ -170,9 +215,21 @@ export default function OrdenCompraFormulario({ proveedores, insumos, almacenes 
       </label>
 
       <div className="flex items-center justify-between border-t border-black/10 dark:border-white/10 pt-4">
-        <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-          Total: {total.toLocaleString("es-PE", { style: "currency", currency: "PEN" })}
-        </p>
+        <div>
+          <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Total: {total.toLocaleString("es-PE", { style: "currency", currency: moneda })}
+          </p>
+          {moneda === "USD" && Number(tipoCambio) > 0 && (
+            <p className="text-xs text-neutral-500">
+              ≈{" "}
+              {(total * Number(tipoCambio)).toLocaleString("es-PE", {
+                style: "currency",
+                currency: "PEN",
+              })}{" "}
+              al tipo de cambio ingresado
+            </p>
+          )}
+        </div>
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Crear orden de compra"}
         </button>

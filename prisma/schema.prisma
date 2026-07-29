@@ -1032,6 +1032,10 @@ model OrdenCompra {
   fecha         DateTime          @default(now())
   estado        EstadoOrdenCompra @default(PENDIENTE)
   moneda        String            @default("PEN")
+  // Tipo de cambio congelado al crear la orden (S//US$; 1 si moneda=PEN).
+  // total queda en `moneda`; todo lo que necesita PEN (umbral de aprobación,
+  // cuenta por pagar, asiento contable) se convierte con este valor.
+  tipoCambio    Decimal           @default(1)
   total         Decimal
   notas         String?
   motivoAnulacion String?
@@ -1209,8 +1213,15 @@ model CuentaPorPagar {
   fechaEmision    DateTime             @default(now())
   fechaVencimiento DateTime?
   moneda          String               @default("PEN")
-  total           Decimal
-  saldo           Decimal
+  total           Decimal // siempre en PEN (moneda funcional)
+  saldo           Decimal // siempre en PEN
+  // Referencia informativa cuando la compra original fue en otra moneda
+  // (ej. USD): monto/moneda tal como llegó la factura del proveedor, y el
+  // tipo de cambio usado para convertir total/saldo a PEN. null si ya nació
+  // en PEN — no es una revaluación, solo trazabilidad.
+  montoOriginal   Decimal?
+  monedaOriginal  String?
+  tipoCambio      Decimal?
   estado          EstadoCuentaPorPagar @default(PENDIENTE)
   usuarioId       String
   usuarioNombre   String
@@ -1958,4 +1969,24 @@ model ProyeccionDetalle {
 
   @@unique([proyeccionId, presentacionId])
   @@map("proyeccion_detalles")
+}
+
+// ---------------------------------------------------------------------------
+// Multi-moneda: solo para operaciones puntuales en USD (compras a proveedores
+// que cotizan en dólares). El PEN sigue siendo la moneda funcional — todo lo
+// que impacta el libro diario, el costeo de inventario y los reportes se
+// convierte a PEN con el tipo de cambio vigente al momento de la operación
+// (nunca se revalúa después: mismo principio de "congelar" que el costo
+// promedio o el kardex).
+// ---------------------------------------------------------------------------
+
+// Caché best-effort del tipo de cambio (BCRP) por día — ver src/lib/tipoCambio.ts.
+model TipoCambio {
+  id       String   @id @default(cuid())
+  fecha    DateTime @unique // solo la fecha (medianoche), un valor por día
+  valor    Decimal // soles por 1 dólar (S/ / US$)
+  fuente   String   @default("BCRP")
+  creadoEn DateTime @default(now())
+
+  @@map("tipos_cambio")
 }

@@ -92,6 +92,12 @@ export default async function DetalleCuentaPorPagarPage({
         <Dato etiqueta="Total" valor={formatMoneda(cuenta.total)} />
         <Dato etiqueta="Saldo por pagar" valor={formatMoneda(cuenta.saldo)} />
       </div>
+      {cuenta.montoOriginal && cuenta.monedaOriginal && cuenta.tipoCambio && (
+        <p className="text-xs text-neutral-500 mt-2">
+          Factura original: {formatMoneda(cuenta.montoOriginal, cuenta.monedaOriginal)} al tipo de
+          cambio {cuenta.tipoCambio.toFixed(3)}
+        </p>
+      )}
 
       <section className="mt-8">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Pagos realizados</h2>
