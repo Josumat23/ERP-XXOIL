@@ -51,6 +51,7 @@ export async function crearOrdenMantenimiento(
   const descripcion = String(formData.get("descripcion") ?? "").trim();
   const fechaProgramadaRaw = String(formData.get("fechaProgramada") ?? "");
   const duracionDias = Number(formData.get("duracionDias") ?? 1);
+  const centroCostoId = String(formData.get("centroCostoId") ?? "") || null;
 
   if (!equipoId) return { error: "Seleccione el equipo." };
   if (!TIPOS_VALIDOS.includes(tipo)) return { error: "Seleccione el tipo de mantenimiento." };
@@ -75,6 +76,7 @@ export async function crearOrdenMantenimiento(
         descripcion,
         fechaProgramada,
         duracionDias,
+        centroCostoId,
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
       },
@@ -214,7 +216,12 @@ export async function completarOrdenMantenimiento(
         });
         await postearMantenimiento(
           tx,
-          { codigoOrden: orden.codigo, equipo: orden.equipo.nombre, monto: total },
+          {
+            codigoOrden: orden.codigo,
+            equipo: orden.equipo.nombre,
+            monto: total,
+            centroCostoId: orden.centroCostoId ?? orden.equipo.centroCostoId,
+          },
           { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
         );
       }

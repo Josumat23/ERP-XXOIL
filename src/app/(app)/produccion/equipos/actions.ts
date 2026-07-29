@@ -27,6 +27,7 @@ export async function crearEquipo(
   const nombre = String(formData.get("nombre") ?? "").trim();
   const almacenId = String(formData.get("almacenId") ?? "");
   const activoFijoId = String(formData.get("activoFijoId") ?? "") || null;
+  const centroCostoId = String(formData.get("centroCostoId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!nombre) return { error: "El nombre es obligatorio." };
@@ -36,7 +37,7 @@ export async function crearEquipo(
     await prisma.$transaction(async (tx) => {
       const codigo = await siguienteCodigoEquipo(tx);
       await tx.equipo.create({
-        data: { codigo, nombre, almacenId, activoFijoId, notas },
+        data: { codigo, nombre, almacenId, activoFijoId, centroCostoId, notas },
       });
     });
   } catch (e) {

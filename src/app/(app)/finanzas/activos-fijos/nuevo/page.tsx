@@ -5,8 +5,9 @@ import ActivoFijoFormulario from "../ActivoFijoFormulario";
 import { crearActivoFijo } from "../actions";
 
 export default async function NuevoActivoFijoPage() {
-  const [almacenes, activos] = await Promise.all([
+  const [almacenes, centrosCosto, activos] = await Promise.all([
     prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.activoFijo.findMany({ orderBy: { creadoEn: "desc" } }),
   ]);
 
@@ -34,7 +35,12 @@ export default async function NuevoActivoFijoPage() {
         }))}
       >
       <div className="max-w-lg">
-        <ActivoFijoFormulario accion={crearActivoFijo} almacenes={almacenes} textoBoton="Crear activo" />
+        <ActivoFijoFormulario
+          accion={crearActivoFijo}
+          almacenes={almacenes}
+          centrosCosto={centrosCosto}
+          textoBoton="Crear activo"
+        />
       </div>
       </PanelMaestroDetalle>
     </div>

@@ -47,7 +47,15 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   PERDIDA_VENTA_ACTIVO: "Pérdida por venta de activo fijo",
 };
 
-type LineaAsiento = { clave: ClaveControl; glosa?: string; debe?: number; haber?: number };
+type LineaAsiento = {
+  clave: ClaveControl;
+  glosa?: string;
+  debe?: number;
+  haber?: number;
+  // Centro de costo ya conocido en origen (ej. el del equipo o activo fijo de
+  // la transacción): tiene prioridad sobre el CentroCostoControl de la clave.
+  centroCostoId?: string | null;
+};
 
 type ParamsAsiento = {
   origen: $Enums.OrigenAsiento;
@@ -116,6 +124,7 @@ export async function postearAsiento(
       glosa: l.glosa ?? null,
       debe: r2(l.debe ?? 0),
       haber: r2(l.haber ?? 0),
+      centroCostoId: l.centroCostoId ?? null,
     }))
     .filter((l) => l.debe > 0 || l.haber > 0);
 
@@ -155,7 +164,15 @@ export async function postearAsiento(
 
   for (const l of lineas) {
     const control = controlCostoPorClave.get(l.clave);
-    if (control?.centroCostoId) {
+    if (l.centroCostoId) {
+      detallesFinales.push({
+        cuentaId: l.cuentaId,
+        centroCostoId: l.centroCostoId,
+        glosa: l.glosa,
+        debe: l.debe,
+        haber: l.haber,
+      });
+    } else if (control?.centroCostoId) {
       detallesFinales.push({
         cuentaId: l.cuentaId,
         centroCostoId: control.centroCostoId,
@@ -368,19 +385,35 @@ export async function postearRecepcionCompra(
 
 // Depreciación del mes: un solo asiento consolidado por el total de todos
 // los activos depreciados ese mes (Gasto por depreciación / Depreciación
-// acumulada), en vez de un asiento por activo.
+// acumulada), en vez de un asiento por activo. El gasto se abre en una línea
+// por centro de costo (el de cada activo); la acumulada, al ser una cuenta de
+// balance, no lleva centro.
 export async function postearDepreciacion(
   tx: Tx,
-  datos: { mes: number; anio: number; monto: number },
+  datos: {
+    mes: number;
+    anio: number;
+    monto: number;
+    porCentro?: { centroCostoId: string | null; monto: number }[];
+  },
   audit: Auditoria
 ) {
+  const gruposGasto =
+    datos.porCentro && datos.porCentro.length > 0
+      ? datos.porCentro
+      : [{ centroCostoId: null, monto: datos.monto }];
+
   await postearAsiento(tx, {
     origen: "DEPRECIACION",
     glosa: `Depreciación del período ${String(datos.mes).padStart(2, "0")}/${datos.anio}`,
     referencia: `DEP-${datos.anio}-${String(datos.mes).padStart(2, "0")}`,
     fecha: new Date(datos.anio, datos.mes - 1, 1),
     lineas: [
-      { clave: "GASTO_DEPRECIACION", debe: datos.monto },
+      ...gruposGasto.map((g) => ({
+        clave: "GASTO_DEPRECIACION" as const,
+        debe: g.monto,
+        centroCostoId: g.centroCostoId,
+      })),
       { clave: "DEPRECIACION_ACUMULADA", haber: datos.monto },
     ],
     ...audit,
@@ -402,6 +435,7 @@ export async function postearVentaActivoFijo(
     depreciacionAcumulada: number;
     montoBase: number;
     montoIgv: number;
+    centroCostoId?: string | null;
     fecha?: Date;
   },
   audit: Auditoria
@@ -421,9 +455,9 @@ export async function postearVentaActivoFijo(
       { clave: "ACTIVO_FIJO_BRUTO", haber: datos.costoAdquisicion },
       { clave: "IGV_POR_PAGAR", haber: datos.montoIgv },
       ...(resultado > 0
-        ? [{ clave: "INGRESO_VENTA_ACTIVO" as const, haber: resultado }]
+        ? [{ clave: "INGRESO_VENTA_ACTIVO" as const, haber: resultado, centroCostoId: datos.centroCostoId }]
         : resultado < 0
-          ? [{ clave: "PERDIDA_VENTA_ACTIVO" as const, debe: -resultado }]
+          ? [{ clave: "PERDIDA_VENTA_ACTIVO" as const, debe: -resultado, centroCostoId: datos.centroCostoId }]
           : []),
     ],
     ...audit,
@@ -435,7 +469,13 @@ export async function postearVentaActivoFijo(
 // que el resto de gastos operativos menores de este ERP.
 export async function postearMantenimiento(
   tx: Tx,
-  datos: { codigoOrden: string; equipo: string; monto: number; fecha?: Date },
+  datos: {
+    codigoOrden: string;
+    equipo: string;
+    monto: number;
+    centroCostoId?: string | null;
+    fecha?: Date;
+  },
   audit: Auditoria
 ) {
   await postearAsiento(tx, {
@@ -444,7 +484,7 @@ export async function postearMantenimiento(
     referencia: datos.codigoOrden,
     fecha: datos.fecha,
     lineas: [
-      { clave: "GASTO_MANTENIMIENTO", debe: datos.monto },
+      { clave: "GASTO_MANTENIMIENTO", debe: datos.monto, centroCostoId: datos.centroCostoId },
       { clave: "CAJA_BANCOS", haber: datos.monto },
     ],
     ...audit,

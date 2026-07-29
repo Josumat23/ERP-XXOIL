@@ -1667,11 +1667,14 @@ model CentroCosto {
   activo    Boolean         @default(true)
   creadoEn  DateTime        @default(now())
 
-  almacen      Almacen?                      @relation(fields: [almacenId], references: [id])
-  presupuestos PresupuestoCentroCosto[]
-  asientos     AsientoDetalle[]
-  controles    CentroCostoControl[]
-  reglaLineas  ReglaAsignacionCostoDetalle[]
+  almacen              Almacen?                      @relation(fields: [almacenId], references: [id])
+  presupuestos         PresupuestoCentroCosto[]
+  asientos             AsientoDetalle[]
+  controles            CentroCostoControl[]
+  reglaLineas          ReglaAsignacionCostoDetalle[]
+  equipos              Equipo[]
+  activosFijos         ActivoFijo[]
+  ordenesMantenimiento OrdenMantenimiento[]
 
   @@unique([empresaId, codigo])
   @@map("centros_costo")
@@ -1776,6 +1779,7 @@ model ActivoFijo {
   motivoBaja            String?
   precioVenta           Decimal? // si se vendió el activo (no un castigo puro): precio de venta pactado
   notas                 String?
+  centroCostoId         String?
   usuarioId             String
   usuarioNombre         String
   creadoEn              DateTime            @default(now())
@@ -1783,6 +1787,7 @@ model ActivoFijo {
   almacen        Almacen?             @relation(fields: [almacenId], references: [id])
   depreciaciones DepreciacionActivo[]
   equipo         Equipo?
+  centroCosto    CentroCosto?         @relation(fields: [centroCostoId], references: [id])
 
   @@unique([empresaId, codigo])
   @@map("activos_fijos")
@@ -1816,12 +1821,14 @@ model Equipo {
   nombre       String
   almacenId    String
   activoFijoId String?  @unique
+  centroCostoId String?
   activo       Boolean  @default(true)
   notas        String?
   creadoEn     DateTime @default(now())
 
   almacen              Almacen              @relation(fields: [almacenId], references: [id])
   activoFijo           ActivoFijo?          @relation(fields: [activoFijoId], references: [id])
+  centroCosto          CentroCosto?         @relation(fields: [centroCostoId], references: [id])
   ordenesMantenimiento OrdenMantenimiento[]
 
   @@unique([empresaId, codigo])
@@ -1857,12 +1864,16 @@ model OrdenMantenimiento {
   costoManoObra   Decimal                  @default(0)
   costoRepuestos  Decimal                  @default(0)
   observaciones   String?
+  // Por defecto el del equipo, pero se puede anular al programar la orden
+  // (ej. una reparación que en realidad corresponde a otra área).
+  centroCostoId   String?
   usuarioId       String
   usuarioNombre   String
   creadoEn        DateTime                 @default(now())
 
-  equipo     Equipo                       @relation(fields: [equipoId], references: [id])
-  repuestos  RepuestoOrdenMantenimiento[]
+  equipo      Equipo                       @relation(fields: [equipoId], references: [id])
+  centroCosto CentroCosto?                 @relation(fields: [centroCostoId], references: [id])
+  repuestos   RepuestoOrdenMantenimiento[]
 
   @@map("ordenes_mantenimiento")
 }

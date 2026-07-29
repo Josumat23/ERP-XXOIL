@@ -5,12 +5,13 @@ import EquipoFormulario from "../EquipoFormulario";
 import { crearEquipo } from "../actions";
 
 export default async function NuevoEquipoPage() {
-  const [almacenes, activosFijos, equipos] = await Promise.all([
+  const [almacenes, activosFijos, centrosCosto, equipos] = await Promise.all([
     prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.activoFijo.findMany({
       where: { activo: true, equipo: null },
       orderBy: { nombre: "asc" },
     }),
+    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.equipo.findMany({ orderBy: { creadoEn: "desc" } }),
   ]);
 
@@ -42,6 +43,7 @@ export default async function NuevoEquipoPage() {
           accion={crearEquipo}
           almacenes={almacenes}
           activosFijos={activosFijos}
+          centrosCosto={centrosCosto}
           textoBoton="Crear equipo"
         />
       </div>

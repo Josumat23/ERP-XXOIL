@@ -35,7 +35,8 @@ export default async function DetalleOrdenMantenimientoPage({
     prisma.ordenMantenimiento.findUnique({
       where: { id },
       include: {
-        equipo: { include: { almacen: true } },
+        equipo: { include: { almacen: true, centroCosto: true } },
+        centroCosto: true,
         repuestos: { include: { insumo: true }, orderBy: { creadoEn: "asc" } },
       },
     }),
@@ -54,6 +55,8 @@ export default async function DetalleOrdenMantenimientoPage({
     costoUnitario: i.costoUnitario.toNumber(),
     stock: i.stock.toNumber(),
   }));
+
+  const centroEfectivo = orden.centroCosto ?? orden.equipo.centroCosto;
 
   return (
     <div>
@@ -92,6 +95,7 @@ export default async function DetalleOrdenMantenimientoPage({
           ({orden.equipo.almacen.nombre}) · {orden.tipo === "PREVENTIVO" ? "Preventivo" : "Correctivo"}{" "}
           · Programada para el {formatFecha(orden.fechaProgramada)}
           {orden.duracionDias > 1 ? ` (${orden.duracionDias} días)` : ""}
+          {centroEfectivo ? ` · Centro de costo: ${centroEfectivo.codigo}` : ""}
         </p>
         <p className="text-sm text-neutral-500 mt-2">{orden.descripcion}</p>
 

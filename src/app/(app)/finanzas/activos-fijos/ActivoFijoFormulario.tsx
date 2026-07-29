@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import type { EstadoFormulario } from "./actions";
 
 type Almacen = { id: string; nombre: string };
+type CentroCosto = { id: string; codigo: string; nombre: string };
 
 const OPCIONES_CATEGORIA = [
   { valor: "MAQUINARIA", etiqueta: "Maquinaria" },
@@ -16,10 +17,16 @@ const OPCIONES_CATEGORIA = [
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   almacenes: Almacen[];
+  centrosCosto: CentroCosto[];
   textoBoton: string;
 };
 
-export default function ActivoFijoFormulario({ accion, almacenes, textoBoton }: Props) {
+export default function ActivoFijoFormulario({
+  accion,
+  almacenes,
+  centrosCosto,
+  textoBoton,
+}: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
 
   return (
@@ -63,6 +70,20 @@ export default function ActivoFijoFormulario({ accion, almacenes, textoBoton }: 
           </select>
         </Campo>
       </div>
+
+      <Campo etiqueta="Centro de costo (opcional)">
+        <select name="centroCostoId" defaultValue="" className="campo-input">
+          <option value="">Sin asignar</option>
+          {centrosCosto.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.codigo} — {c.nombre}
+            </option>
+          ))}
+        </select>
+      </Campo>
+      <p className="text-xs text-neutral-500 -mt-2">
+        Se usa al postear la depreciación mensual y la utilidad/pérdida si el activo se vende.
+      </p>
 
       <Campo etiqueta="Fecha de adquisición">
         <input name="fechaAdquisicion" type="date" required className="campo-input" />

@@ -31,6 +31,7 @@ export default async function DetalleEquipoPage({
       include: {
         almacen: true,
         activoFijo: true,
+        centroCosto: true,
         ordenesMantenimiento: { orderBy: { fechaProgramada: "desc" } },
       },
     }),
@@ -76,6 +77,7 @@ export default async function DetalleEquipoPage({
         </div>
         <p className="text-neutral-500 mt-1">
           {equipo.codigo} · {equipo.almacen.nombre}
+          {equipo.centroCosto ? ` · Centro de costo: ${equipo.centroCosto.codigo}` : ""}
         </p>
 
         {equipo.activoFijo && (

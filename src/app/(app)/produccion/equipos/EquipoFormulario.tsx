@@ -5,15 +5,23 @@ import type { EstadoFormulario } from "./actions";
 
 type Almacen = { id: string; nombre: string };
 type ActivoFijo = { id: string; codigo: string; nombre: string };
+type CentroCosto = { id: string; codigo: string; nombre: string };
 
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   almacenes: Almacen[];
   activosFijos: ActivoFijo[];
+  centrosCosto: CentroCosto[];
   textoBoton: string;
 };
 
-export default function EquipoFormulario({ accion, almacenes, activosFijos, textoBoton }: Props) {
+export default function EquipoFormulario({
+  accion,
+  almacenes,
+  activosFijos,
+  centrosCosto,
+  textoBoton,
+}: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
 
   return (
@@ -53,6 +61,20 @@ export default function EquipoFormulario({ accion, almacenes, activosFijos, text
       </Campo>
       <p className="text-xs text-neutral-500 -mt-2">
         Enlazar con Activos fijos permite ver la depreciación del equipo desde su ficha.
+      </p>
+
+      <Campo etiqueta="Centro de costo (opcional)">
+        <select name="centroCostoId" defaultValue="" className="campo-input">
+          <option value="">Sin asignar</option>
+          {centrosCosto.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.codigo} — {c.nombre}
+            </option>
+          ))}
+        </select>
+      </Campo>
+      <p className="text-xs text-neutral-500 -mt-2">
+        Se usa como centro por defecto al postear el gasto de mantenimiento de este equipo.
       </p>
 
       <Campo etiqueta="Notas">

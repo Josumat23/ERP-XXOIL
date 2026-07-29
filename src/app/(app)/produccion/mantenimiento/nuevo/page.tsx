@@ -11,8 +11,9 @@ export default async function NuevaOrdenMantenimientoPage({
 }) {
   const { equipoId } = await searchParams;
 
-  const [equipos, ordenes] = await Promise.all([
+  const [equipos, centrosCosto, ordenes] = await Promise.all([
     prisma.equipo.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.ordenMantenimiento.findMany({
       include: { equipo: true },
       orderBy: { fechaProgramada: "desc" },
@@ -46,6 +47,7 @@ export default async function NuevaOrdenMantenimientoPage({
         <OrdenMantenimientoFormulario
           accion={crearOrdenMantenimiento}
           equipos={equipos}
+          centrosCosto={centrosCosto}
           equipoIdInicial={equipoId}
           textoBoton="Crear orden"
         />

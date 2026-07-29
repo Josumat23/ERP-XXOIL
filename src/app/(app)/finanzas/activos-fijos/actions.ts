@@ -42,6 +42,7 @@ export async function crearActivoFijo(
   const nombre = String(formData.get("nombre") ?? "").trim();
   const categoria = String(formData.get("categoria") ?? "") as $Enums.CategoriaActivoFijo;
   const almacenId = String(formData.get("almacenId") ?? "") || null;
+  const centroCostoId = String(formData.get("centroCostoId") ?? "") || null;
   const fechaAdquisicionRaw = String(formData.get("fechaAdquisicion") ?? "");
   const costoAdquisicion = Number(formData.get("costoAdquisicion"));
   const valorResidual = Number(formData.get("valorResidual") ?? 0);
@@ -75,6 +76,7 @@ export async function crearActivoFijo(
         nombre,
         categoria,
         almacenId,
+        centroCostoId,
         fechaAdquisicion,
         costoAdquisicion,
         valorResidual,
@@ -184,6 +186,7 @@ export async function venderActivoFijo(
           depreciacionAcumulada: activo.depreciacionAcumulada.toNumber(),
           montoBase,
           montoIgv,
+          centroCostoId: activo.centroCostoId,
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
       );
@@ -225,6 +228,7 @@ export async function registrarDepreciacionMes(
 
       let totalMes = 0;
       let procesados = 0;
+      const montoPorCentro = new Map<string | null, number>();
       for (const a of activos) {
         if (a.depreciaciones.length > 0) continue; // ya se registró este período
 
@@ -249,12 +253,21 @@ export async function registrarDepreciacionMes(
 
         totalMes += cargo;
         procesados++;
+        montoPorCentro.set(a.centroCostoId, (montoPorCentro.get(a.centroCostoId) ?? 0) + cargo);
       }
 
       if (totalMes > 0.01) {
         await postearDepreciacion(
           tx,
-          { mes, anio, monto: Math.round(totalMes * 100) / 100 },
+          {
+            mes,
+            anio,
+            monto: Math.round(totalMes * 100) / 100,
+            porCentro: [...montoPorCentro.entries()].map(([centroCostoId, monto]) => ({
+              centroCostoId,
+              monto: Math.round(monto * 100) / 100,
+            })),
+          },
           { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
         );
       }

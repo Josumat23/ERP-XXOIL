@@ -1,13 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { useActionState } from "react";
 import type { EstadoFormulario } from "./actions";
 
-type Equipo = { id: string; codigo: string; nombre: string };
+type Equipo = { id: string; codigo: string; nombre: string; centroCostoId: string | null };
+type CentroCosto = { id: string; codigo: string; nombre: string };
 
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   equipos: Equipo[];
+  centrosCosto: CentroCosto[];
   equipoIdInicial?: string;
   textoBoton: string;
 };
@@ -15,10 +18,13 @@ type Props = {
 export default function OrdenMantenimientoFormulario({
   accion,
   equipos,
+  centrosCosto,
   equipoIdInicial,
   textoBoton,
 }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
+  const equipoInicial = equipos.find((e) => e.id === equipoIdInicial);
+  const [centroCostoId, setCentroCostoId] = useState(equipoInicial?.centroCostoId ?? "");
 
   return (
     <form action={formAction} className="flex flex-col gap-4 max-w-lg">
@@ -30,7 +36,16 @@ export default function OrdenMantenimientoFormulario({
 
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium text-neutral-700 dark:text-neutral-300">Equipo</span>
-        <select name="equipoId" required defaultValue={equipoIdInicial ?? ""} className="campo-input">
+        <select
+          name="equipoId"
+          required
+          defaultValue={equipoIdInicial ?? ""}
+          onChange={(e) => {
+            const equipo = equipos.find((eq) => eq.id === e.target.value);
+            setCentroCostoId(equipo?.centroCostoId ?? "");
+          }}
+          className="campo-input"
+        >
           <option value="" disabled>
             Seleccione
           </option>
@@ -85,6 +100,25 @@ export default function OrdenMantenimientoFormulario({
         Los días de la ventana quedan bloqueados como no laborables en el calendario de producción
         del almacén del equipo (si ya está configurado).
       </p>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">
+          Centro de costo (opcional)
+        </span>
+        <select
+          name="centroCostoId"
+          value={centroCostoId}
+          onChange={(e) => setCentroCostoId(e.target.value)}
+          className="campo-input"
+        >
+          <option value="">Sin asignar (usa el del equipo, si tiene)</option>
+          {centrosCosto.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.codigo} — {c.nombre}
+            </option>
+          ))}
+        </select>
+      </label>
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Guardando..." : textoBoton}

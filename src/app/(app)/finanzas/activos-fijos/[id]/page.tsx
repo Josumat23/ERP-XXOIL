@@ -31,7 +31,11 @@ export default async function DetalleActivoFijoPage({
   const [activo, activos, { tasaIgv }] = await Promise.all([
     prisma.activoFijo.findUnique({
       where: { id },
-      include: { almacen: true, depreciaciones: { orderBy: [{ anio: "desc" }, { mes: "desc" }] } },
+      include: {
+        almacen: true,
+        centroCosto: true,
+        depreciaciones: { orderBy: [{ anio: "desc" }, { mes: "desc" }] },
+      },
     }),
     prisma.activoFijo.findMany({ orderBy: { creadoEn: "desc" } }),
     obtenerConfiguracionEmpresa(),
@@ -82,8 +86,9 @@ export default async function DetalleActivoFijoPage({
         </div>
         <p className="text-neutral-500 mt-1">
           {activo.codigo} · {ETIQUETA_CATEGORIA[activo.categoria]}
-          {activo.almacen ? ` · ${activo.almacen.nombre}` : ""} · Adquirido el{" "}
-          {formatFecha(activo.fechaAdquisicion)} por {activo.usuarioNombre}
+          {activo.almacen ? ` · ${activo.almacen.nombre}` : ""}
+          {activo.centroCosto ? ` · Centro de costo: ${activo.centroCosto.codigo}` : ""} · Adquirido
+          el {formatFecha(activo.fechaAdquisicion)} por {activo.usuarioNombre}
         </p>
 
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
