@@ -15,6 +15,7 @@ import {
   postearAnulacionFactura,
 } from "@/lib/contabilidad";
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
+import { aplicarRecargoAFactura } from "@/lib/recargoMora";
 
 export type EstadoFormulario = { error?: string };
 
@@ -516,47 +517,10 @@ export async function aplicarRecargoMora(facturaId: string): Promise<EstadoFormu
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
   }
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      const factura = await tx.factura.findUnique({
-        where: { id: facturaId },
-        include: { recargosMora: { orderBy: { fecha: "desc" }, take: 1 } },
-      });
-      if (!factura) throw new Error("La factura no existe.");
-      if (factura.estado !== "PENDIENTE") throw new Error("Solo aplica a facturas pendientes.");
-
-      const hoy = new Date();
-      if (factura.fechaVencimiento >= hoy) throw new Error("La factura todavía no está vencida.");
-
-      const config = await tx.configuracionEmpresa.findUniqueOrThrow({ where: { id: "1" } });
-      const tasa = config.tasaRecargoMora.toNumber();
-      if (tasa <= 0) throw new Error("La tasa de recargo por mora no está configurada (Configuración → Empresa).");
-
-      const desde = factura.recargosMora[0]?.fecha ?? factura.fechaVencimiento;
-      const diasCalculados = Math.floor((hoy.getTime() - desde.getTime()) / (24 * 60 * 60 * 1000));
-      if (diasCalculados <= 0) throw new Error("Ya se cobró el recargo hasta el día de hoy.");
-
-      const monto = factura.saldo.toNumber() * (tasa / 100) * (diasCalculados / 30);
-
-      await tx.recargoMora.create({
-        data: {
-          facturaId,
-          diasCalculados,
-          tasaAplicada: tasa,
-          monto,
-          usuarioId: auth.usuario.id,
-          usuarioNombre: auth.usuario.nombre,
-        },
-      });
-      await tx.factura.update({
-        where: { id: facturaId },
-        data: { saldo: { increment: monto } },
-      });
-    });
-  } catch (e) {
-    if (e instanceof Error) return { error: e.message };
-    throw e;
-  }
+  const resultado = await prisma.$transaction((tx) =>
+    aplicarRecargoAFactura(tx, facturaId, { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre })
+  );
+  if (!resultado.ok) return { error: resultado.error };
 
   revalidatePath(`/comercial/facturas/${facturaId}`);
   return {};

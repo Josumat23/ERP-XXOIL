@@ -2103,3 +2103,29 @@ model Adjunto {
   @@index([entidadTipo, entidadId])
   @@map("adjuntos")
 }
+
+// ---------------------------------------------------------------------------
+// Tareas programadas (equivalente reducido a System Agent): trabajos que
+// corren solos dentro del proceso del servidor (ver server.ts +
+// src/lib/tareasProgramadas.ts), no disparados por un usuario. Cada tarea
+// revisa internamente si ya hizo lo que tenía que hacer antes de actuar
+// (depreciación por el período, recargo por la fecha del último aplicado,
+// tipo de cambio por el caché diario) — correrla de más no duplica nada; esta
+// tabla es solo la bitácora de ejecuciones, no una cola ni un candado.
+// ---------------------------------------------------------------------------
+enum ClaveTareaProgramada {
+  DEPRECIACION_MENSUAL
+  RECARGO_MORA
+  TIPO_CAMBIO_DIARIO
+}
+
+model TareaProgramada {
+  id          String               @id @default(cuid())
+  clave       ClaveTareaProgramada
+  ejecutadoEn DateTime             @default(now())
+  exitoso     Boolean
+  resumen     String
+
+  @@index([clave, ejecutadoEn])
+  @@map("tareas_programadas")
+}

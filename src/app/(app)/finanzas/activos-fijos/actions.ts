@@ -7,8 +7,9 @@ import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoActivoFijo } from "@/lib/correlativos";
-import { postearDepreciacion, postearVentaActivoFijo } from "@/lib/contabilidad";
+import { postearVentaActivoFijo } from "@/lib/contabilidad";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { ejecutarDepreciacionDelMes } from "@/lib/depreciacion";
 
 export type EstadoFormulario = { error?: string };
 
@@ -220,60 +221,12 @@ export async function registrarDepreciacionMes(
   }
 
   try {
-    const resultado = await prisma.$transaction(async (tx) => {
-      const activos = await tx.activoFijo.findMany({
-        where: { activo: true },
-        include: { depreciaciones: { where: { anio, mes } } },
-      });
-
-      let totalMes = 0;
-      let procesados = 0;
-      const montoPorCentro = new Map<string | null, number>();
-      for (const a of activos) {
-        if (a.depreciaciones.length > 0) continue; // ya se registró este período
-
-        const costo = a.costoAdquisicion.toNumber();
-        const residual = a.valorResidual.toNumber();
-        const acumulada = a.depreciacionAcumulada.toNumber();
-        const baseDepreciable = costo - residual;
-        const pendiente = baseDepreciable - acumulada;
-        if (pendiente <= 0.01) continue;
-
-        const cuotaMensual = baseDepreciable / (a.vidaUtilAnios * 12);
-        const cargo = Math.min(cuotaMensual, pendiente);
-        if (cargo <= 0.01) continue;
-
-        await tx.depreciacionActivo.create({
-          data: { activoFijoId: a.id, anio, mes, monto: cargo },
-        });
-        await tx.activoFijo.update({
-          where: { id: a.id },
-          data: { depreciacionAcumulada: acumulada + cargo },
-        });
-
-        totalMes += cargo;
-        procesados++;
-        montoPorCentro.set(a.centroCostoId, (montoPorCentro.get(a.centroCostoId) ?? 0) + cargo);
-      }
-
-      if (totalMes > 0.01) {
-        await postearDepreciacion(
-          tx,
-          {
-            mes,
-            anio,
-            monto: Math.round(totalMes * 100) / 100,
-            porCentro: [...montoPorCentro.entries()].map(([centroCostoId, monto]) => ({
-              centroCostoId,
-              monto: Math.round(monto * 100) / 100,
-            })),
-          },
-          { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
-        );
-      }
-
-      return { procesados, totalMes };
-    });
+    const resultado = await prisma.$transaction((tx) =>
+      ejecutarDepreciacionDelMes(tx, anio, mes, {
+        usuarioId: auth.usuario.id,
+        usuarioNombre: auth.usuario.nombre,
+      })
+    );
 
     revalidatePath("/finanzas/activos-fijos");
     if (resultado.procesados === 0) {

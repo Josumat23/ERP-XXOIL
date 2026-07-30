@@ -4,6 +4,7 @@ import next from "next";
 import { WebSocketServer } from "ws";
 import { autenticarSolicitudWS } from "./src/lib/monitoreo/auth";
 import { agregarCliente, quitarCliente } from "./src/lib/monitoreo/metricas";
+import { ejecutarTareasPendientes } from "./src/lib/tareasProgramadas";
 
 const dev = process.argv.includes("--dev");
 const port = Number(process.env.PORT ?? 3000);
@@ -43,4 +44,15 @@ app.prepare().then(() => {
   server.listen(port, () => {
     console.log(`> Listo en http://${hostname}:${port} (dev=${dev})`);
   });
+
+  // Tareas programadas (equivalente reducido a System Agent): corren una vez
+  // al levantar el proceso y luego cada hora. Cada tarea revisa internamente
+  // si ya hizo lo que tenía que hacer (idempotente), así que el intervalo
+  // solo existe para no perderse el momento (ej. el cambio de mes) mientras
+  // el servidor sigue corriendo — nunca duplica un asiento ni un recargo.
+  const correrTareas = () => {
+    ejecutarTareasPendientes().catch((e) => console.error("Error en tareas programadas:", e));
+  };
+  correrTareas();
+  setInterval(correrTareas, 60 * 60 * 1000);
 });
