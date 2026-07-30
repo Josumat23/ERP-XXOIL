@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 
@@ -15,18 +15,32 @@ function esErrorDuplicado(e: unknown): boolean {
 
 function leerDatos(formData: FormData) {
   const razonSocial = String(formData.get("razonSocial") ?? "").trim();
+  const tipoDocumentoFiscal = String(
+    formData.get("tipoDocumentoFiscal") ?? "RUC"
+  ) as $Enums.TipoDocumentoFiscal;
   const ruc = String(formData.get("ruc") ?? "").trim() || null;
+  const pais = String(formData.get("pais") ?? "Peru").trim() || "Peru";
   const telefono = String(formData.get("telefono") ?? "").trim() || null;
   const email = String(formData.get("email") ?? "").trim() || null;
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
   const contactoNombre = String(formData.get("contactoNombre") ?? "").trim() || null;
   const contactoTelefono = String(formData.get("contactoTelefono") ?? "").trim() || null;
   const cuentaBancaria = String(formData.get("cuentaBancaria") ?? "").trim() || null;
+  const banco = String(formData.get("banco") ?? "").trim() || null;
+  const numeroCuenta = String(formData.get("numeroCuenta") ?? "").trim() || null;
+  const cci = String(formData.get("cci") ?? "").trim() || null;
+  const swift = String(formData.get("swift") ?? "").trim() || null;
+  const iban = String(formData.get("iban") ?? "").trim() || null;
   const condicionPagoDias = Number(formData.get("condicionPagoDias") ?? 0);
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!razonSocial) return { error: "La razón social es obligatoria." } as const;
-  if (ruc && !/^\d{11}$/.test(ruc)) return { error: "El RUC debe tener 11 dígitos." } as const;
+  // El formato de 11 dígitos solo aplica al RUC peruano — un RUT, NIT, RFC,
+  // EIN, VAT u otro documento extranjero tiene su propio formato, así que no
+  // se valida con una regla fija.
+  if (tipoDocumentoFiscal === "RUC" && ruc && !/^\d{11}$/.test(ruc)) {
+    return { error: "El RUC debe tener 11 dígitos." } as const;
+  }
   if (!Number.isInteger(condicionPagoDias) || condicionPagoDias < 0) {
     return { error: "La condición de pago debe ser 0 (contado) o días de crédito." } as const;
   }
@@ -34,13 +48,20 @@ function leerDatos(formData: FormData) {
   return {
     datos: {
       razonSocial,
+      tipoDocumentoFiscal,
       ruc,
+      pais,
       telefono,
       email,
       direccion,
       contactoNombre,
       contactoTelefono,
       cuentaBancaria,
+      banco,
+      numeroCuenta,
+      cci,
+      swift,
+      iban,
       condicionPagoDias,
       notas,
     },

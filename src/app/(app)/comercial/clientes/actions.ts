@@ -17,7 +17,11 @@ function esErrorDuplicado(e: unknown): boolean {
 function leerDatos(formData: FormData) {
   const razonSocial = String(formData.get("razonSocial") ?? "").trim();
   const nombreComercial = String(formData.get("nombreComercial") ?? "").trim() || null;
+  const tipoDocumentoFiscal = String(
+    formData.get("tipoDocumentoFiscal") ?? "RUC"
+  ) as $Enums.TipoDocumentoFiscal;
   const ruc = String(formData.get("ruc") ?? "").trim() || null;
+  const pais = String(formData.get("pais") ?? "Peru").trim() || "Peru";
   const canalRaw = String(formData.get("canal") ?? "").trim();
   const canal = canalRaw ? (canalRaw as $Enums.CanalCliente) : null;
   const departamento = String(formData.get("departamento") ?? "").trim() || null;
@@ -37,7 +41,10 @@ function leerDatos(formData: FormData) {
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!razonSocial) return { error: "La razón social es obligatoria." } as const;
-  if (ruc && !/^\d{8}(\d{3})?$/.test(ruc)) {
+  // El formato DNI/RUC de 8 u 11 dígitos solo aplica a documentos peruanos —
+  // un cliente extranjero (RUT, NIT, RFC, EIN, VAT, etc.) tiene su propio
+  // formato, así que no se valida con una regla fija.
+  if (tipoDocumentoFiscal === "RUC" && ruc && !/^\d{8}(\d{3})?$/.test(ruc)) {
     return { error: "El documento debe ser un DNI (8 dígitos) o RUC (11 dígitos)." } as const;
   }
   if (!Number.isFinite(limiteCredito) || limiteCredito < 0) {
@@ -51,7 +58,9 @@ function leerDatos(formData: FormData) {
     datos: {
       razonSocial,
       nombreComercial,
+      tipoDocumentoFiscal,
       ruc,
+      pais,
       canal,
       departamento,
       provincia,

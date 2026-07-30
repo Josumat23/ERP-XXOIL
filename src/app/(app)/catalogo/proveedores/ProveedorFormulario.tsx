@@ -4,17 +4,35 @@ import { useActionState } from "react";
 import FichaTabs from "@/components/FichaTabs";
 import type { EstadoFormulario } from "./actions";
 
+const OPCIONES_DOCUMENTO_FISCAL = [
+  { valor: "RUC", etiqueta: "RUC (Perú)" },
+  { valor: "RUT", etiqueta: "RUT (Chile)" },
+  { valor: "NIT", etiqueta: "NIT (Colombia)" },
+  { valor: "RFC", etiqueta: "RFC (México)" },
+  { valor: "EIN", etiqueta: "EIN (Estados Unidos)" },
+  { valor: "VAT", etiqueta: "VAT (Unión Europea)" },
+  { valor: "CI", etiqueta: "Cédula de identidad" },
+  { valor: "OTRO", etiqueta: "Otro" },
+];
+
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   valoresIniciales?: {
     razonSocial: string;
+    tipoDocumentoFiscal: string;
     ruc: string | null;
+    pais: string;
     telefono: string | null;
     email: string | null;
     direccion: string | null;
     contactoNombre: string | null;
     contactoTelefono: string | null;
     cuentaBancaria: string | null;
+    banco: string | null;
+    numeroCuenta: string | null;
+    cci: string | null;
+    swift: string | null;
+    iban: string | null;
     condicionPagoDias: number;
     notas: string | null;
   };
@@ -47,25 +65,44 @@ export default function ProveedorFormulario({ accion, valoresIniciales, textoBot
                     className="campo-input"
                   />
                 </Campo>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Campo etiqueta="RUC">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <Campo etiqueta="Tipo de documento fiscal">
+                    <select
+                      name="tipoDocumentoFiscal"
+                      defaultValue={valoresIniciales?.tipoDocumentoFiscal ?? "RUC"}
+                      className="campo-input"
+                    >
+                      {OPCIONES_DOCUMENTO_FISCAL.map((o) => (
+                        <option key={o.valor} value={o.valor}>
+                          {o.etiqueta}
+                        </option>
+                      ))}
+                    </select>
+                  </Campo>
+                  <Campo etiqueta="N° de documento">
                     <input
                       name="ruc"
                       defaultValue={valoresIniciales?.ruc ?? ""}
                       placeholder="20123456789"
-                      maxLength={11}
                       className="campo-input font-mono"
                     />
                   </Campo>
-                  <Campo etiqueta="Correo electrónico">
+                  <Campo etiqueta="País">
                     <input
-                      name="email"
-                      type="email"
-                      defaultValue={valoresIniciales?.email ?? ""}
+                      name="pais"
+                      defaultValue={valoresIniciales?.pais ?? "Peru"}
                       className="campo-input"
                     />
                   </Campo>
                 </div>
+                <Campo etiqueta="Correo electrónico">
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={valoresIniciales?.email ?? ""}
+                    className="campo-input"
+                  />
+                </Campo>
                 <Campo etiqueta="Dirección">
                   <input
                     name="direccion"
@@ -112,29 +149,77 @@ export default function ProveedorFormulario({ accion, valoresIniciales, textoBot
             etiqueta: "Condiciones de pago",
             contenido: (
               <div className="borde-seccion">
+                <Campo etiqueta="Condición habitual">
+                  <select
+                    name="condicionPagoDias"
+                    defaultValue={String(valoresIniciales?.condicionPagoDias ?? 0)}
+                    className="campo-input max-w-xs"
+                  >
+                    <option value="0">Contado</option>
+                    <option value="15">Crédito 15 días</option>
+                    <option value="30">Crédito 30 días</option>
+                    <option value="45">Crédito 45 días</option>
+                    <option value="60">Crédito 60 días</option>
+                  </select>
+                </Campo>
+
+                <p className="text-xs font-medium text-neutral-500 mt-4 mb-1">
+                  Datos bancarios para pagos domésticos (Perú)
+                </p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Campo etiqueta="Condición habitual">
-                    <select
-                      name="condicionPagoDias"
-                      defaultValue={String(valoresIniciales?.condicionPagoDias ?? 0)}
-                      className="campo-input"
-                    >
-                      <option value="0">Contado</option>
-                      <option value="15">Crédito 15 días</option>
-                      <option value="30">Crédito 30 días</option>
-                      <option value="45">Crédito 45 días</option>
-                      <option value="60">Crédito 60 días</option>
-                    </select>
-                  </Campo>
-                  <Campo etiqueta="Cuenta bancaria / CCI para pagos">
+                  <Campo etiqueta="Banco">
                     <input
-                      name="cuentaBancaria"
-                      defaultValue={valoresIniciales?.cuentaBancaria ?? ""}
-                      placeholder="BCP 191-1234567-0-89"
+                      name="banco"
+                      defaultValue={valoresIniciales?.banco ?? ""}
+                      placeholder="BCP"
                       className="campo-input"
                     />
                   </Campo>
+                  <Campo etiqueta="N° de cuenta">
+                    <input
+                      name="numeroCuenta"
+                      defaultValue={valoresIniciales?.numeroCuenta ?? ""}
+                      className="campo-input"
+                    />
+                  </Campo>
+                  <Campo etiqueta="CCI">
+                    <input
+                      name="cci"
+                      defaultValue={valoresIniciales?.cci ?? ""}
+                      placeholder="002-191-001234567089-12"
+                      className="campo-input font-mono"
+                    />
+                  </Campo>
                 </div>
+
+                <p className="text-xs font-medium text-neutral-500 mt-4 mb-1">
+                  Para transferencias internacionales
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Campo etiqueta="SWIFT / BIC">
+                    <input
+                      name="swift"
+                      defaultValue={valoresIniciales?.swift ?? ""}
+                      placeholder="BCPLPEPL"
+                      className="campo-input font-mono"
+                    />
+                  </Campo>
+                  <Campo etiqueta="IBAN">
+                    <input
+                      name="iban"
+                      defaultValue={valoresIniciales?.iban ?? ""}
+                      className="campo-input font-mono"
+                    />
+                  </Campo>
+                </div>
+                <Campo etiqueta="Otros datos de pago (texto libre, opcional)">
+                  <input
+                    name="cuentaBancaria"
+                    defaultValue={valoresIniciales?.cuentaBancaria ?? ""}
+                    className="campo-input"
+                  />
+                </Campo>
+
                 <Campo etiqueta="Notas">
                   <textarea
                     name="notas"

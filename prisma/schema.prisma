@@ -247,21 +247,29 @@ model EscalonPrecio {
 }
 
 model Proveedor {
-  id                String   @id @default(cuid())
-  empresaId         String   @default("1")
-  razonSocial       String
-  ruc               String?
-  pais              String   @default("Peru")
-  telefono          String?
-  email             String?
-  direccion         String?
-  contactoNombre    String?
-  contactoTelefono  String?
-  cuentaBancaria    String? // banco y n° de cuenta / CCI para pagos
-  condicionPagoDias Int      @default(0) // 0 = contado
-  notas             String?
-  activo            Boolean  @default(true)
-  creadoEn          DateTime @default(now())
+  id                  String              @id @default(cuid())
+  empresaId           String              @default("1")
+  razonSocial         String
+  ruc                 String?
+  tipoDocumentoFiscal TipoDocumentoFiscal @default(RUC)
+  pais                String              @default("Peru")
+  telefono            String?
+  email               String?
+  direccion           String?
+  contactoNombre      String?
+  contactoTelefono    String?
+  cuentaBancaria      String? // texto libre heredado; para pagos nuevos usar los campos estructurados de abajo
+  // Datos bancarios estructurados — swift/iban para transferencias
+  // internacionales, banco/numeroCuenta/cci para pagos domésticos en Perú.
+  banco               String?
+  numeroCuenta        String?
+  cci                 String?
+  swift               String?
+  iban                String?
+  condicionPagoDias   Int                 @default(0) // 0 = contado
+  notas               String?
+  activo              Boolean             @default(true)
+  creadoEn            DateTime            @default(now())
 
   insumos        Insumo[]
   ordenesCompra  OrdenCompra[]
@@ -708,6 +716,7 @@ model Cliente {
   razonSocial          String
   nombreComercial      String?
   ruc                  String?
+  tipoDocumentoFiscal  TipoDocumentoFiscal @default(RUC)
   canal                CanalCliente?
   pais                 String        @default("Peru")
   departamento         String?
@@ -2128,4 +2137,62 @@ model TareaProgramada {
 
   @@index([clave, ejecutadoEn])
   @@map("tareas_programadas")
+}
+
+// ---------------------------------------------------------------------------
+// Datos maestros para operación internacional: Cliente/Proveedor pueden ser
+// de cualquier país (no solo Perú), con su propio formato de identificación
+// fiscal, más de una dirección (facturación ≠ envío) y más de un contacto —
+// Direccion/Contacto son genéricos (entidadTipo/entidadId, mismo patrón que
+// Adjunto) para no repetir el modelo por cada entidad que los necesite.
+// ---------------------------------------------------------------------------
+
+enum TipoDocumentoFiscal {
+  RUC // Perú
+  RUT // Chile
+  NIT // Colombia
+  RFC // México
+  EIN // Estados Unidos
+  VAT // Unión Europea / genérico
+  CI // Cédula de identidad (persona natural, algunos países)
+  OTRO
+}
+
+enum TipoDireccion {
+  FACTURACION
+  ENVIO
+  OTRA
+}
+
+model Direccion {
+  id           String        @id @default(cuid())
+  entidadTipo  String // "Cliente", "Proveedor", "Empleado"
+  entidadId    String
+  tipo         TipoDireccion @default(OTRA)
+  pais         String
+  departamento String?
+  provincia    String?
+  distrito     String?
+  direccion    String
+  codigoPostal String?
+  esPrincipal  Boolean       @default(false)
+  creadoEn     DateTime      @default(now())
+
+  @@index([entidadTipo, entidadId])
+  @@map("direcciones")
+}
+
+model Contacto {
+  id          String   @id @default(cuid())
+  entidadTipo String // "Cliente", "Proveedor"
+  entidadId   String
+  nombre      String
+  cargo       String?
+  telefono    String?
+  email       String?
+  esPrincipal Boolean  @default(false)
+  creadoEn    DateTime @default(now())
+
+  @@index([entidadTipo, entidadId])
+  @@map("contactos")
 }

@@ -7,6 +7,17 @@ import type { EstadoFormulario } from "./actions";
 
 const CANALES = Object.keys(ETIQUETA_CANAL_CLIENTE) as (keyof typeof ETIQUETA_CANAL_CLIENTE)[];
 
+const OPCIONES_DOCUMENTO_FISCAL = [
+  { valor: "RUC", etiqueta: "RUC / DNI (Perú)" },
+  { valor: "RUT", etiqueta: "RUT (Chile)" },
+  { valor: "NIT", etiqueta: "NIT (Colombia)" },
+  { valor: "RFC", etiqueta: "RFC (México)" },
+  { valor: "EIN", etiqueta: "EIN (Estados Unidos)" },
+  { valor: "VAT", etiqueta: "VAT (Unión Europea)" },
+  { valor: "CI", etiqueta: "Cédula de identidad" },
+  { valor: "OTRO", etiqueta: "Otro" },
+];
+
 type Opcion = { id: string; nombre: string };
 
 type Props = {
@@ -16,7 +27,9 @@ type Props = {
   valoresIniciales?: {
     razonSocial: string;
     nombreComercial: string | null;
+    tipoDocumentoFiscal: string;
     ruc: string | null;
+    pais: string;
     canal: string | null;
     departamento: string | null;
     provincia: string | null;
@@ -77,24 +90,43 @@ export default function ClienteFormulario({
                     />
                   </Campo>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Campo etiqueta="RUC / DNI">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <Campo etiqueta="Tipo de documento">
+                    <select
+                      name="tipoDocumentoFiscal"
+                      defaultValue={valoresIniciales?.tipoDocumentoFiscal ?? "RUC"}
+                      className="campo-input"
+                    >
+                      {OPCIONES_DOCUMENTO_FISCAL.map((o) => (
+                        <option key={o.valor} value={o.valor}>
+                          {o.etiqueta}
+                        </option>
+                      ))}
+                    </select>
+                  </Campo>
+                  <Campo etiqueta="N° de documento">
                     <input
                       name="ruc"
                       defaultValue={valoresIniciales?.ruc ?? ""}
-                      maxLength={11}
                       className="campo-input font-mono"
                     />
                   </Campo>
-                  <Campo etiqueta="Correo electrónico">
+                  <Campo etiqueta="País">
                     <input
-                      name="email"
-                      type="email"
-                      defaultValue={valoresIniciales?.email ?? ""}
+                      name="pais"
+                      defaultValue={valoresIniciales?.pais ?? "Peru"}
                       className="campo-input"
                     />
                   </Campo>
                 </div>
+                <Campo etiqueta="Correo electrónico">
+                  <input
+                    name="email"
+                    type="email"
+                    defaultValue={valoresIniciales?.email ?? ""}
+                    className="campo-input"
+                  />
+                </Campo>
                 <Campo etiqueta="Canal comercial">
                   <select name="canal" defaultValue={valoresIniciales?.canal ?? ""} className="campo-input">
                     <option value="">Sin clasificar</option>

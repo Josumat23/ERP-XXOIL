@@ -3,6 +3,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import PanelDirecciones from "@/components/PanelDirecciones";
+import PanelContactos from "@/components/PanelContactos";
+import PanelAdjuntos from "@/components/PanelAdjuntos";
 import ClienteFormulario from "../ClienteFormulario";
 import { actualizarCliente } from "../actions";
 
@@ -66,7 +69,7 @@ export default async function EditarClientePage({
             secundario: c.codigo,
           }))}
         >
-        <div className="max-w-2xl">
+        <div className="max-w-2xl flex flex-col gap-6">
           <ClienteFormulario
             accion={actualizarCliente.bind(null, id)}
             zonas={zonas}
@@ -74,7 +77,9 @@ export default async function EditarClientePage({
             valoresIniciales={{
               razonSocial: cliente.razonSocial,
               nombreComercial: cliente.nombreComercial,
+              tipoDocumentoFiscal: cliente.tipoDocumentoFiscal,
               ruc: cliente.ruc,
+              pais: cliente.pais,
               canal: cliente.canal,
               departamento: cliente.departamento,
               provincia: cliente.provincia,
@@ -91,6 +96,21 @@ export default async function EditarClientePage({
               notas: cliente.notas,
             }}
             textoBoton="Guardar cambios"
+          />
+          <PanelDirecciones
+            entidadTipo="Cliente"
+            entidadId={cliente.id}
+            rutaRevalidar={`/comercial/clientes/${cliente.id}`}
+          />
+          <PanelContactos
+            entidadTipo="Cliente"
+            entidadId={cliente.id}
+            rutaRevalidar={`/comercial/clientes/${cliente.id}`}
+          />
+          <PanelAdjuntos
+            entidadTipo="Cliente"
+            entidadId={cliente.id}
+            rutaRevalidar={`/comercial/clientes/${cliente.id}`}
           />
         </div>
         </PanelMaestroDetalle>

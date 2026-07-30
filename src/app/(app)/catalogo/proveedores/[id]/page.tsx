@@ -2,6 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import PanelDirecciones from "@/components/PanelDirecciones";
+import PanelContactos from "@/components/PanelContactos";
+import PanelAdjuntos from "@/components/PanelAdjuntos";
 import ProveedorFormulario from "../ProveedorFormulario";
 import { actualizarProveedor } from "../actions";
 
@@ -37,22 +40,44 @@ export default async function EditarProveedorPage({
           secundario: p.ruc ?? undefined,
         }))}
       >
-      <div className="max-w-lg">
+      <div className="max-w-lg flex flex-col gap-6">
         <ProveedorFormulario
           accion={actualizarProveedor.bind(null, id)}
           valoresIniciales={{
             razonSocial: proveedor.razonSocial,
+            tipoDocumentoFiscal: proveedor.tipoDocumentoFiscal,
             ruc: proveedor.ruc,
+            pais: proveedor.pais,
             telefono: proveedor.telefono,
             email: proveedor.email,
             direccion: proveedor.direccion,
             contactoNombre: proveedor.contactoNombre,
             contactoTelefono: proveedor.contactoTelefono,
             cuentaBancaria: proveedor.cuentaBancaria,
+            banco: proveedor.banco,
+            numeroCuenta: proveedor.numeroCuenta,
+            cci: proveedor.cci,
+            swift: proveedor.swift,
+            iban: proveedor.iban,
             condicionPagoDias: proveedor.condicionPagoDias,
             notas: proveedor.notas,
           }}
           textoBoton="Guardar cambios"
+        />
+        <PanelDirecciones
+          entidadTipo="Proveedor"
+          entidadId={proveedor.id}
+          rutaRevalidar={`/catalogo/proveedores/${proveedor.id}`}
+        />
+        <PanelContactos
+          entidadTipo="Proveedor"
+          entidadId={proveedor.id}
+          rutaRevalidar={`/catalogo/proveedores/${proveedor.id}`}
+        />
+        <PanelAdjuntos
+          entidadTipo="Proveedor"
+          entidadId={proveedor.id}
+          rutaRevalidar={`/catalogo/proveedores/${proveedor.id}`}
         />
       </div>
       </PanelMaestroDetalle>
