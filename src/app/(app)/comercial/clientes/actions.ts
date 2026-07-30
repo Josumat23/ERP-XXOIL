@@ -7,6 +7,7 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoCliente } from "@/lib/correlativos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -93,9 +94,10 @@ export async function crearCliente(
   if ("error" in resultado) return resultado;
 
   try {
+    const empresaId = await obtenerEmpresaActivaId();
     await prisma.$transaction(async (tx) => {
       const codigo = await siguienteCodigoCliente(tx);
-      await tx.cliente.create({ data: { ...resultado.datos, codigo } });
+      await tx.cliente.create({ data: { ...resultado.datos, codigo, empresaId } });
     });
   } catch (e) {
     if (esErrorDuplicado(e)) {

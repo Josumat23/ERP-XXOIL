@@ -2027,29 +2027,45 @@ enum EstadoEmpleado {
   CESADO
 }
 
+enum TipoDocumentoIdentidad {
+  DNI
+  PASAPORTE
+  CARNET_EXTRANJERIA
+  OTRO
+}
+
 model Empleado {
-  id              String         @id @default(cuid())
-  empresaId       String         @default("1")
-  codigo          String // EMP-00001
-  nombres         String
-  apellidos       String
-  dni             String?
-  fechaNacimiento DateTime?
-  fechaIngreso    DateTime
-  fechaCese       DateTime?
-  motivoCese      String?
-  cargo           String
-  area            String
-  tipoContrato    TipoContrato
-  sueldoBasico    Decimal        @default(0)
-  telefono        String?
-  correo          String?
-  almacenId       String? // planta/local donde trabaja (opcional)
-  centroCostoId   String? // para que su costo pese en el centro correcto
-  usuarioId       String?        @unique // cuenta de acceso al ERP, si tiene (opcional, 1 a 1)
-  estado          EstadoEmpleado @default(ACTIVO)
-  notas           String?
-  creadoEn        DateTime       @default(now())
+  id                      String                 @id @default(cuid())
+  empresaId               String                 @default("1")
+  codigo                  String // EMP-00001
+  nombres                 String
+  apellidos               String
+  tipoDocumentoIdentidad  TipoDocumentoIdentidad @default(DNI)
+  dni                     String?
+  nacionalidad            String                 @default("Peruana")
+  fechaNacimiento         DateTime?
+  fechaIngreso            DateTime
+  fechaCese               DateTime?
+  motivoCese              String?
+  cargo                   String
+  area                    String
+  tipoContrato            TipoContrato
+  sueldoBasico            Decimal                @default(0)
+  telefono                String?
+  correo                  String?
+  // Datos bancarios estructurados — para el pago de haberes cuando exista
+  // planilla real, o para transferencias a personal remoto/extranjero.
+  banco                   String?
+  numeroCuenta            String?
+  cci                     String?
+  swift                   String?
+  iban                    String?
+  almacenId               String? // planta/local donde trabaja (opcional)
+  centroCostoId           String? // para que su costo pese en el centro correcto
+  usuarioId               String?                @unique // cuenta de acceso al ERP, si tiene (opcional, 1 a 1)
+  estado                  EstadoEmpleado         @default(ACTIVO)
+  notas                   String?
+  creadoEn                DateTime               @default(now())
 
   almacen     Almacen?              @relation(fields: [almacenId], references: [id])
   centroCosto CentroCosto?          @relation(fields: [centroCostoId], references: [id])
@@ -2195,4 +2211,31 @@ model Contacto {
 
   @@index([entidadTipo, entidadId])
   @@map("contactos")
+}
+
+// ---------------------------------------------------------------------------
+// Multi-empresa (fundación): permite registrar más de una compañía real (ej.
+// una subsidiaria en otro país), con una "compañía activa" por sesión (ver
+// src/lib/empresas.ts). FASE 1 — alcance honesto: Cliente y Proveedor ya
+// filtran de verdad por empresaId. El resto de módulos (Insumo, Pedido,
+// Factura, Orden de Compra, Asientos, ConfiguracionEmpresa/tasas fiscales...)
+// TODAVÍA opera solo contra la compañía "1" por defecto — extender el filtro
+// real a todo el grafo transaccional es una fase 2 separada y más grande, no
+// hecha ahora para no arriesgar mezclar datos financieros de compañías
+// distintas sin poder probarlo.
+// ---------------------------------------------------------------------------
+model Empresa {
+  id              String   @id @default(cuid())
+  razonSocial     String
+  ruc             String?
+  pais            String   @default("Peru")
+  monedaFuncional String   @default("PEN")
+  // La compañía "1" (creada por asegurarEmpresaPrincipal()) es la que ya
+  // tenían todos los registros existentes antes de este cambio — no se puede
+  // desactivar porque toda la data histórica cuelga de ella.
+  esPrincipal     Boolean  @default(false)
+  activa          Boolean  @default(true)
+  creadoEn        DateTime @default(now())
+
+  @@map("empresas")
 }

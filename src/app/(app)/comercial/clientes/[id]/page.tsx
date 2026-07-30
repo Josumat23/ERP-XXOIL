@@ -6,6 +6,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PanelDirecciones from "@/components/PanelDirecciones";
 import PanelContactos from "@/components/PanelContactos";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import ClienteFormulario from "../ClienteFormulario";
 import { actualizarCliente } from "../actions";
 
@@ -15,10 +16,11 @@ export default async function EditarClientePage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [cliente, clientes, zonas, vendedores, facturasPendientes] = await Promise.all([
     prisma.cliente.findUnique({ where: { id } }),
-    prisma.cliente.findMany({ orderBy: { razonSocial: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
     prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.factura.findMany({ where: { clienteId: id, estado: "PENDIENTE" } }),

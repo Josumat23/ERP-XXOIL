@@ -31,7 +31,11 @@ export async function crearEmpleado(
 
   const nombres = String(formData.get("nombres") ?? "").trim();
   const apellidos = String(formData.get("apellidos") ?? "").trim();
+  const tipoDocumentoIdentidad = String(
+    formData.get("tipoDocumentoIdentidad") ?? "DNI"
+  ) as $Enums.TipoDocumentoIdentidad;
   const dni = String(formData.get("dni") ?? "").trim() || null;
+  const nacionalidad = String(formData.get("nacionalidad") ?? "Peruana").trim() || "Peruana";
   const fechaNacimientoRaw = String(formData.get("fechaNacimiento") ?? "");
   const fechaIngresoRaw = String(formData.get("fechaIngreso") ?? "");
   const cargo = String(formData.get("cargo") ?? "").trim();
@@ -42,6 +46,11 @@ export async function crearEmpleado(
   const correo = String(formData.get("correo") ?? "").trim() || null;
   const almacenId = String(formData.get("almacenId") ?? "") || null;
   const centroCostoId = String(formData.get("centroCostoId") ?? "") || null;
+  const banco = String(formData.get("banco") ?? "").trim() || null;
+  const numeroCuenta = String(formData.get("numeroCuenta") ?? "").trim() || null;
+  const cci = String(formData.get("cci") ?? "").trim() || null;
+  const swift = String(formData.get("swift") ?? "").trim() || null;
+  const iban = String(formData.get("iban") ?? "").trim() || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!nombres || !apellidos) return { error: "Nombres y apellidos son obligatorios." };
@@ -67,7 +76,9 @@ export async function crearEmpleado(
           codigo,
           nombres,
           apellidos,
+          tipoDocumentoIdentidad,
           dni,
+          nacionalidad,
           fechaNacimiento,
           fechaIngreso,
           cargo,
@@ -76,6 +87,11 @@ export async function crearEmpleado(
           sueldoBasico,
           telefono,
           correo,
+          banco,
+          numeroCuenta,
+          cci,
+          swift,
+          iban,
           almacenId,
           centroCostoId,
           notas,

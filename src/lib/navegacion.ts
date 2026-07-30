@@ -53,6 +53,7 @@ export const MODULOS: Modulo[] = [
       {
         titulo: "Compras",
         enlaces: [
+          { href: "/logistica/mrp", etiqueta: "MRP — Necesidades de compra" },
           { href: "/logistica/ordenes-compra", etiqueta: "Órdenes de compra" },
           { href: "/logistica/guias-remision", etiqueta: "Guías de remisión" },
           { href: "/logistica/inspeccion-compras", etiqueta: "Inspección de calidad" },
@@ -119,6 +120,7 @@ export const MODULOS: Modulo[] = [
     icono: "✦",
     enlaces: [
       { href: "/configuracion/empresa", etiqueta: "Empresa", roles: ["ADMIN"] },
+      { href: "/configuracion/empresas", etiqueta: "Compañías (multi-empresa)", roles: ["ADMIN"] },
       { href: "/configuracion/usuarios", etiqueta: "Usuarios", roles: ["ADMIN"] },
       { href: "/configuracion/series", etiqueta: "Series de documentos", roles: ["ADMIN"] },
       { href: "/configuracion/almacenes", etiqueta: "Almacenes y zonas", roles: ["ADMIN", "ALMACEN"] },

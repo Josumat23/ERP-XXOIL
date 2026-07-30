@@ -23,6 +23,56 @@ type LineaOC = {
   fechaEntregaEsperada?: string;
 };
 
+// Compartido entre el formulario manual y la generación sugerida desde MRP
+// (src/app/(app)/logistica/mrp/actions.ts) — misma lógica de creación en un
+// solo lugar.
+export async function crearOrdenCompraDesdeDatos(
+  datos: {
+    proveedorId: string;
+    almacenId: string | null;
+    notas: string | null;
+    moneda: string;
+    tipoCambio: number;
+    lineas: LineaOC[];
+  },
+  actor: { usuarioId: string; usuarioNombre: string }
+): Promise<string> {
+  const { montoAprobacionCompras } = await obtenerConfiguracionEmpresa();
+
+  let ocId = "";
+  await prisma.$transaction(async (tx) => {
+    const numero = await siguienteNumeroOrdenCompra(tx);
+    const total = datos.lineas.reduce((acc, l) => acc + l.cantidad * l.costoUnitario, 0);
+    const totalPen = convertirAPen(total, datos.moneda, datos.tipoCambio);
+    const oc = await tx.ordenCompra.create({
+      data: {
+        numero,
+        proveedorId: datos.proveedorId,
+        almacenId: datos.almacenId,
+        moneda: datos.moneda,
+        tipoCambio: datos.tipoCambio,
+        total,
+        notas: datos.notas,
+        estadoAprobacion: totalPen >= montoAprobacionCompras.toNumber() ? "PENDIENTE" : "NO_REQUERIDA",
+        usuarioId: actor.usuarioId,
+        usuarioNombre: actor.usuarioNombre,
+        detalles: {
+          create: datos.lineas.map((l) => ({
+            insumoId: l.insumoId,
+            cantidad: l.cantidad,
+            costoUnitario: l.costoUnitario,
+            subtotal: l.cantidad * l.costoUnitario,
+            fechaEntregaEsperada: l.fechaEntregaEsperada ? new Date(l.fechaEntregaEsperada) : null,
+          })),
+        },
+      },
+    });
+    ocId = oc.id;
+  });
+
+  return ocId;
+}
+
 export async function crearOrdenCompra(
   _prevState: EstadoFormulario,
   formData: FormData
@@ -63,38 +113,10 @@ export async function crearOrdenCompra(
     return { error: "Agregue al menos una línea con cantidad y costo válidos." };
   }
 
-  const { montoAprobacionCompras } = await obtenerConfiguracionEmpresa();
-
-  let ocId = "";
-  await prisma.$transaction(async (tx) => {
-    const numero = await siguienteNumeroOrdenCompra(tx);
-    const total = lineas.reduce((acc, l) => acc + l.cantidad * l.costoUnitario, 0);
-    const totalPen = convertirAPen(total, moneda, tipoCambio);
-    const oc = await tx.ordenCompra.create({
-      data: {
-        numero,
-        proveedorId,
-        almacenId,
-        moneda,
-        tipoCambio,
-        total,
-        notas,
-        estadoAprobacion: totalPen >= montoAprobacionCompras.toNumber() ? "PENDIENTE" : "NO_REQUERIDA",
-        usuarioId: auth.usuario.id,
-        usuarioNombre: auth.usuario.nombre,
-        detalles: {
-          create: lineas.map((l) => ({
-            insumoId: l.insumoId,
-            cantidad: l.cantidad,
-            costoUnitario: l.costoUnitario,
-            subtotal: l.cantidad * l.costoUnitario,
-            fechaEntregaEsperada: l.fechaEntregaEsperada ? new Date(l.fechaEntregaEsperada) : null,
-          })),
-        },
-      },
-    });
-    ocId = oc.id;
-  });
+  const ocId = await crearOrdenCompraDesdeDatos(
+    { proveedorId, almacenId, notas, moneda, tipoCambio, lineas },
+    { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+  );
 
   revalidatePath("/logistica/ordenes-compra");
   redirect(`/logistica/ordenes-compra/${ocId}`);

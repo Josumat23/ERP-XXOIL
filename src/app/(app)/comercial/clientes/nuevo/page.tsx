@@ -1,14 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import ClienteFormulario from "../ClienteFormulario";
 import { crearCliente } from "../actions";
 
 export default async function NuevoClientePage() {
+  const empresaId = await obtenerEmpresaActivaId();
   const [zonas, vendedores, clientes] = await Promise.all([
     prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.cliente.findMany({ orderBy: { razonSocial: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
   ]);
 
   return (

@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { alternarActivoProveedor } from "./actions";
 
 export default async function ProveedoresPage({
@@ -11,9 +12,11 @@ export default async function ProveedoresPage({
   searchParams: Promise<{ q?: string; estado?: string }>;
 }) {
   const { q, estado } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const proveedores = await prisma.proveedor.findMany({
     where: {
+      empresaId,
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
       ...(q
         ? { OR: [{ razonSocial: { contains: q } }, { ruc: { contains: q } }] }

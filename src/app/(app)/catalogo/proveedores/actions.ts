@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -82,7 +83,8 @@ export async function crearProveedor(
   if ("error" in resultado) return resultado;
 
   try {
-    await prisma.proveedor.create({ data: resultado.datos });
+    const empresaId = await obtenerEmpresaActivaId();
+    await prisma.proveedor.create({ data: { ...resultado.datos, empresaId } });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un proveedor con el RUC ${resultado.datos.ruc}.` };

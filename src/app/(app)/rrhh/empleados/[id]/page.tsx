@@ -5,6 +5,8 @@ import { formatMoneda, formatFecha } from "@/lib/format";
 import { saldoVacaciones } from "@/lib/vacaciones";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
+import PanelDirecciones from "@/components/PanelDirecciones";
+import PanelContactos from "@/components/PanelContactos";
 import VacacionesFormulario from "./VacacionesFormulario";
 import BajaEmpleadoFormulario from "./BajaEmpleadoFormulario";
 import { aprobarVacaciones } from "../actions";
@@ -13,6 +15,13 @@ const ETIQUETA_CONTRATO: Record<string, string> = {
   PLAZO_FIJO: "Plazo fijo",
   PLAZO_INDETERMINADO: "Plazo indeterminado",
   LOCACION_SERVICIOS: "Locación de servicios",
+};
+
+const ETIQUETA_DOCUMENTO: Record<string, string> = {
+  DNI: "DNI",
+  PASAPORTE: "Pasaporte",
+  CARNET_EXTRANJERIA: "CE",
+  OTRO: "Doc.",
 };
 
 const ETIQUETA_ESTADO_VACACIONES: Record<string, string> = {
@@ -97,7 +106,8 @@ export default async function DetalleEmpleadoPage({
         <p className="text-sm text-neutral-500 mt-1">
           Ingresó el {formatFecha(empleado.fechaIngreso)} · Sueldo básico{" "}
           {formatMoneda(empleado.sueldoBasico)}
-          {empleado.dni ? ` · DNI ${empleado.dni}` : ""}
+          {empleado.dni ? ` · ${ETIQUETA_DOCUMENTO[empleado.tipoDocumentoIdentidad]} ${empleado.dni}` : ""}
+          {empleado.nacionalidad ? ` · ${empleado.nacionalidad}` : ""}
         </p>
         {(empleado.telefono || empleado.correo) && (
           <p className="text-sm text-neutral-500 mt-1">
@@ -183,7 +193,17 @@ export default async function DetalleEmpleadoPage({
           </table>
         </section>
 
-        <div className="mt-8">
+        <div className="mt-8 flex flex-col gap-6">
+          <PanelDirecciones
+            entidadTipo="Empleado"
+            entidadId={empleado.id}
+            rutaRevalidar={`/rrhh/empleados/${empleado.id}`}
+          />
+          <PanelContactos
+            entidadTipo="Empleado"
+            entidadId={empleado.id}
+            rutaRevalidar={`/rrhh/empleados/${empleado.id}`}
+          />
           <PanelAdjuntos
             entidadTipo="Empleado"
             entidadId={empleado.id}

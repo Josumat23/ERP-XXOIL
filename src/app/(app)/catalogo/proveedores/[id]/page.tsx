@@ -5,6 +5,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PanelDirecciones from "@/components/PanelDirecciones";
 import PanelContactos from "@/components/PanelContactos";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import ProveedorFormulario from "../ProveedorFormulario";
 import { actualizarProveedor } from "../actions";
 
@@ -14,9 +15,10 @@ export default async function EditarProveedorPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
   const [proveedor, proveedores] = await Promise.all([
     prisma.proveedor.findUnique({ where: { id } }),
-    prisma.proveedor.findMany({ orderBy: { razonSocial: "asc" } }),
+    prisma.proveedor.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
   ]);
   if (!proveedor) notFound();
 

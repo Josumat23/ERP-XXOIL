@@ -11,6 +11,13 @@ const OPCIONES_CONTRATO = [
   { valor: "LOCACION_SERVICIOS", etiqueta: "Locación de servicios" },
 ];
 
+const OPCIONES_DOCUMENTO_IDENTIDAD = [
+  { valor: "DNI", etiqueta: "DNI" },
+  { valor: "PASAPORTE", etiqueta: "Pasaporte" },
+  { valor: "CARNET_EXTRANJERIA", etiqueta: "Carnet de extranjería" },
+  { valor: "OTRO", etiqueta: "Otro" },
+];
+
 type Props = {
   almacenes: Opcion[];
   centrosCosto: Opcion[];
@@ -40,9 +47,24 @@ export default function EmpleadoFormulario({ almacenes, centrosCosto }: Props) {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Campo etiqueta="DNI (opcional)">
+        <Campo etiqueta="Tipo de documento">
+          <select name="tipoDocumentoIdentidad" defaultValue="DNI" className="campo-input">
+            {OPCIONES_DOCUMENTO_IDENTIDAD.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.etiqueta}
+              </option>
+            ))}
+          </select>
+        </Campo>
+        <Campo etiqueta="N° de documento (opcional)">
           <input name="dni" className="campo-input font-mono" />
         </Campo>
+        <Campo etiqueta="Nacionalidad">
+          <input name="nacionalidad" defaultValue="Peruana" className="campo-input" />
+        </Campo>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Campo etiqueta="Fecha de nacimiento (opcional)">
           <input name="fechaNacimiento" type="date" className="campo-input" />
         </Campo>
@@ -107,6 +129,29 @@ export default function EmpleadoFormulario({ almacenes, centrosCosto }: Props) {
               </option>
             ))}
           </select>
+        </Campo>
+      </div>
+
+      <p className="text-xs font-medium text-neutral-500 mt-1">
+        Datos bancarios (para el pago de haberes o transferencias a personal remoto/extranjero)
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <Campo etiqueta="Banco">
+          <input name="banco" className="campo-input" />
+        </Campo>
+        <Campo etiqueta="N° de cuenta">
+          <input name="numeroCuenta" className="campo-input" />
+        </Campo>
+        <Campo etiqueta="CCI">
+          <input name="cci" className="campo-input font-mono" />
+        </Campo>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Campo etiqueta="SWIFT / BIC (internacional)">
+          <input name="swift" className="campo-input font-mono" />
+        </Campo>
+        <Campo etiqueta="IBAN (internacional)">
+          <input name="iban" className="campo-input font-mono" />
         </Campo>
       </div>
 

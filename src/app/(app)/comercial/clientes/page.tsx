@@ -5,6 +5,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { ETIQUETA_CANAL_CLIENTE } from "@/lib/etiquetas";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { alternarActivoCliente } from "./actions";
 
 const CANALES = Object.keys(ETIQUETA_CANAL_CLIENTE) as (keyof typeof ETIQUETA_CANAL_CLIENTE)[];
@@ -16,9 +17,11 @@ export default async function ClientesPage({
 }) {
   const { q, estado, canal } = await searchParams;
   const filtroCanal = CANALES.find((c) => c === canal);
+  const empresaId = await obtenerEmpresaActivaId();
 
   const clientes = await prisma.cliente.findMany({
     where: {
+      empresaId,
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
       ...(filtroCanal ? { canal: filtroCanal } : {}),
       ...(q

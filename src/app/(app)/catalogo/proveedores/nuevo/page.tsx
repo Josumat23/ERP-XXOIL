@@ -1,11 +1,16 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import ProveedorFormulario from "../ProveedorFormulario";
 import { crearProveedor } from "../actions";
 
 export default async function NuevoProveedorPage() {
-  const proveedores = await prisma.proveedor.findMany({ orderBy: { razonSocial: "asc" } });
+  const empresaId = await obtenerEmpresaActivaId();
+  const proveedores = await prisma.proveedor.findMany({
+    where: { empresaId },
+    orderBy: { razonSocial: "asc" },
+  });
 
   return (
     <div>
