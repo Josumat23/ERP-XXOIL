@@ -94,14 +94,16 @@ export async function registrarMovimiento(
     nombreItem = item.nombre;
   }
 
-  const saldoAlmacen = await tx.saldoAlmacen.findUnique({
+  // findFirst (no findUnique) a propósito: el índice compuesto
+  // almacenId_tipoItem_presentacionId_insumoId incluye dos columnas nulleables
+  // (presentacionId/insumoId), y Prisma no acepta null en una búsqueda por
+  // clave única compuesta — solo en un filtro normal.
+  const saldoAlmacen = await tx.saldoAlmacen.findFirst({
     where: {
-      almacenId_tipoItem_presentacionId_insumoId: {
-        almacenId,
-        tipoItem,
-        presentacionId: tipoItem === "PRESENTACION" ? presentacionId! : null,
-        insumoId: tipoItem === "INSUMO" ? insumoId! : null,
-      },
+      almacenId,
+      tipoItem,
+      presentacionId: tipoItem === "PRESENTACION" ? presentacionId! : null,
+      insumoId: tipoItem === "INSUMO" ? insumoId! : null,
     },
   });
   const saldoAnterior = saldoAlmacen?.cantidad.toNumber() ?? 0;
@@ -134,24 +136,21 @@ export async function registrarMovimiento(
     },
   });
 
-  await tx.saldoAlmacen.upsert({
-    where: {
-      almacenId_tipoItem_presentacionId_insumoId: {
+  // Update-by-id o create (en vez de upsert-por-clave-compuesta) por la misma
+  // razón: ya tenemos saldoAlmacen (o null) del findFirst de arriba.
+  if (saldoAlmacen) {
+    await tx.saldoAlmacen.update({ where: { id: saldoAlmacen.id }, data: { cantidad: saldoNuevo } });
+  } else {
+    await tx.saldoAlmacen.create({
+      data: {
         almacenId,
         tipoItem,
-        presentacionId: tipoItem === "PRESENTACION" ? presentacionId! : null,
-        insumoId: tipoItem === "INSUMO" ? insumoId! : null,
+        presentacionId: tipoItem === "PRESENTACION" ? presentacionId : null,
+        insumoId: tipoItem === "INSUMO" ? insumoId : null,
+        cantidad: saldoNuevo,
       },
-    },
-    update: { cantidad: saldoNuevo },
-    create: {
-      almacenId,
-      tipoItem,
-      presentacionId: tipoItem === "PRESENTACION" ? presentacionId : null,
-      insumoId: tipoItem === "INSUMO" ? insumoId : null,
-      cantidad: saldoNuevo,
-    },
-  });
+    });
+  }
 
   if (tipoItem === "PRESENTACION") {
     await tx.presentacion.update({ where: { id: presentacionId }, data: { stock: { increment: delta } } });

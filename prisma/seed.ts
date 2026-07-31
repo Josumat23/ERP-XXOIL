@@ -168,18 +168,18 @@ async function main() {
             ...audit,
           },
         });
-        await prisma.saldoAlmacen.upsert({
-          where: {
-            almacenId_tipoItem_presentacionId_insumoId: {
-              almacenId: plantaSemilla.id,
-              tipoItem: "PRESENTACION",
-              presentacionId: p.id,
-              insumoId: null,
-            },
-          },
-          update: { cantidad: stock },
-          create: { almacenId: plantaSemilla.id, tipoItem: "PRESENTACION", presentacionId: p.id, cantidad: stock },
+        // upsert-por-clave-compuesta no funciona con columnas nulleables
+        // (presentacionId/insumoId) en Prisma — findFirst + create/update.
+        const saldoExistente = await prisma.saldoAlmacen.findFirst({
+          where: { almacenId: plantaSemilla.id, tipoItem: "PRESENTACION", presentacionId: p.id, insumoId: null },
         });
+        if (saldoExistente) {
+          await prisma.saldoAlmacen.update({ where: { id: saldoExistente.id }, data: { cantidad: stock } });
+        } else {
+          await prisma.saldoAlmacen.create({
+            data: { almacenId: plantaSemilla.id, tipoItem: "PRESENTACION", presentacionId: p.id, cantidad: stock },
+          });
+        }
       }
     }
     const insumos = await prisma.insumo.findMany();
@@ -200,18 +200,16 @@ async function main() {
             ...audit,
           },
         });
-        await prisma.saldoAlmacen.upsert({
-          where: {
-            almacenId_tipoItem_presentacionId_insumoId: {
-              almacenId: plantaSemilla.id,
-              tipoItem: "INSUMO",
-              presentacionId: null,
-              insumoId: i.id,
-            },
-          },
-          update: { cantidad: stock },
-          create: { almacenId: plantaSemilla.id, tipoItem: "INSUMO", insumoId: i.id, cantidad: stock },
+        const saldoInsumoExistente = await prisma.saldoAlmacen.findFirst({
+          where: { almacenId: plantaSemilla.id, tipoItem: "INSUMO", presentacionId: null, insumoId: i.id },
         });
+        if (saldoInsumoExistente) {
+          await prisma.saldoAlmacen.update({ where: { id: saldoInsumoExistente.id }, data: { cantidad: stock } });
+        } else {
+          await prisma.saldoAlmacen.create({
+            data: { almacenId: plantaSemilla.id, tipoItem: "INSUMO", insumoId: i.id, cantidad: stock },
+          });
+        }
       }
     }
   }
