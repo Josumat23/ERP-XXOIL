@@ -6,6 +6,7 @@ import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { postearPagoProveedor } from "@/lib/contabilidad";
+import { ejecutarPagoProveedor } from "@/lib/pagosProveedor";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type EstadoFormulario = { error?: string };
@@ -41,65 +42,18 @@ export async function registrarPagoProveedor(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const cuenta = await tx.cuentaPorPagar.findUnique({
-        where: { id: cuentaId },
-        include: { proveedor: true, pagos: true },
-      });
-      if (!cuenta) throw new Error("La cuenta por pagar no existe.");
-      if (cuenta.pagos.some((p) => p.estadoAprobacion === "PENDIENTE")) {
-        throw new Error("Ya hay un pago pendiente de aprobación para esta cuenta.");
-      }
-
-      const saldo = cuenta.saldo.toNumber();
-      if (monto > saldo + 1e-9) {
-        throw new Error(`El monto supera el saldo pendiente (${saldo.toFixed(2)}).`);
-      }
-
-      const requiereAprobacion = monto >= montoAprobacionPagos.toNumber();
-
-      await tx.pagoProveedor.create({
-        data: {
-          cuentaPorPagarId: cuentaId,
+      const resultado = await ejecutarPagoProveedor(
+        tx,
+        {
+          cuentaId,
           monto,
           medioPago,
           referencia,
-          estadoAprobacion: requiereAprobacion ? "PENDIENTE" : "NO_REQUERIDA",
-          usuarioId: auth.usuario.id,
-          usuarioNombre: auth.usuario.nombre,
-        },
-      });
-
-      // Si supera el umbral, el pago queda "solicitado": no se descuenta de
-      // caja ni del saldo hasta que Gerencia/Admin lo apruebe.
-      if (requiereAprobacion) return;
-
-      await tx.movimientoCaja.create({
-        data: {
-          tipo: "EGRESO",
-          concepto: `Pago a ${cuenta.proveedor.razonSocial} (doc. ${cuenta.numeroDocumento})`,
-          monto,
-          medioPago,
-          referencia: cuenta.numeroDocumento,
-          usuarioId: auth.usuario.id,
-          usuarioNombre: auth.usuario.nombre,
-        },
-      });
-
-      const nuevoSaldo = saldo - monto;
-      await tx.cuentaPorPagar.update({
-        where: { id: cuentaId },
-        data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
-      });
-
-      await postearPagoProveedor(
-        tx,
-        {
-          documentoProveedor: cuenta.numeroDocumento,
-          proveedor: cuenta.proveedor.razonSocial,
-          monto,
+          montoAprobacionPagos: montoAprobacionPagos.toNumber(),
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
       );
+      if (!resultado.ok) throw new Error(resultado.error);
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };

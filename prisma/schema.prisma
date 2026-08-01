@@ -733,6 +733,13 @@ model Cliente {
   condicionPagoDefecto CondicionPago @default(CONTADO)
   notas                String?
   activo               Boolean       @default(true)
+  // Bloqueo específico de cobranza (distinto de `activo`): impide crear
+  // pedidos nuevos mientras tenga facturas vencidas sin resolver, pero no
+  // oculta al cliente ni afecta su historial. Se levanta manualmente desde
+  // Finanzas → Cobranza una vez que regulariza su deuda.
+  bloqueadoCobranza    Boolean       @default(false)
+  bloqueadoCobranzaEn  DateTime?
+  bloqueadoCobranzaPor String?
   creadoEn             DateTime      @default(now())
 
   zona             Zona?            @relation(fields: [zonaId], references: [id])
@@ -743,6 +750,7 @@ model Cliente {
   visitas          HojaRutaVisita[]
   cotizaciones     Cotizacion[]
   movimientosCasco MovimientoCasco[]
+  avisosCobranza   AvisoCobranza[]
 
   @@unique([empresaId, ruc])
   @@unique([empresaId, codigo])
@@ -881,6 +889,7 @@ model Factura {
   cliente      Cliente       @relation(fields: [clienteId], references: [id])
   vendedor     Vendedor      @relation(fields: [vendedorId], references: [id])
   cobros       Cobro[]
+  avisosCobranza AvisoCobranza[]
   notasCredito NotaCredito[]
   comisiones   Comision[]
   guias        GuiaRemision[]
@@ -907,6 +916,28 @@ model RecargoMora {
   factura Factura @relation(fields: [facturaId], references: [id])
 
   @@map("recargos_mora")
+}
+
+// Aviso de cobranza (dunning): registro de que se avisó a un cliente sobre
+// una factura vencida, en un nivel de escalamiento creciente. No envía
+// correo/SMS real (este ERP no tiene esa integración) — es el registro de
+// que el aviso se emitió (para imprimir/entregar) y en qué nivel, para poder
+// distinguir "primera vez que se avisa" de "ya se le avisó 3 veces".
+model AvisoCobranza {
+  id               String   @id @default(cuid())
+  empresaId        String   @default("1")
+  clienteId        String
+  facturaId        String
+  nivel            Int // 1 = aviso amistoso, 2 = aviso formal, 3 = aviso final
+  diasVencidos     Int // snapshot al momento de emitir el aviso
+  fecha            DateTime @default(now())
+  usuarioId        String
+  usuarioNombre    String
+
+  cliente Cliente @relation(fields: [clienteId], references: [id])
+  factura Factura @relation(fields: [facturaId], references: [id])
+
+  @@map("avisos_cobranza")
 }
 
 // --- Facturación electrónica SUNAT (vía OSE) --------------------------------

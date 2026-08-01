@@ -10,6 +10,20 @@ import MembreteEmpresa from "@/components/MembreteEmpresa";
 // cálculo aparte. El resultado del ejercicio (Ingresos − Gastos acumulados,
 // ya que este sistema no hace asientos de cierre de período) se suma al
 // Patrimonio para que Activo = Pasivo + Patrimonio siempre cuadre.
+//
+// Clasificación Corriente/No corriente por prefijo de código (estilo PCGE):
+// Activo 1x/2x = corriente (disponible, exigible, existencias); 3x = no
+// corriente (inmovilizado). Pasivo: todo corriente salvo 45x (obligaciones
+// financieras a largo plazo). Es una regla fija razonable para el plan de
+// cuentas de esta empresa, no un motor de reglas configurable como en SAP
+// (no hace falta para una sola empresa con un plan de cuentas fijo).
+function esActivoNoCorriente(codigo: string) {
+  return codigo.startsWith("3");
+}
+function esPasivoNoCorriente(codigo: string) {
+  return codigo.startsWith("45");
+}
+
 export default async function SituacionFinancieraPage({
   searchParams,
 }: {
@@ -72,6 +86,11 @@ export default async function SituacionFinancieraPage({
   const pasivo = filasNaturalAcreedor(porTipo.PASIVO);
   const patrimonio = filasNaturalAcreedor(porTipo.PATRIMONIO);
 
+  const activoCorriente = activo.filter((f) => !esActivoNoCorriente(f.codigo));
+  const activoNoCorriente = activo.filter((f) => esActivoNoCorriente(f.codigo));
+  const pasivoCorriente = pasivo.filter((f) => !esPasivoNoCorriente(f.codigo));
+  const pasivoNoCorriente = pasivo.filter((f) => esPasivoNoCorriente(f.codigo));
+
   const totalIngresos = filasNaturalAcreedor(porTipo.INGRESO).reduce((acc, f) => acc + f.saldo, 0);
   const totalGastos = filasNaturalDeudor(porTipo.GASTO).reduce((acc, f) => acc + f.saldo, 0);
   const resultadoEjercicio = totalIngresos - totalGastos;
@@ -132,10 +151,31 @@ export default async function SituacionFinancieraPage({
               </h2>
               <table className="tabla tabla-densa mt-2">
                 <tbody>
-                  {activo.map((f) => (
+                  <tr>
+                    <td colSpan={2} className="text-xs font-semibold text-neutral-500">
+                      Activo corriente
+                    </td>
+                  </tr>
+                  {activoCorriente.map((f) => (
                     <Fila key={f.codigo} codigo={f.codigo} nombre={f.nombre} valor={f.saldo} />
                   ))}
-                  <FilaTotal etiqueta="Total activo" valor={totalActivo} />
+                  <FilaTotal
+                    etiqueta="Total activo corriente"
+                    valor={activoCorriente.reduce((a, f) => a + f.saldo, 0)}
+                  />
+                  <tr>
+                    <td colSpan={2} className="text-xs font-semibold text-neutral-500 pt-3">
+                      Activo no corriente
+                    </td>
+                  </tr>
+                  {activoNoCorriente.map((f) => (
+                    <Fila key={f.codigo} codigo={f.codigo} nombre={f.nombre} valor={f.saldo} />
+                  ))}
+                  <FilaTotal
+                    etiqueta="Total activo no corriente"
+                    valor={activoNoCorriente.reduce((a, f) => a + f.saldo, 0)}
+                  />
+                  <FilaTotal etiqueta="TOTAL ACTIVO" valor={totalActivo} />
                 </tbody>
               </table>
             </section>
@@ -146,9 +186,30 @@ export default async function SituacionFinancieraPage({
               </h2>
               <table className="tabla tabla-densa mt-2">
                 <tbody>
-                  {pasivo.map((f) => (
+                  <tr>
+                    <td colSpan={2} className="text-xs font-semibold text-neutral-500">
+                      Pasivo corriente
+                    </td>
+                  </tr>
+                  {pasivoCorriente.map((f) => (
                     <Fila key={f.codigo} codigo={f.codigo} nombre={f.nombre} valor={f.saldo} />
                   ))}
+                  <FilaTotal
+                    etiqueta="Total pasivo corriente"
+                    valor={pasivoCorriente.reduce((a, f) => a + f.saldo, 0)}
+                  />
+                  <tr>
+                    <td colSpan={2} className="text-xs font-semibold text-neutral-500 pt-3">
+                      Pasivo no corriente
+                    </td>
+                  </tr>
+                  {pasivoNoCorriente.map((f) => (
+                    <Fila key={f.codigo} codigo={f.codigo} nombre={f.nombre} valor={f.saldo} />
+                  ))}
+                  <FilaTotal
+                    etiqueta="Total pasivo no corriente"
+                    valor={pasivoNoCorriente.reduce((a, f) => a + f.saldo, 0)}
+                  />
                   <FilaTotal etiqueta="Total pasivo" valor={totalPasivo} />
                 </tbody>
               </table>

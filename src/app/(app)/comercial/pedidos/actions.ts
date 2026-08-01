@@ -41,6 +41,14 @@ export async function crearPedido(
 
   if (!clienteId) return { error: "Seleccione el cliente." };
   if (!vendedorId) return { error: "Seleccione el vendedor." };
+
+  const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
+  if (!cliente) return { error: "El cliente no existe." };
+  if (cliente.bloqueadoCobranza) {
+    return {
+      error: `${cliente.razonSocial} está bloqueado por cobranza (facturas vencidas sin regularizar). Levante el bloqueo en Finanzas → Gestión de cobranza antes de crear un pedido nuevo.`,
+    };
+  }
   lineas = lineas.filter(
     (l) =>
       l.presentacionId &&
