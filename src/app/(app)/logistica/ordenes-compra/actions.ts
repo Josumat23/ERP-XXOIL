@@ -176,6 +176,7 @@ export async function registrarRecepcion(
   }
 
   const numeroDocumento = String(formData.get("numeroDocumento") ?? "").trim();
+  const tipoComprobante = String(formData.get("tipoComprobante") ?? "01").trim();
   const diasCredito = Number(formData.get("diasCredito") ?? 0);
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
@@ -329,6 +330,7 @@ export async function registrarRecepcion(
           proveedorId: oc.proveedorId,
           ordenCompraId,
           numeroDocumento,
+          tipoComprobante,
           fechaVencimiento,
           moneda: "PEN",
           total: totalRecepcionPen,

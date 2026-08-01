@@ -1219,7 +1219,11 @@ model CuentaPorPagar {
   empresaId       String               @default("1")
   proveedorId     String
   ordenCompraId   String?
-  numeroDocumento String // factura del proveedor
+  numeroDocumento String // factura del proveedor, formato "serie-número" (ej. F001-123)
+  // Código de Tabla 10 de SUNAT (01 Factura, 03 Boleta, 04 Liquidación de
+  // compra, 91 comprobante de no domiciliado, etc.) — para el Registro de
+  // Compras Electrónico (PLE). Default Factura, el caso normal en compras B2B.
+  tipoComprobante String               @default("01")
   fechaEmision    DateTime             @default(now())
   fechaVencimiento DateTime?
   moneda          String               @default("PEN")

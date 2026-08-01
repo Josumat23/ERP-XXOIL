@@ -98,7 +98,16 @@ export default function RecepcionFormulario({ ordenCompraId, pendientes }: Props
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
             N° factura / guía del proveedor
           </span>
-          <input name="numeroDocumento" required className="campo-input font-mono w-48" />
+          <input name="numeroDocumento" required placeholder="F001-000123" className="campo-input font-mono w-48" />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Tipo de comprobante</span>
+          <select name="tipoComprobante" defaultValue="01" className="campo-input w-52">
+            <option value="01">01 Factura</option>
+            <option value="03">03 Boleta de venta</option>
+            <option value="04">04 Liquidación de compra</option>
+            <option value="91">91 Comprobante no domiciliado</option>
+          </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Condición de pago</span>
