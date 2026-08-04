@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { ETIQUETA_ESTADO_DESPACHO } from "@/lib/etiquetas";
 
 export default async function GuiasRemisionPage({
   searchParams,
@@ -57,6 +58,7 @@ export default async function GuiasRemisionPage({
             <th>Traslado</th>
             <th>Destino</th>
             <th>Líneas</th>
+            <th>Estado</th>
             <th></th>
           </tr>
         </thead>
@@ -79,6 +81,19 @@ export default async function GuiasRemisionPage({
               </td>
               <td className="text-sm text-neutral-500 max-w-56 truncate">{g.puntoLlegada}</td>
               <td>{g._count.detalles}</td>
+              <td>
+                <span
+                  className={`insignia ${
+                    g.estadoDespacho === "ENTREGADO"
+                      ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
+                      : g.estadoDespacho === "EN_RUTA"
+                        ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400"
+                        : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800"
+                  }`}
+                >
+                  {ETIQUETA_ESTADO_DESPACHO[g.estadoDespacho]}
+                </span>
+              </td>
               <td className="text-right">
                 <Link
                   href={`/logistica/guias-remision/${g.id}`}
@@ -91,7 +106,7 @@ export default async function GuiasRemisionPage({
           ))}
           {guias.length === 0 && (
             <tr>
-              <td colSpan={7} className="text-center text-neutral-500 py-6">
+              <td colSpan={8} className="text-center text-neutral-500 py-6">
                 No hay guías de remisión registradas todavía.
               </td>
             </tr>

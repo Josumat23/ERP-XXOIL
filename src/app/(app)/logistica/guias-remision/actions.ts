@@ -34,6 +34,7 @@ export async function crearGuiaRemision(
   const transportista = String(formData.get("transportista") ?? "").trim() || null;
   const placaVehiculo = String(formData.get("placaVehiculo") ?? "").trim().toUpperCase() || null;
   const dniConductor = String(formData.get("dniConductor") ?? "").trim() || null;
+  const equipoId = String(formData.get("equipoId") ?? "") || null;
   const observaciones = String(formData.get("observaciones") ?? "").trim() || null;
   const serieId = String(formData.get("serieId") ?? "") || null;
 
@@ -71,6 +72,7 @@ export async function crearGuiaRemision(
           transportista,
           placaVehiculo,
           dniConductor,
+          equipoId,
           observaciones,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
@@ -91,4 +93,53 @@ export async function crearGuiaRemision(
 
   revalidatePath("/logistica/guias-remision");
   redirect(`/logistica/guias-remision/${guiaId}`);
+}
+
+// Avance del estado de ejecución del despacho (flota propia): visibilidad
+// de qué guía ya salió y cuál ya se entregó, sin necesitar GPS ni
+// integración con terceros.
+export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN", "VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
+
+  const guia = await prisma.guiaRemision.findUnique({ where: { id: guiaId } });
+  if (!guia) return { error: "La guía no existe." };
+  if (guia.estadoDespacho !== "PLANIFICADO") {
+    return { error: "Esta guía ya no está planificada." };
+  }
+
+  await prisma.guiaRemision.update({
+    where: { id: guiaId },
+    data: { estadoDespacho: "EN_RUTA", fechaSalida: new Date() },
+  });
+
+  revalidatePath("/logistica/guias-remision");
+  revalidatePath(`/logistica/guias-remision/${guiaId}`);
+  return {};
+}
+
+export async function marcarEntregaGuia(guiaId: string): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN", "VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
+
+  const guia = await prisma.guiaRemision.findUnique({ where: { id: guiaId } });
+  if (!guia) return { error: "La guía no existe." };
+  if (guia.estadoDespacho !== "EN_RUTA") {
+    return { error: "Esta guía todavía no salió a ruta." };
+  }
+
+  await prisma.guiaRemision.update({
+    where: { id: guiaId },
+    data: { estadoDespacho: "ENTREGADO", fechaEntrega: new Date() },
+  });
+
+  revalidatePath("/logistica/guias-remision");
+  revalidatePath(`/logistica/guias-remision/${guiaId}`);
+  return {};
 }

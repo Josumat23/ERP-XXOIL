@@ -1223,6 +1223,12 @@ model InspeccionCompra {
 // LOGISTICA — GUIAS DE REMISION (traslado de mercadería, formato SUNAT)
 // ---------------------------------------------------------------------------
 
+enum EstadoDespacho {
+  PLANIFICADO
+  EN_RUTA
+  ENTREGADO
+}
+
 model GuiaRemision {
   id             String   @id @default(cuid())
   empresaId      String   @default("1")
@@ -1237,12 +1243,21 @@ model GuiaRemision {
   placaVehiculo  String?
   dniConductor   String?
   observaciones  String?
+  // Vehículo de flota propia que ejecuta el despacho (opcional: un
+  // transportista externo puntual no tiene Equipo que vincular). Da
+  // visibilidad real de la flota — de qué vehículo salió cada guía — y
+  // conecta con su historial de mantenimiento.
+  equipoId       String?
+  estadoDespacho EstadoDespacho @default(PLANIFICADO)
+  fechaSalida    DateTime?
+  fechaEntrega   DateTime?
   usuarioId      String
   usuarioNombre  String
   creadoEn       DateTime @default(now())
 
   factura  Factura?              @relation(fields: [facturaId], references: [id])
   cliente  Cliente               @relation(fields: [clienteId], references: [id])
+  equipo   Equipo?               @relation(fields: [equipoId], references: [id])
   detalles GuiaRemisionDetalle[]
 
   @@map("guias_remision")
@@ -1927,6 +1942,7 @@ model Equipo {
   activoFijo           ActivoFijo?          @relation(fields: [activoFijoId], references: [id])
   centroCosto          CentroCosto?         @relation(fields: [centroCostoId], references: [id])
   ordenesMantenimiento OrdenMantenimiento[]
+  guiasRemision        GuiaRemision[]
 
   @@unique([empresaId, codigo])
   @@map("equipos")

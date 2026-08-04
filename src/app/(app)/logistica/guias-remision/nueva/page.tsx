@@ -5,7 +5,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import GuiaFormulario from "../GuiaFormulario";
 
 export default async function NuevaGuiaPage() {
-  const [facturas, clientes, presentaciones, series, guias] = await Promise.all([
+  const [facturas, clientes, presentaciones, equipos, series, guias] = await Promise.all([
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" } },
       include: {
@@ -21,6 +21,7 @@ export default async function NuevaGuiaPage() {
       include: { producto: true },
       orderBy: { sku: "asc" },
     }),
+    prisma.equipo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     seriesActivas("GUIA_REMISION"),
     prisma.guiaRemision.findMany({ include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
   ]);
@@ -64,6 +65,7 @@ export default async function NuevaGuiaPage() {
             id: p.id,
             etiqueta: `${p.producto.nombre} — ${p.nombre}`,
           }))}
+          equipos={equipos.map((e) => ({ id: e.id, etiqueta: `${e.codigo} — ${e.nombre}` }))}
           series={series.map((s) => ({
             id: s.id,
             serie: s.serie,
