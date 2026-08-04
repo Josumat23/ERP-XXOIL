@@ -3,11 +3,21 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PlanillaFormulario from "./PlanillaFormulario";
+import GratificacionFormulario from "./GratificacionFormulario";
+import CtsFormulario from "./CtsFormulario";
 
 const NOMBRE_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
+
+const ETIQUETA_TIPO: Record<string, string> = {
+  MENSUAL: "Mensual",
+  GRATIFICACION_JULIO: "Gratificación (jul)",
+  GRATIFICACION_DICIEMBRE: "Gratificación (dic)",
+  CTS_MAYO: "CTS (may)",
+  CTS_NOVIEMBRE: "CTS (nov)",
+};
 
 export default async function PlanillaPage() {
   const periodos = await prisma.planillaPeriodo.findMany({
@@ -24,8 +34,8 @@ export default async function PlanillaPage() {
           </h1>
           <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
             Cálculo mensual de sueldos con aportes legales (EsSalud, ONP/AFP, retención de 5ta
-            categoría). Fase 1 — gratificaciones, CTS y liquidación de desvinculación quedan para una
-            siguiente iteración.
+            categoría), gratificación de julio/diciembre y CTS de mayo/noviembre. La liquidación de
+            desvinculación se genera automáticamente al dar de baja a un empleado.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
@@ -36,8 +46,10 @@ export default async function PlanillaPage() {
         </div>
       </div>
 
-      <div className="mb-6 no-imprimir">
+      <div className="mb-6 flex flex-col gap-4 no-imprimir">
         <PlanillaFormulario />
+        <GratificacionFormulario />
+        <CtsFormulario />
       </div>
 
       <table className="tabla">
@@ -57,7 +69,7 @@ export default async function PlanillaPage() {
               <tr key={p.id}>
                 <td>
                   <Link href={`/rrhh/planilla/${p.id}`} className="hover:underline">
-                    {NOMBRE_MES[p.mes - 1]} {p.anio}
+                    {ETIQUETA_TIPO[p.tipo] ?? p.tipo} {p.anio}
                   </Link>
                 </td>
                 <td>

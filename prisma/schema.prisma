@@ -1754,6 +1754,9 @@ enum OrigenAsiento {
   REVERSO
   DEVOLUCION_COMPRA
   PLANILLA
+  GRATIFICACION
+  CTS
+  LIQUIDACION
 }
 
 model AsientoContable {
@@ -2238,6 +2241,7 @@ model Empleado {
   usuario           Usuario?              @relation(fields: [usuarioId], references: [id])
   vacaciones        SolicitudVacaciones[]
   planillaDetalles  PlanillaDetalle[]
+  liquidacion       LiquidacionDesvinculacion?
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, dni])
@@ -2316,6 +2320,10 @@ model TasaAfp {
 
 enum TipoPeriodoPlanilla {
   MENSUAL
+  GRATIFICACION_JULIO
+  GRATIFICACION_DICIEMBRE
+  CTS_MAYO
+  CTS_NOVIEMBRE
 }
 
 enum EstadoPeriodoPlanilla {
@@ -2353,6 +2361,12 @@ model PlanillaDetalle {
   detallePension         String? // texto legible del desglose, para la boleta
   essaludPatronal        Decimal  @default(0) // gasto del empleador, no se descuenta al trabajador
   retencion5ta           Decimal  @default(0) // método simplificado — ver docs/gobernanza/04-hcm-*.md
+  // Solo gratificación/CTS: meses computados en el período y bono Ley 30334
+  // (gratificación). Gratificación y CTS están inafectas a ONP/AFP/EsSalud/5ta
+  // categoría (hasta 2 UIT en el caso de renta) — no usan descuentoPension ni
+  // essaludPatronal.
+  mesesComputados            Decimal?
+  bonificacionExtraordinaria Decimal  @default(0)
   neto                   Decimal
   asientoNumero          String?
   creadoEn               DateTime @default(now())
@@ -2362,6 +2376,31 @@ model PlanillaDetalle {
 
   @@unique([planillaPeriodoId, empleadoId])
   @@map("planilla_detalles")
+}
+
+// Finiquito al cesar un empleado: CTS truncada (desde el último depósito) +
+// gratificación truncada (desde el inicio del semestre en curso) + bono Ley
+// 30334 + vacaciones truncadas y no gozadas (saldoVacaciones ya es un cálculo
+// continuo, cubre ambos). Un registro por cese — se genera junto con
+// darDeBajaEmpleado.
+model LiquidacionDesvinculacion {
+  id                         String   @id @default(cuid())
+  empleadoId                 String   @unique
+  fechaCese                  DateTime
+  ctsTruncada                Decimal
+  gratificacionTruncada      Decimal
+  bonificacionExtraordinaria Decimal
+  diasVacacionesPendientes   Decimal
+  montoVacaciones            Decimal
+  total                      Decimal
+  asientoNumero              String?
+  usuarioId                  String
+  usuarioNombre              String
+  creadoEn                   DateTime @default(now())
+
+  empleado Empleado @relation(fields: [empleadoId], references: [id])
+
+  @@map("liquidaciones_desvinculacion")
 }
 
 // ---------------------------------------------------------------------------

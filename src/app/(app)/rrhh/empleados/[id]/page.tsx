@@ -50,6 +50,7 @@ export default async function DetalleEmpleadoPage({
         almacen: true,
         centroCosto: true,
         vacaciones: { orderBy: { fechaInicio: "desc" } },
+        liquidacion: true,
       },
     }),
     prisma.empleado.findMany({ orderBy: { creadoEn: "desc" } }),
@@ -122,6 +123,47 @@ export default async function DetalleEmpleadoPage({
             Cesado el {empleado.fechaCese && formatFecha(empleado.fechaCese)}. Motivo:{" "}
             {empleado.motivoCese}
           </p>
+        )}
+
+        {empleado.liquidacion && (
+          <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4">
+            <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
+              Liquidación de desvinculación
+            </h2>
+            <table className="tabla">
+              <tbody>
+                <tr>
+                  <td>CTS truncada</td>
+                  <td className="text-right">{formatMoneda(empleado.liquidacion.ctsTruncada)}</td>
+                </tr>
+                <tr>
+                  <td>Gratificación truncada</td>
+                  <td className="text-right">{formatMoneda(empleado.liquidacion.gratificacionTruncada)}</td>
+                </tr>
+                <tr>
+                  <td>Bonificación extraordinaria (Ley 30334)</td>
+                  <td className="text-right">
+                    {formatMoneda(empleado.liquidacion.bonificacionExtraordinaria)}
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    Vacaciones pendientes ({empleado.liquidacion.diasVacacionesPendientes.toString()} días)
+                  </td>
+                  <td className="text-right">{formatMoneda(empleado.liquidacion.montoVacaciones)}</td>
+                </tr>
+                <tr className="font-semibold">
+                  <td>Total</td>
+                  <td className="text-right">{formatMoneda(empleado.liquidacion.total)}</td>
+                </tr>
+              </tbody>
+            </table>
+            {empleado.liquidacion.asientoNumero && (
+              <p className="text-xs text-neutral-400 mt-2">
+                Asiento contable {empleado.liquidacion.asientoNumero}.
+              </p>
+            )}
+          </section>
         )}
 
         <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4">

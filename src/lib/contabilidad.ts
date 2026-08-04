@@ -32,7 +32,8 @@ export type ClaveControl =
   | "ONP_AFP_POR_PAGAR"
   | "ESSALUD_POR_PAGAR"
   | "RETENCION_5TA_POR_PAGAR"
-  | "SUELDOS_POR_PAGAR";
+  | "SUELDOS_POR_PAGAR"
+  | "CTS_POR_PAGAR";
 
 export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   CUENTAS_POR_COBRAR: "Cuentas por cobrar comerciales",
@@ -55,6 +56,7 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   ESSALUD_POR_PAGAR: "EsSalud por pagar",
   RETENCION_5TA_POR_PAGAR: "Retención de renta de 5ta categoría por pagar",
   SUELDOS_POR_PAGAR: "Sueldos por pagar (neto)",
+  CTS_POR_PAGAR: "CTS por depositar",
 };
 
 type LineaAsiento = {
@@ -613,6 +615,111 @@ export async function postearPlanilla(
     origen: "PLANILLA",
     glosa: `Planilla ${datos.periodo}`,
     referencia: datos.periodo,
+    fecha: datos.fecha,
+    lineas,
+    ...audit,
+  });
+}
+
+// Gratificación (julio/diciembre): Gasto de personal (monto base + bono Ley
+// 30334) al debe / Sueldos por pagar al haber. Inafecta a ONP/AFP/EsSalud —
+// no hay líneas de descuento.
+export async function postearGratificacion(
+  tx: Tx,
+  datos: {
+    periodo: string;
+    lineas: { empleado: string; centroCostoId: string | null; montoBase: number; bono: number }[];
+    fecha?: Date;
+  },
+  audit: Auditoria
+) {
+  const lineas: Parameters<typeof postearAsiento>[1]["lineas"] = [];
+  let totalNeto = 0;
+  for (const l of datos.lineas) {
+    lineas.push({ clave: "GASTO_PERSONAL", glosa: l.empleado, debe: l.montoBase, centroCostoId: l.centroCostoId });
+    if (l.bono > 0) {
+      lineas.push({
+        clave: "GASTO_PERSONAL",
+        glosa: `Bono Ley 30334 — ${l.empleado}`,
+        debe: l.bono,
+        centroCostoId: l.centroCostoId,
+      });
+    }
+    totalNeto += l.montoBase + l.bono;
+  }
+  if (totalNeto > 0) lineas.push({ clave: "SUELDOS_POR_PAGAR", haber: totalNeto });
+
+  return postearAsiento(tx, {
+    origen: "GRATIFICACION",
+    glosa: `Gratificación ${datos.periodo}`,
+    referencia: datos.periodo,
+    fecha: datos.fecha,
+    lineas,
+    ...audit,
+  });
+}
+
+// CTS (mayo/noviembre): Gasto de personal (debe) / CTS por depositar (haber)
+// — no se paga en efectivo, es una obligación de depósito a la cuenta CTS
+// del trabajador. Inafecta a ONP/AFP/EsSalud/5ta categoría.
+export async function postearCts(
+  tx: Tx,
+  datos: {
+    periodo: string;
+    lineas: { empleado: string; centroCostoId: string | null; monto: number }[];
+    fecha?: Date;
+  },
+  audit: Auditoria
+) {
+  const lineas: Parameters<typeof postearAsiento>[1]["lineas"] = [];
+  let total = 0;
+  for (const l of datos.lineas) {
+    lineas.push({ clave: "GASTO_PERSONAL", glosa: l.empleado, debe: l.monto, centroCostoId: l.centroCostoId });
+    total += l.monto;
+  }
+  if (total > 0) lineas.push({ clave: "CTS_POR_PAGAR", haber: total });
+
+  return postearAsiento(tx, {
+    origen: "CTS",
+    glosa: `CTS ${datos.periodo}`,
+    referencia: datos.periodo,
+    fecha: datos.fecha,
+    lineas,
+    ...audit,
+  });
+}
+
+// Liquidación de desvinculación: CTS truncada (debe Gasto / haber CTS por
+// depositar) + gratificación truncada + bono + vacaciones (debe Gasto /
+// haber Sueldos por pagar, todo en efectivo).
+export async function postearLiquidacion(
+  tx: Tx,
+  datos: {
+    empleado: string;
+    centroCostoId: string | null;
+    ctsTruncada: number;
+    gratificacionTruncada: number;
+    bono: number;
+    montoVacaciones: number;
+    fecha?: Date;
+  },
+  audit: Auditoria
+) {
+  const lineas: Parameters<typeof postearAsiento>[1]["lineas"] = [];
+  const efectivo = datos.gratificacionTruncada + datos.bono + datos.montoVacaciones;
+
+  if (datos.ctsTruncada > 0) {
+    lineas.push({ clave: "GASTO_PERSONAL", glosa: `CTS truncada — ${datos.empleado}`, debe: datos.ctsTruncada, centroCostoId: datos.centroCostoId });
+    lineas.push({ clave: "CTS_POR_PAGAR", haber: datos.ctsTruncada });
+  }
+  if (efectivo > 0) {
+    lineas.push({ clave: "GASTO_PERSONAL", glosa: `Gratificación truncada + vacaciones — ${datos.empleado}`, debe: efectivo, centroCostoId: datos.centroCostoId });
+    lineas.push({ clave: "SUELDOS_POR_PAGAR", haber: efectivo });
+  }
+
+  return postearAsiento(tx, {
+    origen: "LIQUIDACION",
+    glosa: `Liquidación de desvinculación — ${datos.empleado}`,
     fecha: datos.fecha,
     lineas,
     ...audit,

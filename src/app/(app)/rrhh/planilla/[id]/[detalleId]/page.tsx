@@ -10,6 +10,14 @@ const NOMBRE_MES = [
   "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
 ];
 
+const ETIQUETA_TIPO: Record<string, string> = {
+  MENSUAL: "BOLETA DE PAGO",
+  GRATIFICACION_JULIO: "GRATIFICACIÓN — JULIO",
+  GRATIFICACION_DICIEMBRE: "GRATIFICACIÓN — DICIEMBRE",
+  CTS_MAYO: "CTS — MAYO",
+  CTS_NOVIEMBRE: "CTS — NOVIEMBRE",
+};
+
 export default async function BoletaPagoPage({
   params,
 }: {
@@ -24,6 +32,9 @@ export default async function BoletaPagoPage({
   if (!detalle || detalle.planillaPeriodoId !== id) notFound();
 
   const p = detalle.planillaPeriodo;
+  const esMensual = p.tipo === "MENSUAL";
+  const esGratificacion = p.tipo === "GRATIFICACION_JULIO" || p.tipo === "GRATIFICACION_DICIEMBRE";
+  const esCts = p.tipo === "CTS_MAYO" || p.tipo === "CTS_NOVIEMBRE";
 
   return (
     <div>
@@ -37,7 +48,7 @@ export default async function BoletaPagoPage({
       <div className="max-w-2xl">
         <div className="documento border border-black/10 dark:border-white/10 rounded-lg p-6 mt-4">
           <MembreteEmpresa
-            tituloDocumento="BOLETA DE PAGO"
+            tituloDocumento={ETIQUETA_TIPO[p.tipo] ?? "BOLETA DE PAGO"}
             numero={`${NOMBRE_MES[p.mes - 1]} ${p.anio}`}
           />
 
@@ -47,7 +58,10 @@ export default async function BoletaPagoPage({
             <Dato etiqueta="Cargo" valor={detalle.empleado.cargo} />
             <Dato etiqueta="Área" valor={detalle.empleado.area} />
             <Dato etiqueta="Período" valor={`${NOMBRE_MES[p.mes - 1]} ${p.anio}`} />
-            <Dato etiqueta="Sistema de pensión" valor={detalle.detallePension || "—"} />
+            {esMensual && <Dato etiqueta="Sistema de pensión" valor={detalle.detallePension || "—"} />}
+            {!esMensual && (
+              <Dato etiqueta="Meses computados" valor={detalle.mesesComputados?.toString() ?? "—"} />
+            )}
           </div>
 
           <table className="tabla mt-6">
@@ -59,34 +73,53 @@ export default async function BoletaPagoPage({
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td>Remuneración básica</td>
-                <td className="text-right">{formatMoneda(detalle.sueldoBasico)}</td>
-                <td className="text-right">—</td>
-              </tr>
-              {detalle.asignacionFamiliar.toNumber() > 0 && (
-                <tr>
-                  <td>Asignación familiar</td>
-                  <td className="text-right">{formatMoneda(detalle.asignacionFamiliar)}</td>
-                  <td className="text-right">—</td>
-                </tr>
-              )}
-              <tr>
-                <td>{detalle.detallePension || "Pensión"}</td>
-                <td className="text-right">—</td>
-                <td className="text-right">{formatMoneda(detalle.descuentoPension)}</td>
-              </tr>
-              {detalle.retencion5ta.toNumber() > 0 && (
-                <tr>
-                  <td>Retención renta de 5ta categoría</td>
-                  <td className="text-right">—</td>
-                  <td className="text-right">{formatMoneda(detalle.retencion5ta)}</td>
-                </tr>
+              {esMensual ? (
+                <>
+                  <tr>
+                    <td>Remuneración básica</td>
+                    <td className="text-right">{formatMoneda(detalle.sueldoBasico)}</td>
+                    <td className="text-right">—</td>
+                  </tr>
+                  {detalle.asignacionFamiliar.toNumber() > 0 && (
+                    <tr>
+                      <td>Asignación familiar</td>
+                      <td className="text-right">{formatMoneda(detalle.asignacionFamiliar)}</td>
+                      <td className="text-right">—</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td>{detalle.detallePension || "Pensión"}</td>
+                    <td className="text-right">—</td>
+                    <td className="text-right">{formatMoneda(detalle.descuentoPension)}</td>
+                  </tr>
+                  {detalle.retencion5ta.toNumber() > 0 && (
+                    <tr>
+                      <td>Retención renta de 5ta categoría</td>
+                      <td className="text-right">—</td>
+                      <td className="text-right">{formatMoneda(detalle.retencion5ta)}</td>
+                    </tr>
+                  )}
+                </>
+              ) : (
+                <>
+                  <tr>
+                    <td>{esGratificacion ? "Gratificación (base)" : "CTS"}</td>
+                    <td className="text-right">{formatMoneda(detalle.remuneracionComputable)}</td>
+                    <td className="text-right">—</td>
+                  </tr>
+                  {esGratificacion && detalle.bonificacionExtraordinaria.toNumber() > 0 && (
+                    <tr>
+                      <td>Bonificación extraordinaria (Ley 30334)</td>
+                      <td className="text-right">{formatMoneda(detalle.bonificacionExtraordinaria)}</td>
+                      <td className="text-right">—</td>
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
             <tfoot>
               <tr className="font-semibold">
-                <td>Neto a pagar</td>
+                <td>{esCts ? "Depósito CTS" : "Neto a pagar"}</td>
                 <td className="text-right" colSpan={2}>
                   {formatMoneda(detalle.neto)}
                 </td>
@@ -94,14 +127,22 @@ export default async function BoletaPagoPage({
             </tfoot>
           </table>
 
-          <p className="text-xs text-neutral-400 mt-6">
-            Aporte EsSalud del empleador (informativo, no se descuenta del trabajador):{" "}
-            {formatMoneda(detalle.essaludPatronal)}.
-          </p>
-          {detalle.empleado.banco && (
+          {esMensual && (
+            <p className="text-xs text-neutral-400 mt-6">
+              Aporte EsSalud del empleador (informativo, no se descuenta del trabajador):{" "}
+              {formatMoneda(detalle.essaludPatronal)}.
+            </p>
+          )}
+          {!esCts && detalle.empleado.banco && (
             <p className="text-xs text-neutral-400 mt-1">
               Abono a: {detalle.empleado.banco} — cuenta {detalle.empleado.numeroCuenta ?? "—"}
               {detalle.empleado.cci && ` (CCI ${detalle.empleado.cci})`}.
+            </p>
+          )}
+          {esCts && (
+            <p className="text-xs text-neutral-400 mt-1">
+              Se deposita en la cuenta CTS del trabajador en la entidad financiera que él eligió — no
+              se transfiere a su cuenta de haberes.
             </p>
           )}
         </div>

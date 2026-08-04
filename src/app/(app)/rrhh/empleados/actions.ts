@@ -8,6 +8,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoEmpleado } from "@/lib/correlativos";
 import { saldoVacaciones } from "@/lib/vacaciones";
+import { generarLiquidacion } from "@/lib/planilla";
 
 export type EstadoFormulario = { error?: string };
 
@@ -138,14 +139,43 @@ export async function darDeBajaEmpleado(
   const motivoCese = String(formData.get("motivoCese") ?? "").trim();
   if (!motivoCese) return { error: "El motivo del cese es obligatorio." };
 
-  const empleado = await prisma.empleado.findUnique({ where: { id } });
+  const empleado = await prisma.empleado.findUnique({
+    where: { id },
+    include: { vacaciones: { where: { estado: "APROBADA" } } },
+  });
   if (!empleado) return { error: "El empleado no existe." };
   if (empleado.estado === "CESADO") return { error: "Este empleado ya fue dado de baja." };
 
-  await prisma.empleado.update({
-    where: { id },
-    data: { estado: "CESADO", fechaCese: new Date(), motivoCese },
-  });
+  const fechaCese = new Date();
+  let advertenciaLiquidacion: string | null = null;
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.empleado.update({
+        where: { id },
+        data: { estado: "CESADO", fechaCese, motivoCese },
+      });
+      if (empleado.tipoContrato !== "LOCACION_SERVICIOS") {
+        const diasAprobados = empleado.vacaciones.reduce((acc, v) => acc + v.diasSolicitados, 0);
+        const resultado = await generarLiquidacion(tx, {
+          empleadoId: id,
+          fechaCese,
+          diasVacacionesAprobados: diasAprobados,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        });
+        if (!resultado.ok) advertenciaLiquidacion = resultado.error;
+      }
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+
+  if (advertenciaLiquidacion) {
+    revalidatePath("/rrhh/empleados");
+    revalidatePath(`/rrhh/empleados/${id}`);
+    return { error: `Empleado dado de baja, pero la liquidación no se pudo calcular: ${advertenciaLiquidacion}` };
+  }
 
   revalidatePath("/rrhh/empleados");
   revalidatePath(`/rrhh/empleados/${id}`);
