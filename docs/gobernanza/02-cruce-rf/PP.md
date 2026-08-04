@@ -1,0 +1,36 @@
+# Cruce RF genérico → XXOil: PP (Planificación de la Producción)
+
+**Fuente:** `Requerimientos_Funcionales_SAP_PP.md` (56 RF). **Resultado:** 18 Obligatorio (14 ya construidos bajo el paradigma correcto — PP-PI, no PP-SFC), 3 Deseable, 35 No aplica (M3, mayoría PP-SFC/PP-REM/PP-KAB clásico).
+
+Regla de filtrado del usuario, confirmada por el código: XXOil ya está construido bajo **PP-PI (fabricación por procesos)**, no PP-SFC (fabricación discreta) ni PP-REM (repetitiva). `Formula`+`FormulaDetalle` es el equivalente de la "Master Recipe" de PP-PI (RF-PP-039), y `LoteGranel` es el "Process Order". La BOM de ensamblaje clásica (RF-PP-001 a 008), la planificación de capacidad por puesto de trabajo con hojas de ruta de mecanizado (RF-PP-005, 021-025) y Kanban (RF-PP-042, 043) no aplican — no hay "puestos de trabajo" con tiempos de mecanizado ni piezas que ensamblar.
+
+| RF-ID | Aplica | Por qué | Prioridad real | Estado en código |
+|---|---|---|---|---|
+| RF-PP-001 (BOM multinivel de ensamblaje) | Reinterpretado | XXOil no ensambla — el equivalente real es `FormulaDetalle` (receta de insumos por producto), que ya existe | **Obligatorio (ya hecho, bajo PP-PI)** | `Formula`/`FormulaDetalle` (M11, M3 para el original) |
+| RF-PP-002 (versiones de BOM con vigencia) | Deseable | Útil si una fórmula cambia de formulación con el tiempo (ajuste de receta); hoy se edita la fórmula directo sin versionado histórico | Media | `Formula` no tiene versionado/vigencia |
+| RF-PP-003, 004, 007 (hojas de ruta, puestos de trabajo, rutas alternativas) | No | M3 — no hay operaciones secuenciales de mecanizado ni puestos de trabajo con tiempo estándar; la fabricación por lote es "mezclar según receta", sin ruta de proceso multi-etapa que modelar aparte | — | No aplica |
+| RF-PP-005 (vínculo puesto de trabajo↔centro de costo) | Reinterpretado | El equivalente real es que la orden de producción (lote) ya se liquida a un centro de costo directamente, sin pasar por "puesto de trabajo" | **Obligatorio (ya hecho, simplificado)** | Vía `CentroCostoControl` (M11, M1 para el original) |
+| RF-PP-006 (explosión de BOM/ruta congelando datos en la orden) | Sí (ya hecho) | Al crear el lote, se congela la fórmula usada (snapshot) | **Obligatorio (ya hecho)** | `FormulaDetalle` congelado en `LoteGranel` (M11) |
+| RF-PP-008 (histórico de cambios en BOM/ruta) | No | Bajo volumen de fórmulas, no justifica un log de auditoría dedicado todavía | Fase 3+ | No existe |
+| RF-PP-009 a 012 (Plan Maestro de Producción MPS: definición agregada, ajuste manual, integración con demanda de venta, capacidad) | Parcial | `Proyeccion` (Marketing/Operaciones/Finanzas trimestral) cumple el rol de plan agregado; no hay MPS formal por SKU crítico | Media | `Proyeccion` (M6 parcial) |
+| RF-PP-013 a 020 (MRP: ver documento dedicado `MRP.md` para el detalle completo) | — | Remitido al cruce de MRP para no duplicar | — | Ver `MRP.md` |
+| RF-PP-021 a 025 (planificación de capacidad CRP: carga por puesto de trabajo, nivelación, pools) | No | M3 — no hay puestos de trabajo con capacidad limitante que planificar; el cuello de botella real de XXOil es disponibilidad de insumos, no de "máquinas", y eso ya lo cubre el MRP simple | — | No aplica al modelo de producción de XXOil |
+| RF-PP-026 (creación de orden de producción desde orden previsional o manual) | Sí (ya hecho) | `LoteGranel` se crea directo, con o sin sugerencia de MRP | **Obligatorio (ya hecho)** | `LoteGranel` (M11) |
+| RF-PP-027 (ciclo de estados de la orden) | Sí (ya hecho) | `LoteGranel.estado` (pendiente calidad, aprobado, rechazado) | **Obligatorio (ya hecho)** | `LoteGranel` (M11) |
+| RF-PP-028 (liberación con reserva de materiales) | Sí (ya hecho) | Al iniciar el lote se descuentan los insumos según la fórmula | **Obligatorio (ya hecho)** | `LoteGranel` + kardex (M11) |
+| RF-PP-029 (confirmación de operaciones: tiempos, cantidades) | Parcial | Se registra cantidad producida; el costeo de mano de obra ya existe (commit "Agrega costeo de mano de obra") pero no como "confirmación de operación" estructurada por etapa | Media | Costeo de mano de obra existe (M11 parcial) |
+| RF-PP-030, 031 (salida de componentes, entrada de producto terminado/semiterminado) | Sí (ya hecho) | Consumo de insumos al fabricar, entrada de producto terminado al envasar | **Obligatorio (ya hecho)** | Kardex vía `registrarMovimiento` (M11) |
+| RF-PP-032 (cierre técnico y liquidación con variaciones CO-PC) | Sí (ya hecho) | El costo del lote se calcula y postea al costear la venta (costo promedio) | **Obligatorio (ya hecho)** | `postearVenta` con costo de ventas (M11) |
+| RF-PP-033 (impresión de documentos de fabricación) | Deseable | `BotonImprimir` ya es reutilizable, falta aplicarlo a la ficha de lote | Baja | Patrón existe, falta aplicar |
+| RF-PP-034 (reprogramación de fechas de orden liberada) | No | El lote se ejecuta el mismo día que se decide fabricar, no hay reprogramación de fechas futuras que gestionar | — | No aplica al flujo actual |
+| RF-PP-035 (costos planeados vs. reales por orden) | Deseable | Se podría comparar el costo de fórmula (teórico) vs. el costo real del lote (mermas) — valioso para control de mermas | Media | No existe como reporte explícito |
+| RF-PP-036 a 038 (Fabricación Repetitiva PP-REM: líneas continuas, backflush) | No | M3 — XXOil fabrica por lote discreto de proceso, no en línea continua de alto volumen | — | No aplica |
+| RF-PP-039 (Master Recipe / fórmulas para procesos) | Sí (ya hecho) | Exactamente `Formula`/`FormulaDetalle` | **Obligatorio (ya hecho)** | M11 |
+| RF-PP-040 (Process Order con instrucciones para operadores) | Parcial | `LoteGranel` es el "Process Order"; instrucciones de proceso detalladas por paso no existen (se asume que el operario conoce el proceso) | Baja | `LoteGranel` (M6 parcial) |
+| RF-PP-041 (integración con PI Sheets/PCS para captura automática de parámetros) | No | M10 — XXOil no tiene sensores/SCADA en planta | — | No aplica |
+| RF-PP-042, 043 (Kanban) | No | M3/M4 — reposición visual entre centro de suministro y consumo no aplica al tamaño de la operación | — | No aplica |
+| RF-PP-044 a 047 (reportes: órdenes por estado/periodo, cumplimiento de programa, eficiencia, extracción BI) | Deseable | Reportes de bajo esfuerzo sobre datos que ya existen (`LoteGranel`) | Media | Parcial — no hay reporte dedicado de cumplimiento de programa |
+| RF-PP-048 a 052 (integración MM, SD, CO, QM, PM) | Sí (ya hecho, mayoría) | Ya integrado con inventario (consumo/producción), CO (costeo), QM (inspección de lote) | **Obligatorio (ya hecho)** | M11 |
+| RF-PP-053 a 056 (transversales: SoD, trazabilidad completa, no eliminación física, multi-planta/turno) | Sí (ya hecho) | El patrón general aplica; multi-planta parcial (Trujillo ya existe como segundo almacén, no como "planta" con su propia producción) | **Obligatorio (ya hecho)** | M11, multi-planta parcial |
+
+**Resumen:** de 56 RF, **14 ya están construidos** bajo el paradigma correcto de fabricación por procesos (no discreta), **4 son deseables de fase 2** (versionado de fórmula, confirmación de operación por etapa, comparación costo teórico vs. real, reportes de cumplimiento), y **35 no aplican** por ser manufactura discreta/repetitiva/Kanban/automatización industrial que no corresponde al modelo de XXOil.
