@@ -374,6 +374,7 @@ enum OrigenMovimiento {
   VENTA
   ANULACION_VENTA
   DEVOLUCION_CLIENTE // el cliente devuelve mercadería físicamente (no es anulación ni NC)
+  DEVOLUCION_PROVEEDOR // se devuelve materia prima/insumo a un proveedor (defecto, no conformidad)
   TRASLADO // movimiento entre dos almacenes: una SALIDA en el origen + una ENTRADA en el destino
   AJUSTE // regularización manual: motivo obligatorio
 }
@@ -1128,6 +1129,7 @@ model RecepcionCompra {
 
   ordenCompra OrdenCompra              @relation(fields: [ordenCompraId], references: [id])
   detalles    RecepcionCompraDetalle[]
+  cuentasPorPagar CuentaPorPagar[]
 
   @@map("recepciones_compra")
 }
@@ -1150,8 +1152,30 @@ model RecepcionCompraDetalle {
   insumo      Insumo             @relation(fields: [insumoId], references: [id])
   inspeccion  InspeccionCompra?
   asignacionesLote AsignacionLoteInsumo[]
+  devoluciones DevolucionCompra[]
 
   @@map("recepcion_compra_detalles")
+}
+
+// Devolución de un insumo/materia prima a su proveedor (defecto, no
+// conformidad detectada después de recibido). Reduce el stock físico y se
+// aplica como crédito contra la cuenta por pagar de esa recepción — el
+// equivalente a una nota de crédito de proveedor, sin modelarla como
+// documento SUNAT aparte porque quien la emite es el proveedor, no XXOil.
+model DevolucionCompra {
+  id                       String   @id @default(cuid())
+  empresaId                String   @default("1")
+  recepcionCompraDetalleId String
+  cantidad                 Decimal
+  motivo                   String
+  montoCredito             Decimal // cantidad * costoUnitario de la línea, aplicado a la CxP
+  usuarioId                String
+  usuarioNombre            String
+  creadoEn                 DateTime @default(now())
+
+  recepcionCompraDetalle RecepcionCompraDetalle @relation(fields: [recepcionCompraDetalleId], references: [id])
+
+  @@map("devoluciones_compra")
 }
 
 // Ledger de consumo (solo ida, sin reversos: un LoteGranel no se "anula")
@@ -1250,6 +1274,7 @@ model CuentaPorPagar {
   empresaId       String               @default("1")
   proveedorId     String
   ordenCompraId   String?
+  recepcionCompraId String? // recepción que originó esta CxP (para poder aplicar devoluciones)
   numeroDocumento String // factura del proveedor, formato "serie-número" (ej. F001-123)
   // Código de Tabla 10 de SUNAT (01 Factura, 03 Boleta, 04 Liquidación de
   // compra, 91 comprobante de no domiciliado, etc.) — para el Registro de
@@ -1267,12 +1292,19 @@ model CuentaPorPagar {
   montoOriginal   Decimal?
   monedaOriginal  String?
   tipoCambio      Decimal?
+  // % de variación entre el costo unitario registrado en la recepción y el
+  // costo pactado en la orden de compra (verificación de factura en 3 vías:
+  // orden↔recepción↔lo que se está por pagar). null = sin discrepancia
+  // detectada o por debajo de la tolerancia (5%). No bloquea el pago — solo
+  // lo señala, porque el sistema no debe ser rígido ante regularizaciones.
+  discrepanciaPrecioPct Decimal?
   estado          EstadoCuentaPorPagar @default(PENDIENTE)
   usuarioId       String
   usuarioNombre   String
 
   proveedor   Proveedor       @relation(fields: [proveedorId], references: [id])
   ordenCompra OrdenCompra?    @relation(fields: [ordenCompraId], references: [id])
+  recepcionCompra RecepcionCompra? @relation(fields: [recepcionCompraId], references: [id])
   pagos       PagoProveedor[]
 
   @@map("cuentas_por_pagar")
@@ -1642,6 +1674,7 @@ enum OrigenAsiento {
   MANTENIMIENTO
   VENTA_ACTIVO_FIJO
   REVERSO
+  DEVOLUCION_COMPRA
 }
 
 model AsientoContable {

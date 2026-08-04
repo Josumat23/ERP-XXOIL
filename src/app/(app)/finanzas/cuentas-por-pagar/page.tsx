@@ -122,6 +122,14 @@ export default async function CuentasPorPagarPage({
                   >
                     {c.estado === "PAGADA" ? "Pagada" : "Pendiente"}
                   </span>
+                  {c.discrepanciaPrecioPct && (
+                    <span
+                      className="insignia ml-1 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400"
+                      title="El costo registrado al recibir difiere del pactado en la orden de compra por más del 5%"
+                    >
+                      ⚠ {c.discrepanciaPrecioPct.toNumber().toFixed(1)}%
+                    </span>
+                  )}
                 </td>
                 <td className="text-right">
                   <Link

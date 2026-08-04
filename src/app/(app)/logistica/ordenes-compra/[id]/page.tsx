@@ -9,6 +9,7 @@ import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
 import RecepcionFormulario from "./RecepcionFormulario";
+import DevolucionProveedorFormulario from "./DevolucionProveedorFormulario";
 import AnularOCFormulario from "./AnularOCFormulario";
 import RechazarOCFormulario from "./RechazarOCFormulario";
 import { aprobarOrdenCompra } from "../actions";
@@ -41,7 +42,7 @@ export default async function DetalleOrdenCompraPage({
         almacen: true,
         detalles: { include: { insumo: true } },
         recepciones: {
-          include: { detalles: { include: { insumo: true, inspeccion: true } } },
+          include: { detalles: { include: { insumo: true, inspeccion: true, devoluciones: true } } },
           orderBy: { fecha: "asc" },
         },
         cuentasPorPagar: true,
@@ -61,6 +62,20 @@ export default async function DetalleOrdenCompraPage({
       costoUnitario: d.costoUnitario.toNumber(),
     }))
     .filter((d) => d.pendiente > 1e-9);
+
+  const lineasDevolvibles = oc.recepciones.flatMap((r) =>
+    r.detalles
+      .map((d) => {
+        const yaDevuelto = d.devoluciones.reduce((acc, dev) => acc + dev.cantidad.toNumber(), 0);
+        return {
+          id: d.id,
+          nombre: `${d.insumo.codigo} — ${d.insumo.nombre} (recepción ${r.numero})`,
+          disponible: d.cantidad.toNumber() - yaDevuelto,
+          unidad: d.insumo.unidadMedida,
+        };
+      })
+      .filter((d) => d.disponible > 1e-9)
+  );
 
   const puedeAprobar = usuario?.rol === "GERENCIA" || usuario?.rol === "ADMIN";
   const admiteRecepcion =
@@ -213,6 +228,15 @@ export default async function DetalleOrdenCompraPage({
         </section>
       )}
 
+      {lineasDevolvibles.length > 0 && (
+        <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4 no-imprimir">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
+            Devolver insumo a proveedor
+          </h2>
+          <DevolucionProveedorFormulario ordenCompraId={oc.id} lineas={lineasDevolvibles} />
+        </section>
+      )}
+
       {oc.recepciones.length > 0 && (
         <section className="mt-8">
           <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Recepciones</h2>
@@ -249,6 +273,12 @@ export default async function DetalleOrdenCompraPage({
                               : "Inspección rechazada"}
                         </Link>
                       )}
+                      {rd.devoluciones.length > 0 && (
+                        <span className="insignia ml-2 bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400">
+                          Devuelto: {formatNumero(rd.devoluciones.reduce((a, d) => a + d.cantidad.toNumber(), 0), 2)}{" "}
+                          {rd.insumo.unidadMedida}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
@@ -277,6 +307,14 @@ export default async function DetalleOrdenCompraPage({
                   <span className="text-neutral-400">
                     {" "}
                     · {formatMoneda(cxp.montoOriginal, cxp.monedaOriginal)} original
+                  </span>
+                )}
+                {cxp.discrepanciaPrecioPct && (
+                  <span
+                    className="insignia ml-2 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400"
+                    title="El costo registrado al recibir difiere del pactado en la orden de compra por más del 5%"
+                  >
+                    ⚠ Precio {cxp.discrepanciaPrecioPct.toNumber().toFixed(1)}% distinto al pactado
                   </span>
                 )}
               </li>

@@ -67,6 +67,14 @@ export default async function DetalleCuentaPorPagarPage({
         >
           {cuenta.estado === "PAGADA" ? "Pagada" : "Pendiente"}
         </span>
+        {cuenta.discrepanciaPrecioPct && (
+          <span
+            className="insignia bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400"
+            title="El costo registrado al recibir difiere del pactado en la orden de compra por más del 5%"
+          >
+            ⚠ Precio {cuenta.discrepanciaPrecioPct.toNumber().toFixed(1)}% distinto al pactado
+          </span>
+        )}
       </div>
       <p className="text-neutral-500 mt-1">
         {cuenta.proveedor.razonSocial}

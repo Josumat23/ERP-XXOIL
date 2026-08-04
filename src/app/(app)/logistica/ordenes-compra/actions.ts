@@ -10,7 +10,7 @@ import {
   siguienteNumeroOrdenCompra,
   siguienteNumeroRecepcion,
 } from "@/lib/correlativos";
-import { postearRecepcionCompra } from "@/lib/contabilidad";
+import { postearRecepcionCompra, postearDevolucionCompra } from "@/lib/contabilidad";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { convertirAPen } from "@/lib/tipoCambio";
 
@@ -227,6 +227,11 @@ export async function registrarRecepcion(
 
       let totalRecepcion = 0; // en la moneda de la OC (lo que dice el documento del proveedor)
       let totalRecepcionPen = 0; // convertido a PEN — lo que usan CxP y el asiento contable
+      // Verificación de factura en 3 vías (orden↔recepción↔lo que se paga):
+      // se guarda la mayor variación de precio encontrada entre lo pactado
+      // en la OC y lo realmente registrado al recibir, para marcar la CxP
+      // sin bloquear la recepción (las regularizaciones no deben ser rígidas).
+      let maxVariacionPct = 0;
 
       for (const linea of lineas) {
         const detalle = oc.detalles.find((d) => d.id === linea.detalleId);
@@ -246,6 +251,12 @@ export async function registrarRecepcion(
           ? linea.costoUnitario
           : detalle.costoUnitario.toNumber();
         const costoPen = convertirAPen(costo, oc.moneda, oc.tipoCambio.toNumber());
+
+        const precioPactado = detalle.costoUnitario.toNumber();
+        if (precioPactado > 0) {
+          const variacionPct = Math.abs(costo - precioPactado) / precioPactado;
+          maxVariacionPct = Math.max(maxVariacionPct, variacionPct);
+        }
 
         const detalleRecepcion = await tx.recepcionCompraDetalle.create({
           data: {
@@ -325,10 +336,12 @@ export async function registrarRecepcion(
         diasCredito > 0
           ? new Date(Date.now() + diasCredito * 24 * 60 * 60 * 1000)
           : null;
+      const TOLERANCIA_DISCREPANCIA = 0.05; // 5%
       await tx.cuentaPorPagar.create({
         data: {
           proveedorId: oc.proveedorId,
           ordenCompraId,
+          recepcionCompraId: recepcion.id,
           numeroDocumento,
           tipoComprobante,
           fechaVencimiento,
@@ -338,6 +351,7 @@ export async function registrarRecepcion(
           ...(oc.moneda !== "PEN"
             ? { montoOriginal: totalRecepcion, monedaOriginal: oc.moneda, tipoCambio: oc.tipoCambio }
             : {}),
+          discrepanciaPrecioPct: maxVariacionPct > TOLERANCIA_DISCREPANCIA ? maxVariacionPct * 100 : null,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
         },
@@ -423,5 +437,121 @@ export async function rechazarOrdenCompra(
 
   revalidatePath("/logistica/ordenes-compra");
   revalidatePath(`/logistica/ordenes-compra/${id}`);
+  return {};
+}
+
+// Devolución de un insumo ya recibido a su proveedor (defecto detectado
+// después de recibido, no conformidad, etc.). Reduce el stock físico y se
+// aplica como crédito contra la cuenta por pagar generada por esa misma
+// recepción — el equivalente a una nota de crédito de proveedor.
+export async function registrarDevolucionProveedor(
+  ordenCompraId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
+
+  const recepcionCompraDetalleId = String(formData.get("recepcionCompraDetalleId") ?? "");
+  const cantidad = Number(formData.get("cantidad"));
+  const motivo = String(formData.get("motivo") ?? "").trim();
+
+  if (!recepcionCompraDetalleId) return { error: "Seleccione la línea recibida a devolver." };
+  if (!Number.isFinite(cantidad) || cantidad <= 0) {
+    return { error: "La cantidad debe ser mayor a 0." };
+  }
+  if (!motivo) return { error: "El motivo es obligatorio." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const detalle = await tx.recepcionCompraDetalle.findUnique({
+        where: { id: recepcionCompraDetalleId },
+        include: {
+          insumo: true,
+          devoluciones: true,
+          recepcion: { include: { ordenCompra: { include: { proveedor: true } } } },
+        },
+      });
+      if (!detalle) throw new Error("La línea recibida no existe.");
+      if (detalle.recepcion.ordenCompra.id !== ordenCompraId) {
+        throw new Error("La línea seleccionada no pertenece a esta orden de compra.");
+      }
+
+      const yaDevuelto = detalle.devoluciones.reduce((acc, d) => acc + d.cantidad.toNumber(), 0);
+      const maxDevolvible = detalle.cantidad.toNumber() - yaDevuelto;
+      if (cantidad > maxDevolvible + 1e-9) {
+        throw new Error(
+          `Solo puede devolver hasta ${maxDevolvible} de esta línea (ya se devolvieron ${yaDevuelto} de ${detalle.cantidad.toNumber()}).`
+        );
+      }
+
+      const mov = await registrarMovimiento(tx, {
+        tipoItem: "INSUMO",
+        insumoId: detalle.insumoId,
+        tipoMovimiento: "SALIDA",
+        origen: "DEVOLUCION_PROVEEDOR",
+        cantidad,
+        motivo,
+        referencia: `Devolución a ${detalle.recepcion.ordenCompra.proveedor.razonSocial} (recepción ${detalle.recepcion.numero})`,
+        usuarioId: auth.usuario.id,
+        usuarioNombre: auth.usuario.nombre,
+      });
+      if (!mov.ok) throw new Error(mov.error);
+
+      const montoCredito = cantidad * detalle.costoUnitario.toNumber();
+
+      await tx.devolucionCompra.create({
+        data: {
+          recepcionCompraDetalleId,
+          cantidad,
+          motivo,
+          montoCredito,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+
+      // Aplica el crédito a la CxP que generó esta misma recepción. Si el
+      // crédito supera el saldo pendiente (ya se pagó total o parcial), el
+      // saldo baja hasta 0 y el remanente queda como diferencia a favor de
+      // XXOil frente al proveedor, a coordinar fuera del sistema.
+      const cxp = await tx.cuentaPorPagar.findFirst({
+        where: { recepcionCompraId: detalle.recepcion.id },
+      });
+      if (cxp) {
+        const nuevoTotal = Math.max(0, cxp.total.toNumber() - montoCredito);
+        const nuevoSaldo = Math.max(0, cxp.saldo.toNumber() - montoCredito);
+        await tx.cuentaPorPagar.update({
+          where: { id: cxp.id },
+          data: {
+            total: nuevoTotal,
+            saldo: nuevoSaldo,
+            estado: nuevoSaldo <= 1e-9 ? "PAGADA" : cxp.estado,
+          },
+        });
+      }
+
+      await postearDevolucionCompra(
+        tx,
+        {
+          insumo: detalle.insumo.nombre,
+          proveedor: detalle.recepcion.ordenCompra.proveedor.razonSocial,
+          cantidad,
+          monto: montoCredito,
+        },
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      );
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath(`/logistica/ordenes-compra/${ordenCompraId}`);
+  revalidatePath("/inventario/kardex");
+  revalidatePath("/finanzas/cuentas-por-pagar");
   return {};
 }

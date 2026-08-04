@@ -383,6 +383,27 @@ export async function postearRecepcionCompra(
   });
 }
 
+// Devolución de insumo a proveedor: reverso de la compra — CxP (debe) /
+// Inventario de insumos (haber). Si la CxP asociada ya no tiene saldo
+// suficiente para absorber el crédito completo, esto igual se postea (el
+// crédito remanente queda como diferencia a favor de XXOil frente al
+// proveedor, a coordinar fuera del sistema — no bloquea la devolución física).
+export async function postearDevolucionCompra(
+  tx: Tx,
+  datos: { insumo: string; proveedor: string; cantidad: number; monto: number },
+  audit: Auditoria
+) {
+  await postearAsiento(tx, {
+    origen: "DEVOLUCION_COMPRA",
+    glosa: `Devolución a ${datos.proveedor}: ${datos.insumo} (${datos.cantidad})`,
+    lineas: [
+      { clave: "CUENTAS_POR_PAGAR", debe: datos.monto },
+      { clave: "INVENTARIO_INSUMOS", haber: datos.monto },
+    ],
+    ...audit,
+  });
+}
+
 // Depreciación del mes: un solo asiento consolidado por el total de todos
 // los activos depreciados ese mes (Gasto por depreciación / Depreciación
 // acumulada), en vez de un asiento por activo. El gasto se abre en una línea
