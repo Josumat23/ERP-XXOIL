@@ -16,10 +16,17 @@ const NOMBRE_MES = [
 // "¿en qué línea de negocio / canal ganamos realmente?", ya descontado el
 // costo de venta (no solo el precio de lista).
 type FilaAgregada = { ventas: number; costo: number };
+type Filtros = { vendedorId?: string; zonaId?: string; clienteId?: string };
 
-async function calcularAgregados(desde: Date, hasta: Date) {
+async function calcularAgregados(desde: Date, hasta: Date, filtros: Filtros) {
   const facturas = await prisma.factura.findMany({
-    where: { fechaEmision: { gte: desde, lt: hasta }, estado: { not: "ANULADA" } },
+    where: {
+      fechaEmision: { gte: desde, lt: hasta },
+      estado: { not: "ANULADA" },
+      ...(filtros.vendedorId ? { vendedorId: filtros.vendedorId } : {}),
+      ...(filtros.clienteId ? { clienteId: filtros.clienteId } : {}),
+      ...(filtros.zonaId ? { cliente: { zonaId: filtros.zonaId } } : {}),
+    },
     include: {
       cliente: true,
       pedido: {
@@ -61,13 +68,26 @@ async function calcularAgregados(desde: Date, hasta: Date) {
 export default async function RentabilidadPage({
   searchParams,
 }: {
-  searchParams: Promise<{ anio?: string; mes?: string; comparar?: string }>;
+  searchParams: Promise<{
+    anio?: string;
+    mes?: string;
+    comparar?: string;
+    vendedorId?: string;
+    zonaId?: string;
+    clienteId?: string;
+  }>;
 }) {
   const hoy = new Date();
-  const { anio: anioParam, mes: mesParam, comparar } = await searchParams;
+  const { anio: anioParam, mes: mesParam, comparar, vendedorId, zonaId, clienteId } =
+    await searchParams;
   const anio = Number(anioParam) || hoy.getFullYear();
   const mes = Number(mesParam) || hoy.getMonth() + 1;
   const modoComparacion = comparar === "anio" ? "anio" : "mes";
+  const filtros: Filtros = {
+    vendedorId: vendedorId || undefined,
+    zonaId: zonaId || undefined,
+    clienteId: clienteId || undefined,
+  };
 
   const desde = new Date(anio, mes - 1, 1);
   const hasta = new Date(anio, mes, 1);
@@ -76,10 +96,21 @@ export default async function RentabilidadPage({
   const hastaAnterior =
     modoComparacion === "anio" ? new Date(anio - 1, mes, 1) : new Date(anio, mes - 1, 1);
 
-  const [actual, anterior] = await Promise.all([
-    calcularAgregados(desde, hasta),
-    calcularAgregados(desdeAnterior, hastaAnterior),
+  const [actual, anterior, vendedores, zonas, clientes] = await Promise.all([
+    calcularAgregados(desde, hasta, filtros),
+    calcularAgregados(desdeAnterior, hastaAnterior, filtros),
+    prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
   ]);
+
+  // Query string común para que el toggle de comparación y la navegación de
+  // período no pierdan los filtros activos.
+  const qsFiltros = new URLSearchParams();
+  if (vendedorId) qsFiltros.set("vendedorId", vendedorId);
+  if (zonaId) qsFiltros.set("zonaId", zonaId);
+  if (clienteId) qsFiltros.set("clienteId", clienteId);
+  const sufijoFiltros = qsFiltros.toString() ? `&${qsFiltros.toString()}` : "";
 
   const etiquetaSegmento = (s: string) =>
     s === "SIN_SEGMENTO" ? "Sin segmento asignado" : ETIQUETA_SEGMENTO_MERCADO[s as keyof typeof ETIQUETA_SEGMENTO_MERCADO];
@@ -146,7 +177,7 @@ export default async function RentabilidadPage({
         se gana realmente.
       </p>
 
-      <form method="get" className="flex items-end gap-3 mb-4 no-imprimir">
+      <form method="get" className="flex flex-wrap items-end gap-3 mb-4 no-imprimir">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Mes</span>
           <select name="mes" defaultValue={mes} className="campo-input">
@@ -161,21 +192,59 @@ export default async function RentabilidadPage({
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Año</span>
           <input name="anio" type="number" defaultValue={anio} className="campo-input w-24" />
         </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Vendedor</span>
+          <select name="vendedorId" defaultValue={vendedorId ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {vendedores.map((v) => (
+              <option key={v.id} value={v.id}>
+                {v.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Zona</span>
+          <select name="zonaId" defaultValue={zonaId ?? ""} className="campo-input">
+            <option value="">Todas</option>
+            {zonas.map((z) => (
+              <option key={z.id} value={z.id}>
+                {z.nombre}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Cliente</span>
+          <select name="clienteId" defaultValue={clienteId ?? ""} className="campo-input">
+            <option value="">Todos</option>
+            {clientes.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.razonSocial}
+              </option>
+            ))}
+          </select>
+        </label>
         <input type="hidden" name="comparar" value={modoComparacion} />
         <button type="submit" className="boton-secundario">
           Ver período
         </button>
+        {(vendedorId || zonaId || clienteId) && (
+          <Link href="/finanzas/rentabilidad" className="text-xs hover:underline text-neutral-500">
+            Limpiar filtros
+          </Link>
+        )}
       </form>
 
       <div className="flex gap-2 mb-6 no-imprimir text-xs">
         <Link
-          href={`/finanzas/rentabilidad?anio=${anio}&mes=${mes}&comparar=mes`}
+          href={`/finanzas/rentabilidad?anio=${anio}&mes=${mes}&comparar=mes${sufijoFiltros}`}
           className={`px-2 py-1 rounded-md ${modoComparacion === "mes" ? "boton-primario" : "boton-secundario"}`}
         >
           vs. mes anterior
         </Link>
         <Link
-          href={`/finanzas/rentabilidad?anio=${anio}&mes=${mes}&comparar=anio`}
+          href={`/finanzas/rentabilidad?anio=${anio}&mes=${mes}&comparar=anio${sufijoFiltros}`}
           className={`px-2 py-1 rounded-md ${modoComparacion === "anio" ? "boton-primario" : "boton-secundario"}`}
         >
           vs. mismo mes año anterior

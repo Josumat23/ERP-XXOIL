@@ -12,6 +12,6 @@
 
 - **Tipo:** reporte de detalle, ya existente, extendido
 - **Qué muestra ahora:** 3 tarjetas KPI con variación debajo del valor; ambas tablas (segmento y canal) con columna "vs. anterior" por fila.
-- **Interacciones nuevas:** mismo toggle de comparación que en resultados.
+- **Interacciones nuevas:** mismo toggle de comparación que en resultados; 3 selects de filtro (Vendedor, Zona, Cliente) que se aplican junto con mes/año al enviar el formulario; link "Limpiar filtros" visible solo cuando hay algún filtro activo; el toggle de comparación y la navegación de período conservan los filtros en la URL.
 - **Estados visuales:** mismo esquema de color verde/rojo/gris/"nuevo".
 - **Navegación:** sin cambios.

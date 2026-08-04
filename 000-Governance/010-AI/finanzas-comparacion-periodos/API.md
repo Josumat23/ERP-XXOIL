@@ -13,6 +13,6 @@ Server Actions nuevas. La "API" real es el contrato de query params de cada pág
 ## `/finanzas/rentabilidad`
 
 - **Archivo:** `src/app/(app)/finanzas/rentabilidad/page.tsx`
-- **Query params:** `anio`, `mes` (numéricos, opcionales, default período actual), `comparar` (`"mes" | "anio"`, opcional, default `"mes"`).
-- **Función interna clave:** `calcularAgregados(desde: Date, hasta: Date)` — misma idea, llamada dos veces.
+- **Query params:** `anio`, `mes` (numéricos, opcionales, default período actual), `comparar` (`"mes" | "anio"`, opcional, default `"mes"`), `vendedorId`, `zonaId`, `clienteId` (opcionales, filtran las facturas antes de agregar por segmento/canal).
+- **Función interna clave:** `calcularAgregados(desde: Date, hasta: Date, filtros: Filtros)` — llamada dos veces (período actual y de comparación), con los mismos filtros en ambas llamadas para que la variación sea consistente.
 - **Efectos secundarios:** ninguno (solo lectura).

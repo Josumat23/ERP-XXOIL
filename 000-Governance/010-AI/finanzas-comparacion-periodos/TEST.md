@@ -21,8 +21,15 @@
 - **Resultado esperado:** todo en S/ 0.00, variación "—", sin errores de consola.
 - **Resultado obtenido:** exacto a lo esperado.
 
+## Escenario 5 — Filtro por vendedor en Rentabilidad
+- **Datos usados:** 2 facturas sintéticas en agosto 2026, mismo cliente, distinto vendedor (S/50 Carlos Huamán, S/250 María Quispe).
+- **Pasos:** `/finanzas/rentabilidad?anio=2026&mes=8` (sin filtro) → confirmar total S/300; luego `&vendedorId=<Carlos>` → confirmar total S/50.
+- **Resultado esperado:** el filtro reduce el agregado exactamente al subconjunto del vendedor elegido; el select refleja la selección; el link "Limpiar filtros" aparece; los toggles de comparación conservan `vendedorId` en la URL.
+- **Resultado obtenido:** exacto a lo esperado.
+
 ## `tsc --noEmit`
 - Baseline de 6 archivos preexistentes sin cambios (confirmado antes y después).
 
 ## Datos de prueba a limpiar
 - 2 facturas (`F-TEST-AGO`, `F-TEST-JUL`) + sus `Pedido`/`PedidoDetalle` asociados, insertados y eliminados directo por SQL. Confirmado post-limpieza: 0 facturas, 0 pedidos en la base (estado previo a la prueba).
+- 2 facturas adicionales (`F-TESTF-A`, `F-TESTF-B`) del escenario 5, mismo tratamiento — confirmado post-limpieza: 0 facturas, 0 pedidos.
