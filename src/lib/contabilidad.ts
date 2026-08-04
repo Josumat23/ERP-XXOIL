@@ -588,6 +588,47 @@ export async function postearOrdenInterna(
   });
 }
 
+// Claves de gasto/costo que tiene sentido reclasificar entre centros de
+// costo (dimensión de gestión, no cambia el resultado ni la cuenta contable
+// — solo a qué área se le atribuye).
+export const CLAVES_RECLASIFICABLES: ClaveControl[] = [
+  "GASTO_MANTENIMIENTO",
+  "GASTO_ORDEN_INTERNA",
+  "GASTO_PERSONAL",
+  "GASTO_DEPRECIACION",
+  "COSTO_VENTAS",
+];
+
+// Reclasificación de costo entre centros: los asientos nunca se editan, así
+// que mover un gasto ya contabilizado de un centro a otro es un asiento
+// nuevo con dos líneas en la MISMA cuenta (la clave no cambia) — debe en el
+// centro destino, haber en el centro origen. El neto de la cuenta no se
+// mueve (sigue siendo el mismo gasto del período), pero el neto por centro
+// de costo sí, incluido para efectos de AVC.
+export async function postearReclasificacionCosto(
+  tx: Tx,
+  datos: {
+    clave: ClaveControl;
+    monto: number;
+    centroOrigenId: string;
+    centroDestinoId: string;
+    motivo: string;
+    fecha?: Date;
+  },
+  audit: Auditoria
+) {
+  return postearAsiento(tx, {
+    origen: "RECLASIFICACION_COSTO",
+    glosa: `Reclasificación de costo — ${datos.motivo}`,
+    fecha: datos.fecha,
+    lineas: [
+      { clave: datos.clave, glosa: "Entra al centro destino", debe: datos.monto, centroCostoId: datos.centroDestinoId },
+      { clave: datos.clave, glosa: "Sale del centro origen", haber: datos.monto, centroCostoId: datos.centroOrigenId },
+    ],
+    ...audit,
+  });
+}
+
 // Planilla mensual: Gasto de personal (remuneración computable + EsSalud
 // patronal, por centro de costo del empleado) al debe / ONP-AFP por pagar +
 // EsSalud por pagar + retención de 5ta por pagar + sueldos por pagar (neto)

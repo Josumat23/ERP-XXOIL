@@ -37,6 +37,7 @@ export const ETIQUETA_ORIGEN_ASIENTO: Record<$Enums.OrigenAsiento, string> = {
   CTS: "CTS",
   LIQUIDACION: "Liquidación de desvinculación",
   ORDEN_INTERNA: "Orden interna",
+  RECLASIFICACION_COSTO: "Reclasificación de costo entre centros",
 };
 
 export const ETIQUETA_ESTADO_DESPACHO: Record<$Enums.EstadoDespacho, string> = {

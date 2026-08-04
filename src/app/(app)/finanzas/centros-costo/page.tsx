@@ -71,6 +71,9 @@ export default async function CentrosCostoPage({
           <Link href="/finanzas/centros-costo/reglas" className="boton-secundario">
             Reglas y asignación
           </Link>
+          <Link href="/finanzas/centros-costo/reclasificaciones" className="boton-secundario">
+            Reclasificar costo
+          </Link>
           <BotonImprimir />
         </div>
       </div>

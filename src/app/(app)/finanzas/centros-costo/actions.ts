@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
-import type { ClaveControl } from "@/lib/contabilidad";
+import { CLAVES_RECLASIFICABLES, postearReclasificacionCosto, type ClaveControl } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -133,6 +133,48 @@ export async function crearReglaAsignacion(
 
   revalidatePath("/finanzas/centros-costo/reglas");
   redirect("/finanzas/centros-costo/reglas");
+}
+
+export async function reclasificarCosto(
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["GERENCIA"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
+  }
+
+  const clave = String(formData.get("clave") ?? "") as ClaveControl;
+  const centroOrigenId = String(formData.get("centroOrigenId") ?? "");
+  const centroDestinoId = String(formData.get("centroDestinoId") ?? "");
+  const monto = Number(formData.get("monto"));
+  const motivo = String(formData.get("motivo") ?? "").trim();
+
+  if (!CLAVES_RECLASIFICABLES.includes(clave)) return { error: "Seleccione el tipo de gasto." };
+  if (!centroOrigenId || !centroDestinoId) {
+    return { error: "Seleccione el centro de origen y el de destino." };
+  }
+  if (centroOrigenId === centroDestinoId) {
+    return { error: "El centro de origen y el de destino deben ser distintos." };
+  }
+  if (!Number.isFinite(monto) || monto <= 0) return { error: "El monto debe ser mayor a 0." };
+  if (!motivo) return { error: "Indique el motivo de la reclasificación (para auditoría)." };
+
+  const resultado = await prisma.$transaction((tx) =>
+    postearReclasificacionCosto(
+      tx,
+      { clave, monto, centroOrigenId, centroDestinoId, motivo },
+      { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+    )
+  );
+  if (!resultado.ok) {
+    return { error: `No se pudo contabilizar la reclasificación: ${resultado.motivo}` };
+  }
+
+  revalidatePath("/finanzas/centros-costo");
+  revalidatePath("/finanzas/asientos");
+  redirect("/finanzas/asientos");
 }
 
 export async function alternarActivoRegla(id: string, activo: boolean) {

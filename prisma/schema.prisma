@@ -1760,6 +1760,7 @@ enum OrigenAsiento {
   CTS
   LIQUIDACION
   ORDEN_INTERNA
+  RECLASIFICACION_COSTO
 }
 
 model AsientoContable {
