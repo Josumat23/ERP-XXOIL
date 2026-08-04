@@ -93,3 +93,8 @@ export async function siguienteNumeroReclamo(tx: Tx): Promise<string> {
   const ultimo = await tx.reclamoCliente.findFirst({ orderBy: { numero: "desc" } });
   return siguiente("RCL", ultimo?.numero ?? null);
 }
+
+export async function siguienteCodigoOrdenInterna(tx: Tx): Promise<string> {
+  const ultimo = await tx.ordenInterna.findFirst({ orderBy: { codigo: "desc" } });
+  return siguiente("OI", ultimo?.codigo ?? null);
+}

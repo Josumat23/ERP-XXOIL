@@ -102,6 +102,7 @@ export const MODULOS: Modulo[] = [
           { href: "/finanzas/balance", etiqueta: "Balance de comprobación" },
           { href: "/finanzas/plan-cuentas", etiqueta: "Plan de cuentas", roles: ["ADMIN"] },
           { href: "/finanzas/centros-costo", etiqueta: "Centros de costo" },
+          { href: "/finanzas/ordenes-internas", etiqueta: "Órdenes internas" },
           { href: "/finanzas/activos-fijos", etiqueta: "Activos fijos" },
           { href: "/finanzas/libros-electronicos", etiqueta: "Libros electrónicos (PLE)", roles: ["ADMIN", "GERENCIA"] },
         ],

@@ -474,6 +474,7 @@ async function main() {
     ["ACTIVO_FIJO_BRUTO", "3361"],
     ["INGRESO_VENTA_ACTIVO", "7564"],
     ["PERDIDA_VENTA_ACTIVO", "6552"],
+    ["GASTO_ORDEN_INTERNA", "6311"],
   ];
   for (const [clave, codigo] of controlesSemilla) {
     const cuentaId = cuentaPorCodigo.get(codigo)!;

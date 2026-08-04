@@ -33,7 +33,8 @@ export type ClaveControl =
   | "ESSALUD_POR_PAGAR"
   | "RETENCION_5TA_POR_PAGAR"
   | "SUELDOS_POR_PAGAR"
-  | "CTS_POR_PAGAR";
+  | "CTS_POR_PAGAR"
+  | "GASTO_ORDEN_INTERNA";
 
 export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   CUENTAS_POR_COBRAR: "Cuentas por cobrar comerciales",
@@ -57,6 +58,7 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   RETENCION_5TA_POR_PAGAR: "Retención de renta de 5ta categoría por pagar",
   SUELDOS_POR_PAGAR: "Sueldos por pagar (neto)",
   CTS_POR_PAGAR: "CTS por depositar",
+  GASTO_ORDEN_INTERNA: "Gasto de orden interna (campaña, evento, proyecto puntual)",
 };
 
 type LineaAsiento = {
@@ -552,6 +554,34 @@ export async function postearMantenimiento(
     fecha: datos.fecha,
     lineas: [
       { clave: "GASTO_MANTENIMIENTO", debe: datos.monto, centroCostoId: datos.centroCostoId },
+      { clave: "CAJA_BANCOS", haber: datos.monto },
+    ],
+    ...audit,
+  });
+}
+
+// Liquidación de orden interna: todo lo acumulado en OrdenInternaCosto se
+// contabiliza de una sola vez, igual que el mantenimiento (se asume pagado al
+// contado). El centro de costo de destino se confirma recién acá, no al crear
+// la orden.
+export async function postearOrdenInterna(
+  tx: Tx,
+  datos: {
+    codigoOrden: string;
+    descripcion: string;
+    monto: number;
+    centroCostoId: string;
+    fecha?: Date;
+  },
+  audit: Auditoria
+) {
+  await postearAsiento(tx, {
+    origen: "ORDEN_INTERNA",
+    glosa: `Liquidación orden interna ${datos.codigoOrden} — ${datos.descripcion}`,
+    referencia: datos.codigoOrden,
+    fecha: datos.fecha,
+    lineas: [
+      { clave: "GASTO_ORDEN_INTERNA", debe: datos.monto, centroCostoId: datos.centroCostoId },
       { clave: "CAJA_BANCOS", haber: datos.monto },
     ],
     ...audit,

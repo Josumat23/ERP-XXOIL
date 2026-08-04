@@ -1759,6 +1759,7 @@ enum OrigenAsiento {
   GRATIFICACION
   CTS
   LIQUIDACION
+  ORDEN_INTERNA
 }
 
 model AsientoContable {
@@ -1857,6 +1858,7 @@ model CentroCosto {
   ordenesMantenimiento OrdenMantenimiento[]
   empleados            Empleado[]
   planesMantenimiento  PlanMantenimiento[]
+  ordenesInternas      OrdenInterna[]
 
   @@unique([empresaId, codigo])
   @@map("centros_costo")
@@ -1878,6 +1880,53 @@ model PresupuestoCentroCosto {
 
   @@unique([centroCostoId, anio, mes])
   @@map("presupuestos_centro_costo")
+}
+
+enum EstadoOrdenInterna {
+  ABIERTA
+  LIQUIDADA
+  ANULADA
+}
+
+// Objeto de costeo genérico y temporal (equivalente reducido a la Orden
+// Interna de SAP CO-OM-OPA): junta costos de fuentes heterogéneas para un
+// propósito puntual (una campaña, un evento, un proyecto corto) que no
+// justifica un centro de costo permanente. Al liquidar, el total acumulado
+// se contabiliza de una vez contra el centro de costo de destino.
+model OrdenInterna {
+  id               String             @id @default(cuid())
+  empresaId        String             @default("1")
+  codigo           String             @unique // OI-00001
+  descripcion      String
+  // Destino sugerido al crear; se confirma (o cambia) recién al liquidar.
+  centroCostoId    String?
+  presupuesto      Decimal? // tope informativo, no bloqueante
+  totalAcumulado   Decimal            @default(0)
+  estado           EstadoOrdenInterna @default(ABIERTA)
+  fechaInicio      DateTime           @default(now())
+  fechaLiquidacion DateTime?
+  usuarioId        String
+  usuarioNombre    String
+  creadoEn         DateTime           @default(now())
+
+  centroCosto CentroCosto?        @relation(fields: [centroCostoId], references: [id])
+  costos      OrdenInternaCosto[]
+
+  @@map("ordenes_internas")
+}
+
+model OrdenInternaCosto {
+  id             String   @id @default(cuid())
+  ordenInternaId String
+  concepto       String
+  monto          Decimal
+  fecha          DateTime @default(now())
+  usuarioId      String
+  usuarioNombre  String
+
+  ordenInterna OrdenInterna @relation(fields: [ordenInternaId], references: [id])
+
+  @@map("orden_interna_costos")
 }
 
 // Prorrateo automático: cuando una clave de control (ej. GASTO_DEPRECIACION)
