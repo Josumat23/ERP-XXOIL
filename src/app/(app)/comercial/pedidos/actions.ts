@@ -8,6 +8,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { asignarLoteVenta } from "@/lib/trazabilidad";
+import { calcularAtpProducto, unidadesEquivalentes } from "@/lib/atp";
 import { siguienteNumeroPedido } from "@/lib/correlativos";
 import { DIAS_CONDICION } from "@/lib/etiquetas";
 import { avanzarSerie } from "@/lib/series";
@@ -71,8 +72,20 @@ export async function crearPedido(
         const presentacion = await tx.presentacion.findUniqueOrThrow({ where: { id: l.presentacionId } });
         const disponible = presentacion.stock.toNumber() - presentacion.stockReservado.toNumber();
         if (l.cantidad > disponible) {
+          // ATP informativo: no cambia el bloqueo (solo se reserva stock real),
+          // pero le dice al vendedor si hay producción en camino antes de
+          // rechazar la venta sin más contexto.
+          const atp = await calcularAtpProducto(tx, presentacion.productoId);
+          const contenidoKg = presentacion.contenidoKg.toNumber();
+          const enCamino =
+            unidadesEquivalentes(atp.granelSinEnvasarKg, contenidoKg) +
+            unidadesEquivalentes(atp.planificadoKg, contenidoKg);
+          const notaProduccion =
+            enCamino > 0
+              ? ` Hay ${enCamino} unidades en camino desde Producción (granel aprobado sin envasar y/o ${atp.lotesPlanificados} lote(s) en proceso) — consulte el plazo antes de prometer fecha al cliente, o cree el pedido por la cantidad disponible.`
+              : "";
           throw new Error(
-            `Stock disponible insuficiente de "${presentacion.nombre}": disponible ${disponible} (ya hay reservas de otros pedidos pendientes), se pide ${l.cantidad}.`
+            `Stock disponible insuficiente de "${presentacion.nombre}": disponible ${disponible} (ya hay reservas de otros pedidos pendientes), se pide ${l.cantidad}.${notaProduccion}`
           );
         }
         await tx.presentacion.update({

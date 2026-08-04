@@ -36,6 +36,11 @@ const CATEGORIAS: Categoria[] = [
         titulo: "Backlog de pedidos",
         descripcion: "Pedidos aceptados aún no facturados, por antigüedad — venta comprometida sin despachar.",
       },
+      {
+        href: "/comercial/atp",
+        titulo: "ATP — Disponible para prometer",
+        descripcion: "Stock empacado más granel aprobado sin envasar y lotes en proceso, por presentación.",
+      },
     ],
   },
   {

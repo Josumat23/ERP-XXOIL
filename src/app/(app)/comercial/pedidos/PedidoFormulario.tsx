@@ -12,6 +12,10 @@ type PresentacionOpcion = {
   etiqueta: string;
   precio: number;
   stock: number;
+  // Unidades equivalentes que Producción tiene en camino para el mismo
+  // producto (granel aprobado sin envasar + lotes en proceso/calidad), más
+  // allá del stock ya empacado. Solo informativo, no cambia el bloqueo.
+  atpProduccion: number;
   escalones: EscalonPrecio[];
 };
 
@@ -138,8 +142,17 @@ export default function PedidoFormulario({
           Líneas del pedido
         </p>
         <div className="flex flex-col gap-2">
-          {lineas.map((linea, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
+          {lineas.map((linea, idx) => {
+            const presSeleccionada = presentaciones.find((p) => p.id === linea.presentacionId);
+            const cantidadNum = Number(linea.cantidad) || 0;
+            const excedeStock = presSeleccionada != null && cantidadNum > presSeleccionada.stock;
+            const cubiertoPorProduccion =
+              excedeStock &&
+              presSeleccionada != null &&
+              cantidadNum <= presSeleccionada.stock + presSeleccionada.atpProduccion;
+            return (
+            <div key={idx} className="flex flex-col gap-1">
+            <div className="flex gap-2 items-center">
               <select
                 value={linea.presentacionId}
                 onChange={(e) => {
@@ -159,7 +172,8 @@ export default function PedidoFormulario({
                 </option>
                 {presentaciones.map((p) => (
                   <option key={p.id} value={p.id}>
-                    {p.etiqueta} (disponible: {p.stock})
+                    {p.etiqueta} (disponible: {p.stock}
+                    {p.atpProduccion > 0 ? `, +${p.atpProduccion} en producción` : ""})
                   </option>
                 ))}
               </select>
@@ -206,7 +220,22 @@ export default function PedidoFormulario({
                 ✕
               </button>
             </div>
-          ))}
+            {excedeStock && (
+              <p
+                className={`text-xs ${
+                  cubiertoPorProduccion
+                    ? "text-amber-700 dark:text-amber-400"
+                    : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {cubiertoPorProduccion
+                  ? `La cantidad excede el stock ya empacado, pero hay ${presSeleccionada!.atpProduccion} unidades en camino desde Producción (granel aprobado sin envasar o lotes en proceso) — confirme el plazo antes de prometer fecha al cliente.`
+                  : "La cantidad excede el stock disponible y lo que Producción tiene en camino; el pedido no se podrá crear así."}
+              </p>
+            )}
+            </div>
+            );
+          })}
         </div>
         <button
           type="button"

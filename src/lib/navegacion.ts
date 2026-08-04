@@ -30,6 +30,7 @@ export const MODULOS: Modulo[] = [
       { href: "/comercial/descuentos-canal", etiqueta: "Descuento por canal", roles: ["ADMIN", "VENTAS", "GERENCIA"] },
       { href: "/comercial/cascos", etiqueta: "Cascos pendientes" },
       { href: "/comercial/backlog", etiqueta: "Backlog de pedidos" },
+      { href: "/comercial/atp", etiqueta: "ATP — Disponible para prometer" },
       { href: "/comercial/vendedores", etiqueta: "Vendedores" },
       { href: "/comercial/zonas", etiqueta: "Zonas" },
     ],

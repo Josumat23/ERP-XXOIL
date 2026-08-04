@@ -2,9 +2,10 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PedidoFormulario from "../PedidoFormulario";
+import { calcularAtpPorProducto, unidadesEquivalentes } from "@/lib/atp";
 
 export default async function NuevoPedidoPage() {
-  const [clientes, vendedores, presentaciones, pedidos, descuentosCanal] = await Promise.all([
+  const [clientes, vendedores, presentaciones, pedidos, descuentosCanal, atpPorProducto] = await Promise.all([
     prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.presentacion.findMany({
@@ -14,6 +15,7 @@ export default async function NuevoPedidoPage() {
     }),
     prisma.pedido.findMany({ include: { cliente: true }, orderBy: { fecha: "desc" } }),
     prisma.descuentoCanal.findMany(),
+    calcularAtpPorProducto(),
   ]);
   const descuentoPorCanal = Object.fromEntries(
     descuentosCanal.map((d) => [d.canal, d.descuentoPct.toNumber()])
@@ -48,16 +50,25 @@ export default async function NuevoPedidoPage() {
           }))}
           vendedores={vendedores.map((v) => ({ id: v.id, etiqueta: v.nombre }))}
           descuentoPorCanal={descuentoPorCanal}
-          presentaciones={presentaciones.map((p) => ({
-            id: p.id,
-            etiqueta: `${p.producto.nombre} — ${p.nombre}`,
-            precio: p.precio.toNumber(),
-            stock: p.stock.toNumber() - p.stockReservado.toNumber(),
-            escalones: p.escalonesPrecio.map((e) => ({
-              cantidadMinima: e.cantidadMinima,
-              precio: e.precio.toNumber(),
-            })),
-          }))}
+          presentaciones={presentaciones.map((p) => {
+            const atp = atpPorProducto.get(p.productoId);
+            const contenidoKg = p.contenidoKg.toNumber();
+            const atpProduccion = atp
+              ? unidadesEquivalentes(atp.granelSinEnvasarKg, contenidoKg) +
+                unidadesEquivalentes(atp.planificadoKg, contenidoKg)
+              : 0;
+            return {
+              id: p.id,
+              etiqueta: `${p.producto.nombre} — ${p.nombre}`,
+              precio: p.precio.toNumber(),
+              stock: p.stock.toNumber() - p.stockReservado.toNumber(),
+              atpProduccion,
+              escalones: p.escalonesPrecio.map((e) => ({
+                cantidadMinima: e.cantidadMinima,
+                precio: e.precio.toNumber(),
+              })),
+            };
+          })}
         />
       </div>
       </PanelMaestroDetalle>
