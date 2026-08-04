@@ -307,6 +307,11 @@ model Insumo {
   zonaAlmacenId   String? // ubicación estructurada (Almacen > ZonaAlmacen)
   notas           String?
   requiereInspeccion Boolean @default(false) // si true, cada recepción queda pendiente de calidad antes de sumar stock
+  // Catálogo formal de sustancia peligrosa (EHS): a diferencia de Producto
+  // (hojaSeguridadUrl), la SDS/MSDS del insumo se adjunta vía el DMS genérico
+  // (modelo Adjunto, entidadTipo="Insumo") en vez de un campo URL suelto.
+  esPeligroso     Boolean    @default(false)
+  claseGhs        String? // clasificación de peligro GHS, ej. "H315, H319 - Irritante cutáneo/ocular"
   activo          Boolean    @default(true)
   creadoEn      DateTime   @default(now())
   actualizadoEn DateTime   @updatedAt

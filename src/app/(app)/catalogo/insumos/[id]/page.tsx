@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { zonasAlmacenParaSelect } from "@/lib/almacenes";
 import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import PanelAdjuntos from "@/components/PanelAdjuntos";
 import InsumoFormulario from "../InsumoFormulario";
 import { actualizarInsumo } from "../actions";
 
@@ -65,9 +66,18 @@ export default async function EditarInsumoPage({
             requiereInspeccion: insumo.requiereInspeccion,
             esRetornable: insumo.esRetornable,
             montoDeposito: insumo.montoDeposito ? insumo.montoDeposito.toNumber() : null,
+            esPeligroso: insumo.esPeligroso,
+            claseGhs: insumo.claseGhs,
           }}
           textoBoton="Guardar cambios"
         />
+        <div className="mt-8">
+          <PanelAdjuntos
+            entidadTipo="Insumo"
+            entidadId={insumo.id}
+            rutaRevalidar={`/catalogo/insumos/${insumo.id}`}
+          />
+        </div>
       </div>
       </PanelMaestroDetalle>
     </div>

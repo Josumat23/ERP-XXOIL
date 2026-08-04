@@ -31,6 +31,8 @@ function leerDatos(formData: FormData) {
   const esRetornable = formData.get("esRetornable") === "on";
   const montoDepositoRaw = String(formData.get("montoDeposito") ?? "").trim();
   const montoDeposito = montoDepositoRaw ? Number(montoDepositoRaw) : null;
+  const esPeligroso = formData.get("esPeligroso") === "on";
+  const claseGhs = String(formData.get("claseGhs") ?? "").trim() || null;
 
   if (!codigo || !nombre || !unidadMedida || !TIPOS_VALIDOS.includes(tipo)) {
     return { error: "Código, nombre, tipo y unidad de medida son obligatorios." } as const;
@@ -60,6 +62,8 @@ function leerDatos(formData: FormData) {
       requiereInspeccion,
       esRetornable,
       montoDeposito,
+      esPeligroso,
+      claseGhs,
       moneda: "PEN",
     },
   } as const;

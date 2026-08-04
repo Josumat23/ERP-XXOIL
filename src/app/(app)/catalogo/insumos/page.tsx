@@ -98,7 +98,17 @@ export default async function InsumosPage({
             return (
               <tr key={i.id}>
                 <td className="font-mono text-xs">{i.codigo}</td>
-                <td>{i.nombre}</td>
+                <td>
+                  {i.nombre}
+                  {i.esPeligroso && (
+                    <span
+                      className="insignia ml-2 bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400"
+                      title={i.claseGhs ?? "Sustancia peligrosa"}
+                    >
+                      ⚠ Peligroso
+                    </span>
+                  )}
+                </td>
                 <td>{ETIQUETA_TIPO[i.tipo]}</td>
                 <td>{i.proveedor?.razonSocial ?? "—"}</td>
                 <td>

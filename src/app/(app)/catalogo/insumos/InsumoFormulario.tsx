@@ -33,6 +33,8 @@ type Props = {
     requiereInspeccion: boolean;
     esRetornable: boolean;
     montoDeposito: number | null;
+    esPeligroso: boolean;
+    claseGhs: string | null;
   };
   textoBoton: string;
 };
@@ -244,6 +246,32 @@ export default function InsumoFormulario({
         Ej. tambor metálico de 55 gal: el cliente paga el depósito y lo recupera al devolver el
         casco vacío. El control de cascos pendientes por cliente se lleva manualmente por ahora.
       </p>
+
+      <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 flex flex-col gap-3">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="esPeligroso"
+            defaultChecked={valoresIniciales?.esPeligroso ?? false}
+          />
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Sustancia peligrosa (requiere hoja de seguridad SDS/MSDS)
+          </span>
+        </label>
+        <Campo etiqueta="Clasificación de peligro GHS (opcional)">
+          <input
+            name="claseGhs"
+            defaultValue={valoresIniciales?.claseGhs ?? ""}
+            placeholder="Ej. H315, H319 - Irritante cutáneo/ocular"
+            className="campo-input"
+          />
+        </Campo>
+        {esEdicion && (
+          <p className="text-xs text-neutral-500">
+            La hoja de seguridad (SDS/MSDS) se adjunta como archivo abajo, después de guardar.
+          </p>
+        )}
+      </div>
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Guardando..." : textoBoton}
