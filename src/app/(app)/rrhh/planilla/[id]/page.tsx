@@ -67,11 +67,26 @@ export default async function DetallePlanillaPage({
         <Link href="/rrhh/planilla" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           ← Volver a planilla
         </Link>
-        <BotonImprimir />
+        <div className="flex gap-2">
+          {(esMensual || esGratificacion) && (
+            <a href={`/api/planilla/${periodo.id}/archivo-pago`} className="boton-secundario">
+              Descargar archivo de pago (CSV)
+            </a>
+          )}
+          <BotonImprimir />
+        </div>
       </div>
+      {(esMensual || esGratificacion) && (
+        <p className="text-xs text-amber-700 dark:text-amber-500 -mt-2 mb-3 no-imprimir">
+          El CSV es un formato genérico (cuenta, CCI, monto) para carga manual — no es el formato
+          exacto de carga masiva de BBVA. Pídele a tu ejecutivo de banca empresas la plantilla oficial
+          para automatizar la carga.
+        </p>
+      )}
 
       <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
-        {ETIQUETA_TIPO[periodo.tipo] ?? periodo.tipo} {periodo.anio}
+        {ETIQUETA_TIPO[periodo.tipo] ?? periodo.tipo}
+        {esMensual ? ` ${NOMBRE_MES[periodo.mes - 1]}` : ""} {periodo.anio}
       </h1>
       <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Generada por {periodo.usuarioNombre} el{" "}
