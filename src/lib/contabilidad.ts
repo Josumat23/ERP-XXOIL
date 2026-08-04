@@ -212,6 +212,40 @@ export async function postearAsiento(
     }
   }
 
+  // Control de disponibilidad presupuestal (AVC): si el centro de costo tiene
+  // presupuesto cargado para el período, un incremento de gasto que supere
+  // el presupuesto bloquea la contabilización de todo el asiento (igual
+  // patrón "best-effort" que el resto del motor — la operación comercial de
+  // origen no se revierte, solo queda sin asiento; el contador la revisa).
+  // Si no hay presupuesto cargado para ese centro/período, no se valida.
+  const netoPorCentro = new Map<string, number>();
+  for (const d of detallesFinales) {
+    if (!d.centroCostoId) continue;
+    netoPorCentro.set(d.centroCostoId, (netoPorCentro.get(d.centroCostoId) ?? 0) + (d.debe - d.haber));
+  }
+  for (const [centroCostoId, netoNuevo] of netoPorCentro) {
+    if (netoNuevo <= 0) continue; // solo bloquea incrementos de gasto, no reversiones/créditos
+    const presupuesto = await tx.presupuestoCentroCosto.findUnique({
+      where: { centroCostoId_anio_mes: { centroCostoId, anio, mes } },
+    });
+    if (!presupuesto) continue;
+
+    const existentes = await tx.asientoDetalle.findMany({
+      where: { centroCostoId, asiento: { anio, mes } },
+      select: { debe: true, haber: true },
+    });
+    const gastoActual = existentes.reduce((acc, d) => acc + d.debe.toNumber() - d.haber.toNumber(), 0);
+    const gastoTotal = r2(gastoActual + netoNuevo);
+    const presupuestado = presupuesto.montoPresupuestado.toNumber();
+    if (gastoTotal > presupuestado) {
+      const centro = await tx.centroCosto.findUnique({ where: { id: centroCostoId } });
+      return {
+        ok: false,
+        motivo: `Presupuesto excedido en centro de costo ${centro?.codigo ?? centroCostoId} (${mes}/${anio}): gasto acumulado S/ ${gastoTotal.toFixed(2)} superaría el presupuesto de S/ ${presupuestado.toFixed(2)}`,
+      };
+    }
+  }
+
   const libro = await libroDiario(tx);
   const numero = await siguienteNumeroAsiento(tx);
 

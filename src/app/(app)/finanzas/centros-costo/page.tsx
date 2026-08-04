@@ -62,7 +62,9 @@ export default async function CentrosCostoPage({
           </h1>
           <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
             Contabilidad de gestión: presupuesto vs. real por centro. Independiente del plan de
-            cuentas — el plan dice qué es el gasto, el centro dice dónde se originó.
+            cuentas — el plan dice qué es el gasto, el centro dice dónde se originó. Si un centro
+            tiene presupuesto cargado para el período, nuevos gastos que lo excedan no se
+            contabilizan automáticamente (AVC) hasta que se regularice el presupuesto.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
@@ -150,6 +152,14 @@ export default async function CentrosCostoPage({
                   }`}
                 >
                   {formatMoneda(variacion)}
+                  {presupuestado > 0 && variacion > 0 && (
+                    <span
+                      className="insignia ml-2 bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400"
+                      title="Nuevos gastos en este centro no se contabilizan hasta regularizar el presupuesto"
+                    >
+                      Excedido
+                    </span>
+                  )}
                 </td>
                 <td>
                   <span
