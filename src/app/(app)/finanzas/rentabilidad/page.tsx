@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_CANAL_CLIENTE, ETIQUETA_SEGMENTO_MERCADO } from "@/lib/etiquetas";
@@ -14,19 +15,9 @@ const NOMBRE_MES = [
 // (Centros de costo) o el margen por SKU (Costos y márgenes), esto responde
 // "¿en qué línea de negocio / canal ganamos realmente?", ya descontado el
 // costo de venta (no solo el precio de lista).
-export default async function RentabilidadPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ anio?: string; mes?: string }>;
-}) {
-  const hoy = new Date();
-  const { anio: anioParam, mes: mesParam } = await searchParams;
-  const anio = Number(anioParam) || hoy.getFullYear();
-  const mes = Number(mesParam) || hoy.getMonth() + 1;
+type FilaAgregada = { ventas: number; costo: number };
 
-  const desde = new Date(anio, mes - 1, 1);
-  const hasta = new Date(anio, mes, 1);
-
+async function calcularAgregados(desde: Date, hasta: Date) {
   const facturas = await prisma.factura.findMany({
     where: { fechaEmision: { gte: desde, lt: hasta }, estado: { not: "ANULADA" } },
     include: {
@@ -39,9 +30,8 @@ export default async function RentabilidadPage({
     },
   });
 
-  type Fila = { ventas: number; costo: number };
-  const porSegmento = new Map<string, Fila>();
-  const porCanal = new Map<string, Fila>();
+  const porSegmento = new Map<string, FilaAgregada>();
+  const porCanal = new Map<string, FilaAgregada>();
 
   for (const f of facturas) {
     const canal = f.cliente.canal ?? "SIN_CANAL";
@@ -62,21 +52,84 @@ export default async function RentabilidadPage({
     }
   }
 
+  const totalVentas = facturas.reduce((acc, f) => acc + f.subtotal.toNumber(), 0);
+  const totalCosto = [...porSegmento.values()].reduce((acc, f) => acc + f.costo, 0);
+
+  return { porSegmento, porCanal, totalVentas, totalCosto };
+}
+
+export default async function RentabilidadPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ anio?: string; mes?: string; comparar?: string }>;
+}) {
+  const hoy = new Date();
+  const { anio: anioParam, mes: mesParam, comparar } = await searchParams;
+  const anio = Number(anioParam) || hoy.getFullYear();
+  const mes = Number(mesParam) || hoy.getMonth() + 1;
+  const modoComparacion = comparar === "anio" ? "anio" : "mes";
+
+  const desde = new Date(anio, mes - 1, 1);
+  const hasta = new Date(anio, mes, 1);
+  const desdeAnterior =
+    modoComparacion === "anio" ? new Date(anio - 1, mes - 1, 1) : new Date(anio, mes - 2, 1);
+  const hastaAnterior =
+    modoComparacion === "anio" ? new Date(anio - 1, mes, 1) : new Date(anio, mes - 1, 1);
+
+  const [actual, anterior] = await Promise.all([
+    calcularAgregados(desde, hasta),
+    calcularAgregados(desdeAnterior, hastaAnterior),
+  ]);
+
   const etiquetaSegmento = (s: string) =>
     s === "SIN_SEGMENTO" ? "Sin segmento asignado" : ETIQUETA_SEGMENTO_MERCADO[s as keyof typeof ETIQUETA_SEGMENTO_MERCADO];
   const etiquetaCanal = (c: string) =>
     c === "SIN_CANAL" ? "Sin canal asignado" : ETIQUETA_CANAL_CLIENTE[c as keyof typeof ETIQUETA_CANAL_CLIENTE];
 
-  const filasSegmento = [...porSegmento.entries()]
-    .map(([clave, f]) => ({ clave, etiqueta: etiquetaSegmento(clave), ...f, margen: f.ventas - f.costo }))
-    .sort((a, b) => b.ventas - a.ventas);
-  const filasCanal = [...porCanal.entries()]
-    .map(([clave, f]) => ({ clave, etiqueta: etiquetaCanal(clave), ...f, margen: f.ventas - f.costo }))
-    .sort((a, b) => b.ventas - a.ventas);
+  function combinarFilas(
+    etiquetaFn: (clave: string) => string,
+    mapaActual: Map<string, FilaAgregada>,
+    mapaAnterior: Map<string, FilaAgregada>
+  ) {
+    const claves = new Set([...mapaActual.keys(), ...mapaAnterior.keys()]);
+    return [...claves]
+      .map((clave) => {
+        const act = mapaActual.get(clave) ?? { ventas: 0, costo: 0 };
+        const ant = mapaAnterior.get(clave) ?? { ventas: 0, costo: 0 };
+        return {
+          clave,
+          etiqueta: etiquetaFn(clave),
+          ventas: act.ventas,
+          costo: act.costo,
+          margen: act.ventas - act.costo,
+          ventasAnterior: ant.ventas,
+          margenAnterior: ant.ventas - ant.costo,
+        };
+      })
+      .sort((a, b) => b.ventas - a.ventas);
+  }
 
-  const totalVentas = facturas.reduce((acc, f) => acc + f.subtotal.toNumber(), 0);
-  const totalCosto = filasSegmento.reduce((acc, f) => acc + f.costo, 0);
+  const filasSegmento = combinarFilas(etiquetaSegmento, actual.porSegmento, anterior.porSegmento);
+  const filasCanal = combinarFilas(etiquetaCanal, actual.porCanal, anterior.porCanal);
+
+  const totalVentas = actual.totalVentas;
+  const totalCosto = actual.totalCosto;
   const totalMargen = totalVentas - totalCosto;
+  const totalMargenAnterior = anterior.totalVentas - anterior.totalCosto;
+
+  const nombreMes = new Intl.DateTimeFormat("es-PE", { month: "long", year: "numeric" }).format(desde);
+  const nombreMesAnterior = new Intl.DateTimeFormat("es-PE", { month: "long", year: "numeric" }).format(
+    desdeAnterior
+  );
+
+  function variacion(act: number, ant: number): { texto: string; positiva: boolean | null } {
+    if (ant === 0) {
+      if (act === 0) return { texto: "—", positiva: null };
+      return { texto: "nuevo", positiva: act > 0 };
+    }
+    const v = ((act - ant) / Math.abs(ant)) * 100;
+    return { texto: `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, positiva: v >= 0 };
+  }
 
   return (
     <div>
@@ -93,7 +146,7 @@ export default async function RentabilidadPage({
         se gana realmente.
       </p>
 
-      <form method="get" className="flex items-end gap-3 mb-6 no-imprimir">
+      <form method="get" className="flex items-end gap-3 mb-4 no-imprimir">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Mes</span>
           <select name="mes" defaultValue={mes} className="campo-input">
@@ -108,15 +161,34 @@ export default async function RentabilidadPage({
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Año</span>
           <input name="anio" type="number" defaultValue={anio} className="campo-input w-24" />
         </label>
+        <input type="hidden" name="comparar" value={modoComparacion} />
         <button type="submit" className="boton-secundario">
           Ver período
         </button>
       </form>
 
+      <div className="flex gap-2 mb-6 no-imprimir text-xs">
+        <Link
+          href={`/finanzas/rentabilidad?anio=${anio}&mes=${mes}&comparar=mes`}
+          className={`px-2 py-1 rounded-md ${modoComparacion === "mes" ? "boton-primario" : "boton-secundario"}`}
+        >
+          vs. mes anterior
+        </Link>
+        <Link
+          href={`/finanzas/rentabilidad?anio=${anio}&mes=${mes}&comparar=anio`}
+          className={`px-2 py-1 rounded-md ${modoComparacion === "anio" ? "boton-primario" : "boton-secundario"}`}
+        >
+          vs. mismo mes año anterior
+        </Link>
+      </div>
+
+      <p className="text-xs text-neutral-400 mb-2 capitalize">
+        {nombreMes} — comparado contra {nombreMesAnterior}
+      </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <Dato etiqueta="Ventas del período" valor={formatMoneda(totalVentas)} />
-        <Dato etiqueta="Costo de ventas" valor={formatMoneda(totalCosto)} />
-        <Dato etiqueta="Margen bruto" valor={formatMoneda(totalMargen)} />
+        <Dato etiqueta="Ventas del período" valor={formatMoneda(totalVentas)} variacion={variacion(totalVentas, anterior.totalVentas)} />
+        <Dato etiqueta="Costo de ventas" valor={formatMoneda(totalCosto)} variacion={variacion(-totalCosto, -anterior.totalCosto)} />
+        <Dato etiqueta="Margen bruto" valor={formatMoneda(totalMargen)} variacion={variacion(totalMargen, totalMargenAnterior)} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -124,20 +196,28 @@ export default async function RentabilidadPage({
           <h2 className="font-medium mb-2" style={{ color: "var(--epicor-texto)" }}>
             Por segmento de mercado
           </h2>
-          <TablaRentabilidad filas={filasSegmento} />
+          <TablaRentabilidad filas={filasSegmento} variacionFn={variacion} />
         </section>
         <section>
           <h2 className="font-medium mb-2" style={{ color: "var(--epicor-texto)" }}>
             Por canal de cliente
           </h2>
-          <TablaRentabilidad filas={filasCanal} />
+          <TablaRentabilidad filas={filasCanal} variacionFn={variacion} />
         </section>
       </div>
     </div>
   );
 }
 
-function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
+function Dato({
+  etiqueta,
+  valor,
+  variacion,
+}: {
+  etiqueta: string;
+  valor: string;
+  variacion?: { texto: string; positiva: boolean | null };
+}) {
   return (
     <div className="border border-black/10 dark:border-white/10 rounded-lg p-4">
       <p className="text-xs" style={{ color: "var(--epicor-texto-tenue)" }}>
@@ -145,6 +225,19 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
       </p>
       <p className="text-xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
         {valor}
+        {variacion && (
+          <span
+            className={`block text-xs font-normal ${
+              variacion.positiva === null
+                ? "text-neutral-400"
+                : variacion.positiva
+                  ? "text-green-700 dark:text-green-400"
+                  : "text-red-600 dark:text-red-400"
+            }`}
+          >
+            {variacion.texto} vs. período anterior
+          </span>
+        )}
       </p>
     </div>
   );
@@ -152,8 +245,17 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
 
 function TablaRentabilidad({
   filas,
+  variacionFn,
 }: {
-  filas: { clave: string; etiqueta: string; ventas: number; costo: number; margen: number }[];
+  filas: {
+    clave: string;
+    etiqueta: string;
+    ventas: number;
+    costo: number;
+    margen: number;
+    margenAnterior: number;
+  }[];
+  variacionFn: (act: number, ant: number) => { texto: string; positiva: boolean | null };
 }) {
   return (
     <table className="tabla">
@@ -164,21 +266,36 @@ function TablaRentabilidad({
           <th className="text-right">Costo</th>
           <th className="text-right">Margen</th>
           <th className="text-right">Margen %</th>
+          <th className="text-right">vs. anterior</th>
         </tr>
       </thead>
       <tbody>
-        {filas.map((f) => (
-          <tr key={f.clave}>
-            <td>{f.etiqueta}</td>
-            <td className="text-right">{formatMoneda(f.ventas)}</td>
-            <td className="text-right">{formatMoneda(f.costo)}</td>
-            <td className="text-right">{formatMoneda(f.margen)}</td>
-            <td className="text-right">{f.ventas > 0 ? `${((f.margen / f.ventas) * 100).toFixed(1)}%` : "—"}</td>
-          </tr>
-        ))}
+        {filas.map((f) => {
+          const v = variacionFn(f.margen, f.margenAnterior);
+          return (
+            <tr key={f.clave}>
+              <td>{f.etiqueta}</td>
+              <td className="text-right">{formatMoneda(f.ventas)}</td>
+              <td className="text-right">{formatMoneda(f.costo)}</td>
+              <td className="text-right">{formatMoneda(f.margen)}</td>
+              <td className="text-right">{f.ventas > 0 ? `${((f.margen / f.ventas) * 100).toFixed(1)}%` : "—"}</td>
+              <td
+                className={`text-right text-xs ${
+                  v.positiva === null
+                    ? "text-neutral-400"
+                    : v.positiva
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-red-600 dark:text-red-400"
+                }`}
+              >
+                {v.texto}
+              </td>
+            </tr>
+          );
+        })}
         {filas.length === 0 && (
           <tr>
-            <td colSpan={5} className="text-center text-neutral-500 py-6">
+            <td colSpan={6} className="text-center text-neutral-500 py-6">
               Sin ventas en el período.
             </td>
           </tr>

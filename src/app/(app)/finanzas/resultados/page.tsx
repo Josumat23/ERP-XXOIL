@@ -3,40 +3,33 @@ import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 
-// Estado de resultados operativo del mes:
-//   Ventas netas (facturas − notas de crédito)
-// − Costo de ventas (costo congelado al facturar)
-// = Utilidad bruta
-// − Comisiones netas del mes
-// − Gastos operativos (egresos manuales de caja)
-// + Otros ingresos (ingresos manuales de caja)
-// = Utilidad operativa
-export default async function ResultadosPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ mes?: string }>;
-}) {
-  const { mes } = await searchParams;
+type Resultado = {
+  ventasBrutas: number;
+  totalNC: number;
+  ventasNetas: number;
+  costoVentas: number;
+  utilidadBruta: number;
+  comisionesNetas: number;
+  gastosOperativos: number;
+  otrosIngresos: number;
+  utilidadOperativa: number;
+  numFacturas: number;
+  numNC: number;
+  sinCosto: boolean;
+  facturas: {
+    id: string;
+    numero: string;
+    cliente: { razonSocial: string };
+    venta: number;
+    costo: number;
+  }[];
+};
 
-  const hoy = new Date();
-  let anio = hoy.getFullYear();
-  let mesIdx = hoy.getMonth(); // 0-11
-  if (mes && /^\d{4}-\d{2}$/.test(mes)) {
-    const [a, m] = mes.split("-").map(Number);
-    if (m >= 1 && m <= 12) {
-      anio = a;
-      mesIdx = m - 1;
-    }
-  }
-  const inicio = new Date(anio, mesIdx, 1);
-  const fin = new Date(anio, mesIdx + 1, 1);
+const baseFactura = (f: { subtotal: { toNumber(): number }; total: { toNumber(): number } }) =>
+  f.subtotal.toNumber() > 0 ? f.subtotal.toNumber() : f.total.toNumber();
 
-  const mesAnterior = new Date(anio, mesIdx - 1, 1);
-  const mesSiguiente = new Date(anio, mesIdx + 1, 1);
-  const aParam = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-
-  const [facturas, notasCredito, comisiones, movimientosManuales, controlesGL] = await Promise.all([
+async function calcularResultados(inicio: Date, fin: Date): Promise<Resultado> {
+  const [facturas, notasCredito, comisiones, movimientosManuales] = await Promise.all([
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicio, lt: fin } },
       include: { pedido: { include: { detalles: true } }, cliente: true },
@@ -47,17 +40,10 @@ export default async function ResultadosPage({
       include: { factura: true },
     }),
     prisma.comision.findMany({ where: { creadoEn: { gte: inicio, lt: fin } } }),
-    // Solo movimientos manuales: los automáticos llevan referencia (factura/documento)
     prisma.movimientoCaja.findMany({
       where: { fecha: { gte: inicio, lt: fin }, referencia: null },
     }),
-    prisma.controlContable.findMany({ where: { clave: { in: ["VENTAS", "COSTO_VENTAS"] } } }),
   ]);
-
-  // Todo el estado se calcula sobre la base imponible (sin IGV): el impuesto
-  // no es ingreso. Facturas antiguas sin desglose usan su total como base.
-  const baseFactura = (f: { subtotal: { toNumber(): number }; total: { toNumber(): number } }) =>
-    f.subtotal.toNumber() > 0 ? f.subtotal.toNumber() : f.total.toNumber();
 
   const ventasBrutas = facturas.reduce((acc, f) => acc + baseFactura(f), 0);
   const totalNC = notasCredito.reduce(
@@ -68,8 +54,7 @@ export default async function ResultadosPage({
 
   const costoVentas = facturas.reduce(
     (acc, f) =>
-      acc +
-      f.pedido.detalles.reduce((s, d) => s + d.cantidad * d.costoUnitario.toNumber(), 0),
+      acc + f.pedido.detalles.reduce((s, d) => s + d.cantidad * d.costoUnitario.toNumber(), 0),
     0
   );
   const sinCosto = facturas.some((f) =>
@@ -86,6 +71,73 @@ export default async function ResultadosPage({
     .reduce((acc, m) => acc + m.monto.toNumber(), 0);
 
   const utilidadOperativa = utilidadBruta - comisionesNetas - gastosOperativos + otrosIngresos;
+
+  return {
+    ventasBrutas,
+    totalNC,
+    ventasNetas,
+    costoVentas,
+    utilidadBruta,
+    comisionesNetas,
+    gastosOperativos,
+    otrosIngresos,
+    utilidadOperativa,
+    numFacturas: facturas.length,
+    numNC: notasCredito.length,
+    sinCosto,
+    facturas: facturas.map((f) => {
+      const venta = baseFactura(f);
+      const costo = f.pedido.detalles.reduce((s, d) => s + d.cantidad * d.costoUnitario.toNumber(), 0);
+      return { id: f.id, numero: f.numero, cliente: { razonSocial: f.cliente.razonSocial }, venta, costo };
+    }),
+  };
+}
+
+// Estado de resultados operativo del mes:
+//   Ventas netas (facturas − notas de crédito)
+// − Costo de ventas (costo congelado al facturar)
+// = Utilidad bruta
+// − Comisiones netas del mes
+// − Gastos operativos (egresos manuales de caja)
+// + Otros ingresos (ingresos manuales de caja)
+// = Utilidad operativa
+export default async function ResultadosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mes?: string; comparar?: string }>;
+}) {
+  const { mes, comparar } = await searchParams;
+  const modoComparacion = comparar === "anio" ? "anio" : "mes";
+
+  const hoy = new Date();
+  let anio = hoy.getFullYear();
+  let mesIdx = hoy.getMonth(); // 0-11
+  if (mes && /^\d{4}-\d{2}$/.test(mes)) {
+    const [a, m] = mes.split("-").map(Number);
+    if (m >= 1 && m <= 12) {
+      anio = a;
+      mesIdx = m - 1;
+    }
+  }
+  const inicio = new Date(anio, mesIdx, 1);
+  const fin = new Date(anio, mesIdx + 1, 1);
+
+  const mesAnterior = new Date(anio, mesIdx - 1, 1);
+  const mesSiguiente = new Date(anio, mesIdx + 1, 1);
+  const aParam = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+
+  // Comparación: contra el mes calendario anterior, o contra el mismo mes del
+  // año anterior (más útil si el negocio tiene estacionalidad).
+  const inicioComparacion =
+    modoComparacion === "anio" ? new Date(anio - 1, mesIdx, 1) : new Date(anio, mesIdx - 1, 1);
+  const finComparacion =
+    modoComparacion === "anio" ? new Date(anio - 1, mesIdx + 1, 1) : new Date(anio, mesIdx, 1);
+
+  const [actual, anterior, controlesGL] = await Promise.all([
+    calcularResultados(inicio, fin),
+    calcularResultados(inicioComparacion, finComparacion),
+    prisma.controlContable.findMany({ where: { clave: { in: ["VENTAS", "COSTO_VENTAS"] } } }),
+  ]);
 
   // Verificación cruzada contra el libro mayor: si los controles VENTAS/
   // COSTO_VENTAS están configurados, el asiento automático de cada factura
@@ -104,28 +156,32 @@ export default async function ResultadosPage({
     const ventasGL = detallesGL
       .filter((d) => d.cuentaId === cuentaVentasId)
       .reduce((acc, d) => acc + d.haber.toNumber() - d.debe.toNumber(), 0);
-    diferenciaGL = Math.round((ventasGL - ventasBrutas) * 100) / 100;
+    diferenciaGL = Math.round((ventasGL - actual.ventasBrutas) * 100) / 100;
   }
 
   const nombreMes = new Intl.DateTimeFormat("es-PE", { month: "long", year: "numeric" }).format(
     inicio
   );
+  const nombreComparacion = new Intl.DateTimeFormat("es-PE", {
+    month: "long",
+    year: "numeric",
+  }).format(inicioComparacion);
 
-  const pct = (v: number) => (ventasNetas > 0 ? `${((v / ventasNetas) * 100).toFixed(1)}%` : "—");
+  const pct = (v: number) => (actual.ventasNetas > 0 ? `${((v / actual.ventasNetas) * 100).toFixed(1)}%` : "—");
 
   return (
     <div className="max-w-3xl">
       <div className="flex items-center justify-between no-imprimir">
         <div className="flex items-center gap-2">
           <Link
-            href={`/finanzas/resultados?mes=${aParam(mesAnterior)}`}
+            href={`/finanzas/resultados?mes=${aParam(mesAnterior)}&comparar=${modoComparacion}`}
             className="boton-secundario px-2 py-1"
             aria-label="Mes anterior"
           >
             ←
           </Link>
           <Link
-            href={`/finanzas/resultados?mes=${aParam(mesSiguiente)}`}
+            href={`/finanzas/resultados?mes=${aParam(mesSiguiente)}&comparar=${modoComparacion}`}
             className="boton-secundario px-2 py-1"
             aria-label="Mes siguiente"
           >
@@ -135,32 +191,84 @@ export default async function ResultadosPage({
         <BotonImprimir />
       </div>
 
+      <div className="flex gap-2 mt-2 no-imprimir text-xs">
+        <Link
+          href={`/finanzas/resultados?mes=${aParam(inicio)}&comparar=mes`}
+          className={`px-2 py-1 rounded-md ${modoComparacion === "mes" ? "boton-primario" : "boton-secundario"}`}
+        >
+          vs. mes anterior
+        </Link>
+        <Link
+          href={`/finanzas/resultados?mes=${aParam(inicio)}&comparar=anio`}
+          className={`px-2 py-1 rounded-md ${modoComparacion === "anio" ? "boton-primario" : "boton-secundario"}`}
+        >
+          vs. mismo mes año anterior
+        </Link>
+      </div>
+
       <div className="documento">
         <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 mt-2">
           Estado de resultados
         </h1>
-        <p className="text-neutral-500 mt-1 capitalize">{nombreMes}</p>
+        <p className="text-neutral-500 mt-1 capitalize">
+          {nombreMes} <span className="text-neutral-400">— comparado contra {nombreComparacion}</span>
+        </p>
 
         <table className="tabla mt-6">
+          <thead>
+            <tr>
+              <th></th>
+              <th className="text-right">{nombreMes}</th>
+              <th className="text-right">{nombreComparacion}</th>
+              <th className="text-right">Variación</th>
+            </tr>
+          </thead>
           <tbody>
-            <Fila etiqueta={`Ventas facturadas (${facturas.length})`} valor={ventasBrutas} />
-            <Fila etiqueta={`(−) Notas de crédito (${notasCredito.length})`} valor={-totalNC} />
-            <FilaTotal etiqueta="Ventas netas" valor={ventasNetas} pct={ventasNetas > 0 ? "100%" : "—"} />
-            <Fila etiqueta="(−) Costo de ventas" valor={-costoVentas} />
-            <FilaTotal etiqueta="Utilidad bruta" valor={utilidadBruta} pct={pct(utilidadBruta)} />
-            <Fila etiqueta="(−) Comisiones de vendedores (neto)" valor={-comisionesNetas} />
-            <Fila etiqueta="(−) Gastos operativos (caja)" valor={-gastosOperativos} />
-            <Fila etiqueta="(+) Otros ingresos (caja)" valor={otrosIngresos} />
+            <Fila
+              etiqueta={`Ventas facturadas (${actual.numFacturas})`}
+              valor={actual.ventasBrutas}
+              anterior={anterior.ventasBrutas}
+            />
+            <Fila
+              etiqueta={`(−) Notas de crédito (${actual.numNC})`}
+              valor={-actual.totalNC}
+              anterior={-anterior.totalNC}
+            />
+            <FilaTotal
+              etiqueta="Ventas netas"
+              valor={actual.ventasNetas}
+              anterior={anterior.ventasNetas}
+              pct={actual.ventasNetas > 0 ? "100%" : "—"}
+            />
+            <Fila etiqueta="(−) Costo de ventas" valor={-actual.costoVentas} anterior={-anterior.costoVentas} />
+            <FilaTotal
+              etiqueta="Utilidad bruta"
+              valor={actual.utilidadBruta}
+              anterior={anterior.utilidadBruta}
+              pct={pct(actual.utilidadBruta)}
+            />
+            <Fila
+              etiqueta="(−) Comisiones de vendedores (neto)"
+              valor={-actual.comisionesNetas}
+              anterior={-anterior.comisionesNetas}
+            />
+            <Fila
+              etiqueta="(−) Gastos operativos (caja)"
+              valor={-actual.gastosOperativos}
+              anterior={-anterior.gastosOperativos}
+            />
+            <Fila etiqueta="(+) Otros ingresos (caja)" valor={actual.otrosIngresos} anterior={anterior.otrosIngresos} />
             <FilaTotal
               etiqueta="Utilidad operativa"
-              valor={utilidadOperativa}
-              pct={pct(utilidadOperativa)}
+              valor={actual.utilidadOperativa}
+              anterior={anterior.utilidadOperativa}
+              pct={pct(actual.utilidadOperativa)}
               destacada
             />
           </tbody>
         </table>
 
-        {sinCosto && (
+        {actual.sinCosto && (
           <p className="text-xs text-amber-700 dark:text-amber-400 mt-4">
             ⚠ Hay ventas del mes con costo S/ 0.00 (facturadas antes de que existiera el costeo o
             de producir con costos registrados). La utilidad bruta de este mes está sobreestimada.
@@ -168,9 +276,9 @@ export default async function ResultadosPage({
         )}
         {diferenciaGL !== null && Math.abs(diferenciaGL) > 0.05 && (
           <p className="text-xs text-amber-700 dark:text-amber-400 mt-2">
-            ⚠ Las ventas de este mes (S/ {ventasBrutas.toFixed(2)}) no coinciden con lo posteado en
-            el libro mayor (diferencia S/ {diferenciaGL.toFixed(2)}) — revise si hubo períodos
-            cerrados o controles contables agregados después de facturar. Ver{" "}
+            ⚠ Las ventas de este mes (S/ {actual.ventasBrutas.toFixed(2)}) no coinciden con lo
+            posteado en el libro mayor (diferencia S/ {diferenciaGL.toFixed(2)}) — revise si hubo
+            períodos cerrados o controles contables agregados después de facturar. Ver{" "}
             <Link href="/finanzas/situacion-financiera" className="underline">
               Situación financiera
             </Link>
@@ -193,13 +301,8 @@ export default async function ResultadosPage({
               </tr>
             </thead>
             <tbody>
-              {facturas.map((f) => {
-                const venta = baseFactura(f);
-                const costo = f.pedido.detalles.reduce(
-                  (s, d) => s + d.cantidad * d.costoUnitario.toNumber(),
-                  0
-                );
-                const margen = venta - costo;
+              {actual.facturas.map((f) => {
+                const margen = f.venta - f.costo;
                 return (
                   <tr key={f.id}>
                     <td className="font-mono text-xs">
@@ -208,8 +311,8 @@ export default async function ResultadosPage({
                       </Link>
                     </td>
                     <td>{f.cliente.razonSocial}</td>
-                    <td className="text-right">{formatMoneda(venta)}</td>
-                    <td className="text-right">{formatMoneda(costo)}</td>
+                    <td className="text-right">{formatMoneda(f.venta)}</td>
+                    <td className="text-right">{formatMoneda(f.costo)}</td>
                     <td
                       className={`text-right font-medium ${
                         margen >= 0
@@ -222,7 +325,7 @@ export default async function ResultadosPage({
                   </tr>
                 );
               })}
-              {facturas.length === 0 && (
+              {actual.facturas.length === 0 && (
                 <tr>
                   <td colSpan={5} className="text-center text-neutral-500 py-4">
                     Sin ventas en este mes.
@@ -237,14 +340,35 @@ export default async function ResultadosPage({
   );
 }
 
-function Fila({ etiqueta, valor }: { etiqueta: string; valor: number }) {
+function variacionPct(actual: number, anterior: number): { texto: string; positiva: boolean | null } {
+  if (anterior === 0) {
+    if (actual === 0) return { texto: "—", positiva: null };
+    return { texto: actual > 0 ? "nuevo" : "nuevo", positiva: actual > 0 };
+  }
+  const v = ((actual - anterior) / Math.abs(anterior)) * 100;
+  return { texto: `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`, positiva: v >= 0 };
+}
+
+function Fila({ etiqueta, valor, anterior }: { etiqueta: string; valor: number; anterior: number }) {
+  const variacion = variacionPct(valor, anterior);
   return (
     <tr>
       <td className="text-neutral-600 dark:text-neutral-400">{etiqueta}</td>
       <td className={`text-right ${valor < 0 ? "text-red-600 dark:text-red-400" : ""}`}>
         {formatMoneda(valor)}
       </td>
-      <td className="w-20"></td>
+      <td className="text-right text-neutral-500">{formatMoneda(anterior)}</td>
+      <td
+        className={`text-right text-xs ${
+          variacion.positiva === null
+            ? "text-neutral-400"
+            : variacion.positiva
+              ? "text-green-700 dark:text-green-400"
+              : "text-red-600 dark:text-red-400"
+        }`}
+      >
+        {variacion.texto}
+      </td>
     </tr>
   );
 }
@@ -252,27 +376,40 @@ function Fila({ etiqueta, valor }: { etiqueta: string; valor: number }) {
 function FilaTotal({
   etiqueta,
   valor,
+  anterior,
   pct,
   destacada = false,
 }: {
   etiqueta: string;
   valor: number;
+  anterior: number;
   pct: string;
   destacada?: boolean;
 }) {
+  const variacion = variacionPct(valor, anterior);
   return (
     <tr className={destacada ? "bg-amber-500/10" : ""}>
       <td className="font-semibold text-neutral-900 dark:text-neutral-100">{etiqueta}</td>
       <td
         className={`text-right font-semibold ${
-          valor < 0
-            ? "text-red-600 dark:text-red-400"
-            : "text-neutral-900 dark:text-neutral-100"
+          valor < 0 ? "text-red-600 dark:text-red-400" : "text-neutral-900 dark:text-neutral-100"
         }`}
       >
         {formatMoneda(valor)}
+        <span className="block text-xs font-normal text-neutral-500">{pct}</span>
       </td>
-      <td className="text-right text-xs text-neutral-500 w-20">{pct}</td>
+      <td className="text-right text-neutral-500">{formatMoneda(anterior)}</td>
+      <td
+        className={`text-right text-xs font-semibold ${
+          variacion.positiva === null
+            ? "text-neutral-400"
+            : variacion.positiva
+              ? "text-green-700 dark:text-green-400"
+              : "text-red-600 dark:text-red-400"
+        }`}
+      >
+        {variacion.texto}
+      </td>
     </tr>
   );
 }
