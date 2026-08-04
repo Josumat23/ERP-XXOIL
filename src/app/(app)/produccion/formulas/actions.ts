@@ -50,12 +50,20 @@ export async function crearFormula(
       where: { productoId },
       orderBy: { version: "desc" },
     });
+    const ahora = new Date();
+    // La nueva versión nace vigente: cierra la vigencia de cualquier otra versión
+    // activa del mismo producto para que nunca haya dos versiones vigentes a la vez.
+    await tx.formula.updateMany({
+      where: { productoId, activo: true },
+      data: { activo: false, vigenteHasta: ahora },
+    });
     await tx.formula.create({
       data: {
         productoId,
         version: (ultima?.version ?? 0) + 1,
         rendimientoKg,
         notas,
+        vigenteDesde: ahora,
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
         detalles: { create: detalles.map((d) => ({ insumoId: d.insumoId, cantidad: d.cantidad })) },
@@ -71,6 +79,25 @@ export async function alternarActivoFormula(id: string, activo: boolean) {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
-  await prisma.formula.update({ where: { id }, data: { activo } });
+
+  const ahora = new Date();
+  await prisma.$transaction(async (tx) => {
+    if (activo) {
+      const formula = await tx.formula.findUniqueOrThrow({ where: { id } });
+      // Reactivar una versión anterior cierra la vigencia de la que estuviera
+      // activa en ese momento para el mismo producto (nunca dos a la vez).
+      await tx.formula.updateMany({
+        where: { productoId: formula.productoId, activo: true, id: { not: id } },
+        data: { activo: false, vigenteHasta: ahora },
+      });
+      await tx.formula.update({
+        where: { id },
+        data: { activo: true, vigenteDesde: ahora, vigenteHasta: null },
+      });
+    } else {
+      await tx.formula.update({ where: { id }, data: { activo: false, vigenteHasta: ahora } });
+    }
+  });
+
   revalidatePath("/produccion/formulas");
 }

@@ -481,10 +481,12 @@ model Formula {
   version       Int
   rendimientoKg Decimal // kg de granel que produce un batch con las cantidades del detalle
   notas         String?
-  activo        Boolean  @default(true)
+  activo        Boolean   @default(true)
+  vigenteDesde  DateTime? // cuándo esta versión pasó a ser la vigente (se reasigna si se reactiva una versión anterior)
+  vigenteHasta  DateTime? // cuándo dejó de ser la vigente (null si sigue vigente)
   usuarioId     String
   usuarioNombre String
-  creadoEn      DateTime @default(now())
+  creadoEn      DateTime  @default(now())
 
   producto Producto         @relation(fields: [productoId], references: [id])
   detalles FormulaDetalle[]

@@ -66,6 +66,15 @@ export default async function DetalleFormulaPage({
           {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(formula.creadoEn)}
           {formula.notas ? ` · ${formula.notas}` : ""}
         </p>
+        <p className="text-sm mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
+          {formula.vigenteDesde
+            ? `Vigente desde ${new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(formula.vigenteDesde)}${
+                formula.vigenteHasta
+                  ? ` hasta ${new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(formula.vigenteHasta)}`
+                  : " (vigente actualmente)"
+              }`
+            : "Nunca estuvo vigente"}
+        </p>
 
         <table className="tabla mt-4">
           <thead>
@@ -100,6 +109,12 @@ export default async function DetalleFormulaPage({
             {formula.activo ? "Desactivar" : "Activar"}
           </button>
         </form>
+        {!formula.activo && (
+          <p className="text-xs mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
+            Al activar esta versión se desactiva automáticamente la versión vigente actual de{" "}
+            {formula.producto.nombre}.
+          </p>
+        )}
 
         <section className="mt-8">
           <h2 className="font-medium" style={{ color: "var(--epicor-texto)" }}>

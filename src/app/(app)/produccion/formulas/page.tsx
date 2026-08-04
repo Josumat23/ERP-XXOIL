@@ -30,7 +30,8 @@ export default async function FormulasPage({
         <div>
           <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>Fórmulas</h1>
           <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
-            Recetas de producción por producto. No se editan: cada cambio crea una versión nueva.
+            Recetas de producción por producto. No se editan: cada cambio crea una versión nueva, y
+            solo una versión por producto puede estar vigente a la vez.
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
@@ -68,6 +69,7 @@ export default async function FormulasPage({
             <th>Insumos</th>
             <th>Lotes producidos</th>
             <th>Estado</th>
+            <th>Vigencia</th>
             <th></th>
           </tr>
         </thead>
@@ -90,6 +92,15 @@ export default async function FormulasPage({
                   {f.activo ? "Activa" : "Inactiva"}
                 </span>
               </td>
+              <td className="text-xs text-neutral-500">
+                {f.vigenteDesde
+                  ? `Desde ${new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(f.vigenteDesde)}${
+                      f.vigenteHasta
+                        ? ` hasta ${new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(f.vigenteHasta)}`
+                        : ""
+                    }`
+                  : "—"}
+              </td>
               <td className="text-right">
                 <Link
                   href={`/produccion/formulas/${f.id}`}
@@ -102,7 +113,7 @@ export default async function FormulasPage({
           ))}
           {formulas.length === 0 && (
             <tr>
-              <td colSpan={7} className="text-center text-neutral-500 py-6">
+              <td colSpan={8} className="text-center text-neutral-500 py-6">
                 No hay fórmulas registradas. Cree la primera versión para poder producir lotes.
               </td>
             </tr>
