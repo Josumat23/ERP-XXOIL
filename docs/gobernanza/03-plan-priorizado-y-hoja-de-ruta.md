@@ -66,7 +66,7 @@ Ninguna de estas bloquea operar hoy — son mejoras de calidad de vida y de repo
 
 ## 3.4 Hoja de ruta por fases
 
-**Nota sobre la estructura de documentación:** el prompt original de este ejercicio asume una estructura `000-Governance` → `010-AI` → subcarpetas `RF/RN/CU/API/SQL/UI/TEST` por módulo que **no existe en este repositorio** (confirmado en el Paso 0). Los documentos de este ejercicio se guardaron en `docs/gobernanza/` como la ubicación más razonable dentro de la estructura real del proyecto. Adoptar la convención `RF/RN/CU/API/SQL/UI/TEST` por módulo hacia adelante es una decisión de gobernanza que debe tomar el usuario explícitamente — ver pregunta abierta en el mensaje de cierre.
+**Nota sobre la estructura de documentación — RESUELTO (2026-08-04):** el prompt original de este ejercicio asumía una estructura `000-Governance` → `010-AI` → subcarpetas `RF/RN/CU/API/SQL/UI/TEST` por módulo que no existía en este repositorio (confirmado en el Paso 0). El usuario decidió explícitamente **adoptarla hacia adelante, no retroactiva**: todo módulo nuevo o modificado a partir de esta fecha suma su carpeta `000-Governance/010-AI/<módulo>/` con esos 7 archivos; los ~112 módulos ya construidos no se documentan así salvo que se toquen de nuevo. Convención completa, plantillas reutilizables (`_plantilla/`) y justificación del formato elegido en `000-Governance/010-AI/README.md`. Los documentos de este ejercicio puntual (el cruce de 17 catálogos SAP) se quedan en `docs/gobernanza/` tal como están — esa carpeta no se reemplaza, sigue siendo el lugar para ejercicios de diagnóstico de una sola vez.
 
 ### Fase 1 — Cerrar la brecha con Excel/cuaderno (crítico, corto plazo)
 1. Investigación normativa de nómina peruana + construcción de Nómina básica (HCM).
