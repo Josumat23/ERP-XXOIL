@@ -29,6 +29,7 @@ export const MODULOS: Modulo[] = [
       { href: "/comercial/clientes", etiqueta: "Clientes" },
       { href: "/comercial/descuentos-canal", etiqueta: "Descuento por canal", roles: ["ADMIN", "VENTAS", "GERENCIA"] },
       { href: "/comercial/cascos", etiqueta: "Cascos pendientes" },
+      { href: "/comercial/backlog", etiqueta: "Backlog de pedidos" },
       { href: "/comercial/vendedores", etiqueta: "Vendedores" },
       { href: "/comercial/zonas", etiqueta: "Zonas" },
     ],
@@ -48,6 +49,8 @@ export const MODULOS: Modulo[] = [
           { href: "/inventario/ajustes", etiqueta: "Ajustes", roles: ["ADMIN", "ALMACEN"] },
           { href: "/inventario/traslados", etiqueta: "Traslados entre almacenes", roles: ["ADMIN", "ALMACEN"] },
           { href: "/inventario/conteos", etiqueta: "Conteo cíclico", roles: ["ADMIN", "ALMACEN"] },
+          { href: "/inventario/rotacion-abc", etiqueta: "Rotación y ABC" },
+          { href: "/inventario/exactitud", etiqueta: "Exactitud de inventario" },
         ],
       },
       {
@@ -58,6 +61,7 @@ export const MODULOS: Modulo[] = [
           { href: "/logistica/guias-remision", etiqueta: "Guías de remisión" },
           { href: "/logistica/inspeccion-compras", etiqueta: "Inspección de calidad" },
           { href: "/catalogo/proveedores", etiqueta: "Proveedores" },
+          { href: "/catalogo/proveedores/evaluacion", etiqueta: "Evaluación de proveedores" },
         ],
       },
     ],
@@ -117,6 +121,7 @@ export const MODULOS: Modulo[] = [
     icono: "◈",
     enlaces: [
       { href: "/rrhh/empleados", etiqueta: "Empleados", roles: ["ADMIN", "GERENCIA"] },
+      { href: "/rrhh/headcount", etiqueta: "Headcount por área", roles: ["ADMIN", "GERENCIA"] },
       { href: "/rrhh/vacaciones", etiqueta: "Solicitudes de vacaciones", roles: ["ADMIN", "GERENCIA"] },
       { href: "/rrhh/planilla", etiqueta: "Planilla", roles: ["ADMIN", "GERENCIA"] },
       { href: "/rrhh/planilla/parametros", etiqueta: "Parámetros de planilla", roles: ["ADMIN", "GERENCIA"] },

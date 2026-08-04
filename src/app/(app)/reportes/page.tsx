@@ -31,6 +31,11 @@ const CATEGORIAS: Categoria[] = [
         titulo: "Descuento por canal",
         descripcion: "Porcentaje de descuento configurado por canal de cliente (distribuidor, mayorista, taller...).",
       },
+      {
+        href: "/comercial/backlog",
+        titulo: "Backlog de pedidos",
+        descripcion: "Pedidos aceptados aún no facturados, por antigüedad — venta comprometida sin despachar.",
+      },
     ],
   },
   {
@@ -52,6 +57,16 @@ const CATEGORIAS: Categoria[] = [
         descripcion: "Historial de conteos físicos y las diferencias ajustadas contra el sistema.",
       },
       {
+        href: "/inventario/rotacion-abc",
+        titulo: "Rotación y clasificación ABC",
+        descripcion: "Qué productos e insumos rotan y cuáles solo ocupan capital — clasificación de Pareto por valor.",
+      },
+      {
+        href: "/inventario/exactitud",
+        titulo: "Exactitud de inventario",
+        descripcion: "Qué tan cerca está el stock del sistema de lo contado físicamente, conteo por conteo.",
+      },
+      {
         href: "/produccion/lotes/recall",
         titulo: "Trazabilidad / recall",
         descripcion: "Busca un lote granel y ve de un vistazo todos los envasados y clientes afectados.",
@@ -60,6 +75,26 @@ const CATEGORIAS: Categoria[] = [
         href: "/produccion/mantenimiento",
         titulo: "Mantenimiento de planta",
         descripcion: "Órdenes de mantenimiento preventivo y correctivo, costos y paradas de equipo.",
+      },
+    ],
+  },
+  {
+    titulo: "Compras",
+    reportes: [
+      {
+        href: "/catalogo/proveedores/evaluacion",
+        titulo: "Evaluación de proveedores",
+        descripcion: "Tasa de aprobación en calidad, variación de precio y retraso de entrega, por proveedor.",
+      },
+    ],
+  },
+  {
+    titulo: "Recursos Humanos",
+    reportes: [
+      {
+        href: "/rrhh/headcount",
+        titulo: "Headcount y costo por área",
+        descripcion: "Trabajadores activos y costo base mensual, agrupados por área.",
       },
     ],
   },
