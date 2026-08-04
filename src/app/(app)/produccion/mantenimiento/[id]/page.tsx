@@ -37,6 +37,7 @@ export default async function DetalleOrdenMantenimientoPage({
       include: {
         equipo: { include: { almacen: true, centroCosto: true } },
         centroCosto: true,
+        planMantenimiento: true,
         repuestos: { include: { insumo: true }, orderBy: { creadoEn: "asc" } },
       },
     }),
@@ -98,6 +99,15 @@ export default async function DetalleOrdenMantenimientoPage({
           {centroEfectivo ? ` · Centro de costo: ${centroEfectivo.codigo}` : ""}
         </p>
         <p className="text-sm text-neutral-500 mt-2">{orden.descripcion}</p>
+        {orden.planMantenimiento && (
+          <p className="text-xs text-neutral-400 mt-1">
+            Generada por el plan preventivo{" "}
+            <Link href={`/produccion/equipos/${orden.equipo.id}`} className="hover:underline">
+              {orden.planMantenimiento.nombre}
+            </Link>
+            .
+          </p>
+        )}
 
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-6">
           <Dato etiqueta="Mano de obra" valor={formatMoneda(orden.costoManoObra)} />
@@ -176,7 +186,15 @@ export default async function DetalleOrdenMantenimientoPage({
               <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
                 Completar directamente
               </h2>
-              <CompletarFormulario accion={completarOrdenMantenimiento.bind(null, id)} insumos={insumosParaFormulario} />
+              <CompletarFormulario
+                accion={completarOrdenMantenimiento.bind(null, id)}
+                insumos={insumosParaFormulario}
+                planPreventivo={
+                  orden.planMantenimiento?.tipo === "POR_CONTADOR"
+                    ? { unidadContador: orden.equipo.unidadContador, contadorActual: orden.equipo.contadorActual.toNumber() }
+                    : null
+                }
+              />
             </div>
           </section>
         )}

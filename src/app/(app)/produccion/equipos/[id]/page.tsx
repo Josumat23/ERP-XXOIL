@@ -4,6 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { formatFecha, formatMoneda } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
+import ContadorFormulario from "./ContadorFormulario";
+import PlanMantenimientoFormulario from "./PlanMantenimientoFormulario";
+import { alternarActivoPlan } from "../actions";
+import { planVencido } from "@/lib/mantenimientoPreventivo";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   PROGRAMADA: "Programada",
@@ -34,6 +38,7 @@ export default async function DetalleEquipoPage({
         activoFijo: true,
         centroCosto: true,
         ordenesMantenimiento: { orderBy: { fechaProgramada: "desc" } },
+        planesMantenimiento: { orderBy: { creadoEn: "desc" } },
       },
     }),
     prisma.equipo.findMany({ orderBy: { creadoEn: "desc" } }),
@@ -96,6 +101,108 @@ export default async function DetalleEquipoPage({
         )}
 
         {equipo.notas && <p className="text-sm text-neutral-500 mt-2">Notas: {equipo.notas}</p>}
+
+        {equipo.unidadContador && (
+          <div className="mt-4">
+            <ContadorFormulario
+              equipoId={equipo.id}
+              contadorActual={equipo.contadorActual.toNumber()}
+              unidadContador={equipo.unidadContador}
+            />
+          </div>
+        )}
+
+        <section className="mt-8">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-2">
+            Planes de mantenimiento preventivo
+          </h2>
+          <p className="text-xs text-neutral-500 mb-3">
+            Genera órdenes de mantenimiento automáticamente cuando se cumple el ciclo (tarea
+            programada cada hora — ver Configuración → Tareas programadas).
+          </p>
+          <PlanMantenimientoFormulario equipoId={equipo.id} tieneUnidadContador={!!equipo.unidadContador} />
+          <table className="tabla mt-4">
+            <thead>
+              <tr>
+                <th>Plan</th>
+                <th>Ciclo</th>
+                <th>Última ejecución</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {equipo.planesMantenimiento.map((p) => {
+                const vencido =
+                  p.activo &&
+                  planVencido(
+                    {
+                      tipo: p.tipo,
+                      frecuenciaDias: p.frecuenciaDias,
+                      frecuenciaContador: p.frecuenciaContador?.toNumber() ?? null,
+                      ultimaEjecucionFecha: p.ultimaEjecucionFecha,
+                      ultimaEjecucionContador: p.ultimaEjecucionContador?.toNumber() ?? null,
+                      creadoEn: p.creadoEn,
+                    },
+                    equipo.contadorActual.toNumber()
+                  );
+                return (
+                  <tr key={p.id}>
+                    <td>{p.nombre}</td>
+                    <td className="text-sm text-neutral-500">
+                      {p.tipo === "POR_TIEMPO"
+                        ? `Cada ${p.frecuenciaDias} días`
+                        : `Cada ${p.frecuenciaContador?.toString()} ${equipo.unidadContador ?? ""}`}
+                    </td>
+                    <td className="text-sm text-neutral-500">
+                      {p.tipo === "POR_TIEMPO"
+                        ? p.ultimaEjecucionFecha
+                          ? formatFecha(p.ultimaEjecucionFecha)
+                          : "Nunca"
+                        : p.ultimaEjecucionContador
+                          ? `${p.ultimaEjecucionContador.toString()} ${equipo.unidadContador ?? ""}`
+                          : "Nunca"}
+                    </td>
+                    <td>
+                      {!p.activo ? (
+                        <span className="insignia bg-neutral-100 text-neutral-500 dark:bg-neutral-800">
+                          Inactivo
+                        </span>
+                      ) : vencido ? (
+                        <span className="insignia bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400">
+                          Vencido
+                        </span>
+                      ) : (
+                        <span className="insignia bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400">
+                          Al día
+                        </span>
+                      )}
+                    </td>
+                    <td className="text-right">
+                      <form
+                        action={async () => {
+                          "use server";
+                          await alternarActivoPlan(p.id, equipo.id, !p.activo);
+                        }}
+                      >
+                        <button type="submit" className="text-neutral-600 dark:text-neutral-400 hover:underline text-sm">
+                          {p.activo ? "Desactivar" : "Activar"}
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                );
+              })}
+              {equipo.planesMantenimiento.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center text-neutral-500 py-4">
+                    Sin planes preventivos registrados — todo el mantenimiento es correctivo.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
 
         <section className="mt-8">
           <div className="flex items-center justify-between">

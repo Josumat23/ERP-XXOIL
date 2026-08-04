@@ -18,9 +18,10 @@ type Linea = { insumoId: string; cantidad: string };
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   insumos: Insumo[];
+  planPreventivo?: { unidadContador: string | null; contadorActual: number } | null;
 };
 
-export default function CompletarFormulario({ accion, insumos }: Props) {
+export default function CompletarFormulario({ accion, insumos, planPreventivo }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
   const [repuestos, setRepuestos] = useState<Linea[]>([]);
 
@@ -44,6 +45,26 @@ export default function CompletarFormulario({ accion, insumos }: Props) {
         <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
           {estado.error}
         </p>
+      )}
+
+      {planPreventivo && (
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Lectura actual del contador{planPreventivo.unidadContador ? ` (${planPreventivo.unidadContador})` : ""}
+          </span>
+          <input
+            name="contadorLectura"
+            type="number"
+            step="0.01"
+            min={planPreventivo.contadorActual}
+            defaultValue={planPreventivo.contadorActual}
+            required
+            className="campo-input w-40"
+          />
+          <span className="text-xs text-neutral-500">
+            Actualiza el contador del equipo y reinicia el ciclo de este plan preventivo.
+          </span>
+        </label>
       )}
 
       <label className="flex flex-col gap-1 text-sm">

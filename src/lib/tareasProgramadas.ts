@@ -3,6 +3,7 @@ import type { $Enums } from "@/generated/prisma/client";
 import { ejecutarDepreciacionDelMes } from "@/lib/depreciacion";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
 import { obtenerTipoCambioVigente } from "@/lib/tipoCambio";
+import { generarOrdenesPreventivasVencidas } from "@/lib/mantenimientoPreventivo";
 
 export type ClaveTarea = $Enums.ClaveTareaProgramada;
 
@@ -10,6 +11,7 @@ export const ETIQUETA_TAREA: Record<ClaveTarea, string> = {
   DEPRECIACION_MENSUAL: "Depreciación mensual de activos fijos",
   RECARGO_MORA: "Recargo por mora en facturas vencidas",
   TIPO_CAMBIO_DIARIO: "Actualización del tipo de cambio (BCRP)",
+  MANTENIMIENTO_PREVENTIVO: "Generación de órdenes de mantenimiento preventivo vencidas",
 };
 
 const ACTOR_SISTEMA = { usuarioId: "sistema", usuarioNombre: "Sistema (tarea programada)" };
@@ -82,10 +84,30 @@ async function ejecutarActualizacionTipoCambio() {
   }
 }
 
+async function ejecutarMantenimientoPreventivo() {
+  try {
+    const resultado = await prisma.$transaction((tx) => generarOrdenesPreventivasVencidas(tx));
+    await registrarEjecucion(
+      "MANTENIMIENTO_PREVENTIVO",
+      true,
+      resultado.generadas > 0
+        ? `${resultado.generadas} orden(es) generada(s): ${resultado.detalle.join(", ")}.`
+        : "Sin planes vencidos."
+    );
+  } catch (e) {
+    await registrarEjecucion(
+      "MANTENIMIENTO_PREVENTIVO",
+      false,
+      e instanceof Error ? e.message : "Error desconocido."
+    );
+  }
+}
+
 const EJECUTORES: Record<ClaveTarea, () => Promise<void>> = {
   DEPRECIACION_MENSUAL: ejecutarDepreciacionMensual,
   RECARGO_MORA: ejecutarRecargosMoraVencidos,
   TIPO_CAMBIO_DIARIO: ejecutarActualizacionTipoCambio,
+  MANTENIMIENTO_PREVENTIVO: ejecutarMantenimientoPreventivo,
 };
 
 export async function ejecutarTareaIndividual(clave: ClaveTarea): Promise<void> {

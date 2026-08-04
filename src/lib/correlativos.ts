@@ -4,7 +4,11 @@ import type { Tx } from "@/lib/inventario";
 // Se llama dentro de una transacción para evitar duplicados.
 
 function siguiente(prefijo: string, ultimo: string | null): string {
-  const n = ultimo ? parseInt(ultimo.slice(prefijo.length + 1), 10) + 1 : 1;
+  const parseado = ultimo ? parseInt(ultimo.slice(prefijo.length + 1), 10) : NaN;
+  // Un código que no siga el patrón numérico (ej. datos de prueba insertados
+  // directo en la base) no debe romper el correlativo — se trata como si no
+  // hubiera "último" registrado.
+  const n = Number.isFinite(parseado) ? parseado + 1 : 1;
   return `${prefijo}-${String(n).padStart(5, "0")}`;
 }
 

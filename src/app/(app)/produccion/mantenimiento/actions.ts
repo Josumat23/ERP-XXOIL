@@ -133,6 +133,8 @@ export async function completarOrdenMantenimiento(
   const costoManoObra = Number(formData.get("costoManoObra") ?? 0);
   const medioPago = String(formData.get("medioPago") ?? "") as $Enums.MedioPago;
   const observaciones = String(formData.get("observaciones") ?? "").trim() || null;
+  const contadorLecturaRaw = String(formData.get("contadorLectura") ?? "").trim();
+  const contadorLectura = contadorLecturaRaw ? Number(contadorLecturaRaw) : null;
 
   let repuestos: { insumoId: string; cantidad: number }[];
   try {
@@ -150,10 +152,16 @@ export async function completarOrdenMantenimiento(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const orden = await tx.ordenMantenimiento.findUnique({ where: { id }, include: { equipo: true } });
+      const orden = await tx.ordenMantenimiento.findUnique({
+        where: { id },
+        include: { equipo: true, planMantenimiento: true },
+      });
       if (!orden) throw new Error("La orden no existe.");
       if (orden.estado === "COMPLETADA" || orden.estado === "CANCELADA") {
         throw new Error("Esta orden ya está cerrada.");
+      }
+      if (orden.planMantenimiento?.tipo === "POR_CONTADOR" && contadorLectura === null) {
+        throw new Error("Ingrese la lectura actual del contador para cerrar este plan preventivo.");
       }
 
       let costoRepuestos = 0;
@@ -191,16 +199,31 @@ export async function completarOrdenMantenimiento(
         throw new Error("Seleccione el medio de pago del gasto de mantenimiento.");
       }
 
+      const fechaFin = new Date();
       await tx.ordenMantenimiento.update({
         where: { id },
         data: {
           estado: "COMPLETADA",
-          fechaFin: new Date(),
+          fechaFin,
           costoManoObra,
           costoRepuestos,
           observaciones,
         },
       });
+
+      if (orden.planMantenimiento) {
+        await tx.planMantenimiento.update({
+          where: { id: orden.planMantenimiento.id },
+          data: {
+            ultimaEjecucionFecha: fechaFin,
+            ultimaEjecucionContador:
+              orden.planMantenimiento.tipo === "POR_CONTADOR" ? contadorLectura : orden.planMantenimiento.ultimaEjecucionContador,
+          },
+        });
+        if (orden.planMantenimiento.tipo === "POR_CONTADOR" && contadorLectura !== null) {
+          await tx.equipo.update({ where: { id: orden.equipoId }, data: { contadorActual: contadorLectura } });
+        }
+      }
 
       if (total > 0) {
         await tx.movimientoCaja.create({

@@ -77,6 +77,18 @@ export default function EquipoFormulario({
         Se usa como centro por defecto al postear el gasto de mantenimiento de este equipo.
       </p>
 
+      <div className="grid grid-cols-2 gap-4">
+        <Campo etiqueta="Unidad de contador (opcional)">
+          <input name="unidadContador" placeholder="km, horas..." className="campo-input" />
+        </Campo>
+        <Campo etiqueta="Lectura inicial del contador">
+          <input name="contadorActual" type="number" step="0.01" min="0" defaultValue={0} className="campo-input" />
+        </Campo>
+      </div>
+      <p className="text-xs text-neutral-500 -mt-2">
+        Solo necesario si va a tener planes de mantenimiento preventivo por contador (ej. cada 5,000 km).
+      </p>
+
       <Campo etiqueta="Notas">
         <textarea name="notas" rows={2} className="campo-input" />
       </Campo>

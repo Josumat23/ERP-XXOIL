@@ -1854,6 +1854,7 @@ model CentroCosto {
   activosFijos         ActivoFijo[]
   ordenesMantenimiento OrdenMantenimiento[]
   empleados            Empleado[]
+  planesMantenimiento  PlanMantenimiento[]
 
   @@unique([empresaId, codigo])
   @@map("centros_costo")
@@ -2003,6 +2004,12 @@ model Equipo {
   centroCostoId String?
   activo       Boolean  @default(true)
   notas        String?
+  // Contador de uso (horómetro/odómetro) para mantenimiento preventivo por
+  // contador (ej. "cada 5,000 km" o "cada 250 horas de motor"). Se actualiza
+  // manualmente — no hay telemetría real conectada. unidadContador queda null
+  // en equipos que solo usan planes por tiempo.
+  contadorActual  Decimal  @default(0)
+  unidadContador  String? // "km", "horas", etc.
   creadoEn     DateTime @default(now())
 
   almacen              Almacen              @relation(fields: [almacenId], references: [id])
@@ -2010,6 +2017,7 @@ model Equipo {
   centroCosto          CentroCosto?         @relation(fields: [centroCostoId], references: [id])
   ordenesMantenimiento OrdenMantenimiento[]
   guiasRemision        GuiaRemision[]
+  planesMantenimiento  PlanMantenimiento[]
 
   @@unique([empresaId, codigo])
   @@map("equipos")
@@ -2047,15 +2055,52 @@ model OrdenMantenimiento {
   // Por defecto el del equipo, pero se puede anular al programar la orden
   // (ej. una reparación que en realidad corresponde a otra área).
   centroCostoId   String?
+  // Si esta orden nació de un plan preventivo (generación automática), queda
+  // enlazada acá — al completarla se actualiza el ciclo del plan.
+  planMantenimientoId String?
   usuarioId       String
   usuarioNombre   String
   creadoEn        DateTime                 @default(now())
 
   equipo      Equipo                       @relation(fields: [equipoId], references: [id])
   centroCosto CentroCosto?                 @relation(fields: [centroCostoId], references: [id])
+  planMantenimiento PlanMantenimiento?     @relation(fields: [planMantenimientoId], references: [id])
   repuestos   RepuestoOrdenMantenimiento[]
 
   @@map("ordenes_mantenimiento")
+}
+
+enum TipoPlanMantenimiento {
+  POR_TIEMPO
+  POR_CONTADOR
+}
+
+// Plan de mantenimiento preventivo: genera OrdenMantenimiento automáticamente
+// (tarea programada, ver src/lib/tareasProgramadas.ts) cuando se cumple el
+// ciclo por calendario o por contador de uso. El ciclo se reinicia recién
+// cuando la orden generada se COMPLETA (no cuando se genera), para reflejar
+// la fecha/contador real de ejecución, no la de programación.
+model PlanMantenimiento {
+  id                     String                @id @default(cuid())
+  empresaId              String                @default("1")
+  equipoId               String
+  nombre                 String // ej. "Cambio de aceite de motor"
+  tipo                   TipoPlanMantenimiento
+  frecuenciaDias         Int? // solo POR_TIEMPO
+  frecuenciaContador     Decimal? // solo POR_CONTADOR (ej. cada 5000 km)
+  ultimaEjecucionFecha   DateTime? // null = nunca ejecutado, se usa creadoEn como base
+  ultimaEjecucionContador Decimal? // null = nunca ejecutado, se usa 0 como base
+  centroCostoId          String? // opcional, si no usa el del equipo
+  activo                 Boolean               @default(true)
+  usuarioId              String
+  usuarioNombre          String
+  creadoEn               DateTime              @default(now())
+
+  equipo      Equipo               @relation(fields: [equipoId], references: [id])
+  centroCosto CentroCosto?         @relation(fields: [centroCostoId], references: [id])
+  ordenes     OrdenMantenimiento[]
+
+  @@map("planes_mantenimiento")
 }
 
 // Repuestos consumidos por una orden, con costo unitario "congelado" al
@@ -2440,6 +2485,7 @@ enum ClaveTareaProgramada {
   DEPRECIACION_MENSUAL
   RECARGO_MORA
   TIPO_CAMBIO_DIARIO
+  MANTENIMIENTO_PREVENTIVO
 }
 
 model TareaProgramada {
