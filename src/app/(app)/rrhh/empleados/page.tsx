@@ -44,7 +44,8 @@ export default async function EmpleadosPage({
             Empleados
           </h1>
           <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
-            Ficha de personal. No incluye cálculo de planilla — solo datos maestros y vacaciones.
+            Ficha de personal, vacaciones y datos para el cálculo de planilla (Recursos Humanos →
+            Planilla).
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">

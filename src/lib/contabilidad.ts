@@ -27,7 +27,12 @@ export type ClaveControl =
   | "GASTO_MANTENIMIENTO"
   | "ACTIVO_FIJO_BRUTO"
   | "INGRESO_VENTA_ACTIVO"
-  | "PERDIDA_VENTA_ACTIVO";
+  | "PERDIDA_VENTA_ACTIVO"
+  | "GASTO_PERSONAL"
+  | "ONP_AFP_POR_PAGAR"
+  | "ESSALUD_POR_PAGAR"
+  | "RETENCION_5TA_POR_PAGAR"
+  | "SUELDOS_POR_PAGAR";
 
 export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   CUENTAS_POR_COBRAR: "Cuentas por cobrar comerciales",
@@ -45,6 +50,11 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   ACTIVO_FIJO_BRUTO: "Inmuebles, maquinaria y equipo (costo bruto)",
   INGRESO_VENTA_ACTIVO: "Ingreso por venta de activo fijo",
   PERDIDA_VENTA_ACTIVO: "Pérdida por venta de activo fijo",
+  GASTO_PERSONAL: "Gasto de personal (planilla)",
+  ONP_AFP_POR_PAGAR: "ONP / AFP por pagar",
+  ESSALUD_POR_PAGAR: "EsSalud por pagar",
+  RETENCION_5TA_POR_PAGAR: "Retención de renta de 5ta categoría por pagar",
+  SUELDOS_POR_PAGAR: "Sueldos por pagar (neto)",
 };
 
 type LineaAsiento = {
@@ -542,6 +552,69 @@ export async function postearMantenimiento(
       { clave: "GASTO_MANTENIMIENTO", debe: datos.monto, centroCostoId: datos.centroCostoId },
       { clave: "CAJA_BANCOS", haber: datos.monto },
     ],
+    ...audit,
+  });
+}
+
+// Planilla mensual: Gasto de personal (remuneración computable + EsSalud
+// patronal, por centro de costo del empleado) al debe / ONP-AFP por pagar +
+// EsSalud por pagar + retención de 5ta por pagar + sueldos por pagar (neto)
+// al haber. Se arma un solo asiento para todo el período.
+export async function postearPlanilla(
+  tx: Tx,
+  datos: {
+    periodo: string; // "2026-08"
+    lineas: {
+      empleado: string;
+      centroCostoId: string | null;
+      remuneracionComputable: number;
+      essaludPatronal: number;
+      descuentoPension: number;
+      retencion5ta: number;
+      neto: number;
+    }[];
+    fecha?: Date;
+  },
+  audit: Auditoria
+) {
+  const lineas: Parameters<typeof postearAsiento>[1]["lineas"] = [];
+  let totalPension = 0;
+  let totalEssalud = 0;
+  let totalRetencion = 0;
+  let totalNeto = 0;
+
+  for (const l of datos.lineas) {
+    lineas.push({
+      clave: "GASTO_PERSONAL",
+      glosa: l.empleado,
+      debe: l.remuneracionComputable,
+      centroCostoId: l.centroCostoId,
+    });
+    if (l.essaludPatronal > 0) {
+      lineas.push({
+        clave: "GASTO_PERSONAL",
+        glosa: `EsSalud — ${l.empleado}`,
+        debe: l.essaludPatronal,
+        centroCostoId: l.centroCostoId,
+      });
+    }
+    totalPension += l.descuentoPension;
+    totalEssalud += l.essaludPatronal;
+    totalRetencion += l.retencion5ta;
+    totalNeto += l.neto;
+  }
+
+  if (totalPension > 0) lineas.push({ clave: "ONP_AFP_POR_PAGAR", haber: totalPension });
+  if (totalEssalud > 0) lineas.push({ clave: "ESSALUD_POR_PAGAR", haber: totalEssalud });
+  if (totalRetencion > 0) lineas.push({ clave: "RETENCION_5TA_POR_PAGAR", haber: totalRetencion });
+  if (totalNeto > 0) lineas.push({ clave: "SUELDOS_POR_PAGAR", haber: totalNeto });
+
+  return postearAsiento(tx, {
+    origen: "PLANILLA",
+    glosa: `Planilla ${datos.periodo}`,
+    referencia: datos.periodo,
+    fecha: datos.fecha,
+    lineas,
     ...audit,
   });
 }

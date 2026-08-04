@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useActionState } from "react";
 import { crearEmpleado, type EstadoFormulario } from "./actions";
 
@@ -9,6 +10,13 @@ const OPCIONES_CONTRATO = [
   { valor: "PLAZO_FIJO", etiqueta: "Plazo fijo" },
   { valor: "PLAZO_INDETERMINADO", etiqueta: "Plazo indeterminado" },
   { valor: "LOCACION_SERVICIOS", etiqueta: "Locación de servicios" },
+];
+
+const OPCIONES_AFP = [
+  { valor: "INTEGRA", etiqueta: "Integra" },
+  { valor: "PRIMA", etiqueta: "Prima" },
+  { valor: "HABITAT", etiqueta: "Habitat" },
+  { valor: "PROFUTURO", etiqueta: "Profuturo" },
 ];
 
 const OPCIONES_DOCUMENTO_IDENTIDAD = [
@@ -28,6 +36,7 @@ export default function EmpleadoFormulario({ almacenes, centrosCosto }: Props) {
     crearEmpleado,
     {}
   );
+  const [sistemaPension, setSistemaPension] = useState("");
 
   return (
     <form action={formAction} className="flex flex-col gap-4 max-w-2xl">
@@ -131,6 +140,44 @@ export default function EmpleadoFormulario({ almacenes, centrosCosto }: Props) {
           </select>
         </Campo>
       </div>
+
+      <p className="text-xs font-medium text-neutral-500 mt-1">
+        Datos de planilla (para el cálculo de sueldo — ver Recursos Humanos → Parámetros de planilla)
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <Campo etiqueta="Sistema de pensión (opcional — sin esto, no entra en la corrida de planilla)">
+          <select
+            name="sistemaPension"
+            value={sistemaPension}
+            onChange={(e) => setSistemaPension(e.target.value)}
+            className="campo-input"
+          >
+            <option value="">Sin definir</option>
+            <option value="ONP">ONP</option>
+            <option value="AFP">AFP</option>
+          </select>
+        </Campo>
+        {sistemaPension === "AFP" && (
+          <Campo etiqueta="AFP">
+            <select name="afp" defaultValue="" className="campo-input">
+              <option value="" disabled>
+                Seleccione
+              </option>
+              {OPCIONES_AFP.map((o) => (
+                <option key={o.valor} value={o.valor}>
+                  {o.etiqueta}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        )}
+      </div>
+      <label className="flex items-center gap-2 text-sm">
+        <input type="checkbox" name="asignacionFamiliar" />
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">
+          Tiene hijo(s) menor(es) de edad o que estudian (hasta 24 años) — asignación familiar
+        </span>
+      </label>
 
       <p className="text-xs font-medium text-neutral-500 mt-1">
         Datos bancarios (para el pago de haberes o transferencias a personal remoto/extranjero)

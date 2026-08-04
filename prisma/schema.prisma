@@ -1753,6 +1753,7 @@ enum OrigenAsiento {
   VENTA_ACTIVO_FIJO
   REVERSO
   DEVOLUCION_COMPRA
+  PLANILLA
 }
 
 model AsientoContable {
@@ -2181,6 +2182,18 @@ enum TipoDocumentoIdentidad {
   OTRO
 }
 
+enum SistemaPension {
+  ONP
+  AFP
+}
+
+enum Afp {
+  INTEGRA
+  PRIMA
+  HABITAT
+  PROFUTURO
+}
+
 model Empleado {
   id                      String                 @id @default(cuid())
   empresaId               String                 @default("1")
@@ -2211,13 +2224,20 @@ model Empleado {
   centroCostoId           String? // para que su costo pese en el centro correcto
   usuarioId               String?                @unique // cuenta de acceso al ERP, si tiene (opcional, 1 a 1)
   estado                  EstadoEmpleado         @default(ACTIVO)
+  // Datos para el cálculo de planilla (item HCM). Sin sistemaPension definido,
+  // el empleado queda excluido de la corrida de planilla con una advertencia
+  // visible — nunca se asume ONP/AFP por defecto en un cálculo con dinero real.
+  sistemaPension          SistemaPension?
+  afp                     Afp? // solo si sistemaPension = AFP
+  asignacionFamiliar      Boolean                @default(false) // tiene hijo(s) menor(es) o que estudian hasta 24 años
   notas                   String?
   creadoEn                DateTime               @default(now())
 
-  almacen     Almacen?              @relation(fields: [almacenId], references: [id])
-  centroCosto CentroCosto?          @relation(fields: [centroCostoId], references: [id])
-  usuario     Usuario?              @relation(fields: [usuarioId], references: [id])
-  vacaciones  SolicitudVacaciones[]
+  almacen           Almacen?              @relation(fields: [almacenId], references: [id])
+  centroCosto       CentroCosto?          @relation(fields: [centroCostoId], references: [id])
+  usuario           Usuario?              @relation(fields: [usuarioId], references: [id])
+  vacaciones        SolicitudVacaciones[]
+  planillaDetalles  PlanillaDetalle[]
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, dni])
@@ -2250,6 +2270,98 @@ model SolicitudVacaciones {
   empleado Empleado @relation(fields: [empleadoId], references: [id])
 
   @@map("solicitudes_vacaciones")
+}
+
+// ---------------------------------------------------------------------------
+// PLANILLA (HCM — Fase 1: cálculo mensual). Parámetros legales versionados
+// por fecha de vigencia (mismo principio que TipoCambio/tasaIgv-al-emitir):
+// un cambio de norma no debe alterar el cálculo de un período ya cerrado.
+// Gratificación/CTS/liquidación de desvinculación quedan para una iteración
+// siguiente sobre esta misma base — ver docs/gobernanza/04-hcm-*.md.
+// ---------------------------------------------------------------------------
+
+model ParametroPlanilla {
+  id           String   @id @default(cuid())
+  empresaId    String   @default("1")
+  rmv          Decimal // remuneración mínima vital vigente
+  uit          Decimal // unidad impositiva tributaria vigente
+  tasaEsSalud  Decimal  @default(9) // % aporte patronal
+  tasaOnp      Decimal  @default(13) // % descuento al trabajador afiliado a ONP
+  vigenteDesde DateTime
+  usuarioId    String
+  usuarioNombre String
+  creadoEn     DateTime @default(now())
+
+  @@map("parametros_planilla")
+}
+
+enum TipoComisionAfp {
+  FLUJO
+  MIXTA
+}
+
+model TasaAfp {
+  id                     String          @id @default(cuid())
+  afp                    Afp
+  tipoComision           TipoComisionAfp @default(FLUJO)
+  tasaAporteObligatorio  Decimal         @default(10) // % al fondo propio del trabajador
+  tasaComision           Decimal // % de la AFP
+  primaSeguro            Decimal // % prima de seguro
+  vigenteDesde           DateTime
+  creadoEn               DateTime        @default(now())
+
+  @@unique([afp, tipoComision, vigenteDesde])
+  @@map("tasas_afp")
+}
+
+enum TipoPeriodoPlanilla {
+  MENSUAL
+}
+
+enum EstadoPeriodoPlanilla {
+  ABIERTO
+  CERRADO
+}
+
+model PlanillaPeriodo {
+  id            String                 @id @default(cuid())
+  empresaId     String                 @default("1")
+  anio          Int
+  mes           Int
+  tipo          TipoPeriodoPlanilla    @default(MENSUAL)
+  estado        EstadoPeriodoPlanilla  @default(ABIERTO)
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime               @default(now())
+  cerradoEn     DateTime?
+
+  detalles PlanillaDetalle[]
+
+  @@unique([empresaId, anio, mes, tipo])
+  @@map("planilla_periodos")
+}
+
+model PlanillaDetalle {
+  id                     String   @id @default(cuid())
+  planillaPeriodoId      String
+  empleadoId             String
+  sueldoBasico           Decimal
+  asignacionFamiliar     Decimal  @default(0)
+  remuneracionComputable Decimal // sueldoBasico + asignacionFamiliar
+  // Desglose del descuento de pensión (ONP o AFP: aporte + comisión + prima).
+  descuentoPension       Decimal  @default(0)
+  detallePension         String? // texto legible del desglose, para la boleta
+  essaludPatronal        Decimal  @default(0) // gasto del empleador, no se descuenta al trabajador
+  retencion5ta           Decimal  @default(0) // método simplificado — ver docs/gobernanza/04-hcm-*.md
+  neto                   Decimal
+  asientoNumero          String?
+  creadoEn               DateTime @default(now())
+
+  planillaPeriodo PlanillaPeriodo @relation(fields: [planillaPeriodoId], references: [id])
+  empleado        Empleado        @relation(fields: [empleadoId], references: [id])
+
+  @@unique([planillaPeriodoId, empleadoId])
+  @@map("planilla_detalles")
 }
 
 // ---------------------------------------------------------------------------

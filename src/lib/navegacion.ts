@@ -118,6 +118,8 @@ export const MODULOS: Modulo[] = [
     enlaces: [
       { href: "/rrhh/empleados", etiqueta: "Empleados", roles: ["ADMIN", "GERENCIA"] },
       { href: "/rrhh/vacaciones", etiqueta: "Solicitudes de vacaciones", roles: ["ADMIN", "GERENCIA"] },
+      { href: "/rrhh/planilla", etiqueta: "Planilla", roles: ["ADMIN", "GERENCIA"] },
+      { href: "/rrhh/planilla/parametros", etiqueta: "Parámetros de planilla", roles: ["ADMIN", "GERENCIA"] },
     ],
   },
   {

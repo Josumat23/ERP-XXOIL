@@ -52,6 +52,15 @@ export async function crearEmpleado(
   const swift = String(formData.get("swift") ?? "").trim() || null;
   const iban = String(formData.get("iban") ?? "").trim() || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
+  const sistemaPensionRaw = String(formData.get("sistemaPension") ?? "");
+  const sistemaPension =
+    sistemaPensionRaw === "ONP" || sistemaPensionRaw === "AFP" ? sistemaPensionRaw : null;
+  const afpRaw = String(formData.get("afp") ?? "");
+  const afp =
+    sistemaPension === "AFP" && ["INTEGRA", "PRIMA", "HABITAT", "PROFUTURO"].includes(afpRaw)
+      ? (afpRaw as $Enums.Afp)
+      : null;
+  const asignacionFamiliar = formData.get("asignacionFamiliar") === "on";
 
   if (!nombres || !apellidos) return { error: "Nombres y apellidos son obligatorios." };
   if (!cargo) return { error: "El cargo es obligatorio." };
@@ -66,6 +75,9 @@ export async function crearEmpleado(
   const fechaNacimiento = fechaNacimientoRaw ? new Date(fechaNacimientoRaw) : null;
   if (!Number.isFinite(sueldoBasico) || sueldoBasico < 0) {
     return { error: "El sueldo básico debe ser un número válido." };
+  }
+  if (sistemaPensionRaw === "AFP" && !afp) {
+    return { error: "Seleccione la AFP del trabajador." };
   }
 
   try {
@@ -95,6 +107,9 @@ export async function crearEmpleado(
           almacenId,
           centroCostoId,
           notas,
+          sistemaPension,
+          afp,
+          asignacionFamiliar,
         },
       });
     });
