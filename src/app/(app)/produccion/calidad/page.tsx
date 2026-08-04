@@ -13,7 +13,7 @@ export default async function CalidadPage({
   const { q, resultado } = await searchParams;
   const filtroResultado = resultado === "APROBADO" || resultado === "RECHAZADO" ? resultado : undefined;
 
-  const [pendientes, evaluados] = await Promise.all([
+  const [pendientes, evaluados, causas] = await Promise.all([
     prisma.loteGranel.findMany({
       where: { estado: "PENDIENTE_CALIDAD" },
       include: { formula: { include: { producto: true } } },
@@ -24,10 +24,11 @@ export default async function CalidadPage({
         ...(filtroResultado ? { resultado: filtroResultado } : {}),
         ...(q ? { loteGranel: { OR: [{ codigo: { contains: q } }, { formula: { producto: { nombre: { contains: q } } } }] } } : {}),
       },
-      include: { loteGranel: { include: { formula: { include: { producto: true } } } } },
+      include: { loteGranel: { include: { formula: { include: { producto: true } } } }, causa: true },
       orderBy: { fecha: "desc" },
       take: 20,
     }),
+    prisma.causaCalidad.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
   ]);
 
   return (
@@ -41,6 +42,14 @@ export default async function CalidadPage({
       <p className="text-neutral-500 mt-1">
         Ningún lote granel puede envasarse sin aprobación de calidad.
       </p>
+      <div className="flex gap-4 mt-2 text-sm">
+        <Link href="/produccion/calidad/causas" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Catálogo de causas de calidad
+        </Link>
+        <Link href="/produccion/calidad/reclamos" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Reclamos de cliente
+        </Link>
+      </div>
 
       <section className="mt-6">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Lotes pendientes</h2>
@@ -59,7 +68,7 @@ export default async function CalidadPage({
                   {formatNumero(l.mermaKg, 2)} kg
                 </p>
               </div>
-              <CalidadFormulario loteId={l.id} />
+              <CalidadFormulario loteId={l.id} causas={causas} />
             </div>
           ))}
           {pendientes.length === 0 && (
@@ -116,9 +125,10 @@ export default async function CalidadPage({
                 </td>
                 <td className="text-sm text-neutral-500 max-w-56">{c.observaciones ?? "—"}</td>
                 <td className="text-xs text-neutral-500 max-w-64">
-                  {c.causaRaiz || c.accionCorrectiva ? (
+                  {c.causa || c.causaRaiz || c.accionCorrectiva ? (
                     <>
-                      {c.causaRaiz && <span className="block">Causa: {c.causaRaiz}</span>}
+                      {c.causa && <span className="block">Causa: {c.causa.nombre}</span>}
+                      {c.causaRaiz && <span className="block">Detalle: {c.causaRaiz}</span>}
                       {c.accionCorrectiva && <span className="block">Acción: {c.accionCorrectiva}</span>}
                     </>
                   ) : (

@@ -22,6 +22,7 @@ export async function registrarCalidad(
   const loteId = String(formData.get("loteId") ?? "");
   const resultado = String(formData.get("resultado") ?? "");
   const observaciones = String(formData.get("observaciones") ?? "").trim() || null;
+  const causaId = String(formData.get("causaId") ?? "").trim() || null;
   const causaRaiz = String(formData.get("causaRaiz") ?? "").trim() || null;
   const accionCorrectiva = String(formData.get("accionCorrectiva") ?? "").trim() || null;
 
@@ -32,8 +33,8 @@ export async function registrarCalidad(
   if (resultado === "RECHAZADO" && !observaciones) {
     return { error: "Al rechazar un lote, las observaciones son obligatorias." };
   }
-  if (resultado === "RECHAZADO" && (!causaRaiz || !accionCorrectiva)) {
-    return { error: "Al rechazar un lote, la causa raíz y la acción correctiva son obligatorias." };
+  if (resultado === "RECHAZADO" && (!causaId || !accionCorrectiva)) {
+    return { error: "Al rechazar un lote, la causa y la acción correctiva son obligatorias." };
   }
 
   try {
@@ -53,6 +54,7 @@ export async function registrarCalidad(
           loteGranelId: loteId,
           resultado,
           observaciones,
+          causaId,
           causaRaiz,
           accionCorrectiva,
           usuarioId: auth.usuario.id,

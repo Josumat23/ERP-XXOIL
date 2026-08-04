@@ -560,15 +560,71 @@ model ControlCalidad {
   observaciones String?
   // No conformidad (solo cuando resultado = RECHAZADO): por qué falló y qué
   // se hizo al respecto (reproceso, descarte, ajuste de fórmula, etc.).
+  // causaId es el catálogo estructurado (permite reportes agregados "top 5
+  // defectos"); causaRaiz queda como detalle textual libre complementario.
+  causaId          String?
   causaRaiz        String?
   accionCorrectiva String?
   fecha         DateTime         @default(now())
   usuarioId     String
   usuarioNombre String
 
-  loteGranel LoteGranel @relation(fields: [loteGranelId], references: [id])
+  loteGranel LoteGranel    @relation(fields: [loteGranelId], references: [id])
+  causa      CausaCalidad? @relation(fields: [causaId], references: [id])
 
   @@map("controles_calidad")
+}
+
+// Catálogo formal de causas/defectos de calidad, reutilizable entre el
+// control interno de producción (ControlCalidad) y los reclamos de cliente
+// (ReclamoCliente) — reemplaza el texto libre para permitir reportes
+// agregados tipo "top 5 defectos".
+model CausaCalidad {
+  id        String   @id @default(cuid())
+  empresaId String   @default("1")
+  nombre    String
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  controlesCalidad ControlCalidad[]
+  reclamosCliente  ReclamoCliente[]
+
+  @@unique([empresaId, nombre])
+  @@map("causas_calidad")
+}
+
+enum EstadoReclamo {
+  ABIERTO
+  EN_PROCESO
+  CERRADO
+}
+
+// Notificación de calidad del lado del cliente (RF-QM-025 a 030): a
+// diferencia de ControlCalidad (no conformidad interna, antes de despachar),
+// esto registra un reclamo recibido después de la venta, con seguimiento de
+// estado hasta el cierre.
+model ReclamoCliente {
+  id               String        @id @default(cuid())
+  empresaId        String        @default("1")
+  numero           String        @unique // RCL-00001
+  clienteId        String
+  facturaId        String? // documento de origen, si aplica
+  causaId          String?
+  descripcion      String
+  estado           EstadoReclamo @default(ABIERTO)
+  accionCorrectiva String?
+  fecha            DateTime      @default(now())
+  fechaCierre      DateTime?
+  usuarioId        String
+  usuarioNombre    String
+  creadoEn         DateTime      @default(now())
+  actualizadoEn    DateTime      @updatedAt
+
+  cliente Cliente       @relation(fields: [clienteId], references: [id])
+  factura Factura?      @relation(fields: [facturaId], references: [id])
+  causa   CausaCalidad? @relation(fields: [causaId], references: [id])
+
+  @@map("reclamos_cliente")
 }
 
 // ---------------------------------------------------------------------------
@@ -757,6 +813,7 @@ model Cliente {
   cotizaciones     Cotizacion[]
   movimientosCasco MovimientoCasco[]
   avisosCobranza   AvisoCobranza[]
+  reclamos         ReclamoCliente[]
 
   @@unique([empresaId, ruc])
   @@unique([empresaId, codigo])
@@ -900,6 +957,7 @@ model Factura {
   comisiones   Comision[]
   guias        GuiaRemision[]
   recargosMora RecargoMora[]
+  reclamos     ReclamoCliente[]
 
   @@map("facturas")
 }

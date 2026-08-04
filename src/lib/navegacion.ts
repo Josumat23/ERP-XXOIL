@@ -69,6 +69,7 @@ export const MODULOS: Modulo[] = [
       { href: "/produccion/formulas", etiqueta: "Fórmulas" },
       { href: "/produccion/lotes", etiqueta: "Órdenes de producción" },
       { href: "/produccion/calidad", etiqueta: "Control de calidad" },
+      { href: "/produccion/calidad/reclamos", etiqueta: "Reclamos de cliente" },
       { href: "/produccion/envasados", etiqueta: "Envasados" },
       { href: "/produccion/lotes/recall", etiqueta: "Trazabilidad / recall" },
       { href: "/produccion/equipos", etiqueta: "Equipos" },

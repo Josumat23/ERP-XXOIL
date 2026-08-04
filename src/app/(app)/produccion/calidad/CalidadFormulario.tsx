@@ -4,7 +4,15 @@ import { useState } from "react";
 import { useActionState } from "react";
 import { registrarCalidad, type EstadoFormulario } from "./actions";
 
-export default function CalidadFormulario({ loteId }: { loteId: string }) {
+type Causa = { id: string; nombre: string };
+
+export default function CalidadFormulario({
+  loteId,
+  causas,
+}: {
+  loteId: string;
+  causas: Causa[];
+}) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     registrarCalidad,
     {}
@@ -47,12 +55,23 @@ export default function CalidadFormulario({ loteId }: { loteId: string }) {
       {esRechazo && (
         <div className="flex flex-wrap items-end gap-3 border-t border-black/10 dark:border-white/10 pt-3">
           <label className="flex flex-col gap-1 text-sm flex-1 min-w-56">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Causa (catálogo)</span>
+            <select name="causaId" required={esRechazo} className="campo-input">
+              <option value="">Seleccione</option>
+              {causas.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm flex-1 min-w-56">
             <span className="font-medium text-neutral-700 dark:text-neutral-300">
-              Causa raíz (no conformidad)
+              Detalle adicional (opcional)
             </span>
             <input
               name="causaRaiz"
-              placeholder="Ej.: viscosidad fuera de rango, contaminación..."
+              placeholder="Ej.: lote 12-A, contaminación cruzada con..."
               className="campo-input"
             />
           </label>

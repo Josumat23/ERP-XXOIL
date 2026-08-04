@@ -84,3 +84,8 @@ export async function siguienteCodigoEmpleado(tx: Tx): Promise<string> {
   const ultimo = await tx.empleado.findFirst({ orderBy: { codigo: "desc" } });
   return siguiente("EMP", ultimo?.codigo ?? null);
 }
+
+export async function siguienteNumeroReclamo(tx: Tx): Promise<string> {
+  const ultimo = await tx.reclamoCliente.findFirst({ orderBy: { numero: "desc" } });
+  return siguiente("RCL", ultimo?.numero ?? null);
+}
