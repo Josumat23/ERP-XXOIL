@@ -41,6 +41,11 @@ const CATEGORIAS: Categoria[] = [
         titulo: "ATP — Disponible para prometer",
         descripcion: "Stock empacado más granel aprobado sin envasar y lotes en proceso, por presentación.",
       },
+      {
+        href: "/comercial/pipeline",
+        titulo: "Embudo de ventas",
+        descripcion: "Cotizaciones pendientes por probabilidad de cierre y vendedor, con valor ponderado.",
+      },
     ],
   },
   {

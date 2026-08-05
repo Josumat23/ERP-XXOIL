@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { formatNumero } from "@/lib/format";
 import TrasladoFormulario from "./TrasladoFormulario";
+import ReubicarZonaFormulario from "./ReubicarZonaFormulario";
 
 export default async function TrasladosPage({
   searchParams,
@@ -15,14 +16,23 @@ export default async function TrasladosPage({
   }
   const { almacenId } = await searchParams;
 
-  const [presentaciones, insumos, almacenes, saldos, movimientos] = await Promise.all([
+  const [presentaciones, insumos, almacenes, zonas, saldos, movimientos] = await Promise.all([
     prisma.presentacion.findMany({
       where: { activo: true },
-      include: { producto: true },
+      include: { producto: true, zonaAlmacen: { include: { almacen: true } } },
       orderBy: { sku: "asc" },
     }),
-    prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.insumo.findMany({
+      where: { activo: true },
+      include: { zonaAlmacen: { include: { almacen: true } } },
+      orderBy: { codigo: "asc" },
+    }),
     prisma.almacen.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.zonaAlmacen.findMany({
+      where: { activo: true },
+      include: { almacen: true },
+      orderBy: [{ almacen: { codigo: "asc" } }, { codigo: "asc" }],
+    }),
     prisma.saldoAlmacen.findMany({
       where: { cantidad: { gt: 0 }, ...(almacenId ? { almacenId } : {}) },
       include: {
@@ -71,6 +81,43 @@ export default async function TrasladosPage({
           almacenes={almacenes.map((a) => ({ id: a.id, nombre: a.nombre }))}
         />
       </div>
+
+      <section className="mt-10">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+          Reubicar entre zonas del mismo almacén
+        </h2>
+        <p className="text-sm mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Presentaciones e insumos guardan una sola ubicación estructurada (ej. &quot;A-01&quot;,
+          &quot;RACK-2&quot;) — esto no es un movimiento de cantidad de stock, es actualizar dónde
+          físicamente vive el ítem dentro del mismo almacén. Para mover cantidad entre almacenes
+          distintos, use el traslado de arriba.
+        </p>
+        {zonas.length === 0 ? (
+          <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2 mt-4">
+            No hay zonas de almacén registradas — cree al menos una en Configuración → Almacenes.
+          </p>
+        ) : (
+          <div className="mt-4">
+            <ReubicarZonaFormulario
+              presentaciones={presentaciones.map((p) => ({
+                valor: `PRESENTACION:${p.id}`,
+                etiqueta: `${p.sku} — ${p.producto.nombre} ${p.nombre}`,
+                zonaActual: p.zonaAlmacen ? `${p.zonaAlmacen.almacen.nombre} / ${p.zonaAlmacen.codigo}` : null,
+              }))}
+              insumos={insumos.map((i) => ({
+                valor: `INSUMO:${i.id}`,
+                etiqueta: `${i.codigo} — ${i.nombre}`,
+                zonaActual: i.zonaAlmacen ? `${i.zonaAlmacen.almacen.nombre} / ${i.zonaAlmacen.codigo}` : null,
+              }))}
+              zonas={zonas.map((z) => ({
+                id: z.id,
+                almacenId: z.almacenId,
+                etiqueta: `${z.almacen.nombre} / ${z.codigo}${z.nombre ? ` — ${z.nombre}` : ""}`,
+              }))}
+            />
+          </div>
+        )}
+      </section>
 
       <section className="mt-8">
         <div className="flex items-center justify-between flex-wrap gap-3">

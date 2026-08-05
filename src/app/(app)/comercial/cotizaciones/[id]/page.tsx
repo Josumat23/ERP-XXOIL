@@ -6,6 +6,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { marcarCotizacion, convertirCotizacionAPedido } from "../actions";
+import ProbabilidadFormulario from "../ProbabilidadFormulario";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   PENDIENTE: "Pendiente",
@@ -82,6 +83,10 @@ export default async function DetalleCotizacionPage({
           {cotizacion.cliente.razonSocial} · Vendedor: {cotizacion.vendedor.nombre} · Válida hasta{" "}
           {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(cotizacion.validaHasta)}
         </p>
+        <p className="text-sm text-neutral-500 mt-1">
+          Probabilidad de cierre: {cotizacion.probabilidad}% · Valor ponderado:{" "}
+          {formatMoneda(cotizacion.total.toNumber() * (cotizacion.probabilidad / 100))}
+        </p>
 
         {cotizacion.pedido && (
           <p className="text-sm text-blue-700 dark:text-blue-400 mt-2">
@@ -134,6 +139,12 @@ export default async function DetalleCotizacionPage({
         </table>
 
         {cotizacion.notas && <p className="text-sm text-neutral-500 mt-4">Notas: {cotizacion.notas}</p>}
+
+        {puedeGestionar && (
+          <div className="mt-6">
+            <ProbabilidadFormulario cotizacionId={id} probabilidadActual={cotizacion.probabilidad} />
+          </div>
+        )}
 
         {(puedeGestionar || puedeConvertir) && (
           <div className="flex flex-wrap gap-3 mt-6 no-imprimir">

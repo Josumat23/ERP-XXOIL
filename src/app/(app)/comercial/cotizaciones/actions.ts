@@ -25,6 +25,8 @@ export async function crearCotizacion(
   const vendedorId = String(formData.get("vendedorId") ?? "");
   const validaHastaRaw = String(formData.get("validaHasta") ?? "");
   const notas = String(formData.get("notas") ?? "").trim() || null;
+  const probabilidadRaw = formData.get("probabilidad");
+  const probabilidad = probabilidadRaw !== null && probabilidadRaw !== "" ? Number(probabilidadRaw) : 50;
 
   let lineas: LineaCotizacion[];
   try {
@@ -36,6 +38,9 @@ export async function crearCotizacion(
   if (!clienteId) return { error: "Seleccione el cliente." };
   if (!vendedorId) return { error: "Seleccione el vendedor." };
   if (!validaHastaRaw) return { error: "Indique hasta cuándo es válida la cotización." };
+  if (!Number.isInteger(probabilidad) || probabilidad < 0 || probabilidad > 100) {
+    return { error: "La probabilidad debe ser un número entero entre 0 y 100." };
+  }
   lineas = lineas.filter(
     (l) =>
       l.presentacionId &&
@@ -59,6 +64,7 @@ export async function crearCotizacion(
         vendedorId,
         validaHasta: new Date(`${validaHastaRaw}T00:00:00`),
         total,
+        probabilidad,
         notas,
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
@@ -87,9 +93,46 @@ export async function marcarCotizacion(id: string, estado: "ACEPTADA" | "RECHAZA
   const cotizacion = await prisma.cotizacion.findUnique({ where: { id } });
   if (!cotizacion || cotizacion.estado !== "PENDIENTE") return;
 
-  await prisma.cotizacion.update({ where: { id }, data: { estado } });
+  // El cierre real (ganada/perdida) fija la probabilidad al valor obvio —
+  // ya no es una estimación, es el resultado.
+  await prisma.cotizacion.update({
+    where: { id },
+    data: { estado, probabilidad: estado === "ACEPTADA" ? 100 : 0 },
+  });
   revalidatePath("/comercial/cotizaciones");
   revalidatePath(`/comercial/cotizaciones/${id}`);
+  revalidatePath("/comercial/pipeline");
+}
+
+// Embudo de ventas simple: mientras la cotización sigue PENDIENTE, el
+// vendedor ajusta su estimado de probabilidad de cierre a criterio.
+export async function actualizarProbabilidad(
+  id: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
+
+  const probabilidad = Number(formData.get("probabilidad"));
+  if (!Number.isInteger(probabilidad) || probabilidad < 0 || probabilidad > 100) {
+    return { error: "La probabilidad debe ser un número entero entre 0 y 100." };
+  }
+
+  const cotizacion = await prisma.cotizacion.findUnique({ where: { id } });
+  if (!cotizacion) return { error: "La cotización no existe." };
+  if (cotizacion.estado !== "PENDIENTE") {
+    return { error: "Solo se puede ajustar la probabilidad de una cotización pendiente." };
+  }
+
+  await prisma.cotizacion.update({ where: { id }, data: { probabilidad } });
+  revalidatePath(`/comercial/cotizaciones/${id}`);
+  revalidatePath("/comercial/cotizaciones");
+  revalidatePath("/comercial/pipeline");
+  return {};
 }
 
 // Convierte una cotización aceptada en un Pedido real (mismas líneas y

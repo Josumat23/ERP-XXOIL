@@ -849,6 +849,10 @@ model Cotizacion {
   validaHasta   DateTime
   estado        EstadoCotizacion @default(PENDIENTE)
   total         Decimal
+  // Embudo de ventas simple (CRM-014 reducido): probabilidad de cierre
+  // estimada por el vendedor, 0-100. Se fija sola a 100/0 al aceptar/rechazar;
+  // mientras está PENDIENTE, el vendedor la ajusta a criterio.
+  probabilidad  Int              @default(50)
   notas         String?
   pedidoId      String?          @unique // si ya se convirtió
   usuarioId     String

@@ -59,6 +59,9 @@ export default async function CotizacionesPage({
           </p>
         </div>
         <div className="flex gap-2 no-imprimir">
+          <Link href="/comercial/pipeline" className="boton-secundario">
+            Embudo de ventas
+          </Link>
           <BotonImprimir />
         </div>
       </div>
@@ -95,6 +98,8 @@ export default async function CotizacionesPage({
             <th>Vendedor</th>
             <th>Válida hasta</th>
             <th className="text-right">Total</th>
+            <th className="text-right">Prob.</th>
+            <th className="text-right">Valor ponderado</th>
             <th>Estado</th>
           </tr>
         </thead>
@@ -112,6 +117,10 @@ export default async function CotizacionesPage({
                 {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(c.validaHasta)}
               </td>
               <td className="text-right">{formatMoneda(c.total)}</td>
+              <td className="text-right text-sm text-neutral-500">{c.probabilidad}%</td>
+              <td className="text-right text-sm text-neutral-500">
+                {formatMoneda(c.total.toNumber() * (c.probabilidad / 100))}
+              </td>
               <td>
                 <span className={`insignia ${COLOR_ESTADO[c.estado]}`}>{ETIQUETA_ESTADO[c.estado]}</span>
               </td>
@@ -119,7 +128,7 @@ export default async function CotizacionesPage({
           ))}
           {cotizaciones.length === 0 && (
             <tr>
-              <td colSpan={6} className="text-center text-neutral-500 py-6">
+              <td colSpan={8} className="text-center text-neutral-500 py-6">
                 No hay cotizaciones registradas todavía.
               </td>
             </tr>

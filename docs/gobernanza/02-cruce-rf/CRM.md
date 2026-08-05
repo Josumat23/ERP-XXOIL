@@ -1,5 +1,7 @@
 # Cruce RF genérico → XXOil: CRM (Customer Relationship Management)
 
+**Actualización (2026-08-05):** el gap deseable RF-CRM-014 (embudo de ventas con probabilidad/etapa) se construyó — ver `000-Governance/010-AI/comercial-embudo-ventas/`. Se extendió `Cotizacion` con `probabilidad`, sin crear un modelo `Oportunidad` separado, tal como recomendaba este documento. El resto del análisis abajo (recordatorios de actividad, contratos marco, marketing formal, servicio técnico) sigue vigente sin cambios.
+
 **Fuente:** `Requerimientos_Funcionales_SAP_CRM.md` (55 RF). **Resultado:** 5 Obligatorio (todos ya cubiertos o cubiertos por el gap de SD), 3 Deseable, 47 No aplica/vive en SD.
 
 Regla de filtrado del usuario: CRM vive dentro de Comercial (SD), no como módulo aparte. Verificado: XXOil ya tiene `Cliente`, `Vendedor`, `Zona`, `HojaRuta`+`HojaRutaVisita` (visitas de campo del vendedor con objetivo/resultado — esto es, literalmente, la funcionalidad de "ventas de campo" de CRM-SLS, RF-CRM-020, ya construida sin llamarse CRM). Lo que falta y sí tiene valor real es un **embudo de ventas simple** (`Cotizacion` ya existe como preventa, pero no tiene etapa/probabilidad) — bajo prioridad dado el volumen de 4 vendedores.

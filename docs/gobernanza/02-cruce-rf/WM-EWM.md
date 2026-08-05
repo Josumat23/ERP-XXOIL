@@ -1,5 +1,7 @@
 # Cruce RF genérico → XXOil: WM y EWM (Gestión de Almacenes)
 
+**Actualización (2026-08-05):** el gap #2 identificado abajo (traslado entre zonas del mismo almacén) se construyó — ver `000-Governance/010-AI/inventario-reubicacion-zonas/`. Hallazgo del análisis: `Presentacion`/`Insumo.zonaAlmacenId` es un puntero único de ubicación, no un saldo partido por zona, así que la implementación real es una reubicación de metadato, no un movimiento de kardex nuevo. El gap #1 (tipos de almacenamiento dentro de una zona) sigue sin construir, sin caso de uso identificado.
+
 **Fuentes:** `Requerimientos_Funcionales_SAP_WM.md` (49 RF) + `Requerimientos_Funcionales_SAP_EWM.md` (49 RF), consolidados en un solo documento porque ambos catálogos cubren el mismo proceso (EWM es el sucesor de WM) y el propio documento de WM recomienda evitar duplicar IDs. **Resultado combinado: 4 Obligatorio (ya cubiertos con MM-IM+`ZonaAlmacen`), 2 Deseable, 92 No aplica (M4).**
 
 Regla de filtrado del usuario, confirmada: XXOil tiene almacenes con separación simple (Chiclayo/principal + Trujillo/secundario), no almacenes caóticos de alta rotación. `ZonaAlmacen` (código tipo "A-01", "RACK-2") ya da la granularidad de ubicación que WM básico (Lean WM) pide — sin necesitar órdenes de transporte internas, estrategias de picking FIFO/LIFO automatizadas, ni nada de EWM avanzado (slotting, oleadas, cross-docking, robótica, yard management), que es sobre-ingeniería total confirmada.

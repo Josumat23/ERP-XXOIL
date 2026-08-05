@@ -35,6 +35,7 @@ export default function CotizacionFormulario({
   );
   const [vendedorId, setVendedorId] = useState("");
   const [descuentoPct, setDescuentoPct] = useState(0);
+  const [probabilidad, setProbabilidad] = useState(50);
   const [lineas, setLineas] = useState<Linea[]>([
     { presentacionId: "", cantidad: "", precioUnitario: "" },
   ]);
@@ -117,6 +118,24 @@ export default function CotizacionFormulario({
           <input name="validaHasta" type="date" required defaultValue={fechaEn30Dias()} className="campo-input" />
         </label>
       </div>
+
+      <label className="flex flex-col gap-1 text-sm max-w-xs">
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">
+          Probabilidad de cierre: {probabilidad}%
+        </span>
+        <input
+          name="probabilidad"
+          type="range"
+          min="0"
+          max="100"
+          step="5"
+          value={probabilidad}
+          onChange={(e) => setProbabilidad(Number(e.target.value))}
+        />
+        <span className="text-xs text-neutral-500">
+          Estimado del vendedor para el embudo de ventas — se ajusta después mientras siga pendiente.
+        </span>
+      </label>
 
       {descuentoPct > 0 && (
         <p className="text-xs text-amber-700 dark:text-amber-400">

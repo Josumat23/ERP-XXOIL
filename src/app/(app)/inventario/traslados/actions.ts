@@ -85,3 +85,67 @@ export async function crearTraslado(
   revalidatePath("/inventario/kardex");
   return { ok: true };
 }
+
+// Reubicación entre zonas de un mismo almacén (WM-EWM reducido): a
+// diferencia del traslado de arriba (que mueve cantidad de stock entre
+// SaldoAlmacen de dos almacenes distintos), Presentacion/Insumo solo guardan
+// UNA ubicación estructurada (zonaAlmacenId) — no hay cantidad partida entre
+// zonas. Reubicar es entonces actualizar ese puntero, no un movimiento de
+// kardex. Se valida que la zona destino pertenezca al mismo almacén que la
+// zona actual, para no confundir esto con un traslado real entre almacenes
+// (que sigue siendo el flujo de arriba).
+export async function reubicarZona(
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
+
+  const itemCompuesto = String(formData.get("item") ?? "");
+  const zonaDestinoId = String(formData.get("zonaDestinoId") ?? "");
+  const [tipoItem, itemId] = itemCompuesto.split(":");
+
+  if ((tipoItem !== "PRESENTACION" && tipoItem !== "INSUMO") || !itemId) {
+    return { error: "Seleccione el ítem a reubicar." };
+  }
+  if (!zonaDestinoId) return { error: "Seleccione la zona destino." };
+
+  const zonaDestino = await prisma.zonaAlmacen.findUnique({ where: { id: zonaDestinoId } });
+  if (!zonaDestino) return { error: "La zona destino no existe." };
+
+  if (tipoItem === "PRESENTACION") {
+    const item = await prisma.presentacion.findUnique({ where: { id: itemId } });
+    if (!item) return { error: "La presentación no existe." };
+    if (item.zonaAlmacenId === zonaDestinoId) return { error: "Ya está en esa zona." };
+    if (item.zonaAlmacenId) {
+      const zonaActual = await prisma.zonaAlmacen.findUnique({ where: { id: item.zonaAlmacenId } });
+      if (zonaActual && zonaActual.almacenId !== zonaDestino.almacenId) {
+        return {
+          error:
+            "La zona destino pertenece a otro almacén — para eso use el traslado entre almacenes de arriba, no la reubicación de zona.",
+        };
+      }
+    }
+    await prisma.presentacion.update({ where: { id: itemId }, data: { zonaAlmacenId: zonaDestinoId } });
+  } else {
+    const item = await prisma.insumo.findUnique({ where: { id: itemId } });
+    if (!item) return { error: "El insumo no existe." };
+    if (item.zonaAlmacenId === zonaDestinoId) return { error: "Ya está en esa zona." };
+    if (item.zonaAlmacenId) {
+      const zonaActual = await prisma.zonaAlmacen.findUnique({ where: { id: item.zonaAlmacenId } });
+      if (zonaActual && zonaActual.almacenId !== zonaDestino.almacenId) {
+        return {
+          error:
+            "La zona destino pertenece a otro almacén — para eso use el traslado entre almacenes de arriba, no la reubicación de zona.",
+        };
+      }
+    }
+    await prisma.insumo.update({ where: { id: itemId }, data: { zonaAlmacenId: zonaDestinoId } });
+  }
+
+  revalidatePath("/inventario/traslados");
+  return { ok: true };
+}

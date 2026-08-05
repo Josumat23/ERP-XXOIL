@@ -22,6 +22,7 @@ export const MODULOS: Modulo[] = [
     icono: "◆",
     enlaces: [
       { href: "/comercial/cotizaciones", etiqueta: "Cotizaciones" },
+      { href: "/comercial/pipeline", etiqueta: "Embudo de ventas" },
       { href: "/comercial/pedidos", etiqueta: "Pedidos" },
       { href: "/comercial/facturas", etiqueta: "Facturas" },
       { href: "/comercial/hojas-ruta", etiqueta: "Hojas de ruta" },
