@@ -120,6 +120,13 @@ export const MODULOS: Modulo[] = [
     ],
   },
   {
+    titulo: "Proyectos",
+    icono: "▲",
+    enlaces: [
+      { href: "/proyectos", etiqueta: "Proyectos de inversión", roles: ["ADMIN", "GERENCIA"] },
+    ],
+  },
+  {
     titulo: "Recursos Humanos",
     icono: "◈",
     enlaces: [

@@ -49,6 +49,7 @@ export async function crearActivoFijo(
   const valorResidual = Number(formData.get("valorResidual") ?? 0);
   const vidaUtilAnios = Number(formData.get("vidaUtilAnios"));
   const notas = String(formData.get("notas") ?? "").trim() || null;
+  const proyectoId = String(formData.get("proyectoId") ?? "") || null;
 
   if (!nombre) return { error: "El nombre es obligatorio." };
   if (!CATEGORIAS_VALIDAS.includes(categoria)) return { error: "Seleccione una categoría válida." };
@@ -83,6 +84,7 @@ export async function crearActivoFijo(
         valorResidual,
         vidaUtilAnios,
         notas,
+        proyectoId,
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
       },
@@ -90,6 +92,7 @@ export async function crearActivoFijo(
   });
 
   revalidatePath("/finanzas/activos-fijos");
+  if (proyectoId) revalidatePath(`/proyectos/${proyectoId}`);
   redirect("/finanzas/activos-fijos");
 }
 

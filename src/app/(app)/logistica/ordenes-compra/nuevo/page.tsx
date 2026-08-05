@@ -5,12 +5,17 @@ import OrdenCompraFormulario from "../OrdenCompraFormulario";
 import { obtenerTipoCambioVigente } from "@/lib/tipoCambio";
 
 export default async function NuevaOrdenCompraPage() {
-  const [proveedores, insumos, almacenes, ordenes, tipoCambioSugerido] = await Promise.all([
+  const [proveedores, insumos, almacenes, ordenes, tipoCambioSugerido, proyectos, edts] = await Promise.all([
     prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.ordenCompra.findMany({ include: { proveedor: true }, orderBy: { fecha: "desc" } }),
     obtenerTipoCambioVigente(),
+    prisma.proyecto.findMany({
+      where: { estado: { in: ["PLANIFICADO", "EN_PROGRESO"] } },
+      orderBy: { codigo: "asc" },
+    }),
+    prisma.edtProyecto.findMany({ orderBy: { codigo: "asc" } }),
   ]);
 
   return (
@@ -43,6 +48,8 @@ export default async function NuevaOrdenCompraPage() {
           }))}
           almacenes={almacenes.map((a) => ({ id: a.id, etiqueta: a.nombre }))}
           tipoCambioSugerido={tipoCambioSugerido}
+          proyectos={proyectos.map((p) => ({ id: p.id, etiqueta: `${p.codigo} — ${p.nombre}` }))}
+          edts={edts.map((e) => ({ id: e.id, proyectoId: e.proyectoId, etiqueta: `${e.codigo} — ${e.nombre}` }))}
         />
       </div>
       </PanelMaestroDetalle>

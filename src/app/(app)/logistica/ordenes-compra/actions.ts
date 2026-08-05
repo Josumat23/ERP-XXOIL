@@ -34,6 +34,8 @@ export async function crearOrdenCompraDesdeDatos(
     moneda: string;
     tipoCambio: number;
     lineas: LineaOC[];
+    proyectoId?: string | null;
+    edtId?: string | null;
   },
   actor: { usuarioId: string; usuarioNombre: string }
 ): Promise<string> {
@@ -53,6 +55,8 @@ export async function crearOrdenCompraDesdeDatos(
         tipoCambio: datos.tipoCambio,
         total,
         notas: datos.notas,
+        proyectoId: datos.proyectoId ?? null,
+        edtId: datos.edtId ?? null,
         estadoAprobacion: totalPen >= montoAprobacionCompras.toNumber() ? "PENDIENTE" : "NO_REQUERIDA",
         usuarioId: actor.usuarioId,
         usuarioNombre: actor.usuarioNombre,
@@ -88,6 +92,8 @@ export async function crearOrdenCompra(
   const notas = String(formData.get("notas") ?? "").trim() || null;
   const moneda = String(formData.get("moneda") ?? "PEN") === "USD" ? "USD" : "PEN";
   const tipoCambio = moneda === "USD" ? Number(formData.get("tipoCambio")) : 1;
+  const proyectoId = String(formData.get("proyectoId") ?? "") || null;
+  const edtId = String(formData.get("edtId") ?? "") || null;
 
   if (moneda === "USD" && (!Number.isFinite(tipoCambio) || tipoCambio <= 0)) {
     return { error: "Ingrese un tipo de cambio válido para la orden en dólares." };
@@ -114,7 +120,7 @@ export async function crearOrdenCompra(
   }
 
   const ocId = await crearOrdenCompraDesdeDatos(
-    { proveedorId, almacenId, notas, moneda, tipoCambio, lineas },
+    { proveedorId, almacenId, notas, moneda, tipoCambio, lineas, proyectoId, edtId },
     { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
   );
 

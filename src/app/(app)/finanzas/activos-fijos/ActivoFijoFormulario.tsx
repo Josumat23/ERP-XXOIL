@@ -14,11 +14,14 @@ const OPCIONES_CATEGORIA = [
   { valor: "OTRO", etiqueta: "Otro" },
 ];
 
+type ProyectoOrigen = { id: string; etiqueta: string; nombreSugerido: string; costoSugerido: number };
+
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   almacenes: Almacen[];
   centrosCosto: CentroCosto[];
   textoBoton: string;
+  proyectoOrigen?: ProyectoOrigen | null;
 };
 
 export default function ActivoFijoFormulario({
@@ -26,6 +29,7 @@ export default function ActivoFijoFormulario({
   almacenes,
   centrosCosto,
   textoBoton,
+  proyectoOrigen,
 }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
 
@@ -37,10 +41,19 @@ export default function ActivoFijoFormulario({
         </p>
       )}
 
+      {proyectoOrigen && (
+        <div className="text-sm bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900 rounded-md px-3 py-2 text-blue-800 dark:text-blue-300">
+          Capitalizando el proyecto <strong>{proyectoOrigen.etiqueta}</strong>. Revise categoría y
+          vida útil antes de guardar.
+          <input type="hidden" name="proyectoId" value={proyectoOrigen.id} />
+        </div>
+      )}
+
       <Campo etiqueta="Nombre del activo">
         <input
           name="nombre"
           required
+          defaultValue={proyectoOrigen?.nombreSugerido}
           placeholder="Mezcladora de grasas MG-500"
           className="campo-input"
         />
@@ -97,6 +110,7 @@ export default function ActivoFijoFormulario({
             step="0.01"
             min="0.01"
             required
+            defaultValue={proyectoOrigen?.costoSugerido || undefined}
             className="campo-input"
           />
         </Campo>

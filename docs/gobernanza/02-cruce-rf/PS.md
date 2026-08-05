@@ -1,5 +1,7 @@
 # Cruce RF genérico → XXOil: PS (Project System)
 
+**Actualización (2026-08-05):** la única excepción documentada abajo se activó — XXOil confirmó una ampliación de planta próxima y otros proyectos de capital, con integración a Centros de costo, Activos fijos y Órdenes de compra. Se construyó, no la salida mínima ("hoja de cálculo de apoyo") que este documento sugería como piso, sino la gestión completa que el usuario pidió explícitamente: WBS multinivel, red de actividades con ruta crítica (CPM) y capitalización — ver `000-Governance/010-AI/proyectos/`. Sigue siendo deliberadamente más chico que el PS de SAP: solo precedencia Fin-a-Inicio, sin nivelación de capacidad, sin calendario de días hábiles, sin workflow de aprobación por fase (ver `RN.md` de esa carpeta). El resto del análisis abajo (por qué el PS completo de SAP no aplica) sigue vigente.
+
 **Fuente:** `Requerimientos_Funcionales_SAP_PS.md` (53 RF). **Resultado:** 0 Obligatorio, 0 Deseable, 53 No aplica (M8).
 
 XXOil fabrica y vende un catálogo de productos estándar de forma continua (grasas, aceites, silicona) — no ejecuta proyectos de cliente con estructura de desglose de trabajo (WBS), redes de actividades con relaciones de precedencia, ruta crítica ni liquidación multi-elemento. PS es el módulo "central de integración" de SAP para negocios de ingeniería, construcción o consultoría por proyecto — ninguno de esos es el modelo de negocio de XXOil.

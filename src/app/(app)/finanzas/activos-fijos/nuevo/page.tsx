@@ -3,13 +3,30 @@ import { prisma } from "@/lib/prisma";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ActivoFijoFormulario from "../ActivoFijoFormulario";
 import { crearActivoFijo } from "../actions";
+import { costoRealProyecto } from "@/lib/proyectos";
 
-export default async function NuevoActivoFijoPage() {
-  const [almacenes, centrosCosto, activos] = await Promise.all([
+export default async function NuevoActivoFijoPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ proyectoId?: string }>;
+}) {
+  const { proyectoId } = await searchParams;
+
+  const [almacenes, centrosCosto, activos, proyecto] = await Promise.all([
     prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.activoFijo.findMany({ orderBy: { creadoEn: "desc" } }),
+    proyectoId ? prisma.proyecto.findUnique({ where: { id: proyectoId } }) : null,
   ]);
+
+  const proyectoOrigen = proyecto
+    ? {
+        id: proyecto.id,
+        etiqueta: `${proyecto.codigo} — ${proyecto.nombre}`,
+        nombreSugerido: proyecto.nombre,
+        costoSugerido: await costoRealProyecto(prisma, proyecto.id),
+      }
+    : null;
 
   return (
     <div>
@@ -40,6 +57,7 @@ export default async function NuevoActivoFijoPage() {
           almacenes={almacenes}
           centrosCosto={centrosCosto}
           textoBoton="Crear activo"
+          proyectoOrigen={proyectoOrigen}
         />
       </div>
       </PanelMaestroDetalle>

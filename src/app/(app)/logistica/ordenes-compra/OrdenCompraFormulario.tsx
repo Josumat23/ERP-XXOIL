@@ -6,6 +6,7 @@ import { crearOrdenCompra, type EstadoFormulario } from "./actions";
 
 type Opcion = { id: string; etiqueta: string };
 type InsumoOpcion = { id: string; etiqueta: string; costo: number; unidad: string };
+type EdtOpcion = { id: string; proyectoId: string; etiqueta: string };
 
 type Linea = { insumoId: string; cantidad: string; costoUnitario: string; fechaEntregaEsperada: string };
 
@@ -14,6 +15,8 @@ type Props = {
   insumos: InsumoOpcion[];
   almacenes: Opcion[];
   tipoCambioSugerido: number | null;
+  proyectos?: Opcion[];
+  edts?: EdtOpcion[];
 };
 
 export default function OrdenCompraFormulario({
@@ -21,6 +24,8 @@ export default function OrdenCompraFormulario({
   insumos,
   almacenes,
   tipoCambioSugerido,
+  proyectos = [],
+  edts = [],
 }: Props) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     crearOrdenCompra,
@@ -33,6 +38,8 @@ export default function OrdenCompraFormulario({
   const [tipoCambio, setTipoCambio] = useState(
     tipoCambioSugerido ? String(tipoCambioSugerido) : ""
   );
+  const [proyectoId, setProyectoId] = useState("");
+  const edtsDelProyecto = edts.filter((e) => e.proyectoId === proyectoId);
 
   const lineasJson = JSON.stringify(
     lineas.map((l) => ({
@@ -101,6 +108,44 @@ export default function OrdenCompraFormulario({
           </select>
         </label>
       </div>
+
+      {proyectos.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              Proyecto (opcional)
+            </span>
+            <select
+              name="proyectoId"
+              value={proyectoId}
+              onChange={(e) => setProyectoId(e.target.value)}
+              className="campo-input"
+            >
+              <option value="">Sin proyecto</option>
+              {proyectos.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.etiqueta}
+                </option>
+              ))}
+            </select>
+          </label>
+          {proyectoId && (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                Fase (opcional)
+              </span>
+              <select name="edtId" defaultValue="" className="campo-input">
+                <option value="">Sin fase específica</option>
+                {edtsDelProyecto.map((e) => (
+                  <option key={e.id} value={e.id}>
+                    {e.etiqueta}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+      )}
 
       {moneda === "USD" && (
         <label className="flex flex-col gap-1 text-sm max-w-xs">

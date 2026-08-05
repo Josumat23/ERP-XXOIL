@@ -22,24 +22,24 @@ datasource db {
 // ---------------------------------------------------------------------------
 
 model ConfiguracionEmpresa {
-  id              String   @id @default("1")
-  razonSocial     String   @default("Mi Empresa S.A.C.")
-  nombreComercial String?
-  ruc             String?
-  direccion       String?
-  direccion2      String?
-  ciudad          String?
-  distrito        String?
-  provincia       String?
-  departamento    String?
-  codigoPostal    String?
-  pais            String   @default("Perú")
-  telefono        String?
-  fax             String?
-  email           String?
-  sitioWeb        String?
-  moneda          String   @default("PEN")
-  tasaIgv         Decimal  @default(18) // % aplicado al facturar
+  id                              String    @id @default("1")
+  razonSocial                     String    @default("Mi Empresa S.A.C.")
+  nombreComercial                 String?
+  ruc                             String?
+  direccion                       String?
+  direccion2                      String?
+  ciudad                          String?
+  distrito                        String?
+  provincia                       String?
+  departamento                    String?
+  codigoPostal                    String?
+  pais                            String    @default("Perú")
+  telefono                        String?
+  fax                             String?
+  email                           String?
+  sitioWeb                        String?
+  moneda                          String    @default("PEN")
+  tasaIgv                         Decimal   @default(18) // % aplicado al facturar
   // Fabricar/comercializar lubricantes en Perú exige inscripción en el
   // Registro de Hidrocarburos de OSINERGMIN (categoría OPDH — Otros
   // Productos Derivados de Hidrocarburos). Referencia informativa; no
@@ -48,26 +48,26 @@ model ConfiguracionEmpresa {
   registroHidrocarburosVigencia   DateTime?
   // % mensual sobre el saldo vencido. 0 = no se cobra recargo por mora
   // (default: no cambia el comportamiento hasta que el usuario lo configure).
-  tasaRecargoMora Decimal @default(0)
-  tarifaHoraManoObra Decimal @default(0) // S/ por hora, usado al costear lotes y envasados
+  tasaRecargoMora                 Decimal   @default(0)
+  tarifaHoraManoObra              Decimal   @default(0) // S/ por hora, usado al costear lotes y envasados
   // Aprobación por monto (0 = todo requiere aprobación siempre; un número muy
   // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
-  montoAprobacionCompras Decimal @default(5000)
-  montoAprobacionPagos   Decimal @default(5000)
+  montoAprobacionCompras          Decimal   @default(5000)
+  montoAprobacionPagos            Decimal   @default(5000)
   // Tasas para la cascada de financiamiento en Proyecciones → Finanzas
   // (mismo orden que un modelo de tesorería típico: lo más barato/disponible primero).
-  tasaDescuentoCxC        Decimal @default(9) // % (misma convención que tasaIgv: número entero, no fracción)
-  tasaCreditoCortoPlazo   Decimal @default(9)
-  limiteCreditoCortoPlazo Decimal @default(100000)
-  tasaCreditoLargoPlazo   Decimal @default(10)
+  tasaDescuentoCxC                Decimal   @default(9) // % (misma convención que tasaIgv: número entero, no fracción)
+  tasaCreditoCortoPlazo           Decimal   @default(9)
+  limiteCreditoCortoPlazo         Decimal   @default(100000)
+  tasaCreditoLargoPlazo           Decimal   @default(10)
   // Facturación electrónica SUNAT vía OSE (Operador de Servicios Electrónicos).
   // "SIMULADO" = no envía nada real, solo prueba el flujo interno (estado por
   // defecto: nadie debe recibir CDR falsos por accidente antes de contratar
   // un OSE de verdad). oseToken se guarda en texto plano a propósito: es un
   // token de servicio para llamadas salientes, no una contraseña de usuario.
-  oseProveedor String  @default("SIMULADO")
-  oseToken     String?
-  actualizadoEn   DateTime @updatedAt
+  oseProveedor                    String    @default("SIMULADO")
+  oseToken                        String?
+  actualizadoEn                   DateTime  @updatedAt
 
   @@map("configuracion_empresa")
 }
@@ -96,15 +96,15 @@ enum EstadoAprobacion {
 }
 
 model Usuario {
-  id                String     @id @default(cuid())
-  empresaId         String     @default("1")
-  nombre            String
-  usuario           String // nombre de acceso
-  passwordHash      String
-  rol               RolUsuario
-  grupoSeguridadId  String?
-  activo            Boolean    @default(true)
-  creadoEn          DateTime   @default(now())
+  id               String     @id @default(cuid())
+  empresaId        String     @default("1")
+  nombre           String
+  usuario          String // nombre de acceso
+  passwordHash     String
+  rol              RolUsuario
+  grupoSeguridadId String?
+  activo           Boolean    @default(true)
+  creadoEn         DateTime   @default(now())
 
   grupoSeguridad GrupoSeguridad? @relation(fields: [grupoSeguridadId], references: [id])
   sesiones       Sesion[]
@@ -157,13 +157,13 @@ enum SegmentoMercado {
 }
 
 model Producto {
-  id               String   @id @default(cuid())
-  empresaId        String   @default("1")
+  id               String           @id @default(cuid())
+  empresaId        String           @default("1")
   categoriaId      String
   codigo           String
   nombre           String
   descripcion      String?
-  unidadMedidaBase String   @default("kg") // UM en que se produce y controla el granel
+  unidadMedidaBase String           @default("kg") // UM en que se produce y controla el granel
   segmentoMercado  SegmentoMercado?
   marca            String?
   gradoNlgi        String? // grasas: NLGI 000..6
@@ -172,12 +172,12 @@ model Producto {
   // Enlaces a los documentos que un cliente industrial/distribuidor pide antes
   // de comprar (alojados fuera del sistema: Drive, S3, etc. — no hay
   // almacenamiento de archivos en esta app). null = no cargado todavía.
-  fichaTecnicaUrl    String?
-  hojaSeguridadUrl   String?
+  fichaTecnicaUrl  String?
+  hojaSeguridadUrl String?
   notasTecnicas    String?
-  activo           Boolean  @default(true)
-  creadoEn         DateTime @default(now())
-  actualizadoEn    DateTime @updatedAt
+  activo           Boolean          @default(true)
+  creadoEn         DateTime         @default(now())
+  actualizadoEn    DateTime         @updatedAt
 
   categoria      Categoria      @relation(fields: [categoriaId], references: [id])
   presentaciones Presentacion[]
@@ -188,11 +188,11 @@ model Producto {
 }
 
 model Presentacion {
-  id            String   @id @default(cuid())
-  empresaId     String   @default("1")
-  productoId    String
-  sku           String
-  nombre        String
+  id              String   @id @default(cuid())
+  empresaId       String   @default("1")
+  productoId      String
+  sku             String
+  nombre          String
   contenidoKg     Decimal
   // Informativo para aceites/líquidos que se cotizan por volumen (litro,
   // galón) en vez de por peso — el costeo de producción sigue en kg
@@ -212,19 +212,19 @@ model Presentacion {
   unidadesPorCaja Int?
   zonaAlmacenId   String? // ubicación estructurada (Almacen > ZonaAlmacen)
   activo          Boolean  @default(true)
-  creadoEn      DateTime @default(now())
-  actualizadoEn DateTime @updatedAt
+  creadoEn        DateTime @default(now())
+  actualizadoEn   DateTime @updatedAt
 
-  producto       Producto           @relation(fields: [productoId], references: [id])
-  zonaAlmacen    ZonaAlmacen?       @relation(fields: [zonaAlmacenId], references: [id])
-  movimientos    MovimientoKardex[]
-  saldosAlmacen  SaldoAlmacen[]
-  envasados      Envasado[]
-  pedidoDetalles PedidoDetalle[]
-  guiaDetalles   GuiaRemisionDetalle[]
+  producto           Producto                  @relation(fields: [productoId], references: [id])
+  zonaAlmacen        ZonaAlmacen?              @relation(fields: [zonaAlmacenId], references: [id])
+  movimientos        MovimientoKardex[]
+  saldosAlmacen      SaldoAlmacen[]
+  envasados          Envasado[]
+  pedidoDetalles     PedidoDetalle[]
+  guiaDetalles       GuiaRemisionDetalle[]
   proyeccionDetalles ProyeccionDetalle[]
-  escalonesPrecio EscalonPrecio[]
-  conteoDetalles ConteoInventarioDetalle[]
+  escalonesPrecio    EscalonPrecio[]
+  conteoDetalles     ConteoInventarioDetalle[]
   cotizacionDetalles CotizacionDetalle[]
 
   @@unique([empresaId, sku])
@@ -271,8 +271,8 @@ model Proveedor {
   activo              Boolean             @default(true)
   creadoEn            DateTime            @default(now())
 
-  insumos        Insumo[]
-  ordenesCompra  OrdenCompra[]
+  insumos         Insumo[]
+  ordenesCompra   OrdenCompra[]
   cuentasPorPagar CuentaPorPagar[]
 
   @@unique([empresaId, ruc])
@@ -286,46 +286,46 @@ enum TipoInsumo {
 }
 
 model Insumo {
-  id            String     @id @default(cuid())
-  empresaId     String     @default("1")
-  proveedorId   String?
-  codigo        String
-  nombre        String
-  tipo            TipoInsumo
-  unidadMedida    String
+  id                 String     @id @default(cuid())
+  empresaId          String     @default("1")
+  proveedorId        String?
+  codigo             String
+  nombre             String
+  tipo               TipoInsumo
+  unidadMedida       String
   // Envases retornables (ej. tambor metálico de 55 gal): el cliente paga un
   // depósito y lo recupera al devolver el casco vacío. Solo aplica cuando
   // tipo = ENVASE. El control de cascos pendientes por cliente es manual por
   // ahora (no hay todavía un módulo de seguimiento automático).
-  esRetornable    Boolean    @default(false)
-  montoDeposito   Decimal?
-  stock           Decimal    @default(0)
-  stockMinimo     Decimal    @default(0)
-  costoUnitario   Decimal    @default(0)
-  moneda          String     @default("PEN")
-  codigoProveedor String? // código del artículo en el catálogo del proveedor
-  zonaAlmacenId   String? // ubicación estructurada (Almacen > ZonaAlmacen)
-  notas           String?
-  requiereInspeccion Boolean @default(false) // si true, cada recepción queda pendiente de calidad antes de sumar stock
+  esRetornable       Boolean    @default(false)
+  montoDeposito      Decimal?
+  stock              Decimal    @default(0)
+  stockMinimo        Decimal    @default(0)
+  costoUnitario      Decimal    @default(0)
+  moneda             String     @default("PEN")
+  codigoProveedor    String? // código del artículo en el catálogo del proveedor
+  zonaAlmacenId      String? // ubicación estructurada (Almacen > ZonaAlmacen)
+  notas              String?
+  requiereInspeccion Boolean    @default(false) // si true, cada recepción queda pendiente de calidad antes de sumar stock
   // Catálogo formal de sustancia peligrosa (EHS): a diferencia de Producto
   // (hojaSeguridadUrl), la SDS/MSDS del insumo se adjunta vía el DMS genérico
   // (modelo Adjunto, entidadTipo="Insumo") en vez de un campo URL suelto.
-  esPeligroso     Boolean    @default(false)
-  claseGhs        String? // clasificación de peligro GHS, ej. "H315, H319 - Irritante cutáneo/ocular"
-  activo          Boolean    @default(true)
-  creadoEn      DateTime   @default(now())
-  actualizadoEn DateTime   @updatedAt
+  esPeligroso        Boolean    @default(false)
+  claseGhs           String? // clasificación de peligro GHS, ej. "H315, H319 - Irritante cutáneo/ocular"
+  activo             Boolean    @default(true)
+  creadoEn           DateTime   @default(now())
+  actualizadoEn      DateTime   @updatedAt
 
-  proveedor       Proveedor?         @relation(fields: [proveedorId], references: [id])
-  zonaAlmacen     ZonaAlmacen?       @relation(fields: [zonaAlmacenId], references: [id])
-  movimientos     MovimientoKardex[]
-  saldosAlmacen   SaldoAlmacen[]
-  formulaDetalles FormulaDetalle[]
-  envasadoInsumos EnvasadoInsumo[]
-  ordenCompraDetalles OrdenCompraDetalle[]
-  recepcionDetalles   RecepcionCompraDetalle[]
-  conteoDetalles      ConteoInventarioDetalle[]
-  movimientosCasco    MovimientoCasco[]
+  proveedor              Proveedor?                   @relation(fields: [proveedorId], references: [id])
+  zonaAlmacen            ZonaAlmacen?                 @relation(fields: [zonaAlmacenId], references: [id])
+  movimientos            MovimientoKardex[]
+  saldosAlmacen          SaldoAlmacen[]
+  formulaDetalles        FormulaDetalle[]
+  envasadoInsumos        EnvasadoInsumo[]
+  ordenCompraDetalles    OrdenCompraDetalle[]
+  recepcionDetalles      RecepcionCompraDetalle[]
+  conteoDetalles         ConteoInventarioDetalle[]
+  movimientosCasco       MovimientoCasco[]
   repuestosMantenimiento RepuestoOrdenMantenimiento[]
 
   @@unique([empresaId, codigo])
@@ -475,8 +475,8 @@ model ConteoInventarioDetalle {
 // ---------------------------------------------------------------------------
 
 model Formula {
-  id            String   @id @default(cuid())
-  empresaId     String   @default("1")
+  id            String    @id @default(cuid())
+  empresaId     String    @default("1")
   productoId    String
   version       Int
   rendimientoKg Decimal // kg de granel que produce un batch con las cantidades del detalle
@@ -540,11 +540,11 @@ model LoteGranel {
   usuarioId     String
   usuarioNombre String
 
-  formula        Formula         @relation(fields: [formulaId], references: [id])
-  loteOrigen     LoteGranel?     @relation("Reproceso", fields: [loteOrigenId], references: [id])
-  reprocesos     LoteGranel[]    @relation("Reproceso")
-  controlCalidad ControlCalidad?
-  envasados      Envasado[]
+  formula                Formula                @relation(fields: [formulaId], references: [id])
+  loteOrigen             LoteGranel?            @relation("Reproceso", fields: [loteOrigenId], references: [id])
+  reprocesos             LoteGranel[]           @relation("Reproceso")
+  controlCalidad         ControlCalidad?
+  envasados              Envasado[]
   asignacionesLoteInsumo AsignacionLoteInsumo[]
 
   @@map("lotes_granel")
@@ -556,10 +556,10 @@ enum ResultadoCalidad {
 }
 
 model ControlCalidad {
-  id            String           @id @default(cuid())
-  loteGranelId  String           @unique
-  resultado     ResultadoCalidad
-  observaciones String?
+  id               String           @id @default(cuid())
+  loteGranelId     String           @unique
+  resultado        ResultadoCalidad
+  observaciones    String?
   // No conformidad (solo cuando resultado = RECHAZADO): por qué falló y qué
   // se hizo al respecto (reproceso, descarte, ajuste de fórmula, etc.).
   // causaId es el catálogo estructurado (permite reportes agregados "top 5
@@ -567,9 +567,9 @@ model ControlCalidad {
   causaId          String?
   causaRaiz        String?
   accionCorrectiva String?
-  fecha         DateTime         @default(now())
-  usuarioId     String
-  usuarioNombre String
+  fecha            DateTime         @default(now())
+  usuarioId        String
+  usuarioNombre    String
 
   loteGranel LoteGranel    @relation(fields: [loteGranelId], references: [id])
   causa      CausaCalidad? @relation(fields: [causaId], references: [id])
@@ -634,34 +634,34 @@ model ReclamoCliente {
 // ---------------------------------------------------------------------------
 
 model Envasado {
-  id             String   @id @default(cuid())
-  empresaId      String   @default("1")
-  codigo         String   @unique // ENV-00001
-  loteGranelId   String
-  presentacionId String
-  unidades       Int
+  id                  String    @id @default(cuid())
+  empresaId           String    @default("1")
+  codigo              String    @unique // ENV-00001
+  loteGranelId        String
+  presentacionId      String
+  unidades            Int
   // Unidades de este lote de envasado que todavía no se asignaron a ninguna
   // venta (arranca en `unidades`, baja al facturar y sube si se anula/
   // devuelve). Permite trazar, ante un recall, qué facturas/clientes
   // recibieron un lote específico (ver AsignacionLoteVenta).
-  unidadesDisponibles Int @default(0)
-  kgConsumidos   Decimal // unidades * contenidoKg de la presentación
-  horasManoObra  Decimal  @default(0) // horas-hombre invertidas en el envasado
-  costoManoObra  Decimal  @default(0) // horasManoObra * tarifa vigente al envasar
-  costoTotal     Decimal  @default(0) // granel consumido + envases/etiquetas + mano de obra
-  costoUnitario  Decimal  @default(0) // costoTotal / unidades
-  fecha          DateTime @default(now())
+  unidadesDisponibles Int       @default(0)
+  kgConsumidos        Decimal // unidades * contenidoKg de la presentación
+  horasManoObra       Decimal   @default(0) // horas-hombre invertidas en el envasado
+  costoManoObra       Decimal   @default(0) // horasManoObra * tarifa vigente al envasar
+  costoTotal          Decimal   @default(0) // granel consumido + envases/etiquetas + mano de obra
+  costoUnitario       Decimal   @default(0) // costoTotal / unidades
+  fecha               DateTime  @default(now())
   // El código del envasado (ENV-00001) YA funciona como número de lote. Esta
   // fecha se calcula sola desde Producto.vidaUtilMeses al envasar (editable);
   // null si el producto no tiene vida útil configurada.
-  fechaVencimiento DateTime?
-  usuarioId      String
-  usuarioNombre  String
+  fechaVencimiento    DateTime?
+  usuarioId           String
+  usuarioNombre       String
 
-  loteGranel        LoteGranel            @relation(fields: [loteGranelId], references: [id])
-  presentacion      Presentacion          @relation(fields: [presentacionId], references: [id])
-  insumos           EnvasadoInsumo[]
-  asignacionesLote  AsignacionLoteVenta[]
+  loteGranel       LoteGranel            @relation(fields: [loteGranelId], references: [id])
+  presentacion     Presentacion          @relation(fields: [presentacionId], references: [id])
+  insumos          EnvasadoInsumo[]
+  asignacionesLote AsignacionLoteVenta[]
 
   @@map("envasados")
 }
@@ -739,12 +739,12 @@ model Vendedor {
   activo       Boolean      @default(true)
   creadoEn     DateTime     @default(now())
 
-  zona              Zona?      @relation(fields: [zonaId], references: [id])
+  zona              Zona?        @relation(fields: [zonaId], references: [id])
   pedidos           Pedido[]
   facturas          Factura[]
   comisiones        Comision[]
   hojasRuta         HojaRuta[]
-  clientesAsignados Cliente[]  @relation("ClienteVendedor")
+  clientesAsignados Cliente[]    @relation("ClienteVendedor")
   cotizaciones      Cotizacion[]
 
   @@map("vendedores")
@@ -774,15 +774,15 @@ model DescuentoCanal {
 }
 
 model Cliente {
-  id                   String        @id @default(cuid())
-  empresaId            String        @default("1")
+  id                   String              @id @default(cuid())
+  empresaId            String              @default("1")
   codigo               String // CLI-00001, asignado automáticamente al crear (nunca se reutiliza)
   razonSocial          String
   nombreComercial      String?
   ruc                  String?
   tipoDocumentoFiscal  TipoDocumentoFiscal @default(RUC)
   canal                CanalCliente?
-  pais                 String        @default("Peru")
+  pais                 String              @default("Peru")
   departamento         String?
   provincia            String?
   distrito             String?
@@ -793,21 +793,21 @@ model Cliente {
   contactoTelefono     String?
   zonaId               String?
   vendedorId           String? // vendedor asignado (se preselecciona en pedidos)
-  limiteCredito        Decimal       @default(0) // 0 = sin límite; se valida al facturar
-  condicionPagoDefecto CondicionPago @default(CONTADO)
+  limiteCredito        Decimal             @default(0) // 0 = sin límite; se valida al facturar
+  condicionPagoDefecto CondicionPago       @default(CONTADO)
   notas                String?
-  activo               Boolean       @default(true)
+  activo               Boolean             @default(true)
   // Bloqueo específico de cobranza (distinto de `activo`): impide crear
   // pedidos nuevos mientras tenga facturas vencidas sin resolver, pero no
   // oculta al cliente ni afecta su historial. Se levanta manualmente desde
   // Finanzas → Cobranza una vez que regulariza su deuda.
-  bloqueadoCobranza    Boolean       @default(false)
+  bloqueadoCobranza    Boolean             @default(false)
   bloqueadoCobranzaEn  DateTime?
   bloqueadoCobranzaPor String?
-  creadoEn             DateTime      @default(now())
+  creadoEn             DateTime            @default(now())
 
-  zona             Zona?            @relation(fields: [zonaId], references: [id])
-  vendedorAsignado Vendedor?        @relation("ClienteVendedor", fields: [vendedorId], references: [id])
+  zona             Zona?             @relation(fields: [zonaId], references: [id])
+  vendedorAsignado Vendedor?         @relation("ClienteVendedor", fields: [vendedorId], references: [id])
   pedidos          Pedido[]
   facturas         Factura[]
   guias            GuiaRemision[]
@@ -893,10 +893,10 @@ model Pedido {
   usuarioId     String
   usuarioNombre String
 
-  cliente  Cliente         @relation(fields: [clienteId], references: [id])
-  vendedor Vendedor        @relation(fields: [vendedorId], references: [id])
-  detalles PedidoDetalle[]
-  factura  Factura?
+  cliente          Cliente         @relation(fields: [clienteId], references: [id])
+  vendedor         Vendedor        @relation(fields: [vendedorId], references: [id])
+  detalles         PedidoDetalle[]
+  factura          Factura?
   cotizacionOrigen Cotizacion?
 
   @@map("pedidos")
@@ -911,8 +911,8 @@ model PedidoDetalle {
   subtotal       Decimal
   costoUnitario  Decimal @default(0) // snapshot del costo promedio al facturar (para costo de ventas)
 
-  pedido       Pedido       @relation(fields: [pedidoId], references: [id])
-  presentacion Presentacion @relation(fields: [presentacionId], references: [id])
+  pedido           Pedido                @relation(fields: [pedidoId], references: [id])
+  presentacion     Presentacion          @relation(fields: [presentacionId], references: [id])
   asignacionesLote AsignacionLoteVenta[]
 
   @@map("pedido_detalles")
@@ -954,16 +954,16 @@ model Factura {
   usuarioId        String
   usuarioNombre    String
 
-  pedido       Pedido        @relation(fields: [pedidoId], references: [id])
-  cliente      Cliente       @relation(fields: [clienteId], references: [id])
-  vendedor     Vendedor      @relation(fields: [vendedorId], references: [id])
-  cobros       Cobro[]
+  pedido         Pedido           @relation(fields: [pedidoId], references: [id])
+  cliente        Cliente          @relation(fields: [clienteId], references: [id])
+  vendedor       Vendedor         @relation(fields: [vendedorId], references: [id])
+  cobros         Cobro[]
   avisosCobranza AvisoCobranza[]
-  notasCredito NotaCredito[]
-  comisiones   Comision[]
-  guias        GuiaRemision[]
-  recargosMora RecargoMora[]
-  reclamos     ReclamoCliente[]
+  notasCredito   NotaCredito[]
+  comisiones     Comision[]
+  guias          GuiaRemision[]
+  recargosMora   RecargoMora[]
+  reclamos       ReclamoCliente[]
 
   @@map("facturas")
 }
@@ -994,15 +994,15 @@ model RecargoMora {
 // que el aviso se emitió (para imprimir/entregar) y en qué nivel, para poder
 // distinguir "primera vez que se avisa" de "ya se le avisó 3 veces".
 model AvisoCobranza {
-  id               String   @id @default(cuid())
-  empresaId        String   @default("1")
-  clienteId        String
-  facturaId        String
-  nivel            Int // 1 = aviso amistoso, 2 = aviso formal, 3 = aviso final
-  diasVencidos     Int // snapshot al momento de emitir el aviso
-  fecha            DateTime @default(now())
-  usuarioId        String
-  usuarioNombre    String
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  clienteId     String
+  facturaId     String
+  nivel         Int // 1 = aviso amistoso, 2 = aviso formal, 3 = aviso final
+  diasVencidos  Int // snapshot al momento de emitir el aviso
+  fecha         DateTime @default(now())
+  usuarioId     String
+  usuarioNombre String
 
   cliente Cliente @relation(fields: [clienteId], references: [id])
   factura Factura @relation(fields: [facturaId], references: [id])
@@ -1135,23 +1135,23 @@ enum EstadoOrdenCompra {
 }
 
 model OrdenCompra {
-  id            String            @id @default(cuid())
-  empresaId     String            @default("1")
-  numero        String            @unique // OC-00001
-  proveedorId   String
-  almacenId     String? // almacén/planta de destino (opcional: si no se elige, la recepción resuelve el almacén como siempre)
-  fecha         DateTime          @default(now())
-  estado        EstadoOrdenCompra @default(PENDIENTE)
-  moneda        String            @default("PEN")
+  id              String            @id @default(cuid())
+  empresaId       String            @default("1")
+  numero          String            @unique // OC-00001
+  proveedorId     String
+  almacenId       String? // almacén/planta de destino (opcional: si no se elige, la recepción resuelve el almacén como siempre)
+  fecha           DateTime          @default(now())
+  estado          EstadoOrdenCompra @default(PENDIENTE)
+  moneda          String            @default("PEN")
   // Tipo de cambio congelado al crear la orden (S//US$; 1 si moneda=PEN).
   // total queda en `moneda`; todo lo que necesita PEN (umbral de aprobación,
   // cuenta por pagar, asiento contable) se convierte con este valor.
-  tipoCambio    Decimal           @default(1)
-  total         Decimal
-  notas         String?
+  tipoCambio      Decimal           @default(1)
+  total           Decimal
+  notas           String?
   motivoAnulacion String?
-  usuarioId     String
-  usuarioNombre String
+  usuarioId       String
+  usuarioNombre   String
 
   // Aprobación por monto: se calcula al crear la orden contra el umbral
   // vigente en Configuración → Empresa. Si queda PENDIENTE, no se puede
@@ -1161,11 +1161,19 @@ model OrdenCompra {
   aprobadaEn       DateTime?
   motivoRechazo    String?
 
-  proveedor   Proveedor            @relation(fields: [proveedorId], references: [id])
-  almacen     Almacen?             @relation(fields: [almacenId], references: [id])
-  detalles    OrdenCompraDetalle[]
-  recepciones RecepcionCompra[]
+  // Etiqueta opcional a un proyecto/fase de obra de capital — el costo real
+  // del proyecto se calcula sumando estas OC (estado != ANULADA) más
+  // CostoProyecto, sin doble registro.
+  proyectoId String?
+  edtId      String?
+
+  proveedor       Proveedor            @relation(fields: [proveedorId], references: [id])
+  almacen         Almacen?             @relation(fields: [almacenId], references: [id])
+  detalles        OrdenCompraDetalle[]
+  recepciones     RecepcionCompra[]
   cuentasPorPagar CuentaPorPagar[]
+  proyecto        Proyecto?            @relation(fields: [proyectoId], references: [id])
+  edt             EdtProyecto?         @relation(fields: [edtId], references: [id])
 
   @@map("ordenes_compra")
 }
@@ -1196,19 +1204,19 @@ model RecepcionCompra {
   usuarioId     String
   usuarioNombre String
 
-  ordenCompra OrdenCompra              @relation(fields: [ordenCompraId], references: [id])
-  detalles    RecepcionCompraDetalle[]
+  ordenCompra     OrdenCompra              @relation(fields: [ordenCompraId], references: [id])
+  detalles        RecepcionCompraDetalle[]
   cuentasPorPagar CuentaPorPagar[]
 
   @@map("recepciones_compra")
 }
 
 model RecepcionCompraDetalle {
-  id            String  @id @default(cuid())
-  recepcionId   String
-  insumoId      String
-  cantidad      Decimal
-  costoUnitario Decimal // costo real de esta recepción (actualiza el promedio ponderado)
+  id                  String  @id @default(cuid())
+  recepcionId         String
+  insumoId            String
+  cantidad            Decimal
+  costoUnitario       Decimal // costo real de esta recepción (actualiza el promedio ponderado)
   // Trazabilidad de materia prima: número de lote/certificado del proveedor.
   // cantidadDisponible arranca en `cantidad` cuando el stock queda disponible
   // (de inmediato, o al aprobar inspección de calidad) y baja según se
@@ -1217,11 +1225,11 @@ model RecepcionCompraDetalle {
   numeroLoteProveedor String?
   cantidadDisponible  Decimal @default(0)
 
-  recepcion   RecepcionCompra    @relation(fields: [recepcionId], references: [id])
-  insumo      Insumo             @relation(fields: [insumoId], references: [id])
-  inspeccion  InspeccionCompra?
+  recepcion        RecepcionCompra        @relation(fields: [recepcionId], references: [id])
+  insumo           Insumo                 @relation(fields: [insumoId], references: [id])
+  inspeccion       InspeccionCompra?
   asignacionesLote AsignacionLoteInsumo[]
-  devoluciones DevolucionCompra[]
+  devoluciones     DevolucionCompra[]
 
   @@map("recepcion_compra_detalles")
 }
@@ -1299,15 +1307,15 @@ enum EstadoDespacho {
 }
 
 model GuiaRemision {
-  id             String   @id @default(cuid())
-  empresaId      String   @default("1")
-  numero         String   @unique // ej. T001-00000001
+  id             String         @id @default(cuid())
+  empresaId      String         @default("1")
+  numero         String         @unique // ej. T001-00000001
   facturaId      String?
   clienteId      String
   fechaTraslado  DateTime
   puntoPartida   String
   puntoLlegada   String
-  motivoTraslado String   @default("Venta")
+  motivoTraslado String         @default("Venta")
   transportista  String?
   placaVehiculo  String?
   dniConductor   String?
@@ -1322,7 +1330,7 @@ model GuiaRemision {
   fechaEntrega   DateTime?
   usuarioId      String
   usuarioNombre  String
-  creadoEn       DateTime @default(now())
+  creadoEn       DateTime       @default(now())
 
   factura  Factura?              @relation(fields: [facturaId], references: [id])
   cliente  Cliente               @relation(fields: [clienteId], references: [id])
@@ -1333,7 +1341,7 @@ model GuiaRemision {
 }
 
 model GuiaRemisionDetalle {
-  id             String  @id @default(cuid())
+  id             String @id @default(cuid())
   guiaId         String
   presentacionId String
   cantidad       Int
@@ -1354,42 +1362,42 @@ enum EstadoCuentaPorPagar {
 }
 
 model CuentaPorPagar {
-  id              String               @id @default(cuid())
-  empresaId       String               @default("1")
-  proveedorId     String
-  ordenCompraId   String?
-  recepcionCompraId String? // recepción que originó esta CxP (para poder aplicar devoluciones)
-  numeroDocumento String // factura del proveedor, formato "serie-número" (ej. F001-123)
+  id                    String               @id @default(cuid())
+  empresaId             String               @default("1")
+  proveedorId           String
+  ordenCompraId         String?
+  recepcionCompraId     String? // recepción que originó esta CxP (para poder aplicar devoluciones)
+  numeroDocumento       String // factura del proveedor, formato "serie-número" (ej. F001-123)
   // Código de Tabla 10 de SUNAT (01 Factura, 03 Boleta, 04 Liquidación de
   // compra, 91 comprobante de no domiciliado, etc.) — para el Registro de
   // Compras Electrónico (PLE). Default Factura, el caso normal en compras B2B.
-  tipoComprobante String               @default("01")
-  fechaEmision    DateTime             @default(now())
-  fechaVencimiento DateTime?
-  moneda          String               @default("PEN")
-  total           Decimal // siempre en PEN (moneda funcional)
-  saldo           Decimal // siempre en PEN
+  tipoComprobante       String               @default("01")
+  fechaEmision          DateTime             @default(now())
+  fechaVencimiento      DateTime?
+  moneda                String               @default("PEN")
+  total                 Decimal // siempre en PEN (moneda funcional)
+  saldo                 Decimal // siempre en PEN
   // Referencia informativa cuando la compra original fue en otra moneda
   // (ej. USD): monto/moneda tal como llegó la factura del proveedor, y el
   // tipo de cambio usado para convertir total/saldo a PEN. null si ya nació
   // en PEN — no es una revaluación, solo trazabilidad.
-  montoOriginal   Decimal?
-  monedaOriginal  String?
-  tipoCambio      Decimal?
+  montoOriginal         Decimal?
+  monedaOriginal        String?
+  tipoCambio            Decimal?
   // % de variación entre el costo unitario registrado en la recepción y el
   // costo pactado en la orden de compra (verificación de factura en 3 vías:
   // orden↔recepción↔lo que se está por pagar). null = sin discrepancia
   // detectada o por debajo de la tolerancia (5%). No bloquea el pago — solo
   // lo señala, porque el sistema no debe ser rígido ante regularizaciones.
   discrepanciaPrecioPct Decimal?
-  estado          EstadoCuentaPorPagar @default(PENDIENTE)
-  usuarioId       String
-  usuarioNombre   String
+  estado                EstadoCuentaPorPagar @default(PENDIENTE)
+  usuarioId             String
+  usuarioNombre         String
 
-  proveedor   Proveedor       @relation(fields: [proveedorId], references: [id])
-  ordenCompra OrdenCompra?    @relation(fields: [ordenCompraId], references: [id])
+  proveedor       Proveedor        @relation(fields: [proveedorId], references: [id])
+  ordenCompra     OrdenCompra?     @relation(fields: [ordenCompraId], references: [id])
   recepcionCompra RecepcionCompra? @relation(fields: [recepcionCompraId], references: [id])
-  pagos       PagoProveedor[]
+  pagos           PagoProveedor[]
 
   @@map("cuentas_por_pagar")
 }
@@ -1530,15 +1538,15 @@ model Almacen {
   activo       Boolean  @default(true)
   creadoEn     DateTime @default(now())
 
-  zonas ZonaAlmacen[]
+  zonas                ZonaAlmacen[]
   calendarioProduccion CalendarioProduccion?
-  saldos SaldoAlmacen[]
-  movimientosKardex MovimientoKardex[]
-  activosFijos ActivoFijo[]
-  equipos Equipo[]
-  ordenesCompra OrdenCompra[]
-  centrosCosto CentroCosto[]
-  empleados     Empleado[]
+  saldos               SaldoAlmacen[]
+  movimientosKardex    MovimientoKardex[]
+  activosFijos         ActivoFijo[]
+  equipos              Equipo[]
+  ordenesCompra        OrdenCompra[]
+  centrosCosto         CentroCosto[]
+  empleados            Empleado[]
 
   @@unique([empresaId, codigo])
   @@map("almacenes")
@@ -1559,8 +1567,8 @@ model CalendarioProduccion {
   horasSabado    Decimal @default(0)
   horasDomingo   Decimal @default(0)
 
-  almacen           Almacen             @relation(fields: [almacenId], references: [id], onDelete: Cascade)
-  diasNoLaborables  DiaNoLaborable[]
+  almacen          Almacen          @relation(fields: [almacenId], references: [id], onDelete: Cascade)
+  diasNoLaborables DiaNoLaborable[]
 
   @@map("calendarios_produccion")
 }
@@ -1648,12 +1656,12 @@ model GrupoSeguridad {
 }
 
 model PermisoGrupo {
-  id        String  @id @default(cuid())
-  grupoId   String
-  modulo    String // ventas | materiales | produccion | finanzas | rrhh | configuracion
-  puedeVer  Boolean @default(true)
-  puedeCrear Boolean @default(false)
-  puedeEditar Boolean @default(false)
+  id           String  @id @default(cuid())
+  grupoId      String
+  modulo       String // ventas | materiales | produccion | finanzas | rrhh | configuracion
+  puedeVer     Boolean @default(true)
+  puedeCrear   Boolean @default(false)
+  puedeEditar  Boolean @default(false)
   // Segregación de funciones: separado de editar porque aprobar/rechazar
   // (órdenes de compra, pagos, vacaciones) es una autoridad distinta a la de
   // quien crea o edita el registro.
@@ -1702,12 +1710,12 @@ enum TipoCuenta {
 }
 
 model PlanCuentas {
-  id          String   @id @default(cuid())
-  empresaId   String   @default("1")
-  codigo      String // ej. PCGE (Plan Contable General Empresarial)
-  nombre      String
-  esMaestro   Boolean  @default(false)
-  creadoEn    DateTime @default(now())
+  id        String   @id @default(cuid())
+  empresaId String   @default("1")
+  codigo    String // ej. PCGE (Plan Contable General Empresarial)
+  nombre    String
+  esMaestro Boolean  @default(false)
+  creadoEn  DateTime @default(now())
 
   cuentas CuentaContable[]
 
@@ -1864,6 +1872,7 @@ model CentroCosto {
   empleados            Empleado[]
   planesMantenimiento  PlanMantenimiento[]
   ordenesInternas      OrdenInterna[]
+  proyectos            Proyecto[]
 
   @@unique([empresaId, codigo])
   @@map("centros_costo")
@@ -1970,8 +1979,8 @@ model ReglaAsignacionCostoDetalle {
 // entrada acá, el asiento se postea igual pero sin centro de costo
 // (best-effort, como el resto del motor contable).
 model CentroCostoControl {
-  id            String @id @default(cuid())
-  empresaId     String @default("1")
+  id            String  @id @default(cuid())
+  empresaId     String  @default("1")
   clave         String // mismo universo que ControlContable.clave
   centroCostoId String?
   reglaId       String?
@@ -2020,10 +2029,15 @@ model ActivoFijo {
   usuarioNombre         String
   creadoEn              DateTime            @default(now())
 
+  // Si el activo se generó capitalizando un Proyecto (obra de capital), queda
+  // enlazado acá — solo trazabilidad, no participa en el cálculo de depreciación.
+  proyectoId String?
+
   almacen        Almacen?             @relation(fields: [almacenId], references: [id])
   depreciaciones DepreciacionActivo[]
   equipo         Equipo?
   centroCosto    CentroCosto?         @relation(fields: [centroCostoId], references: [id])
+  proyecto       Proyecto?            @relation(fields: [proyectoId], references: [id])
 
   @@unique([empresaId, codigo])
   @@map("activos_fijos")
@@ -2045,28 +2059,156 @@ model DepreciacionActivo {
   @@map("depreciaciones_activo")
 }
 
+// ---------------------------------------------------------------------------
+// PROYECTOS DE INVERSIÓN / OBRAS DE CAPITAL (PS reducido, ver
+// docs/gobernanza/05-disparadores-fase3-diferida.md). Gestión de WBS +
+// red de actividades con ruta crítica para obras de capital propio
+// (ampliación de planta, nueva línea) — no para proyectos de cliente.
+// Solo precedencia Fin-a-Inicio, sin nivelación de capacidad, sin
+// calendario de días hábiles: alcance deliberado para 1-3 proyectos a la vez.
+// ---------------------------------------------------------------------------
+
+enum EstadoProyecto {
+  PLANIFICADO
+  EN_PROGRESO
+  CERRADO
+  CANCELADO
+}
+
+model Proyecto {
+  id               String         @id @default(cuid())
+  empresaId        String         @default("1")
+  codigo           String         @unique // PRY-00001
+  nombre           String
+  descripcion      String?
+  // Solo una etiqueta informativa de qué área/sponsor lo pidió — el costo
+  // real NO se postea contra este centro (es WIP que capitaliza en un
+  // ActivoFijo, no un gasto de período). Ver CostoProyecto.
+  centroCostoId    String?
+  presupuestoTotal Decimal
+  estado           EstadoProyecto @default(PLANIFICADO)
+  fechaInicioPlan  DateTime
+  fechaFinPlan     DateTime
+  fechaInicioReal  DateTime?
+  fechaFinReal     DateTime?
+  responsableId    String?
+  usuarioId        String
+  usuarioNombre    String
+  creadoEn         DateTime       @default(now())
+
+  centroCosto   CentroCosto?    @relation(fields: [centroCostoId], references: [id])
+  responsable   Empleado?       @relation(fields: [responsableId], references: [id])
+  edts          EdtProyecto[]
+  costos        CostoProyecto[]
+  ordenesCompra OrdenCompra[]
+  activosFijos  ActivoFijo[]
+
+  @@map("proyectos")
+}
+
+// Nodo de la WBS (fase/subfase). Auto-relación para el árbol multinivel;
+// el código jerárquico ("1", "1.1") se calcula en el server action contando
+// hermanos, no es un correlativo global.
+model EdtProyecto {
+  id          String   @id @default(cuid())
+  proyectoId  String
+  parentId    String?
+  codigo      String
+  nombre      String
+  presupuesto Decimal? // tope informativo, no bloqueante — igual que OrdenInterna.presupuesto
+  orden       Int      @default(0)
+
+  proyecto      Proyecto            @relation(fields: [proyectoId], references: [id])
+  parent        EdtProyecto?        @relation("EdtJerarquia", fields: [parentId], references: [id])
+  hijos         EdtProyecto[]       @relation("EdtJerarquia")
+  actividades   ActividadProyecto[]
+  costos        CostoProyecto[]
+  ordenesCompra OrdenCompra[]
+
+  @@map("edt_proyecto")
+}
+
+// Nodo de la red de actividades. Los 4 campos de ruta crítica
+// (fechaInicioPlan/fechaFinPlan/esCritica/holguraDias) son calculados por
+// recalcularRutaCritica() en src/lib/proyectos.ts — nunca se editan a mano.
+model ActividadProyecto {
+  id              String         @id @default(cuid())
+  edtId           String
+  codigo          String
+  nombre          String
+  duracionDias    Int
+  estado          EstadoProyecto @default(PLANIFICADO)
+  responsableId   String?
+  equipoId        String?
+  fechaInicioPlan DateTime?
+  fechaFinPlan    DateTime?
+  esCritica       Boolean        @default(false)
+  holguraDias     Int            @default(0)
+
+  edt          EdtProyecto            @relation(fields: [edtId], references: [id])
+  responsable  Empleado?              @relation(fields: [responsableId], references: [id])
+  equipo       Equipo?                @relation(fields: [equipoId], references: [id])
+  predecesoras PrecedenciaActividad[] @relation("Sucesora")
+  sucesoras    PrecedenciaActividad[] @relation("Predecesora")
+
+  @@map("actividades_proyecto")
+}
+
+// Arista del grafo (Fin-a-Inicio únicamente). Se valida que no forme ciclo
+// en el server action antes de insertar (DFS), no en la base.
+model PrecedenciaActividad {
+  id                     String @id @default(cuid())
+  actividadPredecesoraId String
+  actividadSucesoraId    String
+
+  predecesora ActividadProyecto @relation("Predecesora", fields: [actividadPredecesoraId], references: [id])
+  sucesora    ActividadProyecto @relation("Sucesora", fields: [actividadSucesoraId], references: [id])
+
+  @@unique([actividadPredecesoraId, actividadSucesoraId])
+  @@map("precedencias_actividad")
+}
+
+// Ledger de costos reales — mismo patrón que OrdenInternaCosto. El costo
+// real del proyecto/fase se calcula sumando estas filas más las OrdenCompra
+// etiquetadas (estado != ANULADA); no hay doble registro.
+model CostoProyecto {
+  id            String   @id @default(cuid())
+  proyectoId    String
+  edtId         String?
+  concepto      String
+  monto         Decimal
+  fecha         DateTime @default(now())
+  usuarioId     String
+  usuarioNombre String
+
+  proyecto Proyecto     @relation(fields: [proyectoId], references: [id])
+  edt      EdtProyecto? @relation(fields: [edtId], references: [id])
+
+  @@map("costos_proyecto")
+}
+
 // --- Mantenimiento de planta -------------------------------------------------
 
 // El equipo es el activo físico que se mantiene; activoFijoId es opcional y lo
 // enlaza con su registro contable/depreciación cuando corresponde (no todo
 // equipo mantenible está capitalizado, ej. equipos menores ya depreciados).
 model Equipo {
-  id           String   @id @default(cuid())
-  empresaId    String   @default("1")
-  codigo       String // EQ-00001
-  nombre       String
-  almacenId    String
-  activoFijoId String?  @unique
-  centroCostoId String?
-  activo       Boolean  @default(true)
-  notas        String?
+  id             String   @id @default(cuid())
+  empresaId      String   @default("1")
+  codigo         String // EQ-00001
+  nombre         String
+  almacenId      String
+  activoFijoId   String?  @unique
+  centroCostoId  String?
+  activo         Boolean  @default(true)
+  notas          String?
   // Contador de uso (horómetro/odómetro) para mantenimiento preventivo por
   // contador (ej. "cada 5,000 km" o "cada 250 horas de motor"). Se actualiza
   // manualmente — no hay telemetría real conectada. unidadContador queda null
   // en equipos que solo usan planes por tiempo.
-  contadorActual  Decimal  @default(0)
-  unidadContador  String? // "km", "horas", etc.
-  creadoEn     DateTime @default(now())
+  contadorActual Decimal  @default(0)
+  unidadContador String? // "km", "horas", etc.
+  creadoEn       DateTime @default(now())
 
   almacen              Almacen              @relation(fields: [almacenId], references: [id])
   activoFijo           ActivoFijo?          @relation(fields: [activoFijoId], references: [id])
@@ -2074,6 +2216,7 @@ model Equipo {
   ordenesMantenimiento OrdenMantenimiento[]
   guiasRemision        GuiaRemision[]
   planesMantenimiento  PlanMantenimiento[]
+  actividadesProyecto  ActividadProyecto[]
 
   @@unique([empresaId, codigo])
   @@map("equipos")
@@ -2095,33 +2238,33 @@ enum EstadoOrdenMantenimiento {
 // CalendarioProduccion del almacén del equipo (DiaNoLaborable), para que
 // Proyecciones refleje la parada de capacidad. Al cancelarse, libera esos días.
 model OrdenMantenimiento {
-  id              String                   @id @default(cuid())
-  codigo          String                   @unique // OM-00001
-  equipoId        String
-  tipo            TipoMantenimiento
-  estado          EstadoOrdenMantenimiento @default(PROGRAMADA)
-  descripcion     String
-  fechaProgramada DateTime
-  duracionDias    Int                      @default(1)
-  fechaInicio     DateTime?
-  fechaFin        DateTime?
-  costoManoObra   Decimal                  @default(0)
-  costoRepuestos  Decimal                  @default(0)
-  observaciones   String?
+  id                  String                   @id @default(cuid())
+  codigo              String                   @unique // OM-00001
+  equipoId            String
+  tipo                TipoMantenimiento
+  estado              EstadoOrdenMantenimiento @default(PROGRAMADA)
+  descripcion         String
+  fechaProgramada     DateTime
+  duracionDias        Int                      @default(1)
+  fechaInicio         DateTime?
+  fechaFin            DateTime?
+  costoManoObra       Decimal                  @default(0)
+  costoRepuestos      Decimal                  @default(0)
+  observaciones       String?
   // Por defecto el del equipo, pero se puede anular al programar la orden
   // (ej. una reparación que en realidad corresponde a otra área).
-  centroCostoId   String?
+  centroCostoId       String?
   // Si esta orden nació de un plan preventivo (generación automática), queda
   // enlazada acá — al completarla se actualiza el ciclo del plan.
   planMantenimientoId String?
-  usuarioId       String
-  usuarioNombre   String
-  creadoEn        DateTime                 @default(now())
+  usuarioId           String
+  usuarioNombre       String
+  creadoEn            DateTime                 @default(now())
 
-  equipo      Equipo                       @relation(fields: [equipoId], references: [id])
-  centroCosto CentroCosto?                 @relation(fields: [centroCostoId], references: [id])
-  planMantenimiento PlanMantenimiento?     @relation(fields: [planMantenimientoId], references: [id])
-  repuestos   RepuestoOrdenMantenimiento[]
+  equipo            Equipo                       @relation(fields: [equipoId], references: [id])
+  centroCosto       CentroCosto?                 @relation(fields: [centroCostoId], references: [id])
+  planMantenimiento PlanMantenimiento?           @relation(fields: [planMantenimientoId], references: [id])
+  repuestos         RepuestoOrdenMantenimiento[]
 
   @@map("ordenes_mantenimiento")
 }
@@ -2137,20 +2280,20 @@ enum TipoPlanMantenimiento {
 // cuando la orden generada se COMPLETA (no cuando se genera), para reflejar
 // la fecha/contador real de ejecución, no la de programación.
 model PlanMantenimiento {
-  id                     String                @id @default(cuid())
-  empresaId              String                @default("1")
-  equipoId               String
-  nombre                 String // ej. "Cambio de aceite de motor"
-  tipo                   TipoPlanMantenimiento
-  frecuenciaDias         Int? // solo POR_TIEMPO
-  frecuenciaContador     Decimal? // solo POR_CONTADOR (ej. cada 5000 km)
-  ultimaEjecucionFecha   DateTime? // null = nunca ejecutado, se usa creadoEn como base
+  id                      String                @id @default(cuid())
+  empresaId               String                @default("1")
+  equipoId                String
+  nombre                  String // ej. "Cambio de aceite de motor"
+  tipo                    TipoPlanMantenimiento
+  frecuenciaDias          Int? // solo POR_TIEMPO
+  frecuenciaContador      Decimal? // solo POR_CONTADOR (ej. cada 5000 km)
+  ultimaEjecucionFecha    DateTime? // null = nunca ejecutado, se usa creadoEn como base
   ultimaEjecucionContador Decimal? // null = nunca ejecutado, se usa 0 como base
-  centroCostoId          String? // opcional, si no usa el del equipo
-  activo                 Boolean               @default(true)
-  usuarioId              String
-  usuarioNombre          String
-  creadoEn               DateTime              @default(now())
+  centroCostoId           String? // opcional, si no usa el del equipo
+  activo                  Boolean               @default(true)
+  usuarioId               String
+  usuarioNombre           String
+  creadoEn                DateTime              @default(now())
 
   equipo      Equipo               @relation(fields: [equipoId], references: [id])
   centroCosto CentroCosto?         @relation(fields: [centroCostoId], references: [id])
@@ -2186,8 +2329,8 @@ model RepuestoOrdenMantenimiento {
 // competencia) + un factor macro de referencia (BCRP, best-effort).
 // ---------------------------------------------------------------------------
 model Proyeccion {
-  id            String   @id @default(cuid())
-  empresaId     String   @default("1")
+  id            String @id @default(cuid())
+  empresaId     String @default("1")
   anio          Int
   trimestre     Int // 1-4
   anioBase      Int // trimestre de referencia (normalmente el anterior)
@@ -2299,50 +2442,52 @@ enum Afp {
 }
 
 model Empleado {
-  id                      String                 @id @default(cuid())
-  empresaId               String                 @default("1")
-  codigo                  String // EMP-00001
-  nombres                 String
-  apellidos               String
-  tipoDocumentoIdentidad  TipoDocumentoIdentidad @default(DNI)
-  dni                     String?
-  nacionalidad            String                 @default("Peruana")
-  fechaNacimiento         DateTime?
-  fechaIngreso            DateTime
-  fechaCese               DateTime?
-  motivoCese              String?
-  cargo                   String
-  area                    String
-  tipoContrato            TipoContrato
-  sueldoBasico            Decimal                @default(0)
-  telefono                String?
-  correo                  String?
+  id                     String                 @id @default(cuid())
+  empresaId              String                 @default("1")
+  codigo                 String // EMP-00001
+  nombres                String
+  apellidos              String
+  tipoDocumentoIdentidad TipoDocumentoIdentidad @default(DNI)
+  dni                    String?
+  nacionalidad           String                 @default("Peruana")
+  fechaNacimiento        DateTime?
+  fechaIngreso           DateTime
+  fechaCese              DateTime?
+  motivoCese             String?
+  cargo                  String
+  area                   String
+  tipoContrato           TipoContrato
+  sueldoBasico           Decimal                @default(0)
+  telefono               String?
+  correo                 String?
   // Datos bancarios estructurados — para el pago de haberes cuando exista
   // planilla real, o para transferencias a personal remoto/extranjero.
-  banco                   String?
-  numeroCuenta            String?
-  cci                     String?
-  swift                   String?
-  iban                    String?
-  almacenId               String? // planta/local donde trabaja (opcional)
-  centroCostoId           String? // para que su costo pese en el centro correcto
-  usuarioId               String?                @unique // cuenta de acceso al ERP, si tiene (opcional, 1 a 1)
-  estado                  EstadoEmpleado         @default(ACTIVO)
+  banco                  String?
+  numeroCuenta           String?
+  cci                    String?
+  swift                  String?
+  iban                   String?
+  almacenId              String? // planta/local donde trabaja (opcional)
+  centroCostoId          String? // para que su costo pese en el centro correcto
+  usuarioId              String?                @unique // cuenta de acceso al ERP, si tiene (opcional, 1 a 1)
+  estado                 EstadoEmpleado         @default(ACTIVO)
   // Datos para el cálculo de planilla (item HCM). Sin sistemaPension definido,
   // el empleado queda excluido de la corrida de planilla con una advertencia
   // visible — nunca se asume ONP/AFP por defecto en un cálculo con dinero real.
-  sistemaPension          SistemaPension?
-  afp                     Afp? // solo si sistemaPension = AFP
-  asignacionFamiliar      Boolean                @default(false) // tiene hijo(s) menor(es) o que estudian hasta 24 años
-  notas                   String?
-  creadoEn                DateTime               @default(now())
+  sistemaPension         SistemaPension?
+  afp                    Afp? // solo si sistemaPension = AFP
+  asignacionFamiliar     Boolean                @default(false) // tiene hijo(s) menor(es) o que estudian hasta 24 años
+  notas                  String?
+  creadoEn               DateTime               @default(now())
 
-  almacen           Almacen?              @relation(fields: [almacenId], references: [id])
-  centroCosto       CentroCosto?          @relation(fields: [centroCostoId], references: [id])
-  usuario           Usuario?              @relation(fields: [usuarioId], references: [id])
-  vacaciones        SolicitudVacaciones[]
-  planillaDetalles  PlanillaDetalle[]
-  liquidacion       LiquidacionDesvinculacion?
+  almacen                Almacen?                   @relation(fields: [almacenId], references: [id])
+  centroCosto            CentroCosto?               @relation(fields: [centroCostoId], references: [id])
+  usuario                Usuario?                   @relation(fields: [usuarioId], references: [id])
+  vacaciones             SolicitudVacaciones[]
+  planillaDetalles       PlanillaDetalle[]
+  liquidacion            LiquidacionDesvinculacion?
+  proyectosResponsable   Proyecto[]
+  actividadesResponsable ActividadProyecto[]
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, dni])
@@ -2386,16 +2531,16 @@ model SolicitudVacaciones {
 // ---------------------------------------------------------------------------
 
 model ParametroPlanilla {
-  id           String   @id @default(cuid())
-  empresaId    String   @default("1")
-  rmv          Decimal // remuneración mínima vital vigente
-  uit          Decimal // unidad impositiva tributaria vigente
-  tasaEsSalud  Decimal  @default(9) // % aporte patronal
-  tasaOnp      Decimal  @default(13) // % descuento al trabajador afiliado a ONP
-  vigenteDesde DateTime
-  usuarioId    String
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  rmv           Decimal // remuneración mínima vital vigente
+  uit           Decimal // unidad impositiva tributaria vigente
+  tasaEsSalud   Decimal  @default(9) // % aporte patronal
+  tasaOnp       Decimal  @default(13) // % descuento al trabajador afiliado a ONP
+  vigenteDesde  DateTime
+  usuarioId     String
   usuarioNombre String
-  creadoEn     DateTime @default(now())
+  creadoEn      DateTime @default(now())
 
   @@map("parametros_planilla")
 }
@@ -2406,14 +2551,14 @@ enum TipoComisionAfp {
 }
 
 model TasaAfp {
-  id                     String          @id @default(cuid())
-  afp                    Afp
-  tipoComision           TipoComisionAfp @default(FLUJO)
-  tasaAporteObligatorio  Decimal         @default(10) // % al fondo propio del trabajador
-  tasaComision           Decimal // % de la AFP
-  primaSeguro            Decimal // % prima de seguro
-  vigenteDesde           DateTime
-  creadoEn               DateTime        @default(now())
+  id                    String          @id @default(cuid())
+  afp                   Afp
+  tipoComision          TipoComisionAfp @default(FLUJO)
+  tasaAporteObligatorio Decimal         @default(10) // % al fondo propio del trabajador
+  tasaComision          Decimal // % de la AFP
+  primaSeguro           Decimal // % prima de seguro
+  vigenteDesde          DateTime
+  creadoEn              DateTime        @default(now())
 
   @@unique([afp, tipoComision, vigenteDesde])
   @@map("tasas_afp")
@@ -2433,15 +2578,15 @@ enum EstadoPeriodoPlanilla {
 }
 
 model PlanillaPeriodo {
-  id            String                 @id @default(cuid())
-  empresaId     String                 @default("1")
+  id            String                @id @default(cuid())
+  empresaId     String                @default("1")
   anio          Int
   mes           Int
-  tipo          TipoPeriodoPlanilla    @default(MENSUAL)
-  estado        EstadoPeriodoPlanilla  @default(ABIERTO)
+  tipo          TipoPeriodoPlanilla   @default(MENSUAL)
+  estado        EstadoPeriodoPlanilla @default(ABIERTO)
   usuarioId     String
   usuarioNombre String
-  creadoEn      DateTime               @default(now())
+  creadoEn      DateTime              @default(now())
   cerradoEn     DateTime?
 
   detalles PlanillaDetalle[]
@@ -2451,26 +2596,26 @@ model PlanillaPeriodo {
 }
 
 model PlanillaDetalle {
-  id                     String   @id @default(cuid())
-  planillaPeriodoId      String
-  empleadoId             String
-  sueldoBasico           Decimal
-  asignacionFamiliar     Decimal  @default(0)
-  remuneracionComputable Decimal // sueldoBasico + asignacionFamiliar
+  id                         String   @id @default(cuid())
+  planillaPeriodoId          String
+  empleadoId                 String
+  sueldoBasico               Decimal
+  asignacionFamiliar         Decimal  @default(0)
+  remuneracionComputable     Decimal // sueldoBasico + asignacionFamiliar
   // Desglose del descuento de pensión (ONP o AFP: aporte + comisión + prima).
-  descuentoPension       Decimal  @default(0)
-  detallePension         String? // texto legible del desglose, para la boleta
-  essaludPatronal        Decimal  @default(0) // gasto del empleador, no se descuenta al trabajador
-  retencion5ta           Decimal  @default(0) // método simplificado — ver docs/gobernanza/04-hcm-*.md
+  descuentoPension           Decimal  @default(0)
+  detallePension             String? // texto legible del desglose, para la boleta
+  essaludPatronal            Decimal  @default(0) // gasto del empleador, no se descuenta al trabajador
+  retencion5ta               Decimal  @default(0) // método simplificado — ver docs/gobernanza/04-hcm-*.md
   // Solo gratificación/CTS: meses computados en el período y bono Ley 30334
   // (gratificación). Gratificación y CTS están inafectas a ONP/AFP/EsSalud/5ta
   // categoría (hasta 2 UIT en el caso de renta) — no usan descuentoPension ni
   // essaludPatronal.
   mesesComputados            Decimal?
   bonificacionExtraordinaria Decimal  @default(0)
-  neto                   Decimal
-  asientoNumero          String?
-  creadoEn               DateTime @default(now())
+  neto                       Decimal
+  asientoNumero              String?
+  creadoEn                   DateTime @default(now())
 
   planillaPeriodo PlanillaPeriodo @relation(fields: [planillaPeriodoId], references: [id])
   empleado        Empleado        @relation(fields: [empleadoId], references: [id])
