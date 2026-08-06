@@ -67,9 +67,32 @@ model ConfiguracionEmpresa {
   // token de servicio para llamadas salientes, no una contraseña de usuario.
   oseProveedor                    String    @default("SIMULADO")
   oseToken                        String?
+  // Comunicación directa a SUNAT (SEE - Del Contribuyente, oseProveedor =
+  // "SUNAT_DIRECTO"): certificado digital de la empresa (.pfx/.p12 en
+  // base64) + credenciales de usuario secundario SOL. Sin esto configurado,
+  // el adaptador directo no puede firmar ni autenticar nada — no hay
+  // fallback simulado para este proveedor (a diferencia de "SIMULADO").
+  sunatCertificadoBase64          String?
+  sunatCertificadoPassword        String?
+  sunatUsuarioSol                 String?
+  sunatClaveSol                   String?
   actualizadoEn                   DateTime  @updatedAt
 
   @@map("configuracion_empresa")
+}
+
+// Cuentas para el pie de página "Sírvase abonar en nuestras cuentas" de
+// Factura/Nota de Crédito — una empresa real tiene varias (una por banco).
+model CuentaBancariaEmpresa {
+  id           String  @id @default(cuid())
+  empresaId    String  @default("1")
+  banco        String
+  moneda       String  @default("PEN")
+  numeroCuenta String
+  cci          String?
+  activo       Boolean @default(true)
+
+  @@map("cuentas_bancarias_empresa")
 }
 
 // ---------------------------------------------------------------------------
@@ -188,32 +211,36 @@ model Producto {
 }
 
 model Presentacion {
-  id              String   @id @default(cuid())
-  empresaId       String   @default("1")
-  productoId      String
-  sku             String
-  nombre          String
-  contenidoKg     Decimal
+  id                String   @id @default(cuid())
+  empresaId         String   @default("1")
+  productoId        String
+  sku               String
+  nombre            String
+  contenidoKg       Decimal
   // Informativo para aceites/líquidos que se cotizan por volumen (litro,
   // galón) en vez de por peso — el costeo de producción sigue en kg
   // (contenidoKg), esto solo cambia cómo se muestra/imprime la presentación.
-  contenidoLitros Decimal?
-  precio          Decimal
-  moneda          String   @default("PEN")
-  stock           Decimal  @default(0)
+  contenidoLitros   Decimal?
+  // Código de Catálogo 03 de SUNAT (NIU=unidad, KGM=kilogramo, GLL=galón,
+  // LTR=litro, etc.) — usado al armar el ítem del comprobante electrónico.
+  // Default NIU porque es el código genérico más seguro si no se configura.
+  unidadMedidaSunat String   @default("NIU")
+  precio            Decimal
+  moneda            String   @default("PEN")
+  stock             Decimal  @default(0)
   // Comprometido en pedidos PENDIENTE (aún no facturados). "Disponible para
   // vender" = stock - stockReservado. Se libera al facturar (pasa a ser
   // salida real de kardex) o al anular el pedido.
-  stockReservado  Decimal  @default(0)
-  stockMinimo     Decimal  @default(0)
-  costoPromedio   Decimal  @default(0) // costo unitario promedio ponderado (se actualiza al envasar)
-  codigoBarras    String? // EAN-13
-  pesoBrutoKg     Decimal? // contenido + envase
-  unidadesPorCaja Int?
-  zonaAlmacenId   String? // ubicación estructurada (Almacen > ZonaAlmacen)
-  activo          Boolean  @default(true)
-  creadoEn        DateTime @default(now())
-  actualizadoEn   DateTime @updatedAt
+  stockReservado    Decimal  @default(0)
+  stockMinimo       Decimal  @default(0)
+  costoPromedio     Decimal  @default(0) // costo unitario promedio ponderado (se actualiza al envasar)
+  codigoBarras      String? // EAN-13
+  pesoBrutoKg       Decimal? // contenido + envase
+  unidadesPorCaja   Int?
+  zonaAlmacenId     String? // ubicación estructurada (Almacen > ZonaAlmacen)
+  activo            Boolean  @default(true)
+  creadoEn          DateTime @default(now())
+  actualizadoEn     DateTime @updatedAt
 
   producto           Producto                  @relation(fields: [productoId], references: [id])
   zonaAlmacen        ZonaAlmacen?              @relation(fields: [zonaAlmacenId], references: [id])
@@ -911,9 +938,10 @@ model PedidoDetalle {
   subtotal       Decimal
   costoUnitario  Decimal @default(0) // snapshot del costo promedio al facturar (para costo de ventas)
 
-  pedido           Pedido                @relation(fields: [pedidoId], references: [id])
-  presentacion     Presentacion          @relation(fields: [presentacionId], references: [id])
-  asignacionesLote AsignacionLoteVenta[]
+  pedido              Pedido                @relation(fields: [pedidoId], references: [id])
+  presentacion        Presentacion          @relation(fields: [presentacionId], references: [id])
+  asignacionesLote    AsignacionLoteVenta[]
+  notaCreditoDetalles NotaCreditoDetalle[]
 
   @@map("pedido_detalles")
 }
@@ -1079,20 +1107,56 @@ model Cobro {
   @@map("cobros")
 }
 
+// Catálogo 9 de SUNAT (código de tipo de nota de crédito) — el adaptador OSE
+// tiene que mandar uno de estos códigos, no un texto libre. `motivo` sigue
+// siendo el sustento en palabras (ej. "ERROR DE DIGITACION"), tipoNota es
+// el código que exige el XML.
+enum TipoNotaCredito {
+  ANULACION_OPERACION // 01
+  ANULACION_ERROR_RUC // 02
+  CORRECCION_DESCRIPCION // 03
+  DESCUENTO_GLOBAL // 04
+  DESCUENTO_ITEM // 05
+  DEVOLUCION_TOTAL // 06
+  DEVOLUCION_ITEM // 07
+  BONIFICACION // 08
+  DISMINUCION_VALOR // 09
+  OTROS_CONCEPTOS // 10
+}
+
 model NotaCredito {
-  id            String   @id @default(cuid())
-  empresaId     String   @default("1")
-  numero        String   @unique // número SUNAT de la NC
+  id            String          @id @default(cuid())
+  empresaId     String          @default("1")
+  numero        String          @unique // número SUNAT de la NC
   facturaId     String
-  fecha         DateTime @default(now())
+  fecha         DateTime        @default(now())
   monto         Decimal
   motivo        String
+  tipoNota      TipoNotaCredito @default(OTROS_CONCEPTOS)
   usuarioId     String
   usuarioNombre String
 
-  factura Factura @relation(fields: [facturaId], references: [id])
+  factura  Factura              @relation(fields: [facturaId], references: [id])
+  detalles NotaCreditoDetalle[]
 
   @@map("notas_credito")
+}
+
+// Líneas reales que se están afectando (para que el comprobante electrónico
+// cite el producto/cantidad real de la factura, no un texto libre como si
+// fuera un ítem — bug que tenía la versión anterior de este envío).
+model NotaCreditoDetalle {
+  id              String  @id @default(cuid())
+  notaCreditoId   String
+  pedidoDetalleId String
+  cantidad        Decimal
+  precioUnitario  Decimal
+  subtotal        Decimal
+
+  notaCredito   NotaCredito   @relation(fields: [notaCreditoId], references: [id])
+  pedidoDetalle PedidoDetalle @relation(fields: [pedidoDetalleId], references: [id])
+
+  @@map("nota_credito_detalles")
 }
 
 enum TipoComision {
@@ -1306,38 +1370,76 @@ enum EstadoDespacho {
   ENTREGADO
 }
 
+// Catálogo 20 de SUNAT: determina qué otro dato es obligatorio (público
+// exige el RUC del transportista; privado exige placa + DNI del conductor,
+// ya existentes en el modelo).
+enum ModalidadTransporte {
+  PUBLICO
+  PRIVADO
+}
+
 model GuiaRemision {
-  id             String         @id @default(cuid())
-  empresaId      String         @default("1")
-  numero         String         @unique // ej. T001-00000001
-  facturaId      String?
-  clienteId      String
-  fechaTraslado  DateTime
-  puntoPartida   String
-  puntoLlegada   String
-  motivoTraslado String         @default("Venta")
-  transportista  String?
-  placaVehiculo  String?
-  dniConductor   String?
-  observaciones  String?
+  id                  String              @id @default(cuid())
+  empresaId           String              @default("1")
+  numero              String              @unique // ej. T001-00000001
+  facturaId           String?
+  clienteId           String
+  fechaTraslado       DateTime
+  puntoPartida        String
+  puntoLlegada        String
+  // Código UBIGEO (6 dígitos) de SUNAT — obligatorio para el XML, distinto
+  // de puntoPartida/puntoLlegada (que son la dirección textual impresa).
+  ubigeoPartidaId     String?
+  ubigeoLlegadaId     String?
+  motivoTraslado      String              @default("Venta")
+  // Obligatorio para SUNAT (Catálogo 3, unidad KGM) — sin este dato el XML
+  // de la guía es inválido.
+  pesoBrutoTotal      Decimal             @default(0)
+  modalidadTransporte ModalidadTransporte @default(PRIVADO)
+  transportista       String?
+  // RUC de la empresa transportista — obligatorio cuando modalidadTransporte
+  // = PUBLICO (transporte contratado a terceros, no flota propia).
+  transportistaRuc    String?
+  placaVehiculo       String?
+  dniConductor        String?
+  observaciones       String?
   // Vehículo de flota propia que ejecuta el despacho (opcional: un
   // transportista externo puntual no tiene Equipo que vincular). Da
   // visibilidad real de la flota — de qué vehículo salió cada guía — y
   // conecta con su historial de mantenimiento.
-  equipoId       String?
-  estadoDespacho EstadoDespacho @default(PLANIFICADO)
-  fechaSalida    DateTime?
-  fechaEntrega   DateTime?
-  usuarioId      String
-  usuarioNombre  String
-  creadoEn       DateTime       @default(now())
+  equipoId            String?
+  estadoDespacho      EstadoDespacho      @default(PLANIFICADO)
+  fechaSalida         DateTime?
+  fechaEntrega        DateTime?
+  usuarioId           String
+  usuarioNombre       String
+  creadoEn            DateTime            @default(now())
 
-  factura  Factura?              @relation(fields: [facturaId], references: [id])
-  cliente  Cliente               @relation(fields: [clienteId], references: [id])
-  equipo   Equipo?               @relation(fields: [equipoId], references: [id])
-  detalles GuiaRemisionDetalle[]
+  factura       Factura?              @relation(fields: [facturaId], references: [id])
+  cliente       Cliente               @relation(fields: [clienteId], references: [id])
+  equipo        Equipo?               @relation(fields: [equipoId], references: [id])
+  ubigeoPartida Ubigeo?               @relation("UbigeoPartida", fields: [ubigeoPartidaId], references: [id])
+  ubigeoLlegada Ubigeo?               @relation("UbigeoLlegada", fields: [ubigeoLlegadaId], references: [id])
+  detalles      GuiaRemisionDetalle[]
 
   @@map("guias_remision")
+}
+
+// Catálogo oficial SUNAT de códigos UBIGEO (INEI/RENIEC/SUNAT no siempre
+// coinciden — este modelo usa específicamente el código SUNAT, que es el
+// que exige el XML de la guía). Sembrado desde prisma/data/ubigeos.json
+// (fuente: CONCYTEC, derivado del Excel oficial que SUNAT publica).
+model Ubigeo {
+  id           String @id @default(cuid())
+  codigo       String @unique // 6 dígitos
+  departamento String
+  provincia    String
+  distrito     String
+
+  guiasPartida GuiaRemision[] @relation("UbigeoPartida")
+  guiasLlegada GuiaRemision[] @relation("UbigeoLlegada")
+
+  @@map("ubigeos")
 }
 
 model GuiaRemisionDetalle {

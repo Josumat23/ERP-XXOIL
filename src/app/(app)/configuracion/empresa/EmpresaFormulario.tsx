@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useActionState } from "react";
 import { guardarConfiguracionEmpresa, type EstadoFormulario } from "./actions";
 
@@ -33,6 +34,10 @@ type Props = {
     tasaRecargoMora: number;
     oseProveedor: string;
     oseToken: string | null;
+    sunatUsuarioSol: string | null;
+    sunatClaveSol: string | null;
+    sunatCertificadoPassword: string | null;
+    tieneCertificado: boolean;
   };
 };
 
@@ -41,6 +46,7 @@ export default function EmpresaFormulario({ valores }: Props) {
     guardarConfiguracionEmpresa,
     {}
   );
+  const [oseProveedor, setOseProveedor] = useState(valores.oseProveedor);
 
   return (
     <form action={formAction} className="flex flex-col gap-5 max-w-2xl">
@@ -290,29 +296,72 @@ export default function EmpresaFormulario({ valores }: Props) {
       </fieldset>
 
       <fieldset className="borde-seccion">
-        <legend className="titulo-seccion">Facturación electrónica SUNAT (OSE)</legend>
+        <legend className="titulo-seccion">Facturación electrónica SUNAT</legend>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <Campo etiqueta="Proveedor OSE">
-            <select name="oseProveedor" defaultValue={valores.oseProveedor} className="campo-input">
+          <Campo etiqueta="Proveedor">
+            <select
+              name="oseProveedor"
+              value={oseProveedor}
+              onChange={(e) => setOseProveedor(e.target.value)}
+              className="campo-input"
+            >
               <option value="SIMULADO">Simulado (no envía nada real)</option>
-              <option value="NUBEFACT">Nubefact</option>
+              <option value="NUBEFACT">OSE — Nubefact</option>
+              <option value="SUNAT_DIRECTO">Directo a SUNAT (SEE - Del Contribuyente)</option>
             </select>
           </Campo>
-          <Campo etiqueta="Token del proveedor">
-            <input
-              name="oseToken"
-              type="password"
-              defaultValue={valores.oseToken ?? ""}
-              placeholder="Token que entrega el OSE al contratarlo"
-              className="campo-input"
-            />
-          </Campo>
+          {oseProveedor === "NUBEFACT" && (
+            <Campo etiqueta="Token del proveedor">
+              <input
+                name="oseToken"
+                type="password"
+                defaultValue={valores.oseToken ?? ""}
+                placeholder="Token que entrega el OSE al contratarlo"
+                className="campo-input"
+              />
+            </Campo>
+          )}
         </div>
         <p className="text-xs text-neutral-500 mt-1">
-          Usa el RUC de la sección "Datos fiscales" para autenticar contra el OSE. En "Simulado" el
-          sistema completa el flujo (estado, historial) sin enviar nada real a SUNAT — útil para
-          probar antes de contratar un proveedor real.
+          Usa el RUC de la sección "Datos fiscales" para autenticar. En "Simulado" el sistema
+          completa el flujo (estado, historial) sin enviar nada real a SUNAT — útil para probar
+          antes de contratar un proveedor real o de tener un certificado propio.
         </p>
+
+        {oseProveedor === "SUNAT_DIRECTO" && (
+          <div className="mt-3 pt-3 border-t border-black/10 dark:border-white/10">
+            <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2 mb-3">
+              Requiere un certificado digital real (.pfx/.p12) de una entidad certificadora
+              acreditada a nombre de la empresa, y un usuario secundario SOL con facturación
+              electrónica habilitada. Sin esto configurado, el envío directo fallará — no hay un
+              modo simulado para este proveedor.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <Campo etiqueta={`Certificado digital (.pfx/.p12)${valores.tieneCertificado ? " — ya hay uno cargado" : ""}`}>
+                <input name="sunatCertificadoArchivo" type="file" accept=".pfx,.p12" className="campo-input" />
+              </Campo>
+              <Campo etiqueta="Contraseña del certificado">
+                <input
+                  name="sunatCertificadoPassword"
+                  type="password"
+                  defaultValue={valores.sunatCertificadoPassword ?? ""}
+                  className="campo-input"
+                />
+              </Campo>
+              <Campo etiqueta="Usuario secundario SOL">
+                <input name="sunatUsuarioSol" defaultValue={valores.sunatUsuarioSol ?? ""} className="campo-input" />
+              </Campo>
+              <Campo etiqueta="Clave SOL">
+                <input
+                  name="sunatClaveSol"
+                  type="password"
+                  defaultValue={valores.sunatClaveSol ?? ""}
+                  className="campo-input"
+                />
+              </Campo>
+            </div>
+          </div>
+        )}
       </fieldset>
 
       <p className="text-xs text-neutral-500">

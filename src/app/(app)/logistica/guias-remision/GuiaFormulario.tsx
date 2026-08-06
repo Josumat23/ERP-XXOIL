@@ -12,6 +12,7 @@ type FacturaOpcion = {
   lineas: { presentacionId: string; cantidad: number }[];
 };
 type Opcion = { id: string; etiqueta: string };
+type UbigeoOpcion = { id: string; codigo: string; departamento: string; etiqueta: string };
 type Serie = { id: string; serie: string; correlativoActual: number };
 
 type Linea = { presentacionId: string; cantidad: string };
@@ -21,15 +22,39 @@ type Props = {
   clientes: Opcion[];
   presentaciones: Opcion[];
   equipos: Opcion[];
+  ubigeos: UbigeoOpcion[];
   puntoPartidaDefecto: string;
   series?: Serie[];
 };
+
+function SelectorUbigeo({ name, ubigeos }: { name: string; ubigeos: UbigeoOpcion[] }) {
+  const departamentos = Array.from(new Set(ubigeos.map((u) => u.departamento)));
+  return (
+    <select name={name} required defaultValue="" className="campo-input">
+      <option value="" disabled>
+        Seleccione
+      </option>
+      {departamentos.map((dep) => (
+        <optgroup key={dep} label={dep}>
+          {ubigeos
+            .filter((u) => u.departamento === dep)
+            .map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.etiqueta}
+              </option>
+            ))}
+        </optgroup>
+      ))}
+    </select>
+  );
+}
 
 export default function GuiaFormulario({
   facturas,
   clientes,
   presentaciones,
   equipos,
+  ubigeos,
   puntoPartidaDefecto,
   series = [],
 }: Props) {
@@ -40,6 +65,7 @@ export default function GuiaFormulario({
   const [facturaId, setFacturaId] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [lineas, setLineas] = useState<Linea[]>([{ presentacionId: "", cantidad: "" }]);
+  const [modalidadTransporte, setModalidadTransporte] = useState<"PUBLICO" | "PRIVADO">("PRIVADO");
 
   const lineasJson = JSON.stringify(
     lineas.map((l) => ({ presentacionId: l.presentacionId, cantidad: Number(l.cantidad) }))
@@ -138,6 +164,42 @@ export default function GuiaFormulario({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Ubigeo de partida (obligatorio SUNAT)
+          </span>
+          <SelectorUbigeo name="ubigeoPartidaId" ubigeos={ubigeos} />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Ubigeo de llegada (obligatorio SUNAT)
+          </span>
+          <SelectorUbigeo name="ubigeoLlegadaId" ubigeos={ubigeos} />
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Peso bruto total (kg, obligatorio SUNAT)
+          </span>
+          <input name="pesoBrutoTotal" type="number" step="0.01" min="0.01" required className="campo-input" />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Modalidad de transporte</span>
+          <select
+            name="modalidadTransporte"
+            value={modalidadTransporte}
+            onChange={(e) => setModalidadTransporte(e.target.value as "PUBLICO" | "PRIVADO")}
+            className="campo-input"
+          >
+            <option value="PRIVADO">Privado (flota propia)</option>
+            <option value="PUBLICO">Público (transportista contratado)</option>
+          </select>
+        </label>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
             Vehículo de flota propia (opcional)
           </span>
           <select name="equipoId" defaultValue="" className="campo-input">
@@ -155,14 +217,36 @@ export default function GuiaFormulario({
         </label>
       </div>
 
+      {modalidadTransporte === "PUBLICO" && (
+        <label className="flex flex-col gap-1 text-sm max-w-xs">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            RUC del transportista (obligatorio en transporte público)
+          </span>
+          <input name="transportistaRuc" maxLength={11} required className="campo-input font-mono" />
+        </label>
+      )}
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">Placa vehículo</span>
-          <input name="placaVehiculo" className="campo-input font-mono" />
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Placa vehículo{modalidadTransporte === "PRIVADO" ? " (obligatorio)" : ""}
+          </span>
+          <input
+            name="placaVehiculo"
+            required={modalidadTransporte === "PRIVADO"}
+            className="campo-input font-mono"
+          />
         </label>
         <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">DNI conductor</span>
-          <input name="dniConductor" maxLength={8} className="campo-input font-mono" />
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            DNI conductor{modalidadTransporte === "PRIVADO" ? " (obligatorio)" : ""}
+          </span>
+          <input
+            name="dniConductor"
+            maxLength={8}
+            required={modalidadTransporte === "PRIVADO"}
+            className="campo-input font-mono"
+          />
         </label>
       </div>
 

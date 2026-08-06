@@ -10,6 +10,11 @@ import { registrarMovimiento } from "@/lib/inventario";
 
 export type EstadoFormulario = { error?: string };
 
+// Códigos reales del Catálogo 03 de SUNAT que puede necesitar una presentación
+// de grasas/lubricantes — no el catálogo completo (cientos de unidades que
+// nunca se usarían aquí).
+const UNIDADES_SUNAT_VALIDAS = ["NIU", "KGM", "LTR", "GLL", "BLL", "ZZ"];
+
 function esErrorDuplicado(e: unknown): boolean {
   return e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002";
 }
@@ -29,6 +34,7 @@ function leerDatos(formData: FormData) {
   const unidadesPorCajaRaw = String(formData.get("unidadesPorCaja") ?? "").trim();
   const unidadesPorCaja = unidadesPorCajaRaw ? Number(unidadesPorCajaRaw) : null;
   const zonaAlmacenId = String(formData.get("zonaAlmacenId") ?? "") || null;
+  const unidadMedidaSunat = String(formData.get("unidadMedidaSunat") ?? "NIU");
 
   if (!productoId || !sku || !nombre) {
     return { error: "Producto, SKU y nombre son obligatorios." } as const;
@@ -54,6 +60,9 @@ function leerDatos(formData: FormData) {
   if (unidadesPorCaja !== null && (!Number.isInteger(unidadesPorCaja) || unidadesPorCaja <= 0)) {
     return { error: "Las unidades por caja deben ser un entero mayor a 0." } as const;
   }
+  if (!UNIDADES_SUNAT_VALIDAS.includes(unidadMedidaSunat)) {
+    return { error: "Seleccione una unidad de medida SUNAT válida." } as const;
+  }
 
   return {
     datos: {
@@ -68,6 +77,7 @@ function leerDatos(formData: FormData) {
       pesoBrutoKg,
       unidadesPorCaja,
       zonaAlmacenId,
+      unidadMedidaSunat,
       moneda: "PEN",
     },
   } as const;

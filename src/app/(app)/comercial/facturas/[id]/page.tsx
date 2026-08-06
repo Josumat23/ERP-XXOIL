@@ -8,11 +8,14 @@ import {
   ETIQUETA_CONDICION_PAGO,
   ETIQUETA_MEDIO_PAGO,
   MOTIVO_DEVOLUCION_PREFIJO,
+  ETIQUETA_ESTADO_SUNAT,
+  COLOR_ESTADO_SUNAT,
 } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { seriesActivas } from "@/lib/series";
+import { ETIQUETA_TIPO_NOTA_CREDITO } from "@/lib/catalogosSunat";
 import {
   CobroFormulario,
   NotaCreditoFormulario,
@@ -29,24 +32,6 @@ const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
   PAGADA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
   ANULADA: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
-};
-
-const ETIQUETA_ESTADO_SUNAT: Record<string, string> = {
-  PENDIENTE: "Pendiente de envío",
-  ENVIADO: "Enviado, esperando confirmación",
-  ACEPTADO: "Aceptado por SUNAT",
-  RECHAZADO: "Rechazado por SUNAT",
-  OBSERVADO: "Observado por SUNAT",
-  ERROR: "Error al enviar",
-};
-
-const COLOR_ESTADO_SUNAT: Record<string, string> = {
-  PENDIENTE: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
-  ENVIADO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
-  ACEPTADO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
-  RECHAZADO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
-  OBSERVADO: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
-  ERROR: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
 };
 
 export default async function DetalleFacturaPage({
@@ -92,10 +77,29 @@ export default async function DetalleFacturaPage({
   const puedeAplicarMora = vencida && (config?.tasaRecargoMora.toNumber() ?? 0) > 0;
 
   const totalNC = factura.notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
-  const maximoNC = factura.total.toNumber() - totalNC;
   const puedeOperar = factura.estado !== "ANULADA";
   const sinCobrosNiNC = factura.cobros.length === 0 && factura.notasCredito.length === 0;
-  const seriesNC = puedeOperar && maximoNC > 0 ? await seriesActivas("NOTA_CREDITO") : [];
+
+  // Notas de crédito: cuánto de cada línea ya se acreditó, para saber cuánto
+  // falta disponible (mismo principio que las devoluciones más abajo).
+  const notaCreditoDetalles = await prisma.notaCreditoDetalle.findMany({
+    where: { pedidoDetalleId: { in: factura.pedido.detalles.map((d) => d.id) } },
+  });
+  const yaAcreditadoPorLinea = new Map<string, number>();
+  for (const d of notaCreditoDetalles) {
+    yaAcreditadoPorLinea.set(
+      d.pedidoDetalleId,
+      (yaAcreditadoPorLinea.get(d.pedidoDetalleId) ?? 0) + d.cantidad.toNumber()
+    );
+  }
+  const lineasAcreditables = factura.pedido.detalles.map((d) => ({
+    pedidoDetalleId: d.id,
+    etiqueta: `${d.presentacion.producto.nombre} — ${d.presentacion.nombre}`,
+    precioUnitario: d.precioUnitario.toNumber(),
+    maxAcreditable: d.cantidad - (yaAcreditadoPorLinea.get(d.id) ?? 0),
+  }));
+  const hayLineasAcreditables = lineasAcreditables.some((l) => l.maxAcreditable > 0);
+  const seriesNC = puedeOperar && hayLineasAcreditables ? await seriesActivas("NOTA_CREDITO") : [];
 
   // Devoluciones: cuánto de cada línea ya se devolvió, para saber cuánto falta.
   const liberacionesPorDevolucion = await prisma.asignacionLoteVenta.findMany({
@@ -390,6 +394,7 @@ export default async function DetalleFacturaPage({
               <tr>
                 <th>Número</th>
                 <th>Fecha</th>
+                <th>Tipo</th>
                 <th>Motivo</th>
                 <th>Registrado por</th>
                 <th className="text-right">Monto</th>
@@ -405,6 +410,7 @@ export default async function DetalleFacturaPage({
                     <td className="text-xs text-neutral-500 whitespace-nowrap">
                       {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(nc.fecha)}
                     </td>
+                    <td className="text-xs text-neutral-500">{ETIQUETA_TIPO_NOTA_CREDITO[nc.tipoNota]}</td>
                     <td className="text-sm">{nc.motivo}</td>
                     <td className="text-sm">{nc.usuarioNombre}</td>
                     <td className="text-right">{formatMoneda(nc.monto)}</td>
@@ -436,11 +442,11 @@ export default async function DetalleFacturaPage({
             </tbody>
           </table>
         )}
-        {puedeOperar && maximoNC > 0 && (
+        {puedeOperar && hayLineasAcreditables && (
           <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 mt-3">
             <NotaCreditoFormulario
               facturaId={factura.id}
-              maximo={maximoNC}
+              lineas={lineasAcreditables}
               series={seriesNC.map((s) => ({
                 id: s.id,
                 serie: s.serie,
@@ -449,7 +455,7 @@ export default async function DetalleFacturaPage({
             />
           </div>
         )}
-        {factura.notasCredito.length === 0 && (!puedeOperar || maximoNC === 0) && (
+        {factura.notasCredito.length === 0 && (!puedeOperar || !hayLineasAcreditables) && (
           <p className="text-sm text-neutral-500 mt-2">Sin notas de crédito.</p>
         )}
       </section>

@@ -63,6 +63,7 @@ export default async function EditarPresentacionPage({
             pesoBrutoKg: presentacion.pesoBrutoKg?.toNumber() ?? null,
             unidadesPorCaja: presentacion.unidadesPorCaja,
             zonaAlmacenId: presentacion.zonaAlmacenId,
+            unidadMedidaSunat: presentacion.unidadMedidaSunat,
           }}
           textoBoton="Guardar cambios"
         />

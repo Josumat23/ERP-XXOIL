@@ -24,9 +24,29 @@ import { prisma } from "@/lib/prisma";
 
 export type ItemComprobante = {
   descripcion: string;
-  unidadMedida: string;
+  unidadMedida: string; // código Catálogo 03 SUNAT (NIU, KGM, GLL, LTR...)
   cantidad: number;
   valorUnitario: number; // sin IGV
+};
+
+// Datos propios de la guía de remisión — sin montos (una guía no es un
+// documento de cobro), con los campos que SUNAT exige y que la versión
+// anterior de este adaptador no armaba en absoluto.
+export type DatosGuia = {
+  destinatarioRuc: string;
+  destinatarioDenominacion: string;
+  fechaTraslado: Date;
+  pesoBrutoTotal: number;
+  modalidadTransporte: $Enums.ModalidadTransporte;
+  puntoPartidaDireccion: string;
+  puntoPartidaUbigeo: string;
+  puntoLlegadaDireccion: string;
+  puntoLlegadaUbigeo: string;
+  motivoTraslado: string;
+  transportistaRuc?: string | null;
+  transportistaDenominacion?: string | null;
+  placaVehiculo?: string | null;
+  dniConductor?: string | null;
 };
 
 export type DatosComprobante = {
@@ -46,6 +66,9 @@ export type DatosComprobante = {
   facturaAfectadaSerie?: string;
   facturaAfectadaNumero?: string;
   motivo?: string;
+  tipoNota?: string; // código Catálogo 9 SUNAT ("01".."10"), no el motivo en texto libre
+  // Datos propios de la guía (solo tipoDocumento = GUIA_REMISION)
+  guia?: DatosGuia;
 };
 
 export type ResultadoEnvioOse = {
@@ -58,11 +81,19 @@ export type ResultadoEnvioOse = {
   enlaceCdr?: string;
 };
 
+type CredencialesOse = {
+  ruc: string;
+  token: string;
+  razonSocial: string;
+  direccion?: string | null;
+  sunatCertificadoBase64?: string | null;
+  sunatCertificadoPassword?: string | null;
+  sunatUsuarioSol?: string | null;
+  sunatClaveSol?: string | null;
+};
+
 interface AdaptadorOse {
-  enviar(
-    datos: DatosComprobante,
-    credenciales: { ruc: string; token: string }
-  ): Promise<ResultadoEnvioOse>;
+  enviar(datos: DatosComprobante, credenciales: CredencialesOse): Promise<ResultadoEnvioOse>;
 }
 
 // --- Adaptador simulado -----------------------------------------------------
@@ -87,6 +118,91 @@ const TIPO_COMPROBANTE_NUBEFACT: Record<$Enums.TipoComprobanteElectronico, numbe
   GUIA_REMISION: 7,
 };
 
+// Nubefact factura/nota de crédito: documento de cobro con montos e ítems
+// valorizados — comparte casi toda la estructura entre ambos tipos.
+function armarBodyFacturaONotaCredito(datos: DatosComprobante, fechaDeEmision: string): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    operacion: "generar_comprobante",
+    tipo_de_comprobante: TIPO_COMPROBANTE_NUBEFACT[datos.tipoDocumento],
+    serie: datos.serie,
+    numero: datos.numero,
+    sunat_transaction: 1,
+    cliente_tipo_de_documento: 6, // RUC (este sistema solo emite Factura, no Boleta)
+    cliente_numero_de_documento: datos.clienteRuc,
+    cliente_denominacion: datos.clienteDenominacion,
+    cliente_direccion: datos.clienteDireccion ?? "",
+    fecha_de_emision: fechaDeEmision,
+    moneda: datos.moneda === "PEN" ? 1 : 2,
+    porcentaje_de_igv: datos.totalGravada > 0 ? (datos.totalIgv / datos.totalGravada) * 100 : 18,
+    total_gravada: datos.totalGravada,
+    total_igv: datos.totalIgv,
+    total: datos.total,
+    enviar_automaticamente_a_la_sunat: true,
+    items: datos.items.map((i) => ({
+      unidad_de_medida: i.unidadMedida,
+      descripcion: i.descripcion,
+      cantidad: i.cantidad,
+      valor_unitario: i.valorUnitario,
+      tipo_de_igv: 1, // gravado - operación onerosa
+      igv: Math.round(i.valorUnitario * i.cantidad * 0.18 * 100) / 100,
+      total: Math.round(i.valorUnitario * i.cantidad * 1.18 * 100) / 100,
+    })),
+  };
+
+  if (datos.tipoDocumento === "NOTA_CREDITO") {
+    // Código real del Catálogo 9 SUNAT (armado en catalogosSunat.ts a partir
+    // del tipoNota elegido) — antes se mandaba siempre "8 - Otros" sin
+    // importar el motivo real.
+    body.tipo_de_nota_de_credito = Number(datos.tipoNota ?? "10");
+    body.documento_que_se_modifica_tipo = 1; // Factura
+    body.documento_que_se_modifica_serie = datos.facturaAfectadaSerie;
+    body.documento_que_se_modifica_numero = datos.facturaAfectadaNumero;
+    body.motivo = datos.motivo;
+  }
+
+  return body;
+}
+
+// Nubefact guía de remisión: documento de traslado, sin montos — estructura
+// completamente distinta a la de arriba (transportista, vehículo, peso,
+// ubigeos, motivo de traslado en vez de ítems valorizados).
+function armarBodyGuia(datos: DatosComprobante, fechaDeEmision: string): Record<string, unknown> {
+  const guia = datos.guia;
+  if (!guia) {
+    throw new Error("Faltan los datos de traslado (datos.guia) para armar la guía de remisión.");
+  }
+  return {
+    operacion: "generar_guia",
+    tipo_de_comprobante: TIPO_COMPROBANTE_NUBEFACT.GUIA_REMISION,
+    serie: datos.serie,
+    numero: datos.numero,
+    cliente_tipo_de_documento: 6,
+    cliente_numero_de_documento: guia.destinatarioRuc,
+    cliente_denominacion: guia.destinatarioDenominacion,
+    fecha_de_emision: fechaDeEmision,
+    fecha_de_inicio_de_traslado: fechaDeEmision,
+    motivo_de_traslado: guia.motivoTraslado,
+    peso_bruto_total: guia.pesoBrutoTotal,
+    peso_bruto_unidad_medida: "KGM",
+    modalidad_de_transporte: guia.modalidadTransporte === "PUBLICO" ? "01" : "02",
+    transportista_documento_tipo: guia.transportistaRuc ? 6 : undefined,
+    transportista_documento_numero: guia.transportistaRuc ?? undefined,
+    transportista_denominacion: guia.transportistaDenominacion ?? undefined,
+    vehiculo_placa_numero: guia.placaVehiculo ?? undefined,
+    conductor_documento_numero: guia.dniConductor ?? undefined,
+    punto_de_partida_ubigeo: guia.puntoPartidaUbigeo,
+    punto_de_partida_direccion: guia.puntoPartidaDireccion,
+    punto_de_llegada_ubigeo: guia.puntoLlegadaUbigeo,
+    punto_de_llegada_direccion: guia.puntoLlegadaDireccion,
+    enviar_automaticamente_a_la_sunat: true,
+    items: datos.items.map((i) => ({
+      unidad_de_medida: i.unidadMedida,
+      descripcion: i.descripcion,
+      cantidad: i.cantidad,
+    })),
+  };
+}
+
 const adaptadorNubefact: AdaptadorOse = {
   async enviar(datos, credenciales) {
     if (!credenciales.ruc || !credenciales.token) {
@@ -102,41 +218,10 @@ const adaptadorNubefact: AdaptadorOse = {
       fecha.getMonth() + 1
     ).padStart(2, "0")}-${fecha.getFullYear()}`;
 
-    const body: Record<string, unknown> = {
-      operacion: "generar_comprobante",
-      tipo_de_comprobante: TIPO_COMPROBANTE_NUBEFACT[datos.tipoDocumento],
-      serie: datos.serie,
-      numero: datos.numero,
-      sunat_transaction: 1,
-      cliente_tipo_de_documento: 6, // RUC (este sistema solo emite Factura, no Boleta)
-      cliente_numero_de_documento: datos.clienteRuc,
-      cliente_denominacion: datos.clienteDenominacion,
-      cliente_direccion: datos.clienteDireccion ?? "",
-      fecha_de_emision: fechaDeEmision,
-      moneda: datos.moneda === "PEN" ? 1 : 2,
-      porcentaje_de_igv: datos.totalGravada > 0 ? (datos.totalIgv / datos.totalGravada) * 100 : 18,
-      total_gravada: datos.totalGravada,
-      total_igv: datos.totalIgv,
-      total: datos.total,
-      enviar_automaticamente_a_la_sunat: true,
-      items: datos.items.map((i) => ({
-        unidad_de_medida: i.unidadMedida,
-        descripcion: i.descripcion,
-        cantidad: i.cantidad,
-        valor_unitario: i.valorUnitario,
-        tipo_de_igv: 1, // gravado - operación onerosa
-        igv: Math.round(i.valorUnitario * i.cantidad * 0.18 * 100) / 100,
-        total: Math.round(i.valorUnitario * i.cantidad * 1.18 * 100) / 100,
-      })),
-    };
-
-    if (datos.tipoDocumento === "NOTA_CREDITO") {
-      body.tipo_de_nota_de_credito = 8; // "Otros" — según el motivo
-      body.documento_que_se_modifica_tipo = 1; // Factura
-      body.documento_que_se_modifica_serie = datos.facturaAfectadaSerie;
-      body.documento_que_se_modifica_numero = datos.facturaAfectadaNumero;
-      body.motivo = datos.motivo;
-    }
+    const body =
+      datos.tipoDocumento === "GUIA_REMISION"
+        ? armarBodyGuia(datos, fechaDeEmision)
+        : armarBodyFacturaONotaCredito(datos, fechaDeEmision);
 
     try {
       const respuesta = await fetch(`https://api.nubefact.com/api/v1/${credenciales.ruc}`, {
@@ -179,9 +264,87 @@ const adaptadorNubefact: AdaptadorOse = {
   },
 };
 
+// --- Adaptador directo a SUNAT (SEE - Del Contribuyente) -------------------
+// Sin OSE intermediario: arma el XML UBL 2.1 (sunatUbl.ts), lo firma con el
+// certificado digital de la empresa (sunatFirma.ts) y lo envía por SOAP
+// directo al webservice de SUNAT (sunatSoap.ts). No tiene modo simulado —
+// sin certificado y credenciales SOL reales configuradas, falla explícito.
+const adaptadorSunatDirecto: AdaptadorOse = {
+  async enviar(datos, credenciales) {
+    if (
+      !credenciales.ruc ||
+      !credenciales.sunatCertificadoBase64 ||
+      !credenciales.sunatCertificadoPassword ||
+      !credenciales.sunatUsuarioSol ||
+      !credenciales.sunatClaveSol
+    ) {
+      return {
+        ok: false,
+        estado: "ERROR",
+        sunatDescripcion:
+          "Falta el certificado digital, su contraseña, o el usuario/clave SOL en Configuración → Empresa.",
+      };
+    }
+
+    try {
+      const { construirFacturaUBL, construirNotaCreditoUBL, construirGuiaRemisionUBL } = await import(
+        "@/lib/sunatUbl"
+      );
+      const { firmarXml } = await import("@/lib/sunatFirma");
+      const { enviarSunatDirecto } = await import("@/lib/sunatSoap");
+
+      const emisor = {
+        ruc: credenciales.ruc,
+        razonSocial: credenciales.razonSocial,
+        direccion: credenciales.direccion,
+      };
+
+      const xmlSinFirmar =
+        datos.tipoDocumento === "FACTURA"
+          ? construirFacturaUBL(datos, emisor)
+          : datos.tipoDocumento === "NOTA_CREDITO"
+            ? construirNotaCreditoUBL(datos, emisor)
+            : construirGuiaRemisionUBL(datos, emisor);
+
+      const xmlFirmado = firmarXml(
+        xmlSinFirmar,
+        credenciales.sunatCertificadoBase64,
+        credenciales.sunatCertificadoPassword
+      );
+
+      const resultado = await enviarSunatDirecto({
+        tipoDocumento: datos.tipoDocumento,
+        rucEmisor: credenciales.ruc,
+        serie: datos.serie,
+        numero: datos.numero,
+        xmlFirmado,
+        usuarioSol: credenciales.sunatUsuarioSol,
+        claveSol: credenciales.sunatClaveSol,
+      });
+
+      if (!resultado.ok) {
+        return { ok: false, estado: "ERROR", sunatDescripcion: resultado.error };
+      }
+
+      return {
+        ok: resultado.aceptado,
+        estado: resultado.aceptado ? "ACEPTADO" : "RECHAZADO",
+        sunatDescripcion: resultado.descripcion ?? `Código de respuesta: ${resultado.codigoRespuesta ?? "?"}`,
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        estado: "ERROR",
+        sunatDescripcion: e instanceof Error ? e.message : "Error al construir/firmar/enviar el XML a SUNAT.",
+      };
+    }
+  },
+};
+
 const ADAPTADORES: Record<string, AdaptadorOse> = {
   SIMULADO: adaptadorSimulado,
   NUBEFACT: adaptadorNubefact,
+  SUNAT_DIRECTO: adaptadorSunatDirecto,
 };
 
 // Punto de entrada único. Llamar SIEMPRE después de que la transacción que
@@ -220,6 +383,12 @@ export async function enviarComprobanteElectronico(params: {
       resultado = await adaptador.enviar(params.datos, {
         ruc: config?.ruc ?? "",
         token: config?.oseToken ?? "",
+        razonSocial: config?.razonSocial ?? "",
+        direccion: config?.direccion,
+        sunatCertificadoBase64: config?.sunatCertificadoBase64,
+        sunatCertificadoPassword: config?.sunatCertificadoPassword,
+        sunatUsuarioSol: config?.sunatUsuarioSol,
+        sunatClaveSol: config?.sunatClaveSol,
       });
     } catch (e) {
       resultado = {

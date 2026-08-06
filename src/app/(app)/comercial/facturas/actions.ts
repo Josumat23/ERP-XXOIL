@@ -16,6 +16,7 @@ import {
 } from "@/lib/contabilidad";
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
+import { CODIGO_TIPO_NOTA_CREDITO } from "@/lib/catalogosSunat";
 
 export type EstadoFormulario = { error?: string };
 
@@ -53,7 +54,7 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
       total: factura.total.toNumber(),
       items: factura.pedido.detalles.map((d) => ({
         descripcion: d.presentacion.nombre,
-        unidadMedida: "NIU",
+        unidadMedida: d.presentacion.unidadMedidaSunat,
         cantidad: d.cantidad,
         valorUnitario: d.precioUnitario.toNumber(),
       })),
@@ -62,10 +63,15 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
 }
 
 // Arma los datos SUNAT de una nota de crédito ya creada y la envía al OSE.
+// A diferencia de la versión anterior, usa las líneas reales de la factura
+// afectada (NotaCreditoDetalle) — no un ítem fabricado a partir del motivo.
 export async function enviarComprobanteNotaCredito(notaCreditoId: string): Promise<void> {
   const nc = await prisma.notaCredito.findUnique({
     where: { id: notaCreditoId },
-    include: { factura: { include: { cliente: true } } },
+    include: {
+      factura: { include: { cliente: true } },
+      detalles: { include: { pedidoDetalle: { include: { presentacion: true } } } },
+    },
   });
   if (!nc) return;
 
@@ -92,17 +98,16 @@ export async function enviarComprobanteNotaCredito(notaCreditoId: string): Promi
       totalGravada: montoBase,
       totalIgv: montoIgv,
       total: nc.monto.toNumber(),
-      items: [
-        {
-          descripcion: nc.motivo,
-          unidadMedida: "NIU",
-          cantidad: 1,
-          valorUnitario: montoBase,
-        },
-      ],
+      items: nc.detalles.map((d) => ({
+        descripcion: d.pedidoDetalle.presentacion.nombre,
+        unidadMedida: d.pedidoDetalle.presentacion.unidadMedidaSunat,
+        cantidad: d.cantidad.toNumber(),
+        valorUnitario: d.precioUnitario.toNumber(),
+      })),
       facturaAfectadaSerie: facturaSerie || nc.factura.numero,
       facturaAfectadaNumero: facturaNumeroStr || "",
       motivo: nc.motivo,
+      tipoNota: CODIGO_TIPO_NOTA_CREDITO[nc.tipoNota],
     },
   });
 }
@@ -199,8 +204,25 @@ export async function registrarCobro(
   return {};
 }
 
+const TIPOS_NOTA_VALIDOS: $Enums.TipoNotaCredito[] = [
+  "ANULACION_OPERACION",
+  "ANULACION_ERROR_RUC",
+  "CORRECCION_DESCRIPCION",
+  "DESCUENTO_GLOBAL",
+  "DESCUENTO_ITEM",
+  "DEVOLUCION_TOTAL",
+  "DEVOLUCION_ITEM",
+  "BONIFICACION",
+  "DISMINUCION_VALOR",
+  "OTROS_CONCEPTOS",
+];
+
+type LineaNotaCredito = { pedidoDetalleId: string; cantidad: number };
+
 // Nota de crédito: reduce el saldo de la factura y revierte la comisión
 // en forma proporcional con un registro nuevo (nunca se edita la original).
+// Cita líneas reales de la factura afectada (NotaCreditoDetalle) — el monto
+// y el IGV se calculan a partir de ellas, no se ingresan sueltos.
 export async function crearNotaCredito(
   facturaId: string,
   _prevState: EstadoFormulario,
@@ -213,23 +235,75 @@ export async function crearNotaCredito(
   }
 
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
-  const monto = Number(formData.get("monto"));
   const motivo = String(formData.get("motivo") ?? "").trim();
+  const tipoNota = String(formData.get("tipoNota") ?? "") as $Enums.TipoNotaCredito;
   const serieId = String(formData.get("serieId") ?? "") || null;
 
   if (!numero) return { error: "Ingrese el número de la nota de crédito (SUNAT)." };
-  if (!Number.isFinite(monto) || monto <= 0) return { error: "El monto debe ser mayor a 0." };
   if (!motivo) return { error: "El motivo es obligatorio." };
+  if (!TIPOS_NOTA_VALIDOS.includes(tipoNota)) {
+    return { error: "Seleccione el tipo de nota de crédito (Catálogo 9 SUNAT)." };
+  }
+
+  let lineas: LineaNotaCredito[];
+  try {
+    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+  } catch {
+    return { error: "El detalle de la nota de crédito es inválido." };
+  }
+  lineas = lineas.filter((l) => l.pedidoDetalleId && Number.isFinite(l.cantidad) && l.cantidad > 0);
+  if (lineas.length === 0) {
+    return { error: "Agregue al menos una línea con cantidad válida." };
+  }
 
   let notaCreditoId = "";
   try {
     await prisma.$transaction(async (tx) => {
       const factura = await tx.factura.findUnique({
         where: { id: facturaId },
-        include: { notasCredito: true, comisiones: true },
+        include: { notasCredito: true, comisiones: true, pedido: { include: { detalles: true } } },
       });
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
+
+      const detallesPorId = new Map(factura.pedido.detalles.map((d) => [d.id, d]));
+      const notasPrevias = await tx.notaCreditoDetalle.findMany({
+        where: { notaCredito: { facturaId } },
+      });
+      const yaAcreditado = new Map<string, number>();
+      for (const nd of notasPrevias) {
+        yaAcreditado.set(
+          nd.pedidoDetalleId,
+          (yaAcreditado.get(nd.pedidoDetalleId) ?? 0) + nd.cantidad.toNumber()
+        );
+      }
+
+      let montoBase = 0;
+      const detallesNC: {
+        pedidoDetalleId: string;
+        cantidad: number;
+        precioUnitario: number;
+        subtotal: number;
+      }[] = [];
+      for (const l of lineas) {
+        const detalle = detallesPorId.get(l.pedidoDetalleId);
+        if (!detalle) throw new Error("Una de las líneas seleccionadas no pertenece a esta factura.");
+        const disponible = detalle.cantidad - (yaAcreditado.get(l.pedidoDetalleId) ?? 0);
+        if (l.cantidad > disponible) {
+          throw new Error(
+            `Solo puede acreditar hasta ${disponible} unidad(es) de esa línea (ya se acreditó ${
+              yaAcreditado.get(l.pedidoDetalleId) ?? 0
+            } de ${detalle.cantidad}).`
+          );
+        }
+        const precioUnitario = detalle.precioUnitario.toNumber();
+        const subtotal = l.cantidad * precioUnitario;
+        montoBase += subtotal;
+        detallesNC.push({ pedidoDetalleId: l.pedidoDetalleId, cantidad: l.cantidad, precioUnitario, subtotal });
+      }
+
+      const montoIgv = Math.round(montoBase * factura.tasaIgv.toNumber()) / 100;
+      const monto = montoBase + montoIgv;
 
       const totalNC = factura.notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
       const maximo = factura.total.toNumber() - totalNC;
@@ -245,8 +319,10 @@ export async function crearNotaCredito(
           facturaId,
           monto,
           motivo,
+          tipoNota,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
+          detalles: { create: detallesNC },
         },
       });
       notaCreditoId = nc.id;
@@ -258,12 +334,11 @@ export async function crearNotaCredito(
         data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : factura.estado },
       });
 
-      // Reversión proporcional de la comisión generada. El monto de la NC
-      // incluye IGV: se lleva a base imponible antes de aplicar la tasa.
+      // Reversión proporcional de la comisión generada, sobre la base
+      // imponible real de la NC (ya calculada arriba, no una estimación).
       const generada = factura.comisiones.find((c) => c.tipo === "GENERADA");
       if (generada) {
         const tasa = generada.tasa.toNumber();
-        const montoBase = monto / (1 + factura.tasaIgv.toNumber() / 100);
         await tx.comision.create({
           data: {
             vendedorId: factura.vendedorId,
@@ -278,14 +353,13 @@ export async function crearNotaCredito(
 
       await avanzarSerie(tx, serieId);
 
-      const montoBaseNC = monto / (1 + factura.tasaIgv.toNumber() / 100);
       await postearNotaCredito(
         tx,
         {
           numeroNC: numero,
           numeroFactura: factura.numero,
-          montoBase: montoBaseNC,
-          montoIgv: monto - montoBaseNC,
+          montoBase,
+          montoIgv,
           montoTotal: monto,
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }

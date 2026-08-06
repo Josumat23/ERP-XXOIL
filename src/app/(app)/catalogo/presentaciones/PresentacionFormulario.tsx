@@ -24,9 +24,19 @@ type Props = {
     pesoBrutoKg: number | null;
     unidadesPorCaja: number | null;
     zonaAlmacenId: string | null;
+    unidadMedidaSunat: string;
   };
   textoBoton: string;
 };
+
+const OPCIONES_UNIDAD_SUNAT = [
+  { valor: "NIU", etiqueta: "NIU — Unidad" },
+  { valor: "KGM", etiqueta: "KGM — Kilogramo" },
+  { valor: "LTR", etiqueta: "LTR — Litro" },
+  { valor: "GLL", etiqueta: "GLL — Galón" },
+  { valor: "BLL", etiqueta: "BLL — Barril" },
+  { valor: "ZZ", etiqueta: "ZZ — Unidad no especificada" },
+];
 
 export default function PresentacionFormulario({
   accion,
@@ -201,6 +211,20 @@ export default function PresentacionFormulario({
           </select>
         </Campo>
       </div>
+
+      <Campo etiqueta="Unidad de medida SUNAT (comprobante electrónico)">
+        <select
+          name="unidadMedidaSunat"
+          defaultValue={valoresIniciales?.unidadMedidaSunat ?? "NIU"}
+          className="campo-input"
+        >
+          {OPCIONES_UNIDAD_SUNAT.map((o) => (
+            <option key={o.valor} value={o.valor}>
+              {o.etiqueta}
+            </option>
+          ))}
+        </select>
+      </Campo>
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Guardando..." : textoBoton}

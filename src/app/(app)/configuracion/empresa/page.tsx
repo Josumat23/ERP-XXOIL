@@ -1,13 +1,18 @@
 import { redirect } from "next/navigation";
 import { obtenerUsuario } from "@/lib/auth";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { prisma } from "@/lib/prisma";
 import EmpresaFormulario from "./EmpresaFormulario";
+import CuentasBancarias from "./CuentasBancarias";
 
 export default async function EmpresaPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
 
-  const config = await obtenerConfiguracionEmpresa();
+  const [config, cuentasBancarias] = await Promise.all([
+    obtenerConfiguracionEmpresa(),
+    prisma.cuentaBancariaEmpresa.findMany({ where: { empresaId: "1" }, orderBy: { banco: "asc" } }),
+  ]);
 
   return (
     <div className="max-w-2xl">
@@ -52,8 +57,16 @@ export default async function EmpresaPage() {
             tasaRecargoMora: config.tasaRecargoMora.toNumber(),
             oseProveedor: config.oseProveedor,
             oseToken: config.oseToken,
+            sunatUsuarioSol: config.sunatUsuarioSol,
+            sunatClaveSol: config.sunatClaveSol,
+            sunatCertificadoPassword: config.sunatCertificadoPassword,
+            tieneCertificado: Boolean(config.sunatCertificadoBase64),
           }}
         />
+      </div>
+
+      <div className="mt-8">
+        <CuentasBancarias cuentas={cuentasBancarias} />
       </div>
     </div>
   );

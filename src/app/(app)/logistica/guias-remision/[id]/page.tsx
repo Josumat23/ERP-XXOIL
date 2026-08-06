@@ -1,12 +1,15 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import EstadoDespachoFormulario from "./EstadoDespachoFormulario";
-import { ETIQUETA_ESTADO_DESPACHO } from "@/lib/etiquetas";
+import { ETIQUETA_ESTADO_DESPACHO, ETIQUETA_ESTADO_SUNAT, COLOR_ESTADO_SUNAT } from "@/lib/etiquetas";
+import { ETIQUETA_MODALIDAD_TRANSPORTE } from "@/lib/catalogosSunat";
+import { enviarComprobanteGuia } from "../actions";
 
 export default async function DetalleGuiaPage({
   params,
@@ -22,12 +25,18 @@ export default async function DetalleGuiaPage({
         cliente: true,
         factura: true,
         equipo: true,
+        ubigeoPartida: true,
+        ubigeoLlegada: true,
         detalles: { include: { presentacion: { include: { producto: true } } } },
       },
     }),
     prisma.guiaRemision.findMany({ include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
   ]);
   if (!guia) notFound();
+
+  const comprobante = await prisma.comprobanteElectronico.findUnique({
+    where: { empresaId_tipoDocumento_documentoId: { empresaId: "1", tipoDocumento: "GUIA_REMISION", documentoId: id } },
+  });
 
   const totalKg = guia.detalles.reduce(
     (acc, d) => acc + d.cantidad * d.presentacion.contenidoKg.toNumber(),
@@ -85,6 +94,28 @@ export default async function DetalleGuiaPage({
           )}
         </div>
 
+        <div className="flex items-center gap-3 mt-3 no-imprimir">
+          <span className={`insignia ${COLOR_ESTADO_SUNAT[comprobante?.estado ?? "PENDIENTE"]}`}>
+            SUNAT: {ETIQUETA_ESTADO_SUNAT[comprobante?.estado ?? "PENDIENTE"]}
+          </span>
+          {comprobante?.sunatDescripcion && (
+            <span className="text-xs text-neutral-500">{comprobante.sunatDescripcion}</span>
+          )}
+          {comprobante?.estado !== "ACEPTADO" && comprobante?.estado !== "OBSERVADO" && (
+            <form
+              action={async () => {
+                "use server";
+                await enviarComprobanteGuia(guia.id);
+                revalidatePath(`/logistica/guias-remision/${guia.id}`);
+              }}
+            >
+              <button type="submit" className="text-xs text-neutral-600 dark:text-neutral-400 hover:underline">
+                {comprobante ? "Reenviar a SUNAT" : "Enviar a SUNAT"}
+              </button>
+            </form>
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-4 text-sm">
           <Dato etiqueta="Destinatario" valor={guia.cliente.razonSocial} />
           <Dato etiqueta="RUC / DNI" valor={guia.cliente.ruc ?? "—"} />
@@ -93,9 +124,18 @@ export default async function DetalleGuiaPage({
             valor={new Intl.DateTimeFormat("es-PE", { dateStyle: "long" }).format(guia.fechaTraslado)}
           />
           <Dato etiqueta="Motivo" valor={guia.motivoTraslado} />
-          <Dato etiqueta="Punto de partida" valor={guia.puntoPartida} />
-          <Dato etiqueta="Punto de llegada" valor={guia.puntoLlegada} />
+          <Dato
+            etiqueta="Punto de partida"
+            valor={`${guia.puntoPartida}${guia.ubigeoPartida ? ` (Ubigeo ${guia.ubigeoPartida.codigo})` : ""}`}
+          />
+          <Dato
+            etiqueta="Punto de llegada"
+            valor={`${guia.puntoLlegada}${guia.ubigeoLlegada ? ` (Ubigeo ${guia.ubigeoLlegada.codigo})` : ""}`}
+          />
+          <Dato etiqueta="Peso bruto declarado" valor={`${formatNumero(guia.pesoBrutoTotal, 2)} kg`} />
+          <Dato etiqueta="Modalidad de transporte" valor={ETIQUETA_MODALIDAD_TRANSPORTE[guia.modalidadTransporte]} />
           <Dato etiqueta="Transportista" valor={guia.transportista ?? "—"} />
+          <Dato etiqueta="RUC transportista" valor={guia.transportistaRuc ?? "—"} />
           <Dato
             etiqueta="Vehículo / Conductor"
             valor={`${guia.placaVehiculo ?? "—"} / DNI ${guia.dniConductor ?? "—"}`}

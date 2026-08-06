@@ -134,3 +134,21 @@ export const ETIQUETA_ESTADO_APROBACION: Record<$Enums.EstadoAprobacion, string>
   APROBADA: "Aprobada",
   RECHAZADA: "Rechazada",
 };
+
+export const ETIQUETA_ESTADO_SUNAT: Record<$Enums.EstadoEnvioSunat, string> = {
+  PENDIENTE: "Pendiente de envío",
+  ENVIADO: "Enviado, esperando confirmación",
+  ACEPTADO: "Aceptado por SUNAT",
+  RECHAZADO: "Rechazado por SUNAT",
+  OBSERVADO: "Observado por SUNAT",
+  ERROR: "Error al enviar",
+};
+
+export const COLOR_ESTADO_SUNAT: Record<$Enums.EstadoEnvioSunat, string> = {
+  PENDIENTE: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
+  ENVIADO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
+  ACEPTADO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
+  RECHAZADO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
+  OBSERVADO: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  ERROR: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
+};

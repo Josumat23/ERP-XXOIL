@@ -45,6 +45,9 @@ export async function guardarConfiguracionEmpresa(
   const tasaRecargoMora = Number(formData.get("tasaRecargoMora") ?? 0);
   const oseProveedor = String(formData.get("oseProveedor") ?? "SIMULADO");
   const oseToken = String(formData.get("oseToken") ?? "").trim() || null;
+  const sunatUsuarioSol = String(formData.get("sunatUsuarioSol") ?? "").trim() || null;
+  const sunatClaveSol = String(formData.get("sunatClaveSol") ?? "").trim() || null;
+  const sunatCertificadoPassword = String(formData.get("sunatCertificadoPassword") ?? "").trim() || null;
 
   if (!razonSocial) return { error: "La razón social es obligatoria." };
   if (ruc && !/^\d{11}$/.test(ruc)) return { error: "El RUC debe tener 11 dígitos." };
@@ -75,12 +78,33 @@ export async function guardarConfiguracionEmpresa(
   if (!Number.isFinite(tasaRecargoMora) || tasaRecargoMora < 0) {
     return { error: "La tasa de recargo por mora debe ser un número válido mayor o igual a 0." };
   }
-  if (!["SIMULADO", "NUBEFACT"].includes(oseProveedor)) {
+  if (!["SIMULADO", "NUBEFACT", "SUNAT_DIRECTO"].includes(oseProveedor)) {
     return { error: "Seleccione un proveedor OSE válido." };
   }
-  if (oseProveedor !== "SIMULADO" && (!ruc || !oseToken)) {
+  if (oseProveedor === "NUBEFACT" && (!ruc || !oseToken)) {
     return {
-      error: "Para usar un OSE real, complete el RUC de la empresa y el token del proveedor.",
+      error: "Para usar Nubefact, complete el RUC de la empresa y el token del proveedor.",
+    };
+  }
+
+  const existente = await prisma.configuracionEmpresa.findUnique({ where: { id: "1" } });
+
+  // El certificado (.pfx/.p12) solo se reemplaza si se subió un archivo
+  // nuevo — de lo contrario se conserva el que ya estaba guardado.
+  const archivoCertificado = formData.get("sunatCertificadoArchivo");
+  let sunatCertificadoBase64 = existente?.sunatCertificadoBase64 ?? null;
+  if (archivoCertificado instanceof File && archivoCertificado.size > 0) {
+    const buffer = Buffer.from(await archivoCertificado.arrayBuffer());
+    sunatCertificadoBase64 = buffer.toString("base64");
+  }
+
+  if (
+    oseProveedor === "SUNAT_DIRECTO" &&
+    (!ruc || !sunatCertificadoBase64 || !sunatCertificadoPassword || !sunatUsuarioSol || !sunatClaveSol)
+  ) {
+    return {
+      error:
+        "Para comunicación directa con SUNAT, complete el RUC, el certificado digital (.pfx/.p12), su contraseña, y el usuario/clave SOL secundario.",
     };
   }
 
@@ -113,6 +137,10 @@ export async function guardarConfiguracionEmpresa(
     tasaRecargoMora,
     oseProveedor,
     oseToken,
+    sunatCertificadoBase64,
+    sunatCertificadoPassword,
+    sunatUsuarioSol,
+    sunatClaveSol,
   };
 
   await prisma.configuracionEmpresa.upsert({
@@ -123,4 +151,37 @@ export async function guardarConfiguracionEmpresa(
 
   revalidatePath("/", "layout");
   return { ok: true };
+}
+
+// --- Cuentas bancarias (pie de página de Factura/Nota de Crédito) ----------
+
+export async function agregarCuentaBancaria(
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol([]); // solo ADMIN
+  if ("error" in auth) return auth;
+
+  const banco = String(formData.get("banco") ?? "").trim();
+  const moneda = String(formData.get("moneda") ?? "PEN") === "USD" ? "USD" : "PEN";
+  const numeroCuenta = String(formData.get("numeroCuenta") ?? "").trim();
+  const cci = String(formData.get("cci") ?? "").trim() || null;
+
+  if (!banco) return { error: "Ingrese el nombre del banco." };
+  if (!numeroCuenta) return { error: "Ingrese el número de cuenta." };
+
+  await prisma.cuentaBancariaEmpresa.create({
+    data: { banco, moneda, numeroCuenta, cci },
+  });
+
+  revalidatePath("/configuracion/empresa");
+  return { ok: true };
+}
+
+export async function eliminarCuentaBancaria(id: string): Promise<void> {
+  const auth = await requerirRol([]); // solo ADMIN
+  if ("error" in auth) return;
+
+  await prisma.cuentaBancariaEmpresa.delete({ where: { id } });
+  revalidatePath("/configuracion/empresa");
 }

@@ -1,5 +1,7 @@
 # Cruce RF genérico → XXOil: SD (Ventas y Distribución)
 
+**Actualización (2026-08-05):** RF-SD-050 (comprobante electrónico SUNAT) tenía 7 brechas reales frente a los 3 documentos que XXOil emite hoy (Factura, Nota de Crédito, Guía de Remisión vía su OSE contratado) — la Guía nunca se enviaba a SUNAT, la Nota de Crédito enviaba un ítem fabricado en vez de las líneas reales, unidad de medida hardcodeada, sin datos bancarios, sin catálogo de motivo de NC, sin peso/modalidad/RUC de transportista/ubigeo en la guía. Las 7 se corrigieron, y además se construyó un segundo adaptador de comunicación directa a SUNAT (SEE - Del Contribuyente, sin OSE intermediario) — ver `000-Governance/010-AI/sunat-facturacion-electronica/`.
+
 **Fuente:** `Requerimientos_Funcionales_SAP_SD.md` (65 RF). **Resultado:** 33 Obligatorio (29 ya construidos — el módulo más completo de todo el cruce, como corresponde al ciclo Order-to-Cash), 6 Deseable, 26 No aplica.
 
 Este es el módulo donde el usuario dio instrucciones más específicas y todas están verificadas en el código: condición contado/15/30 (`CondicionPago` enum), comisión con/sin básico (`Vendedor.tipoVendedor`), 4 zonas (`Zona`), y **"regularizaciones sobre la marcha" ya es obligatorio y ya está construido**: anulación de factura, devoluciones de venta, notas de crédito, reversión de asientos — nada en este sistema es rígido al punto de bloquear una corrección operativa real.

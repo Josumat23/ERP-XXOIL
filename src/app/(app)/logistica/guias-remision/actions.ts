@@ -3,14 +3,77 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { avanzarSerie } from "@/lib/series";
+import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
 
 export type EstadoFormulario = { error?: string };
 
 type LineaGuia = { presentacionId: string; cantidad: number };
+
+const MODALIDADES_VALIDAS: $Enums.ModalidadTransporte[] = ["PUBLICO", "PRIVADO"];
+
+// Arma los datos SUNAT de una guía ya creada y la envía al OSE configurado
+// (best-effort: nunca lanza) — antes esta función no existía y la guía
+// nunca se enviaba a ningún lado.
+export async function enviarComprobanteGuia(guiaId: string): Promise<void> {
+  const guia = await prisma.guiaRemision.findUnique({
+    where: { id: guiaId },
+    include: {
+      cliente: true,
+      ubigeoPartida: true,
+      ubigeoLlegada: true,
+      detalles: { include: { presentacion: true } },
+    },
+  });
+  if (!guia) return;
+
+  const [serie, numeroStr] = guia.numero.split("-");
+  const numero = parseInt(numeroStr ?? "", 10);
+
+  await enviarComprobanteElectronico({
+    tipoDocumento: "GUIA_REMISION",
+    documentoId: guia.id,
+    numeroDocumento: guia.numero,
+    datos: {
+      tipoDocumento: "GUIA_REMISION",
+      serie: serie || guia.numero,
+      numero: Number.isFinite(numero) ? numero : 0,
+      clienteRuc: guia.cliente.ruc ?? "",
+      clienteDenominacion: guia.cliente.razonSocial,
+      clienteDireccion: guia.cliente.direccion,
+      fechaEmision: guia.creadoEn,
+      moneda: "PEN",
+      totalGravada: 0,
+      totalIgv: 0,
+      total: 0,
+      items: guia.detalles.map((d) => ({
+        descripcion: d.presentacion.nombre,
+        unidadMedida: d.presentacion.unidadMedidaSunat,
+        cantidad: d.cantidad,
+        valorUnitario: 0,
+      })),
+      guia: {
+        destinatarioRuc: guia.cliente.ruc ?? "",
+        destinatarioDenominacion: guia.cliente.razonSocial,
+        fechaTraslado: guia.fechaTraslado,
+        pesoBrutoTotal: guia.pesoBrutoTotal.toNumber(),
+        modalidadTransporte: guia.modalidadTransporte,
+        puntoPartidaDireccion: guia.puntoPartida,
+        puntoPartidaUbigeo: guia.ubigeoPartida?.codigo ?? "",
+        puntoLlegadaDireccion: guia.puntoLlegada,
+        puntoLlegadaUbigeo: guia.ubigeoLlegada?.codigo ?? "",
+        motivoTraslado: guia.motivoTraslado,
+        transportistaRuc: guia.transportistaRuc,
+        transportistaDenominacion: guia.transportista,
+        placaVehiculo: guia.placaVehiculo,
+        dniConductor: guia.dniConductor,
+      },
+    },
+  });
+}
 
 // La guía de remisión documenta el traslado (formato SUNAT). No mueve stock:
 // el stock salió con la factura; la guía acompaña el transporte.
@@ -30,8 +93,13 @@ export async function crearGuiaRemision(
   const fechaTraslado = String(formData.get("fechaTraslado") ?? "");
   const puntoPartida = String(formData.get("puntoPartida") ?? "").trim();
   const puntoLlegada = String(formData.get("puntoLlegada") ?? "").trim();
+  const ubigeoPartidaId = String(formData.get("ubigeoPartidaId") ?? "") || null;
+  const ubigeoLlegadaId = String(formData.get("ubigeoLlegadaId") ?? "") || null;
   const motivoTraslado = String(formData.get("motivoTraslado") ?? "Venta").trim();
+  const pesoBrutoTotal = Number(formData.get("pesoBrutoTotal"));
+  const modalidadTransporte = String(formData.get("modalidadTransporte") ?? "PRIVADO") as $Enums.ModalidadTransporte;
   const transportista = String(formData.get("transportista") ?? "").trim() || null;
+  const transportistaRuc = String(formData.get("transportistaRuc") ?? "").trim() || null;
   const placaVehiculo = String(formData.get("placaVehiculo") ?? "").trim().toUpperCase() || null;
   const dniConductor = String(formData.get("dniConductor") ?? "").trim() || null;
   const equipoId = String(formData.get("equipoId") ?? "") || null;
@@ -51,6 +119,21 @@ export async function crearGuiaRemision(
   if (!puntoPartida || !puntoLlegada) {
     return { error: "El punto de partida y el punto de llegada son obligatorios." };
   }
+  if (!ubigeoPartidaId || !ubigeoLlegadaId) {
+    return { error: "Seleccione el ubigeo de partida y de llegada (obligatorio para SUNAT)." };
+  }
+  if (!Number.isFinite(pesoBrutoTotal) || pesoBrutoTotal <= 0) {
+    return { error: "El peso bruto total (kg) debe ser mayor a 0." };
+  }
+  if (!MODALIDADES_VALIDAS.includes(modalidadTransporte)) {
+    return { error: "Seleccione la modalidad de transporte." };
+  }
+  if (modalidadTransporte === "PUBLICO" && !transportistaRuc) {
+    return { error: "El RUC del transportista es obligatorio en transporte público." };
+  }
+  if (modalidadTransporte === "PRIVADO" && (!placaVehiculo || !dniConductor)) {
+    return { error: "La placa del vehículo y el DNI del conductor son obligatorios en transporte privado." };
+  }
   lineas = lineas.filter((l) => l.presentacionId && Number.isInteger(l.cantidad) && l.cantidad > 0);
   if (lineas.length === 0) {
     return { error: "Agregue al menos una línea con cantidad válida." };
@@ -68,8 +151,13 @@ export async function crearGuiaRemision(
           fechaTraslado: new Date(`${fechaTraslado}T00:00:00`),
           puntoPartida,
           puntoLlegada,
+          ubigeoPartidaId,
+          ubigeoLlegadaId,
           motivoTraslado,
+          pesoBrutoTotal,
+          modalidadTransporte,
           transportista,
+          transportistaRuc,
           placaVehiculo,
           dniConductor,
           equipoId,
@@ -90,6 +178,8 @@ export async function crearGuiaRemision(
     }
     throw e;
   }
+
+  await enviarComprobanteGuia(guiaId);
 
   revalidatePath("/logistica/guias-remision");
   redirect(`/logistica/guias-remision/${guiaId}`);
