@@ -168,6 +168,12 @@ async function main() {
   const etqChasis = await prisma.insumo.findUniqueOrThrow({
     where: { empresaId_codigo: { empresaId: "1", codigo: "ETQ-CHASIS" } },
   });
+  const litio = await prisma.insumo.findUniqueOrThrow({
+    where: { empresaId_codigo: { empresaId: "1", codigo: "MP-LITIO12" } },
+  });
+  const aditivo = await prisma.insumo.findUniqueOrThrow({
+    where: { empresaId_codigo: { empresaId: "1", codigo: "MP-ADITIVO-EP" } },
+  });
 
   const limaNorte = await prisma.zona.findUniqueOrThrow({
     where: { empresaId_nombre: { empresaId: "1", nombre: "Lima Norte" } },
@@ -233,11 +239,24 @@ async function main() {
   ];
   const clientes: { id: string; razonSocial: string; vendedorId: string }[] = [];
   for (const c of clientesNuevos) {
+    const existente = await prisma.cliente.findUnique({
+      where: { empresaId_ruc: { empresaId: "1", ruc: c.ruc } },
+    });
+    if (existente) {
+      if (!existente.vendedorId) {
+        throw new Error(
+          `El cliente con RUC ${c.ruc} ya existe (código ${existente.codigo}) pero no tiene vendedor asignado; el seed de demo no puede continuar sin decidir a qué vendedor asignarle las ventas de prueba.`
+        );
+      }
+      clientes.push({ id: existente.id, razonSocial: existente.razonSocial, vendedorId: existente.vendedorId });
+      console.log(`Cliente ya existía (de una corrida anterior interrumpida): ${existente.codigo} — ${existente.razonSocial}`);
+      continue;
+    }
     const cliente = await prisma.$transaction(async (tx) => {
       const codigo = await siguienteCodigoCliente(tx);
       return tx.cliente.create({ data: { codigo, ...c } });
     });
-    clientes.push(cliente);
+    clientes.push({ id: cliente.id, razonSocial: cliente.razonSocial, vendedorId: c.vendedorId });
     console.log(`Cliente creado: ${cliente.codigo} — ${cliente.razonSocial}`);
   }
   // + los 2 clientes ya sembrados por seed.ts (Lubricentro El Rápido, Distribuidora Ferretera)
@@ -362,6 +381,15 @@ async function main() {
 
   await comprarInsumo(provQuimicos.id, aceite.id, 300, 7.0, "F002-1001", 5);
   await comprarInsumo(provEnvases.id, envPote.id, 500, 0.88, "F015-2050", 4);
+  // Litio y aditivo: la fórmula los consume en cada lote pero el catálogo
+  // base (prisma/seed.ts) nunca les dio stock real por almacén (solo un
+  // número "stock" decorativo) — sin esta compra, producirLote() falla.
+  await comprarInsumo(provQuimicos.id, litio.id, 100, 18.3, "F002-1002", 5);
+  await comprarInsumo(provQuimicos.id, aditivo.id, 30, 42.0, "F002-1003", 5);
+  // Mismo problema para los envases/etiquetas de balde y las etiquetas de
+  // pote: sin stock real por almacén, envasar() también fallaría.
+  await comprarInsumo(provEnvases.id, envBalde.id, 30, 12.5, "F015-2051", 4);
+  await comprarInsumo(provEnvases.id, etqChasis.id, 250, 0.12, "F015-2052", 4);
   console.log("Órdenes de compra + recepciones registradas.");
 
   // --------------------------------------------- 4. Producción (3 lotes)
