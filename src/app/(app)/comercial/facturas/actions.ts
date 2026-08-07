@@ -24,6 +24,12 @@ export type EstadoFormulario = { error?: string };
 // (best-effort: nunca lanza). Se usa tanto al facturar un pedido como desde
 // el botón "Reenviar a SUNAT" en la ficha de la factura.
 export async function enviarComprobanteFactura(facturaId: string): Promise<void> {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) throw new Error(auth.error);
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    throw new Error("Su grupo de seguridad no permite editar registros en Ventas.");
+  }
+
   const factura = await prisma.factura.findUnique({
     where: { id: facturaId },
     include: {
@@ -66,6 +72,12 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
 // A diferencia de la versión anterior, usa las líneas reales de la factura
 // afectada (NotaCreditoDetalle) — no un ítem fabricado a partir del motivo.
 export async function enviarComprobanteNotaCredito(notaCreditoId: string): Promise<void> {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) throw new Error(auth.error);
+  if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
+    throw new Error("Su grupo de seguridad no permite editar registros en Ventas.");
+  }
+
   const nc = await prisma.notaCredito.findUnique({
     where: { id: notaCreditoId },
     include: {
