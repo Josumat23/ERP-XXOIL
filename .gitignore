@@ -47,6 +47,9 @@ next-env.d.ts
 /prisma/dev.db
 *.db-journal
 
+# respaldos locales de dev.db (dev.db.bak-YYYY-MM-DD), archivos físicos
+dev.db.bak-*
+
 # adjuntos subidos por el usuario (archivos físicos, no van al repo)
 /data/adjuntos
 
