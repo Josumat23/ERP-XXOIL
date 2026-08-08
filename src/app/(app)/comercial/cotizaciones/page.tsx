@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
+import type { $Enums } from "@/generated/prisma/client";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 
-const ETIQUETA_ESTADO: Record<string, string> = {
+const ETIQUETA_ESTADO: Record<$Enums.EstadoCotizacion, string> = {
   PENDIENTE: "Pendiente",
   ACEPTADA: "Aceptada",
   RECHAZADA: "Rechazada",
@@ -13,7 +14,7 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   CONVERTIDA: "Convertida a pedido",
 };
 
-const COLOR_ESTADO: Record<string, string> = {
+const COLOR_ESTADO: Record<$Enums.EstadoCotizacion, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
   ACEPTADA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
   RECHAZADA: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
