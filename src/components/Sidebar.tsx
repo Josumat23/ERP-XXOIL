@@ -1,51 +1,83 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MODULOS, type Enlace, type Rol } from "@/lib/navegacion";
 
 const CLAVE_LOCALSTORAGE = "erp.sidebar.colapsados";
+// El evento nativo "storage" del navegador solo se dispara en OTRAS pestañas,
+// nunca en la que hizo el cambio — este evento propio del Sidebar avisa a
+// cualquier instancia montada en la misma pestaña para que vuelva a leer
+// localStorage.
+const EVENTO_SIDEBAR_COLAPSADOS = "erp:sidebar-colapsados-cambio";
 
 function esActivo(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
 }
 
+function leerColapsadosCliente(): string | null {
+  try {
+    return window.localStorage.getItem(CLAVE_LOCALSTORAGE);
+  } catch {
+    return null;
+  }
+}
+
+// El servidor no tiene localStorage: se asume todo expandido (mismo valor
+// por defecto de siempre), para que la hidratación no desajuste.
+function obtenerSnapshotServidor(): string | null {
+  return null;
+}
+
+function suscribirseAColapsados(notificar: () => void): () => void {
+  window.addEventListener("storage", notificar);
+  window.addEventListener(EVENTO_SIDEBAR_COLAPSADOS, notificar);
+  return () => {
+    window.removeEventListener("storage", notificar);
+    window.removeEventListener(EVENTO_SIDEBAR_COLAPSADOS, notificar);
+  };
+}
+
 export default function Sidebar({ rol }: { rol: Rol }) {
   const pathname = usePathname();
-  // Por defecto todo expandido (coincide con el render del servidor, sin
-  // parpadeo ni desajuste de hidratación); luego de montar se aplican los
-  // módulos que el usuario había colapsado antes.
-  const [colapsados, setColapsados] = useState<Set<string>>(new Set());
+
+  const colapsadosGuardados = useSyncExternalStore(
+    suscribirseAColapsados,
+    leerColapsadosCliente,
+    obtenerSnapshotServidor
+  );
+  const colapsados = useMemo<Set<string>>(() => {
+    if (!colapsadosGuardados) return new Set();
+    try {
+      return new Set(JSON.parse(colapsadosGuardados));
+    } catch {
+      return new Set();
+    }
+  }, [colapsadosGuardados]);
+
   // En pantallas chicas el menú es un panel deslizable (drawer) cerrado por defecto.
   const [abierto, setAbierto] = useState(false);
-
-  useEffect(() => {
-    try {
-      const guardado = window.localStorage.getItem(CLAVE_LOCALSTORAGE);
-      if (guardado) setColapsados(new Set(JSON.parse(guardado)));
-    } catch {
-      // localStorage no disponible: se queda todo expandido
-    }
-  }, []);
-
-  // Cerrar el drawer móvil al navegar a otra pantalla.
-  useEffect(() => {
+  // Cierra el drawer móvil ante cualquier cambio real de ruta. Se ajusta
+  // durante el propio render (comparando contra la ruta del render
+  // anterior) en vez de en un efecto, así nunca reabre el menú al volver a
+  // una ruta ya visitada.
+  const [pathnamePrevio, setPathnamePrevio] = useState(pathname);
+  if (pathname !== pathnamePrevio) {
+    setPathnamePrevio(pathname);
     setAbierto(false);
-  }, [pathname]);
+  }
 
   function alternar(titulo: string) {
-    setColapsados((prev) => {
-      const siguiente = new Set(prev);
-      if (siguiente.has(titulo)) siguiente.delete(titulo);
-      else siguiente.add(titulo);
-      try {
-        window.localStorage.setItem(CLAVE_LOCALSTORAGE, JSON.stringify([...siguiente]));
-      } catch {
-        // ignorar si no se puede persistir
-      }
-      return siguiente;
-    });
+    const siguiente = new Set(colapsados);
+    if (siguiente.has(titulo)) siguiente.delete(titulo);
+    else siguiente.add(titulo);
+    try {
+      window.localStorage.setItem(CLAVE_LOCALSTORAGE, JSON.stringify([...siguiente]));
+      window.dispatchEvent(new Event(EVENTO_SIDEBAR_COLAPSADOS));
+    } catch {
+      // ignorar si no se puede persistir
+    }
   }
 
   function filtrarEnlaces(enlaces: Enlace[]): Enlace[] {
