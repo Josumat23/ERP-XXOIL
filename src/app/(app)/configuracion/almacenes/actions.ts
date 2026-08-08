@@ -195,14 +195,24 @@ export async function cargarFeriadosPeru(almacenId: string, anio: number) {
     create: { almacenId },
   });
 
-  await prisma.diaNoLaborable.createMany({
-    data: feriadosPeru(anio).map((f) => ({
-      calendarioId: calendario.id,
-      fecha: f.fecha,
-      motivo: f.motivo,
-    })),
-    skipDuplicates: true,
-  });
+  // SQLite no admite `skipDuplicates` en createMany (a diferencia de
+  // Postgres/MySQL). En vez de leer las fechas existentes y luego insertar
+  // las faltantes (una condición de carrera entre solicitudes concurrentes:
+  // ambas podrían leer el mismo estado y chocar contra la restricción única
+  // al insertar), cada feriado se resuelve con upsert sobre la restricción
+  // real (calendarioId, fecha): crea el que falta, deja intacto el que ya
+  // existe (update vacío, igual que skipDuplicates), sin poder fallar por
+  // duplicado — la propia base de datos, no el código, es la garantía
+  // final contra duplicados.
+  await prisma.$transaction(
+    feriadosPeru(anio).map((f) =>
+      prisma.diaNoLaborable.upsert({
+        where: { calendarioId_fecha: { calendarioId: calendario.id, fecha: f.fecha } },
+        update: {},
+        create: { calendarioId: calendario.id, fecha: f.fecha, motivo: f.motivo },
+      })
+    )
+  );
 
   revalidatePath("/configuracion/almacenes");
 }
