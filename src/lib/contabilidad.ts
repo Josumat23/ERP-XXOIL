@@ -144,8 +144,8 @@ export async function postearAsiento(
 
   if (lineas.length < 2) return { ok: false, motivo: "Asiento con menos de dos líneas" };
 
-  let totalDebe = r2(lineas.reduce((acc, l) => acc + l.debe, 0));
-  let totalHaber = r2(lineas.reduce((acc, l) => acc + l.haber, 0));
+  const totalDebe = r2(lineas.reduce((acc, l) => acc + l.debe, 0));
+  const totalHaber = r2(lineas.reduce((acc, l) => acc + l.haber, 0));
   const diferencia = r2(totalDebe - totalHaber);
 
   if (Math.abs(diferencia) > 0.05) {

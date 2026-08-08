@@ -172,8 +172,8 @@ export default async function RentabilidadPage({
       </div>
       <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Ventas menos costo de venta (no precio de lista), agrupado por segmento de mercado del
-        producto y por canal del cliente. Distinto de "Costos y márgenes" (que es por SKU) y de
-        "Centros de costo" (que es por área organizacional) — esto responde en qué línea de negocio
+        producto y por canal del cliente. Distinto de &quot;Costos y márgenes&quot; (que es por SKU) y de
+        &quot;Centros de costo&quot; (que es por área organizacional) — esto responde en qué línea de negocio
         se gana realmente.
       </p>
 

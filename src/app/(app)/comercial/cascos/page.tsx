@@ -1,5 +1,4 @@
 import { prisma } from "@/lib/prisma";
-import BarraFiltro from "@/components/BarraFiltro";
 import CascoFormulario from "./CascoFormulario";
 
 export default async function CascosPage({
@@ -75,7 +74,7 @@ export default async function CascosPage({
 
       {insumosRetornables.length === 0 ? (
         <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2 mt-4">
-          No hay insumos marcados como "envase retornable" todavía — márcalos en Catálogo → Insumos.
+          No hay insumos marcados como &quot;envase retornable&quot; todavía — márcalos en Catálogo → Insumos.
         </p>
       ) : (
         <div className="mt-6 border border-black/10 dark:border-white/10 rounded-lg p-4">

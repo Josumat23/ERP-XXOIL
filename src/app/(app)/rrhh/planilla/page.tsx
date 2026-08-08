@@ -6,11 +6,6 @@ import PlanillaFormulario from "./PlanillaFormulario";
 import GratificacionFormulario from "./GratificacionFormulario";
 import CtsFormulario from "./CtsFormulario";
 
-const NOMBRE_MES = [
-  "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
-  "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre",
-];
-
 const ETIQUETA_TIPO: Record<string, string> = {
   MENSUAL: "Mensual",
   GRATIFICACION_JULIO: "Gratificación (jul)",
