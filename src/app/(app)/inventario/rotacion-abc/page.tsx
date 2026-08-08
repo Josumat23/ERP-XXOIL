@@ -15,7 +15,9 @@ type Fila = {
   diasCobertura: number | null;
 };
 
-function clasificarAbc(filas: Fila[]): (Fila & { clase: "A" | "B" | "C" })[] {
+type FilaClasificada = Fila & { clase: "A" | "B" | "C" };
+
+function clasificarAbc(filas: Fila[]): FilaClasificada[] {
   const total = filas.reduce((acc, f) => acc + f.valor, 0);
   let acumulado = 0;
   return filas.map((f) => {
@@ -32,7 +34,62 @@ const COLOR_CLASE: Record<"A" | "B" | "C", string> = {
   C: "bg-neutral-100 text-neutral-600 dark:bg-neutral-800",
 };
 
-export default async function RotacionAbcPage() {
+function Tabla({ titulo, filas }: { titulo: string; filas: FilaClasificada[] }) {
+  return (
+    <section className="mt-8">
+      <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-2">{titulo}</h2>
+      <table className="tabla">
+        <thead>
+          <tr>
+            <th>Código</th>
+            <th>Nombre</th>
+            <th className="text-right">Stock</th>
+            <th className="text-right">Costo unit.</th>
+            <th className="text-right">Valor</th>
+            <th className="text-right">Salidas ({DIAS_VENTANA}d)</th>
+            <th className="text-right">Cobertura</th>
+            <th>Clase</th>
+          </tr>
+        </thead>
+        <tbody>
+          {filas.map((f) => (
+            <tr key={f.codigo}>
+              <td className="font-mono text-xs">{f.codigo}</td>
+              <td>{f.nombre}</td>
+              <td className="text-right">{formatNumero(f.stock, 0)}</td>
+              <td className="text-right">{formatMoneda(f.costoUnitario)}</td>
+              <td className="text-right font-medium">{formatMoneda(f.valor)}</td>
+              <td className="text-right">{formatNumero(f.salidas, 0)}</td>
+              <td className="text-right text-neutral-500">
+                {f.diasCobertura !== null ? `${formatNumero(f.diasCobertura, 0)} días` : "—"}
+              </td>
+              <td>
+                <span className={`insignia ${COLOR_CLASE[f.clase]}`}>{f.clase}</span>
+              </td>
+            </tr>
+          ))}
+          {filas.length === 0 && (
+            <tr>
+              <td colSpan={8} className="text-center text-neutral-500 py-6">
+                Sin registros.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </section>
+  );
+}
+
+type DatosRotacionAbc = {
+  filasProductos: FilaClasificada[];
+  filasInsumos: FilaClasificada[];
+};
+
+// Frontera de carga de datos: el instante actual y las consultas Prisma
+// viven aquí, no en el cuerpo del Server Component, para que el render
+// reciba únicamente resultados ya deterministas.
+async function cargarDatosRotacionAbc(): Promise<DatosRotacionAbc> {
   const desde = new Date(Date.now() - DIAS_VENTANA * MS_POR_DIA);
 
   const [presentaciones, insumos, salidasPresentacion, salidasInsumo] = await Promise.all([
@@ -80,52 +137,11 @@ export default async function RotacionAbcPage() {
       .sort((a, b) => b.valor - a.valor)
   );
 
-  function Tabla({ titulo, filas }: { titulo: string; filas: (Fila & { clase: "A" | "B" | "C" })[] }) {
-    return (
-      <section className="mt-8">
-        <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-2">{titulo}</h2>
-        <table className="tabla">
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Nombre</th>
-              <th className="text-right">Stock</th>
-              <th className="text-right">Costo unit.</th>
-              <th className="text-right">Valor</th>
-              <th className="text-right">Salidas ({DIAS_VENTANA}d)</th>
-              <th className="text-right">Cobertura</th>
-              <th>Clase</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((f) => (
-              <tr key={f.codigo}>
-                <td className="font-mono text-xs">{f.codigo}</td>
-                <td>{f.nombre}</td>
-                <td className="text-right">{formatNumero(f.stock, 0)}</td>
-                <td className="text-right">{formatMoneda(f.costoUnitario)}</td>
-                <td className="text-right font-medium">{formatMoneda(f.valor)}</td>
-                <td className="text-right">{formatNumero(f.salidas, 0)}</td>
-                <td className="text-right text-neutral-500">
-                  {f.diasCobertura !== null ? `${formatNumero(f.diasCobertura, 0)} días` : "—"}
-                </td>
-                <td>
-                  <span className={`insignia ${COLOR_CLASE[f.clase]}`}>{f.clase}</span>
-                </td>
-              </tr>
-            ))}
-            {filas.length === 0 && (
-              <tr>
-                <td colSpan={8} className="text-center text-neutral-500 py-6">
-                  Sin registros.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </section>
-    );
-  }
+  return { filasProductos, filasInsumos };
+}
+
+export default async function RotacionAbcPage() {
+  const { filasProductos, filasInsumos } = await cargarDatosRotacionAbc();
 
   return (
     <div className="max-w-6xl">
