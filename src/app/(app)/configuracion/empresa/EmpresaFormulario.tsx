@@ -323,7 +323,7 @@ export default function EmpresaFormulario({ valores }: Props) {
           )}
         </div>
         <p className="text-xs text-neutral-500 mt-1">
-          Usa el RUC de la sección "Datos fiscales" para autenticar. En "Simulado" el sistema
+          Usa el RUC de la sección &quot;Datos fiscales&quot; para autenticar. En &quot;Simulado&quot; el sistema
           completa el flujo (estado, historial) sin enviar nada real a SUNAT — útil para probar
           antes de contratar un proveedor real o de tener un certificado propio.
         </p>
