@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MODULOS, type Enlace, type Rol } from "@/lib/navegacion";
@@ -11,6 +11,14 @@ const CLAVE_LOCALSTORAGE = "erp.sidebar.colapsados";
 // cualquier instancia montada en la misma pestaña para que vuelva a leer
 // localStorage.
 const EVENTO_SIDEBAR_COLAPSADOS = "erp:sidebar-colapsados-cambio";
+const ID_MENU = "navegacion-principal";
+
+function normalizarBusqueda(valor: string): string {
+  return valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("es");
+}
 
 function esActivo(pathname: string, href: string): boolean {
   return href === "/" ? pathname === "/" : pathname.startsWith(href);
@@ -58,6 +66,17 @@ export default function Sidebar({ rol }: { rol: Rol }) {
 
   // En pantallas chicas el menú es un panel deslizable (drawer) cerrado por defecto.
   const [abierto, setAbierto] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const terminoBusqueda = normalizarBusqueda(busqueda.trim());
+
+  useEffect(() => {
+    if (!abierto) return;
+    function cerrarConEscape(evento: KeyboardEvent) {
+      if (evento.key === "Escape") setAbierto(false);
+    }
+    window.addEventListener("keydown", cerrarConEscape);
+    return () => window.removeEventListener("keydown", cerrarConEscape);
+  }, [abierto]);
   // Cierra el drawer móvil ante cualquier cambio real de ruta. Se ajusta
   // durante el propio render (comparando contra la ruta del render
   // anterior) en vez de en un efecto, así nunca reabre el menú al volver a
@@ -80,8 +99,12 @@ export default function Sidebar({ rol }: { rol: Rol }) {
     }
   }
 
-  function filtrarEnlaces(enlaces: Enlace[]): Enlace[] {
-    return enlaces.filter((e) => !e.roles || rol === "ADMIN" || e.roles.includes(rol));
+  function filtrarEnlaces(enlaces: Enlace[], contexto: string[] = []): Enlace[] {
+    return enlaces.filter((enlace) => {
+      const permitido = !enlace.roles || rol === "ADMIN" || enlace.roles.includes(rol);
+      if (!permitido || !terminoBusqueda) return permitido;
+      return normalizarBusqueda([...contexto, enlace.etiqueta].join(" ")).includes(terminoBusqueda);
+    });
   }
 
   return (
@@ -91,6 +114,7 @@ export default function Sidebar({ rol }: { rol: Rol }) {
         onClick={() => setAbierto(true)}
         aria-label="Abrir menú"
         aria-expanded={abierto}
+        aria-controls={ID_MENU}
         className="lg:hidden fixed top-2.5 left-2.5 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm no-imprimir"
         style={{ background: "var(--epicor-panel)", borderColor: "var(--epicor-borde)", color: "var(--epicor-texto)" }}
       >
@@ -104,6 +128,7 @@ export default function Sidebar({ rol }: { rol: Rol }) {
         />
       )}
       <aside
+        id={ID_MENU}
         className={`w-64 shrink-0 flex flex-col border-r border-[var(--epicor-borde)] bg-[var(--epicor-panel-2)]
         fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out
         ${abierto ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:static lg:min-h-screen`}
@@ -127,10 +152,26 @@ export default function Sidebar({ rol }: { rol: Rol }) {
           ✕
         </button>
       </div>
-      <nav className="py-3 px-2 pb-8 flex flex-col gap-0.5 overflow-y-auto flex-1 text-[13px]">
+      <div className="px-3 py-3 border-b border-[var(--epicor-borde)]">
+        <label htmlFor="buscar-pantalla" className="sr-only">Buscar pantalla</label>
+        <div className="relative">
+          <span aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--epicor-texto-tenue)]">⌕</span>
+          <input
+            id="buscar-pantalla"
+            type="search"
+            value={busqueda}
+            onChange={(evento) => setBusqueda(evento.target.value)}
+            placeholder="Buscar pantalla…"
+            autoComplete="off"
+            className="campo-input w-full pl-8 pr-3 py-2 text-[13px]"
+          />
+        </div>
+      </div>
+      <nav aria-label="Navegación principal" className="py-3 px-2 pb-8 flex flex-col gap-0.5 overflow-y-auto flex-1 text-[13px]">
         {MODULOS.map((modulo, idx) => {
           if (!modulo.titulo) {
             const enlaces = filtrarEnlaces(modulo.enlaces ?? []);
+            if (enlaces.length === 0) return null;
             return (
               <div key={idx} className="flex flex-col gap-0.5 mb-2">
                 {enlaces.map((enlace) => (
@@ -140,14 +181,15 @@ export default function Sidebar({ rol }: { rol: Rol }) {
             );
           }
 
-          const enlacesDirectos = filtrarEnlaces(modulo.enlaces ?? []);
+          const contextoModulo = terminoBusqueda ? [modulo.titulo] : [];
+          const enlacesDirectos = filtrarEnlaces(modulo.enlaces ?? [], contextoModulo);
           const grupos = (modulo.grupos ?? [])
-            .map((g) => ({ ...g, enlaces: filtrarEnlaces(g.enlaces) }))
+            .map((g) => ({ ...g, enlaces: filtrarEnlaces(g.enlaces, [...contextoModulo, g.titulo]) }))
             .filter((g) => g.enlaces.length > 0);
 
           if (enlacesDirectos.length === 0 && grupos.length === 0) return null;
 
-          const expandido = !colapsados.has(modulo.titulo);
+          const expandido = Boolean(terminoBusqueda) || !colapsados.has(modulo.titulo);
           const tieneActivo =
             enlacesDirectos.some((e) => esActivo(pathname, e.href)) ||
             grupos.some((g) => g.enlaces.some((e) => esActivo(pathname, e.href)));
@@ -157,6 +199,7 @@ export default function Sidebar({ rol }: { rol: Rol }) {
               <button
                 type="button"
                 onClick={() => alternar(modulo.titulo!)}
+                disabled={Boolean(terminoBusqueda)}
                 className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-lg font-semibold text-[12px] uppercase tracking-wide hover:bg-[var(--epicor-hover)] text-[var(--epicor-texto-tenue)]"
                 aria-expanded={expandido}
               >
@@ -215,6 +258,7 @@ function EnlaceItem({
   return (
     <Link
       href={enlace.href}
+      aria-current={activo ? "page" : undefined}
       className={`flex items-center gap-2 py-1.5 rounded-lg text-[13px] transition-colors ${
         nivel === 3 ? "pl-9 pr-2" : "pl-4 pr-2"
       } ${

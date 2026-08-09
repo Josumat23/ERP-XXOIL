@@ -25,6 +25,7 @@ export default function BarraPrograma() {
       <button
         type="button"
         title="Actualizar"
+        aria-label="Actualizar pantalla"
         onClick={() => window.location.reload()}
         className="ml-auto rounded-lg p-1.5 text-[13px] text-[var(--epicor-texto-tenue)] hover:bg-[var(--epicor-hover)] hover:text-[var(--epicor-azul)] transition-colors"
       >

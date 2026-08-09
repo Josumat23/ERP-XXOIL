@@ -63,6 +63,41 @@ body {
   font-size: 14px;
 }
 
+/* El foco debe ser reconocible en toda la aplicación, no solo en inputs. */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--epicor-azul) 55%, transparent);
+  outline-offset: 2px;
+}
+
+.saltar-contenido {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 100;
+  transform: translateY(-150%);
+  border-radius: 0.5rem;
+  background: var(--epicor-azul);
+  color: #ffffff;
+  padding: 0.625rem 0.875rem;
+  font-weight: 600;
+  box-shadow: var(--sombra-media);
+}
+
+.saltar-contenido:focus {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
 .arbol-epicor {
   background: var(--epicor-panel-2);
   color: var(--epicor-texto);
