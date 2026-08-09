@@ -38,7 +38,7 @@ export default async function ZonasPage() {
               <th>Vendedores</th>
               <th>Clientes</th>
               <th>Estado</th>
-              <th></th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>

@@ -39,7 +39,7 @@ export default async function CategoriasPage() {
               <th>Descripción</th>
               <th>Productos</th>
               <th>Estado</th>
-              <th></th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>

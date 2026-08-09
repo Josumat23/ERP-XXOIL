@@ -83,7 +83,7 @@ export default async function PedidosPage({
             <th>Estado</th>
             <th>Factura</th>
             <th>Fecha</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

@@ -81,7 +81,7 @@ export default async function EditarPresentacionPage({
               <tr>
                 <th>A partir de</th>
                 <th className="text-right">Precio</th>
-                <th></th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
