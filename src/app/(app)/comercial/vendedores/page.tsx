@@ -67,7 +67,7 @@ export default async function VendedoresPage({
             <th>Zona</th>
             <th>Facturas</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

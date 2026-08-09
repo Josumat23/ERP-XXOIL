@@ -89,7 +89,7 @@ export default async function InsumosPage({
             <th>Stock</th>
             <th>Costo unit.</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

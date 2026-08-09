@@ -81,7 +81,7 @@ export default async function HojasRutaPage({
             <th>Fecha</th>
             <th>Visitas</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

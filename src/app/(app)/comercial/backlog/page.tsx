@@ -91,7 +91,7 @@ export default async function BacklogPedidosPage({
             <th>Antigüedad</th>
             <th className="text-right">Líneas</th>
             <th className="text-right">Total</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

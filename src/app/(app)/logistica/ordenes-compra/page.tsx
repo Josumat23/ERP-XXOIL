@@ -92,7 +92,7 @@ export default async function OrdenesCompraPage({
             <th>Estado</th>
             <th>Aprobación</th>
             <th>Fecha</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

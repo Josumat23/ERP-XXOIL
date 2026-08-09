@@ -69,7 +69,7 @@ export default async function ProveedoresPage({
             <th>Teléfono</th>
             <th>Insumos</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

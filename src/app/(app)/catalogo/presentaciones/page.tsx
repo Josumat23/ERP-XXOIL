@@ -77,7 +77,7 @@ export default async function PresentacionesPage({
             <th>Precio</th>
             <th>Stock</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

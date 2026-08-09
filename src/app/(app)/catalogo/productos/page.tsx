@@ -98,7 +98,7 @@ export default async function ProductosPage({
             <th>Especificación</th>
             <th>Presentaciones</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
