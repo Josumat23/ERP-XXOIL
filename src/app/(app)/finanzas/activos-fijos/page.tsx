@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda, formatFecha } from "@/lib/format";
+import type { $Enums } from "@/generated/prisma/client";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { registrarDepreciacionMes } from "./actions";
 import DepreciacionFormulario from "./DepreciacionFormulario";
 
-const ETIQUETA_CATEGORIA: Record<string, string> = {
+const ETIQUETA_CATEGORIA: Record<$Enums.CategoriaActivoFijo, string> = {
   MAQUINARIA: "Maquinaria",
   VEHICULO: "Vehículo",
   EQUIPO_OFICINA: "Equipo de oficina",
