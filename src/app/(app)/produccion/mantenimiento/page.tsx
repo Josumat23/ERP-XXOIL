@@ -4,16 +4,17 @@ import { formatFecha, formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { EstadoOrdenMantenimiento } from "@/generated/prisma/client";
 
-const ETIQUETA_ESTADO: Record<string, string> = {
+const ETIQUETA_ESTADO: Record<EstadoOrdenMantenimiento, string> = {
   PROGRAMADA: "Programada",
   EN_PROCESO: "En proceso",
   COMPLETADA: "Completada",
   CANCELADA: "Cancelada",
 };
-const ESTADOS = Object.keys(ETIQUETA_ESTADO) as (keyof typeof ETIQUETA_ESTADO)[];
+const ESTADOS = Object.values(EstadoOrdenMantenimiento);
 
-const COLOR_ESTADO: Record<string, string> = {
+const COLOR_ESTADO: Record<EstadoOrdenMantenimiento, string> = {
   PROGRAMADA: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
   EN_PROCESO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
   COMPLETADA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
