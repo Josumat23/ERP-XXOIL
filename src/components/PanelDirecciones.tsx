@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { eliminarDireccion } from "@/app/(app)/direcciones/actions";
 import AgregarDireccionFormulario from "./AgregarDireccionFormulario";
+import BotonEliminarConfirmacion from "./BotonEliminarConfirmacion";
 
 const ETIQUETA_TIPO: Record<string, string> = {
   FACTURACION: "Facturación",
@@ -67,9 +68,7 @@ export default async function PanelDirecciones({
                   await eliminarDireccion(d.id, rutaRevalidar);
                 }}
               >
-                <button type="submit" className="text-xs text-red-500 hover:underline whitespace-nowrap">
-                  Eliminar
-                </button>
+                <BotonEliminarConfirmacion descripcion={`la dirección ${d.direccion}`} />
               </form>
             </li>
           ))}
