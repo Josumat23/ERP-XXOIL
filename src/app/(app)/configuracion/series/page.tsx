@@ -49,7 +49,7 @@ export default async function SeriesPage() {
             <th>Serie</th>
             <th>Siguiente número sugerido</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

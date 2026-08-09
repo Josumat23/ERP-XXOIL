@@ -90,7 +90,7 @@ export default async function EquiposPage({
             <th>Activo fijo</th>
             <th>Mantenimiento pendiente</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

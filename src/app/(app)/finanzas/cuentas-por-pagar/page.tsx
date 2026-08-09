@@ -77,7 +77,7 @@ export default async function CuentasPorPagarPage({
             <th className="text-right">Total</th>
             <th className="text-right">Saldo</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

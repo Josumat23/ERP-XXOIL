@@ -45,7 +45,7 @@ export default async function EmpresasPage() {
             <th>País</th>
             <th>Moneda</th>
             <th>Estado</th>
-            <th className="no-imprimir"></th>
+            <th className="no-imprimir">Acciones</th>
           </tr>
         </thead>
         <tbody>

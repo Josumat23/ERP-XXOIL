@@ -97,7 +97,7 @@ export default async function AlmacenesPage() {
                   <th>Presentaciones</th>
                   <th>Insumos</th>
                   <th>Estado</th>
-                  <th></th>
+                  <th>Acciones</th>
                 </tr>
               </thead>
               <tbody>

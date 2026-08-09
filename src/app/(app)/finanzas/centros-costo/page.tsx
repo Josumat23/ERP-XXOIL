@@ -129,7 +129,7 @@ export default async function CentrosCostoPage({
             <th className="text-right">Real</th>
             <th className="text-right">Variación</th>
             <th>Estado</th>
-            <th className="no-imprimir"></th>
+            <th className="no-imprimir">Acciones</th>
           </tr>
         </thead>
         <tbody>

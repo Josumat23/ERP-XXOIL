@@ -80,7 +80,7 @@ export default async function ReglasAsignacionCostoPage() {
               <th>Nombre</th>
               <th>Centros y porcentajes</th>
               <th>Estado</th>
-              <th className="no-imprimir"></th>
+              <th className="no-imprimir">Acciones</th>
             </tr>
           </thead>
           <tbody>

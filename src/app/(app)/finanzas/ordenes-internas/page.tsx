@@ -82,7 +82,7 @@ export default async function OrdenesInternasPage({
               <th className="text-right">Presupuesto</th>
               <th className="text-right">Acumulado</th>
               <th>Estado</th>
-              <th></th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>

@@ -88,7 +88,7 @@ export default async function ProyectosPage({
               <th className="text-right">Presupuesto</th>
               <th className="text-right">Costo real</th>
               <th>Estado</th>
-              <th></th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>

@@ -67,7 +67,7 @@ export default async function EnvasadosPage({
             <th className="text-right">Kg granel</th>
             <th>Envases/etiquetas</th>
             <th>Fecha</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

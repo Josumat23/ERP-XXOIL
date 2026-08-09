@@ -99,7 +99,7 @@ export default async function PlanCuentasPage() {
             <th>Cuenta</th>
             <th>Tipo</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

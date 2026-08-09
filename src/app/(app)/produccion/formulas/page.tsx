@@ -70,7 +70,7 @@ export default async function FormulasPage({
             <th>Lotes producidos</th>
             <th>Estado</th>
             <th>Vigencia</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
