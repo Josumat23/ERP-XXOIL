@@ -18,7 +18,7 @@ export function ClaseFormulario() {
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-3">
       {estado.error && (
-        <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
           {estado.error}
         </p>
       )}
@@ -47,7 +47,7 @@ export function UnidadFormulario({ clases }: { clases: { id: string; nombre: str
   return (
     <form ref={formRef} action={formAction} className="flex flex-col gap-3">
       {estado.error && (
-        <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
+        <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
           {estado.error}
         </p>
       )}
