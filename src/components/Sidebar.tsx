@@ -107,6 +107,16 @@ export default function Sidebar({ rol }: { rol: Rol }) {
     });
   }
 
+  const totalResultados = MODULOS.reduce((total, modulo) => {
+    const contextoModulo = modulo.titulo && terminoBusqueda ? [modulo.titulo] : [];
+    const directos = filtrarEnlaces(modulo.enlaces ?? [], contextoModulo).length;
+    const agrupados = (modulo.grupos ?? []).reduce(
+      (subtotal, grupo) => subtotal + filtrarEnlaces(grupo.enlaces, [...contextoModulo, grupo.titulo]).length,
+      0
+    );
+    return total + directos + agrupados;
+  }, 0);
+
   return (
     <>
       <button
@@ -161,11 +171,29 @@ export default function Sidebar({ rol }: { rol: Rol }) {
             type="search"
             value={busqueda}
             onChange={(evento) => setBusqueda(evento.target.value)}
+            onKeyDown={(evento) => {
+              if (evento.key === "Escape" && busqueda) {
+                evento.stopPropagation();
+                setBusqueda("");
+              }
+            }}
             placeholder="Buscar pantalla…"
             autoComplete="off"
+            aria-describedby="estado-busqueda-pantallas"
             className="campo-input w-full pl-8 pr-3 py-2 text-[13px]"
           />
         </div>
+        <p
+          id="estado-busqueda-pantallas"
+          aria-live="polite"
+          className={terminoBusqueda && totalResultados === 0 ? "mt-2 text-xs text-[var(--epicor-texto-tenue)]" : "sr-only"}
+        >
+          {terminoBusqueda
+            ? totalResultados === 0
+              ? "No se encontraron pantallas. Presione Escape para limpiar la búsqueda."
+              : `${totalResultados} ${totalResultados === 1 ? "pantalla encontrada" : "pantallas encontradas"}.`
+            : ""}
+        </p>
       </div>
       <nav aria-label="Navegación principal" className="py-3 px-2 pb-8 flex flex-col gap-0.5 overflow-y-auto flex-1 text-[13px]">
         {MODULOS.map((modulo, idx) => {
