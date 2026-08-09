@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MODULOS, type Enlace, type Rol } from "@/lib/navegacion";
@@ -67,12 +67,31 @@ export default function Sidebar({ rol }: { rol: Rol }) {
   // En pantallas chicas el menú es un panel deslizable (drawer) cerrado por defecto.
   const [abierto, setAbierto] = useState(false);
   const [busqueda, setBusqueda] = useState("");
+  const botonAbrir = useRef<HTMLButtonElement>(null);
+  const panelMenu = useRef<HTMLElement>(null);
+  const campoBusqueda = useRef<HTMLInputElement>(null);
+  const devolverFocoAlCerrar = useRef(false);
   const terminoBusqueda = normalizarBusqueda(busqueda.trim());
+
+  useEffect(() => {
+    if (abierto) {
+      campoBusqueda.current?.focus();
+      return;
+    }
+
+    if (devolverFocoAlCerrar.current) {
+      devolverFocoAlCerrar.current = false;
+      botonAbrir.current?.focus();
+    }
+  }, [abierto]);
 
   useEffect(() => {
     if (!abierto) return;
     function cerrarConEscape(evento: KeyboardEvent) {
-      if (evento.key === "Escape") setAbierto(false);
+      if (evento.key === "Escape") {
+        devolverFocoAlCerrar.current = true;
+        setAbierto(false);
+      }
     }
     window.addEventListener("keydown", cerrarConEscape);
     return () => window.removeEventListener("keydown", cerrarConEscape);
@@ -85,6 +104,32 @@ export default function Sidebar({ rol }: { rol: Rol }) {
   if (pathname !== pathnamePrevio) {
     setPathnamePrevio(pathname);
     setAbierto(false);
+  }
+
+  function cerrarMenuMovil() {
+    devolverFocoAlCerrar.current = true;
+    setAbierto(false);
+  }
+
+  function contenerFoco(evento: React.KeyboardEvent<HTMLElement>) {
+    if (!abierto || evento.key !== "Tab") return;
+
+    const elementos = Array.from(
+      panelMenu.current?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+      ) ?? []
+    ).filter((elemento) => elemento.offsetParent !== null);
+    const primero = elementos[0];
+    const ultimo = elementos.at(-1);
+    if (!primero || !ultimo) return;
+
+    if (evento.shiftKey && document.activeElement === primero) {
+      evento.preventDefault();
+      ultimo.focus();
+    } else if (!evento.shiftKey && document.activeElement === ultimo) {
+      evento.preventDefault();
+      primero.focus();
+    }
   }
 
   function alternar(titulo: string) {
@@ -120,6 +165,7 @@ export default function Sidebar({ rol }: { rol: Rol }) {
   return (
     <>
       <button
+        ref={botonAbrir}
         type="button"
         onClick={() => setAbierto(true)}
         aria-label="Abrir menú"
@@ -133,15 +179,17 @@ export default function Sidebar({ rol }: { rol: Rol }) {
       {abierto && (
         <div
           className="lg:hidden fixed inset-0 z-40 bg-black/40 no-imprimir"
-          onClick={() => setAbierto(false)}
+          onClick={cerrarMenuMovil}
           aria-hidden="true"
         />
       )}
       <aside
+        ref={panelMenu}
         id={ID_MENU}
+        onKeyDown={contenerFoco}
         className={`w-64 shrink-0 flex flex-col border-r border-[var(--epicor-borde)] bg-[var(--epicor-panel-2)]
         fixed inset-y-0 left-0 z-50 transition-transform duration-200 ease-out
-        ${abierto ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0 lg:static lg:min-h-screen`}
+        ${abierto ? "translate-x-0 visible" : "-translate-x-full invisible"} lg:translate-x-0 lg:visible lg:static lg:min-h-screen`}
       >
         <div className="px-4 py-4 flex items-center gap-2.5 border-b border-[var(--epicor-borde)]">
         <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--epicor-azul)] text-white font-bold text-[13px] shadow-sm shrink-0">
@@ -155,7 +203,7 @@ export default function Sidebar({ rol }: { rol: Rol }) {
         </div>
         <button
           type="button"
-          onClick={() => setAbierto(false)}
+          onClick={cerrarMenuMovil}
           aria-label="Cerrar menú"
           className="lg:hidden shrink-0 text-[var(--epicor-texto-tenue)] hover:text-[var(--epicor-texto)] px-1"
         >
@@ -167,6 +215,7 @@ export default function Sidebar({ rol }: { rol: Rol }) {
         <div className="relative">
           <span aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--epicor-texto-tenue)]">⌕</span>
           <input
+            ref={campoBusqueda}
             id="buscar-pantalla"
             type="search"
             value={busqueda}
