@@ -111,7 +111,7 @@ export default async function DetalleProyectoPage({ params }: { params: Promise<
                 <th>Holgura</th>
                 <th>Responsable</th>
                 <th>Equipo</th>
-                <th></th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
@@ -268,7 +268,7 @@ export default async function DetalleProyectoPage({ params }: { params: Promise<
                     <tr>
                       <th>Predecesora</th>
                       <th>Sucesora</th>
-                      <th></th>
+                      <th>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -345,7 +345,7 @@ export default async function DetalleProyectoPage({ params }: { params: Promise<
                     <th>Proveedor</th>
                     <th>Estado</th>
                     <th className="text-right">Total</th>
-                    <th></th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -381,7 +381,7 @@ export default async function DetalleProyectoPage({ params }: { params: Promise<
                     <th>Código</th>
                     <th>Nombre</th>
                     <th className="text-right">Costo</th>
-                    <th></th>
+                    <th>Acciones</th>
                   </tr>
                 </thead>
                 <tbody>

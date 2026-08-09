@@ -37,7 +37,7 @@ export default async function CausasCalidadPage() {
             <th>Usos (calidad interna)</th>
             <th>Usos (reclamos)</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

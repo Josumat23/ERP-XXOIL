@@ -135,7 +135,7 @@ export default async function DetallePlanillaPage({
               </>
             )}
             <th className="text-right">{esGratificacion || !esMensual ? "Total" : "Neto"}</th>
-            <th className="no-imprimir"></th>
+            <th className="no-imprimir">Acciones</th>
           </tr>
         </thead>
         <tbody>

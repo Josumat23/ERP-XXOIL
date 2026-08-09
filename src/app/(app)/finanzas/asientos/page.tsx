@@ -74,7 +74,7 @@ export default async function AsientosPage({
             <th>Glosa</th>
             <th className="text-right">Importe</th>
             <th>Registrado por</th>
-            <th className="no-imprimir"></th>
+            <th className="no-imprimir">Acciones</th>
           </tr>
         </thead>
         <tbody>

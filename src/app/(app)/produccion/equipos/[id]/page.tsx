@@ -128,7 +128,7 @@ export default async function DetalleEquipoPage({
                 <th>Ciclo</th>
                 <th>Última ejecución</th>
                 <th>Estado</th>
-                <th></th>
+                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>

@@ -64,7 +64,7 @@ export default async function CalendarioFiscalPage({
             <tr>
               <th>Mes</th>
               <th>Estado</th>
-              <th></th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody>

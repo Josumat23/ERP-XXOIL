@@ -90,7 +90,7 @@ export default async function CuentasPorCobrarPage({
             <th>Antigüedad</th>
             <th className="text-right">Total</th>
             <th className="text-right">Saldo</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

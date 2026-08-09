@@ -25,7 +25,7 @@ export default function CuentasBancarias({ cuentas }: { cuentas: Cuenta[] }) {
             <th>Moneda</th>
             <th>Cuenta</th>
             <th>CCI</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

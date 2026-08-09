@@ -54,7 +54,7 @@ export default async function PlanillaPage() {
             <th>Estado</th>
             <th className="text-right">Empleados</th>
             <th className="text-right">Neto total</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

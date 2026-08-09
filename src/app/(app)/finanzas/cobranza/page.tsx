@@ -54,7 +54,7 @@ export default async function CobranzaPage() {
             <th className="text-right">Saldo</th>
             <th>Nivel sugerido</th>
             <th>Último aviso</th>
-            <th className="no-imprimir"></th>
+            <th className="no-imprimir">Acciones</th>
           </tr>
         </thead>
         <tbody>

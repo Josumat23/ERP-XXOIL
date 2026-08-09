@@ -83,7 +83,7 @@ export default async function LotesPage({
             <th className="text-right">Merma</th>
             <th className="text-right">Granel disponible</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>

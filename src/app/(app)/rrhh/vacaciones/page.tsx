@@ -47,7 +47,7 @@ export default async function VacacionesPage() {
             <th>Hasta</th>
             <th className="text-right">Días</th>
             <th>Estado</th>
-            <th></th>
+            <th>Acciones</th>
           </tr>
         </thead>
         <tbody>
