@@ -18,7 +18,7 @@ export default function DevolucionProveedorFormulario({
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-3">
       {estado.error && (
-        <p className="w-full text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
+        <p role="alert" className="w-full text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
           {estado.error}
         </p>
       )}
