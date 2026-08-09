@@ -44,7 +44,7 @@ export default function PropuestaPagoFormulario({ cuentas }: { cuentas: Cuenta[]
       <table className="tabla">
         <thead>
           <tr>
-            <th></th>
+            <th>Seleccionar</th>
             <th>Documento</th>
             <th>Proveedor</th>
             <th>Vencimiento</th>
@@ -53,11 +53,12 @@ export default function PropuestaPagoFormulario({ cuentas }: { cuentas: Cuenta[]
           </tr>
         </thead>
         <tbody>
-          {cuentas.map((c) => (
+          {cuentas.map((c, indice) => (
             <tr key={c.id}>
               <td>
                 <input
                   type="checkbox"
+                  aria-label={`Seleccionar fila ${indice + 1}: ${c.numeroDocumento} de ${c.proveedor}, saldo ${formatMoneda(c.saldo)}`}
                   checked={!!seleccion[c.id]}
                   onChange={(e) => setSeleccion((prev) => ({ ...prev, [c.id]: e.target.checked }))}
                 />
@@ -69,6 +70,7 @@ export default function PropuestaPagoFormulario({ cuentas }: { cuentas: Cuenta[]
               <td className="text-right">
                 <input
                   type="number"
+                  aria-label={`Monto a pagar en fila ${indice + 1} para ${c.numeroDocumento}`}
                   step="0.01"
                   min="0"
                   max={c.saldo}
