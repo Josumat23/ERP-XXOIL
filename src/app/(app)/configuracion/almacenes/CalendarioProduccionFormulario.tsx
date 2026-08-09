@@ -46,6 +46,7 @@ export function CalendarioProduccionFormulario({
   );
 
   const anioActual = new Date().getFullYear();
+  const cargarFeriados = cargarFeriadosPeru.bind(null, almacenId, anioActual);
 
   return (
     <div className="mt-3 border-t border-black/10 dark:border-white/10 pt-3">
@@ -83,28 +84,25 @@ export function CalendarioProduccionFormulario({
           Días no laborables (feriados, mantenimiento, paradas de planta)
         </p>
 
-        <form ref={formRef} action={accionDia} className="flex flex-wrap gap-3 items-end mb-2">
-          {estadoDia.error && (
-            <p className="w-full text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
-              {estadoDia.error}
-            </p>
-          )}
-          <input type="date" name="fecha" required className="campo-input w-40" />
-          <input name="motivo" placeholder="Motivo (opcional)" className="campo-input flex-1 min-w-40" />
-          <button type="submit" disabled={enviandoDia} className="boton-secundario">
-            {enviandoDia ? "Agregando..." : "Agregar"}
-          </button>
-          <form
-            action={async () => {
-              "use server";
-              await cargarFeriadosPeru(almacenId, anioActual);
-            }}
-          >
+        <div className="flex flex-wrap gap-3 items-end mb-2">
+          <form ref={formRef} action={accionDia} className="contents">
+            {estadoDia.error && (
+              <p className="w-full text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
+                {estadoDia.error}
+              </p>
+            )}
+            <input type="date" name="fecha" required className="campo-input w-40" />
+            <input name="motivo" placeholder="Motivo (opcional)" className="campo-input flex-1 min-w-40" />
+            <button type="submit" disabled={enviandoDia} className="boton-secundario">
+              {enviandoDia ? "Agregando..." : "Agregar"}
+            </button>
+          </form>
+          <form action={cargarFeriados}>
             <button type="submit" className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline">
               Cargar feriados Perú {anioActual}
             </button>
           </form>
-        </form>
+        </div>
 
         <ul className="flex flex-col gap-1">
           {diasNoLaborables.map((d) => (
@@ -116,12 +114,7 @@ export function CalendarioProduccionFormulario({
                 <span className="font-mono">{d.fecha}</span>
                 {d.motivo && <span className="text-neutral-500"> — {d.motivo}</span>}
               </span>
-              <form
-                action={async () => {
-                  "use server";
-                  await quitarDiaNoLaborable(d.id);
-                }}
-              >
+              <form action={quitarDiaNoLaborable.bind(null, d.id)}>
                 <button type="submit" className="text-neutral-500 hover:underline">
                   Quitar
                 </button>
