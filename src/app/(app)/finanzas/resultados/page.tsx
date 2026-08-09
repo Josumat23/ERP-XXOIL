@@ -217,7 +217,7 @@ export default async function ResultadosPage({
         <table className="tabla mt-6">
           <thead>
             <tr>
-              <th></th>
+              <th>Concepto</th>
               <th className="text-right">{nombreMes}</th>
               <th className="text-right">{nombreComparacion}</th>
               <th className="text-right">Variación</th>
