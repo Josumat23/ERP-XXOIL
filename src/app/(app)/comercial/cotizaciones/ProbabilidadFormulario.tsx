@@ -17,7 +17,7 @@ export default function ProbabilidadFormulario({
 
   return (
     <form action={formAction} className="flex flex-col gap-2 max-w-xs no-imprimir">
-      {estado.error && <p className="text-xs text-red-600 dark:text-red-400">{estado.error}</p>}
+      {estado.error && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{estado.error}</p>}
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium text-neutral-700 dark:text-neutral-300">
           Probabilidad de cierre: {probabilidad}%
