@@ -3,20 +3,21 @@ import { prisma } from "@/lib/prisma";
 import { formatNumero } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { ResultadoInspeccion } from "@/generated/prisma/client";
 
-const ETIQUETA_RESULTADO: Record<string, string> = {
+const ETIQUETA_RESULTADO: Record<ResultadoInspeccion, string> = {
   PENDIENTE: "Pendiente",
   APROBADO: "Aprobado",
   RECHAZADO: "Rechazado",
 };
 
-const COLOR_RESULTADO: Record<string, string> = {
+const COLOR_RESULTADO: Record<ResultadoInspeccion, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
   APROBADO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
   RECHAZADO: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400",
 };
 
-const RESULTADOS = Object.keys(ETIQUETA_RESULTADO) as (keyof typeof ETIQUETA_RESULTADO)[];
+const RESULTADOS = Object.values(ResultadoInspeccion);
 
 export default async function InspeccionesCompraPage({
   searchParams,
