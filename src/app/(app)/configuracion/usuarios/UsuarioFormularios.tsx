@@ -102,7 +102,7 @@ export function RestablecerPasswordFormulario({ usuarioId }: { usuarioId: string
 
   return (
     <form ref={formRef} action={formAction} className="flex items-center gap-2 justify-end">
-      {estado.error && <span className="text-xs text-red-600 dark:text-red-400">{estado.error}</span>}
+      {estado.error && <span role="alert" className="text-xs text-red-600 dark:text-red-400">{estado.error}</span>}
       <input
         name="password"
         type="password"
@@ -123,7 +123,7 @@ export function RestablecerPasswordFormulario({ usuarioId }: { usuarioId: string
 
 function MensajeError({ texto }: { texto: string }) {
   return (
-    <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
+    <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
       {texto}
     </p>
   );
