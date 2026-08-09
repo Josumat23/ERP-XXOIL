@@ -265,13 +265,13 @@ export default async function RentabilidadPage({
           <h2 className="font-medium mb-2" style={{ color: "var(--epicor-texto)" }}>
             Por segmento de mercado
           </h2>
-          <TablaRentabilidad filas={filasSegmento} variacionFn={variacion} />
+          <TablaRentabilidad encabezado="Segmento" filas={filasSegmento} variacionFn={variacion} />
         </section>
         <section>
           <h2 className="font-medium mb-2" style={{ color: "var(--epicor-texto)" }}>
             Por canal de cliente
           </h2>
-          <TablaRentabilidad filas={filasCanal} variacionFn={variacion} />
+          <TablaRentabilidad encabezado="Canal" filas={filasCanal} variacionFn={variacion} />
         </section>
       </div>
     </div>
@@ -313,9 +313,11 @@ function Dato({
 }
 
 function TablaRentabilidad({
+  encabezado,
   filas,
   variacionFn,
 }: {
+  encabezado: string;
   filas: {
     clave: string;
     etiqueta: string;
@@ -330,7 +332,7 @@ function TablaRentabilidad({
     <table className="tabla">
       <thead>
         <tr>
-          <th></th>
+          <th>{encabezado}</th>
           <th className="text-right">Ventas</th>
           <th className="text-right">Costo</th>
           <th className="text-right">Margen</th>
