@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { formatearTamanio } from "@/lib/adjuntos";
 import { eliminarAdjunto } from "@/app/(app)/adjuntos/actions";
 import SubirAdjuntoFormulario from "./SubirAdjuntoFormulario";
+import BotonEliminarConfirmacion from "./BotonEliminarConfirmacion";
 
 // Componente compartido: se cae dentro de cualquier página de detalle (con
 // entidadTipo/entidadId propios) sin necesitar una tabla de unión nueva por
@@ -52,9 +53,7 @@ export default async function PanelAdjuntos({
                     await eliminarAdjunto(a.id, rutaRevalidar);
                   }}
                 >
-                  <button type="submit" className="text-red-500 hover:underline">
-                    Eliminar
-                  </button>
+                  <BotonEliminarConfirmacion descripcion={`el adjunto ${a.nombreOriginal}`} />
                 </form>
               </div>
             </li>

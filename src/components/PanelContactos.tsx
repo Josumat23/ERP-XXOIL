@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { eliminarContacto } from "@/app/(app)/contactos/actions";
 import AgregarContactoFormulario from "./AgregarContactoFormulario";
+import BotonEliminarConfirmacion from "./BotonEliminarConfirmacion";
 
 // Server Component compartido, mismo patrón que PanelAdjuntos/PanelDirecciones
 // — el contacto "plano" que ya tiene cada modelo sigue siendo el principal por
@@ -58,9 +59,7 @@ export default async function PanelContactos({
                   await eliminarContacto(c.id, rutaRevalidar);
                 }}
               >
-                <button type="submit" className="text-xs text-red-500 hover:underline whitespace-nowrap">
-                  Eliminar
-                </button>
+                <BotonEliminarConfirmacion descripcion={`el contacto ${c.nombre}`} />
               </form>
             </li>
           ))}
