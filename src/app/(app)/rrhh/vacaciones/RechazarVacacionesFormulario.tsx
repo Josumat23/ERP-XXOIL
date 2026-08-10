@@ -26,7 +26,7 @@ export default function RechazarVacacionesFormulario({ solicitudId }: { solicitu
         disabled={enviando}
         className="rounded-lg bg-red-600 text-white px-3 py-1 text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
       >
-        {enviando ? "..." : "Rechazar"}
+        {enviando ? "Rechazando…" : "Rechazar"}
       </button>
     </form>
   );
