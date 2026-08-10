@@ -112,6 +112,7 @@ export default async function GruposSeguridadPage() {
                         <PermisoCheckbox
                           permisoId={permiso.id}
                           campo="puedeVer"
+                          etiqueta={`Ver — ${m.nombre}`}
                           valorInicial={permiso.puedeVer}
                           disabled={g.esPredefinido}
                         />
@@ -120,6 +121,7 @@ export default async function GruposSeguridadPage() {
                         <PermisoCheckbox
                           permisoId={permiso.id}
                           campo="puedeCrear"
+                          etiqueta={`Crear — ${m.nombre}`}
                           valorInicial={permiso.puedeCrear}
                           disabled={g.esPredefinido}
                         />
@@ -128,6 +130,7 @@ export default async function GruposSeguridadPage() {
                         <PermisoCheckbox
                           permisoId={permiso.id}
                           campo="puedeEditar"
+                          etiqueta={`Editar — ${m.nombre}`}
                           valorInicial={permiso.puedeEditar}
                           disabled={g.esPredefinido}
                         />
@@ -136,6 +139,7 @@ export default async function GruposSeguridadPage() {
                         <PermisoCheckbox
                           permisoId={permiso.id}
                           campo="puedeAprobar"
+                          etiqueta={`Aprobar — ${m.nombre}`}
                           valorInicial={permiso.puedeAprobar}
                           disabled={g.esPredefinido}
                         />
