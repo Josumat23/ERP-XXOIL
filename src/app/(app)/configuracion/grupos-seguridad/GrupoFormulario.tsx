@@ -23,8 +23,8 @@ export default function GrupoFormulario() {
         </p>
       )}
       <div className="flex flex-wrap gap-3 items-end">
-        <input name="codigo" required placeholder="Código (ej. SUPERVISOR)" className="campo-input w-48 font-mono" />
-        <input name="nombre" required placeholder="Nombre del grupo" className="campo-input flex-1 min-w-48" />
+        <input aria-label="Código del grupo" name="codigo" required placeholder="Código (ej. SUPERVISOR)" className="campo-input w-48 font-mono" />
+        <input aria-label="Nombre del grupo" name="nombre" required placeholder="Nombre del grupo" className="campo-input flex-1 min-w-48" />
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Agregar grupo"}
         </button>
