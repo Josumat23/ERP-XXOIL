@@ -37,7 +37,10 @@ export default function CuentasBancarias({ cuentas }: { cuentas: Cuenta[] }) {
               <td className="font-mono text-xs">{c.cci ?? "—"}</td>
               <td className="text-right">
                 <form action={eliminarCuentaBancaria.bind(null, c.id)}>
-                  <button type="submit" className="text-xs text-neutral-400 hover:text-red-500">
+                  <button
+                    type="submit"
+                    className="inline-flex min-h-11 items-center px-2 text-xs text-neutral-400 hover:text-red-500"
+                  >
                     Eliminar
                   </button>
                 </form>
