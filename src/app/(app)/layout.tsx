@@ -32,7 +32,7 @@ export default async function AppLayout({
                 redirect("/login");
               }}
             >
-              <button type="submit" className="boton-secundario text-[12px] px-2.5 sm:px-3 py-1.5 whitespace-nowrap">
+              <button type="submit" className="boton-secundario min-h-11 text-[12px] px-2.5 sm:px-3 py-1.5 whitespace-nowrap">
                 <span className="sm:hidden">Salir</span>
                 <span className="hidden sm:inline">Cerrar sesión</span>
               </button>

@@ -171,7 +171,7 @@ export default function Sidebar({ rol }: { rol: Rol }) {
         aria-label="Abrir menú"
         aria-expanded={abierto}
         aria-controls={ID_MENU}
-        className="lg:hidden fixed top-2.5 left-2.5 z-30 inline-flex h-9 w-9 items-center justify-center rounded-lg border shadow-sm no-imprimir"
+        className="lg:hidden fixed top-0.5 left-0.5 z-30 inline-flex h-11 w-11 items-center justify-center rounded-lg border shadow-sm no-imprimir"
         style={{ background: "var(--epicor-panel)", borderColor: "var(--epicor-borde)", color: "var(--epicor-texto)" }}
       >
         ☰
@@ -205,7 +205,7 @@ export default function Sidebar({ rol }: { rol: Rol }) {
           type="button"
           onClick={cerrarMenuMovil}
           aria-label="Cerrar menú"
-          className="lg:hidden shrink-0 text-[var(--epicor-texto-tenue)] hover:text-[var(--epicor-texto)] px-1"
+          className="lg:hidden inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-lg text-[var(--epicor-texto-tenue)] hover:bg-[var(--epicor-hover)] hover:text-[var(--epicor-texto)]"
         >
           ✕
         </button>
