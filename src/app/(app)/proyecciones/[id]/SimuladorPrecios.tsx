@@ -192,6 +192,7 @@ export default function SimuladorPrecios({
                 <td className="text-right text-neutral-500">{formatMoneda(l.precioActual)}</td>
                 <td className="text-right">
                   <input
+                    aria-label={`Precio simulado de ${l.nombre}`}
                     type="number"
                     step="0.01"
                     min="0"
@@ -207,6 +208,7 @@ export default function SimuladorPrecios({
                 </td>
                 <td className="text-right">
                   <input
+                    aria-label={`Precio de competidor de ${l.nombre}`}
                     type="number"
                     step="0.01"
                     min="0"
