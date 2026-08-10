@@ -28,7 +28,7 @@ export default function ControlCentroFormulario({
   return (
     <form action={formAction} className="flex items-center gap-3">
       <span className="text-sm w-72 shrink-0">{etiqueta}</span>
-      <select name="valor" defaultValue={valorActual} className="campo-input flex-1">
+      <select aria-label={etiqueta} name="valor" defaultValue={valorActual} className="campo-input flex-1">
         <option value="">Sin asignar (no se prorratea a ningún centro)</option>
         {centros.length > 0 && (
           <optgroup label="Centro directo">

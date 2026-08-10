@@ -14,7 +14,7 @@ export default function RechazarPagoFormulario({ pagoId }: { pagoId: string }) {
           {estado.error}
         </p>
       )}
-      <input name="motivo" required placeholder="Motivo del rechazo" className="campo-input text-xs py-1 flex-1 min-w-40" />
+      <input aria-label="Motivo del rechazo del pago" name="motivo" required placeholder="Motivo del rechazo" className="campo-input text-xs py-1 flex-1 min-w-40" />
       <button
         type="submit"
         disabled={enviando}

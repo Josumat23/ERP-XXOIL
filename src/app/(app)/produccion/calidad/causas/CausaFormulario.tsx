@@ -23,6 +23,7 @@ export default function CausaFormulario() {
         </p>
       )}
       <input
+        aria-label="Nombre de la causa de calidad"
         name="nombre"
         required
         placeholder="Ej.: viscosidad fuera de rango"

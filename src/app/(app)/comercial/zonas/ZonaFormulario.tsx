@@ -39,6 +39,7 @@ export default function ZonaFormulario({
       )}
       <div className="flex gap-3">
         <input
+          aria-label="Nombre de la zona"
           name="nombre"
           required
           defaultValue={valoresIniciales?.nombre}
