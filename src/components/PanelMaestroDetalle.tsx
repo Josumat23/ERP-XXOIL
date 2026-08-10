@@ -26,11 +26,11 @@ export default function PanelMaestroDetalle({
 }) {
   return (
     <div
-      className="flex gap-0 rounded-xl overflow-hidden border"
+      className="flex flex-col lg:flex-row gap-0 rounded-xl overflow-hidden border"
       style={{ borderColor: "var(--epicor-borde)", boxShadow: "var(--sombra-suave)" }}
     >
       <aside
-        className="w-60 shrink-0 flex flex-col text-[13px] border-r no-imprimir"
+        className="w-full max-h-56 lg:w-60 lg:max-h-none shrink-0 flex flex-col text-[13px] border-b lg:border-b-0 lg:border-r no-imprimir"
         style={{ borderColor: "var(--epicor-borde)", background: "var(--epicor-panel-2)" }}
       >
         {nuevoHref && (
@@ -69,7 +69,7 @@ export default function PanelMaestroDetalle({
           )}
         </div>
       </aside>
-      <div className="flex-1 min-w-0 p-5" style={{ background: "var(--epicor-panel)" }}>
+      <div className="flex-1 min-w-0 p-4 sm:p-5" style={{ background: "var(--epicor-panel)" }}>
         {children}
       </div>
     </div>
