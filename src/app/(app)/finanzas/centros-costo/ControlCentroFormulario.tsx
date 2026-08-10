@@ -52,7 +52,7 @@ export default function ControlCentroFormulario({
       <button type="submit" disabled={enviando} className="boton-secundario text-xs whitespace-nowrap">
         {enviando ? "..." : "Guardar"}
       </button>
-      {estado.error && <span className="text-xs text-red-600 dark:text-red-400">{estado.error}</span>}
+      {estado.error && <span role="alert" className="text-xs text-red-600 dark:text-red-400">{estado.error}</span>}
     </form>
   );
 }
