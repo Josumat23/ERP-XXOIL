@@ -54,7 +54,7 @@ export default async function CajaPage({
           secundario: m.tipo === "INGRESO" ? "Ingreso" : "Egreso",
         }))}
       >
-      <div className="grid grid-cols-3 gap-4 max-w-2xl">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl">
         <Kpi etiqueta="Ingresos acumulados" valor={formatMoneda(ingresos)} />
         <Kpi etiqueta="Egresos acumulados" valor={formatMoneda(egresos)} />
         <Kpi etiqueta="Saldo de caja" valor={formatMoneda(saldo)} destacado />
