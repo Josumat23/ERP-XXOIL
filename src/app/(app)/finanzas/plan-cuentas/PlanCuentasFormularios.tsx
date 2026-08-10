@@ -23,9 +23,9 @@ export function CuentaFormulario() {
         </p>
       )}
       <div className="flex flex-wrap gap-3 items-end">
-        <input name="codigo" required placeholder="Código (ej. 1212)" className="campo-input w-36 font-mono" />
-        <input name="nombre" required placeholder="Nombre de la cuenta" className="campo-input flex-1 min-w-56" />
-        <select name="tipo" required defaultValue="" className="campo-input w-40">
+        <input name="codigo" aria-label="Código de cuenta" required placeholder="Código (ej. 1212)" className="campo-input w-36 font-mono" />
+        <input name="nombre" aria-label="Nombre de la cuenta" required placeholder="Nombre de la cuenta" className="campo-input flex-1 min-w-56" />
+        <select name="tipo" aria-label="Tipo de cuenta" required defaultValue="" className="campo-input w-40">
           <option value="" disabled>
             Tipo
           </option>
@@ -65,6 +65,7 @@ export function ControlFormulario({
       <input type="hidden" name="clave" value={clave} />
       <select
         name="cuentaId"
+        aria-label={etiqueta}
         defaultValue={cuentaActualId ?? ""}
         className="campo-input flex-1"
       >
@@ -77,7 +78,7 @@ export function ControlFormulario({
           </option>
         ))}
       </select>
-      <button type="submit" disabled={enviando} className="boton-secundario text-xs whitespace-nowrap">
+      <button type="submit" aria-label={`Guardar ${etiqueta}`} disabled={enviando} className="boton-secundario text-xs whitespace-nowrap">
         {enviando ? "..." : "Guardar"}
       </button>
       {estado.error && <span role="alert" className="text-xs text-red-600 dark:text-red-400">{estado.error}</span>}
