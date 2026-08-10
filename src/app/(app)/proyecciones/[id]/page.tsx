@@ -134,6 +134,7 @@ export default async function DetalleProyeccionPage({
                   >
                     {d.sinHistorico && (
                       <input
+                        aria-label={`Índice de estacionalidad de ${d.nombre}`}
                         name="indice"
                         type="number"
                         step="0.01"
@@ -142,6 +143,7 @@ export default async function DetalleProyeccionPage({
                       />
                     )}
                     <input
+                      aria-label={`Ajuste cualitativo porcentual de ${d.nombre}`}
                       name="ajuste"
                       type="number"
                       step="0.1"
