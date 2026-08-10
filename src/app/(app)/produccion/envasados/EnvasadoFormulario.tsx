@@ -160,6 +160,7 @@ export default function EnvasadoFormulario({ lotes, presentaciones, insumos, lot
           {lineas.map((linea, idx) => (
             <div key={idx} className="flex gap-2 items-center">
               <select
+                aria-label={`Insumo de la línea ${idx + 1}`}
                 value={linea.insumoId}
                 onChange={(e) => actualizarLinea(idx, { insumoId: e.target.value })}
                 className="campo-input flex-1"
@@ -174,6 +175,7 @@ export default function EnvasadoFormulario({ lotes, presentaciones, insumos, lot
                 ))}
               </select>
               <input
+                aria-label={`Cantidad de la línea ${idx + 1}`}
                 type="number"
                 step="1"
                 min="0"

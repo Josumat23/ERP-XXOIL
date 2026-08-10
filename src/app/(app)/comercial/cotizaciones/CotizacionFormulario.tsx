@@ -151,6 +151,7 @@ export default function CotizacionFormulario({
           {lineas.map((linea, idx) => (
             <div key={idx} className="flex gap-2 items-center">
               <select
+                aria-label={`Presentación de la línea ${idx + 1}`}
                 value={linea.presentacionId}
                 onChange={(e) => {
                   const pres = presentaciones.find((p) => p.id === e.target.value);
@@ -171,6 +172,7 @@ export default function CotizacionFormulario({
                 ))}
               </select>
               <input
+                aria-label={`Cantidad de la línea ${idx + 1}`}
                 type="number"
                 step="1"
                 min="1"
@@ -180,6 +182,7 @@ export default function CotizacionFormulario({
                 className="campo-input w-24"
               />
               <input
+                aria-label={`Precio unitario de la línea ${idx + 1}`}
                 type="number"
                 step="0.01"
                 min="0"

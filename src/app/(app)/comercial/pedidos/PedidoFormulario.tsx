@@ -154,6 +154,7 @@ export default function PedidoFormulario({
             <div key={idx} className="flex flex-col gap-1">
             <div className="flex gap-2 items-center">
               <select
+                aria-label={`Presentación de la línea ${idx + 1}`}
                 value={linea.presentacionId}
                 onChange={(e) => {
                   const pres = presentaciones.find((p) => p.id === e.target.value);
@@ -178,6 +179,7 @@ export default function PedidoFormulario({
                 ))}
               </select>
               <input
+                aria-label={`Cantidad de la línea ${idx + 1}`}
                 type="number"
                 step="1"
                 min="1"
@@ -196,6 +198,7 @@ export default function PedidoFormulario({
                 className="campo-input w-24"
               />
               <input
+                aria-label={`Precio unitario de la línea ${idx + 1}`}
                 type="number"
                 step="0.01"
                 min="0"

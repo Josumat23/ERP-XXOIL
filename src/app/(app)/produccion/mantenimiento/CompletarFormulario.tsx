@@ -92,6 +92,7 @@ export default function CompletarFormulario({ accion, insumos, planPreventivo }:
               return (
                 <div key={idx} className="flex gap-2 items-center">
                   <select
+                    aria-label={`Repuesto de la línea ${idx + 1}`}
                     value={r.insumoId}
                     onChange={(e) => actualizarLinea(idx, { insumoId: e.target.value })}
                     className="campo-input flex-1"
@@ -106,6 +107,7 @@ export default function CompletarFormulario({ accion, insumos, planPreventivo }:
                     ))}
                   </select>
                   <input
+                    aria-label={`Cantidad del repuesto de la línea ${idx + 1}`}
                     type="number"
                     step="0.001"
                     min="0"

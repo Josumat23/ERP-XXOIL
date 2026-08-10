@@ -57,6 +57,7 @@ export default function AsientoManualFormulario({ cuentas }: { cuentas: Cuenta[]
         {lineas.map((linea, idx) => (
           <div key={idx} className="flex gap-2 items-center">
             <select
+              aria-label={`Cuenta de la línea ${idx + 1}`}
               value={linea.cuentaId}
               onChange={(e) => actualizar(idx, { cuentaId: e.target.value })}
               className="campo-input flex-1"
@@ -71,12 +72,14 @@ export default function AsientoManualFormulario({ cuentas }: { cuentas: Cuenta[]
               ))}
             </select>
             <input
+              aria-label={`Glosa de la línea ${idx + 1}`}
               placeholder="Glosa línea"
               value={linea.glosa}
               onChange={(e) => actualizar(idx, { glosa: e.target.value })}
               className="campo-input w-44"
             />
             <input
+              aria-label={`Debe de la línea ${idx + 1}`}
               type="number"
               step="0.01"
               min="0"
@@ -86,6 +89,7 @@ export default function AsientoManualFormulario({ cuentas }: { cuentas: Cuenta[]
               className="campo-input w-28 text-right"
             />
             <input
+              aria-label={`Haber de la línea ${idx + 1}`}
               type="number"
               step="0.01"
               min="0"
