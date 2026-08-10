@@ -55,7 +55,7 @@ export default function CuentasBancarias({ cuentas }: { cuentas: Cuenta[] }) {
       </table>
 
       <form action={formAction} className="flex flex-wrap gap-2 items-end">
-        {estado.error && <p className="text-sm text-red-600 dark:text-red-400 basis-full">{estado.error}</p>}
+        {estado.error && <p role="alert" className="text-sm text-red-600 dark:text-red-400 basis-full">{estado.error}</p>}
         <label className="flex flex-col gap-1 text-sm flex-1 min-w-[160px]">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Banco</span>
           <input name="banco" required placeholder="BBVA" className="campo-input" />
