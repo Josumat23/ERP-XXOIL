@@ -152,7 +152,7 @@ export default function PedidoFormulario({
               cantidadNum <= presSeleccionada.stock + presSeleccionada.atpProduccion;
             return (
             <div key={idx} className="flex flex-col gap-1">
-            <div className="flex gap-2 items-center">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_6rem_7rem_7rem_2.75rem] sm:items-center">
               <select
                 aria-label={`Presentación de la línea ${idx + 1}`}
                 value={linea.presentacionId}
@@ -166,7 +166,7 @@ export default function PedidoFormulario({
                       : linea.precioUnitario,
                   });
                 }}
-                className="campo-input flex-1"
+                className="campo-input w-full min-w-0"
               >
                 <option value="" disabled>
                   Seleccione presentación
@@ -195,7 +195,7 @@ export default function PedidoFormulario({
                       : linea.precioUnitario,
                   });
                 }}
-                className="campo-input w-24"
+                className="campo-input w-full sm:w-24"
               />
               <input
                 aria-label={`Precio unitario de la línea ${idx + 1}`}
@@ -205,9 +205,9 @@ export default function PedidoFormulario({
                 placeholder="Precio S/"
                 value={linea.precioUnitario}
                 onChange={(e) => actualizarLinea(idx, { precioUnitario: e.target.value })}
-                className="campo-input w-28"
+                className="campo-input w-full sm:w-28"
               />
-              <span className="w-28 text-right text-sm text-neutral-500">
+              <span className="w-full sm:w-28 text-right text-sm text-neutral-500">
                 {(Number(linea.cantidad) * Number(linea.precioUnitario) || 0).toLocaleString(
                   "es-PE",
                   { style: "currency", currency: "PEN" }
@@ -217,7 +217,7 @@ export default function PedidoFormulario({
                 type="button"
                 onClick={() => setLineas((prev) => prev.filter((_, i) => i !== idx))}
                 disabled={lineas.length === 1}
-                className="text-neutral-400 hover:text-red-500 disabled:opacity-30 px-2"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center justify-self-end sm:justify-self-auto text-neutral-400 hover:text-red-500 disabled:opacity-30"
                 aria-label="Quitar línea"
               >
                 ✕
