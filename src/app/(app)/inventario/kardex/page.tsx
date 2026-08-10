@@ -49,9 +49,13 @@ export default async function KardexPage({
             <option value="INSUMO">Insumos</option>
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
+        <label className="flex w-full min-w-0 flex-col gap-1 text-sm sm:w-auto">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Ítem específico</span>
-          <select name="item" defaultValue={item ?? ""} className="campo-input min-w-56">
+          <select
+            name="item"
+            defaultValue={item ?? ""}
+            className="campo-input w-full min-w-0 sm:w-auto sm:min-w-56"
+          >
             <option value="">Todos</option>
             <optgroup label="Presentaciones">
               {presentaciones.map((p) => (
