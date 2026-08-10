@@ -58,6 +58,7 @@ export default function ReglaAsignacionFormulario({ centros }: Props) {
           {lineas.map((linea, idx) => (
             <div key={idx} className="flex gap-2 items-center">
               <select
+                aria-label={`Centro de costo de la línea ${idx + 1}`}
                 value={linea.centroCostoId}
                 onChange={(e) => actualizarLinea(idx, { centroCostoId: e.target.value })}
                 className="campo-input flex-1"
@@ -72,6 +73,7 @@ export default function ReglaAsignacionFormulario({ centros }: Props) {
                 ))}
               </select>
               <input
+                aria-label={`Porcentaje de la línea ${idx + 1}`}
                 type="number"
                 step="0.01"
                 min="0"

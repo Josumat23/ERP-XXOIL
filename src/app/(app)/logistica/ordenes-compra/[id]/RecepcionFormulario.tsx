@@ -57,6 +57,7 @@ export default function RecepcionFormulario({ ordenCompraId, pendientes }: Props
               </td>
               <td className="text-right">
                 <input
+                  aria-label={`Cantidad recibida de ${p.nombre}`}
                   type="number"
                   step="0.001"
                   min="0"
@@ -70,6 +71,7 @@ export default function RecepcionFormulario({ ordenCompraId, pendientes }: Props
               </td>
               <td className="text-right">
                 <input
+                  aria-label={`Costo unitario real de ${p.nombre}`}
                   type="number"
                   step="0.01"
                   min="0"
@@ -82,6 +84,7 @@ export default function RecepcionFormulario({ ordenCompraId, pendientes }: Props
               </td>
               <td>
                 <input
+                  aria-label={`Lote del proveedor de ${p.nombre}`}
                   value={lotes[p.detalleId] ?? ""}
                   onChange={(e) => setLotes((prev) => ({ ...prev, [p.detalleId]: e.target.value }))}
                   placeholder="Opcional"

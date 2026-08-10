@@ -112,6 +112,7 @@ export function NotaCreditoFormulario({
               <td className="text-right">{l.maxAcreditable}</td>
               <td className="text-right">
                 <input
+                  aria-label={`Cantidad a acreditar de ${l.etiqueta}`}
                   type="number"
                   step="1"
                   min="0"

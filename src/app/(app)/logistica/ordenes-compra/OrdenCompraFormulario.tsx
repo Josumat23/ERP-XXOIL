@@ -178,6 +178,7 @@ export default function OrdenCompraFormulario({
           {lineas.map((linea, idx) => (
             <div key={idx} className="flex gap-2 items-center">
               <select
+                aria-label={`Insumo de la línea ${idx + 1}`}
                 value={linea.insumoId}
                 onChange={(e) => {
                   const insumo = insumos.find((i) => i.id === e.target.value);
@@ -198,6 +199,7 @@ export default function OrdenCompraFormulario({
                 ))}
               </select>
               <input
+                aria-label={`Cantidad de la línea ${idx + 1}`}
                 type="number"
                 step="0.001"
                 min="0"
@@ -207,6 +209,7 @@ export default function OrdenCompraFormulario({
                 className="campo-input w-24"
               />
               <input
+                aria-label={`Costo unitario de la línea ${idx + 1}`}
                 type="number"
                 step="0.01"
                 min="0"
@@ -216,6 +219,7 @@ export default function OrdenCompraFormulario({
                 className="campo-input w-28"
               />
               <input
+                aria-label={`Fecha de entrega de la línea ${idx + 1}`}
                 type="date"
                 title="Fecha de entrega esperada"
                 value={linea.fechaEntregaEsperada}

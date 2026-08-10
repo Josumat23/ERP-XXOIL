@@ -69,6 +69,7 @@ export default function HojaRutaFormulario({ vendedores, clientes }: Props) {
             <div key={idx} className="flex gap-2 items-center">
               <span className="text-sm text-neutral-400 w-6 text-right">{idx + 1}.</span>
               <select
+                aria-label={`Cliente de la visita ${idx + 1}`}
                 value={visita.clienteId}
                 onChange={(e) => actualizarVisita(idx, { clienteId: e.target.value })}
                 className="campo-input flex-1"
@@ -83,6 +84,7 @@ export default function HojaRutaFormulario({ vendedores, clientes }: Props) {
                 ))}
               </select>
               <input
+                aria-label={`Objetivo de la visita ${idx + 1}`}
                 placeholder="Objetivo (cobrar, ofrecer producto...)"
                 value={visita.objetivo}
                 onChange={(e) => actualizarVisita(idx, { objetivo: e.target.value })}

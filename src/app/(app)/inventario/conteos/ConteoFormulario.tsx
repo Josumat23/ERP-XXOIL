@@ -50,6 +50,7 @@ export default function ConteoFormulario({
           return (
             <div key={idx} className="flex flex-wrap gap-2 items-center">
               <select
+                aria-label={`Ítem de la línea ${idx + 1}`}
                 value={linea.itemId}
                 onChange={(e) => actualizarLinea(idx, { itemId: e.target.value })}
                 className="campo-input flex-1 min-w-56"
@@ -73,6 +74,7 @@ export default function ConteoFormulario({
                 </optgroup>
               </select>
               <input
+                aria-label={`Cantidad contada de la línea ${idx + 1}`}
                 type="number"
                 step="0.001"
                 min="0"
