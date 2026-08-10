@@ -23,21 +23,21 @@ export function AlmacenFormulario() {
         </p>
       )}
       <div className="flex flex-wrap gap-3 items-end">
-        <input name="codigo" required placeholder="Código (ej. PLANTA)" className="campo-input w-40 font-mono" />
-        <input name="nombre" required placeholder="Nombre" className="campo-input flex-1 min-w-48" />
-        <input name="encargado" placeholder="Encargado (opcional)" className="campo-input flex-1 min-w-40" />
+        <input aria-label="Código del almacén" name="codigo" required placeholder="Código (ej. PLANTA)" className="campo-input w-40 font-mono" />
+        <input aria-label="Nombre del almacén" name="nombre" required placeholder="Nombre" className="campo-input flex-1 min-w-48" />
+        <input aria-label="Encargado del almacén" name="encargado" placeholder="Encargado (opcional)" className="campo-input flex-1 min-w-40" />
       </div>
       <div className="flex flex-wrap gap-3 items-end">
-        <input name="direccion" placeholder="Dirección" className="campo-input flex-1 min-w-48" />
-        <input name="direccion2" placeholder="Dirección (línea 2)" className="campo-input flex-1 min-w-40" />
+        <input aria-label="Dirección del almacén" name="direccion" placeholder="Dirección" className="campo-input flex-1 min-w-48" />
+        <input aria-label="Segunda línea de dirección" name="direccion2" placeholder="Dirección (línea 2)" className="campo-input flex-1 min-w-40" />
       </div>
       <div className="flex flex-wrap gap-3 items-end">
-        <input name="distrito" placeholder="Distrito" className="campo-input flex-1 min-w-32" />
-        <input name="provincia" placeholder="Provincia" className="campo-input flex-1 min-w-32" />
-        <input name="departamento" placeholder="Departamento" className="campo-input flex-1 min-w-32" />
-        <input name="ciudad" placeholder="Ciudad" className="campo-input flex-1 min-w-32" />
-        <input name="codigoPostal" placeholder="Código postal" className="campo-input w-32" />
-        <input name="pais" placeholder="País" defaultValue="Perú" className="campo-input w-28" />
+        <input aria-label="Distrito" name="distrito" placeholder="Distrito" className="campo-input flex-1 min-w-32" />
+        <input aria-label="Provincia" name="provincia" placeholder="Provincia" className="campo-input flex-1 min-w-32" />
+        <input aria-label="Departamento" name="departamento" placeholder="Departamento" className="campo-input flex-1 min-w-32" />
+        <input aria-label="Ciudad" name="ciudad" placeholder="Ciudad" className="campo-input flex-1 min-w-32" />
+        <input aria-label="Código postal" name="codigoPostal" placeholder="Código postal" className="campo-input w-32" />
+        <input aria-label="País" name="pais" placeholder="País" defaultValue="Perú" className="campo-input w-28" />
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Agregar almacén"}
         </button>
@@ -65,7 +65,7 @@ export function ZonaFormulario({ almacenes }: { almacenes: { id: string; nombre:
         </p>
       )}
       <div className="flex flex-wrap gap-3 items-end">
-        <select name="almacenId" required defaultValue="" className="campo-input w-48">
+        <select aria-label="Almacén" name="almacenId" required defaultValue="" className="campo-input w-48">
           <option value="" disabled>
             Almacén
           </option>
@@ -75,8 +75,8 @@ export function ZonaFormulario({ almacenes }: { almacenes: { id: string; nombre:
             </option>
           ))}
         </select>
-        <input name="codigo" required placeholder="Código (ej. A-01)" className="campo-input w-32 font-mono" />
-        <input name="nombre" placeholder="Descripción (opcional)" className="campo-input flex-1 min-w-48" />
+        <input aria-label="Código de la zona" name="codigo" required placeholder="Código (ej. A-01)" className="campo-input w-32 font-mono" />
+        <input aria-label="Descripción de la zona" name="nombre" placeholder="Descripción (opcional)" className="campo-input flex-1 min-w-48" />
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Agregar zona"}
         </button>

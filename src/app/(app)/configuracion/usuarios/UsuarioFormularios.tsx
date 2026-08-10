@@ -26,16 +26,17 @@ export function CrearUsuarioFormulario({ grupos }: { grupos: GrupoOpcion[] }) {
     <form ref={formRef} action={formAction} className="flex flex-col gap-3">
       {estado.error && <MensajeError texto={estado.error} />}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <input name="nombre" required placeholder="Nombre completo" className="campo-input" />
-        <input name="usuario" required placeholder="usuario de acceso" className="campo-input font-mono" />
+        <input aria-label="Nombre completo" name="nombre" required placeholder="Nombre completo" className="campo-input" />
+        <input aria-label="Usuario de acceso" name="usuario" required placeholder="usuario de acceso" className="campo-input font-mono" />
         <input
           name="password"
+          aria-label="Contraseña"
           type="password"
           required
           placeholder="Contraseña (mín. 8)"
           className="campo-input"
         />
-        <select name="rol" required defaultValue="" className="campo-input">
+        <select aria-label="Rol" name="rol" required defaultValue="" className="campo-input">
           <option value="" disabled>
             Rol
           </option>
@@ -45,7 +46,7 @@ export function CrearUsuarioFormulario({ grupos }: { grupos: GrupoOpcion[] }) {
           <option value="VENTAS">Ventas</option>
           <option value="GERENCIA">Gerencia</option>
         </select>
-        <select name="grupoSeguridadId" defaultValue="" className="campo-input">
+        <select aria-label="Grupo de seguridad" name="grupoSeguridadId" defaultValue="" className="campo-input">
           <option value="">Sin grupo (solo el rol)</option>
           {grupos.map((g) => (
             <option key={g.id} value={g.id}>
@@ -72,6 +73,7 @@ export function GrupoUsuarioFormulario({
 }) {
   return (
     <select
+      aria-label="Grupo de seguridad del usuario"
       defaultValue={grupoActualId ?? ""}
       onChange={(e) => {
         asignarGrupoUsuario(usuarioId, e.currentTarget.value || null);
@@ -105,6 +107,7 @@ export function RestablecerPasswordFormulario({ usuarioId }: { usuarioId: string
       {estado.error && <span role="alert" className="text-xs text-red-600 dark:text-red-400">{estado.error}</span>}
       <input
         name="password"
+        aria-label="Nueva contraseña"
         type="password"
         required
         placeholder="Nueva contraseña"

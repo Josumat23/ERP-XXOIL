@@ -91,8 +91,8 @@ export function CalendarioProduccionFormulario({
                 {estadoDia.error}
               </p>
             )}
-            <input type="date" name="fecha" required className="campo-input w-40" />
-            <input name="motivo" placeholder="Motivo (opcional)" className="campo-input flex-1 min-w-40" />
+            <input aria-label="Fecha no laborable" type="date" name="fecha" required className="campo-input w-40" />
+            <input aria-label="Motivo de la fecha no laborable" name="motivo" placeholder="Motivo (opcional)" className="campo-input flex-1 min-w-40" />
             <button type="submit" disabled={enviandoDia} className="boton-secundario">
               {enviandoDia ? "Agregando..." : "Agregar"}
             </button>

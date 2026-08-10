@@ -23,8 +23,8 @@ export function ClaseFormulario() {
         </p>
       )}
       <div className="flex flex-wrap gap-3 items-end">
-        <input name="codigo" required placeholder="Código (ej. PESO)" className="campo-input w-40 font-mono" />
-        <input name="nombre" required placeholder="Nombre (ej. Peso)" className="campo-input flex-1 min-w-48" />
+        <input aria-label="Código de la clase" name="codigo" required placeholder="Código (ej. PESO)" className="campo-input w-40 font-mono" />
+        <input aria-label="Nombre de la clase" name="nombre" required placeholder="Nombre (ej. Peso)" className="campo-input flex-1 min-w-48" />
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Agregar clase"}
         </button>
@@ -52,7 +52,7 @@ export function UnidadFormulario({ clases }: { clases: { id: string; nombre: str
         </p>
       )}
       <div className="flex flex-wrap gap-3 items-end">
-        <select name="claseId" required defaultValue="" className="campo-input w-40">
+        <select aria-label="Clase de unidad" name="claseId" required defaultValue="" className="campo-input w-40">
           <option value="" disabled>
             Clase
           </option>
@@ -62,8 +62,8 @@ export function UnidadFormulario({ clases }: { clases: { id: string; nombre: str
             </option>
           ))}
         </select>
-        <input name="codigo" required placeholder="Código (ej. kg)" className="campo-input w-28 font-mono" />
-        <input name="nombre" required placeholder="Nombre (ej. Kilogramo)" className="campo-input flex-1 min-w-48" />
+        <input aria-label="Código de la unidad" name="codigo" required placeholder="Código (ej. kg)" className="campo-input w-28 font-mono" />
+        <input aria-label="Nombre de la unidad" name="nombre" required placeholder="Nombre (ej. Kilogramo)" className="campo-input flex-1 min-w-48" />
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Agregar unidad"}
         </button>
