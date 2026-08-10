@@ -6,11 +6,13 @@ import { actualizarPermiso } from "./actions";
 export default function PermisoCheckbox({
   permisoId,
   campo,
+  etiqueta,
   valorInicial,
   disabled,
 }: {
   permisoId: string;
   campo: "puedeVer" | "puedeCrear" | "puedeEditar" | "puedeAprobar";
+  etiqueta: string;
   valorInicial: boolean;
   disabled: boolean;
 }) {
@@ -18,6 +20,7 @@ export default function PermisoCheckbox({
 
   return (
     <input
+      aria-label={etiqueta}
       type="checkbox"
       defaultChecked={valorInicial}
       disabled={disabled || pendiente}
