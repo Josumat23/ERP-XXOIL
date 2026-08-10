@@ -23,7 +23,7 @@ export default function CajaFormulario() {
         </p>
       )}
       <div className="flex flex-wrap items-end gap-3">
-        <select name="tipo" required defaultValue="" className="campo-input w-32">
+        <select name="tipo" aria-label="Tipo de movimiento" required defaultValue="" className="campo-input w-32">
           <option value="" disabled>
             Tipo
           </option>
@@ -32,12 +32,14 @@ export default function CajaFormulario() {
         </select>
         <input
           name="concepto"
+          aria-label="Concepto"
           required
           placeholder="Concepto (ej. compra de repuestos, aporte de capital)"
           className="campo-input flex-1 min-w-64"
         />
         <input
           name="monto"
+          aria-label="Monto en soles"
           type="number"
           step="0.01"
           min="0.01"
@@ -45,7 +47,7 @@ export default function CajaFormulario() {
           placeholder="Monto S/"
           className="campo-input w-32"
         />
-        <select name="medioPago" required defaultValue="" className="campo-input w-40">
+        <select name="medioPago" aria-label="Medio de pago" required defaultValue="" className="campo-input w-40">
           <option value="" disabled>
             Medio
           </option>
