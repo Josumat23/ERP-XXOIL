@@ -20,7 +20,7 @@ export default function RechazarOCFormulario({ ordenCompraId }: { ordenCompraId:
         disabled={enviando}
         className="rounded-lg bg-red-600 text-white px-3 py-1.5 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
       >
-        {enviando ? "..." : "Rechazar orden"}
+        {enviando ? "Rechazando…" : "Rechazar orden"}
       </button>
     </form>
   );

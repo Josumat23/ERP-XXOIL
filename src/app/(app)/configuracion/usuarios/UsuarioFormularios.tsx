@@ -118,7 +118,7 @@ export function RestablecerPasswordFormulario({ usuarioId }: { usuarioId: string
         disabled={enviando}
         className="text-neutral-600 dark:text-neutral-400 hover:underline text-sm whitespace-nowrap"
       >
-        {enviando ? "..." : "Restablecer"}
+        {enviando ? "Restableciendo…" : "Restablecer"}
       </button>
     </form>
   );

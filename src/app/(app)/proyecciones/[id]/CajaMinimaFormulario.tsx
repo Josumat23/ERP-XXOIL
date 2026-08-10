@@ -25,7 +25,7 @@ export default function CajaMinimaFormulario({
         <input name="cajaMinimaDeseada" type="number" step="0.01" min="0" defaultValue={cajaMinimaDeseada} className="campo-input" />
       </label>
       <button type="submit" disabled={enviando} className="boton-secundario text-sm">
-        {enviando ? "..." : "Guardar"}
+        {enviando ? "Guardando…" : "Guardar"}
       </button>
     </form>
   );
