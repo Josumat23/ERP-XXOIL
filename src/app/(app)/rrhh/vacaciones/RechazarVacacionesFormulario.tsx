@@ -15,6 +15,7 @@ export default function RechazarVacacionesFormulario({ solicitudId }: { solicitu
         </p>
       )}
       <input
+        aria-label="Motivo del rechazo de vacaciones"
         name="motivo"
         required
         placeholder="Motivo del rechazo"

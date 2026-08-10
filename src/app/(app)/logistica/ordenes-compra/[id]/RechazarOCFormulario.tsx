@@ -14,7 +14,7 @@ export default function RechazarOCFormulario({ ordenCompraId }: { ordenCompraId:
           {estado.error}
         </p>
       )}
-      <input name="motivo" required placeholder="Motivo del rechazo" className="campo-input text-sm py-1.5 flex-1 min-w-48" />
+      <input aria-label="Motivo del rechazo de la orden" name="motivo" required placeholder="Motivo del rechazo" className="campo-input text-sm py-1.5 flex-1 min-w-48" />
       <button
         type="submit"
         disabled={enviando}

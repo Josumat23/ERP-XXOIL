@@ -39,6 +39,7 @@ export default function CategoriaFormulario({
       )}
       <div className="flex gap-3">
         <input
+          aria-label="Nombre de la categoría"
           name="nombre"
           required
           defaultValue={valoresIniciales?.nombre}
@@ -46,6 +47,7 @@ export default function CategoriaFormulario({
           className="campo-input flex-1"
         />
         <input
+          aria-label="Descripción de la categoría"
           name="descripcion"
           defaultValue={valoresIniciales?.descripcion ?? ""}
           placeholder="Descripción (opcional)"
