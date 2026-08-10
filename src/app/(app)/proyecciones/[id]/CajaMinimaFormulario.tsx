@@ -16,7 +16,7 @@ export default function CajaMinimaFormulario({
   return (
     <form action={formAction} className="flex items-end gap-3 mt-4 max-w-xs flex-wrap">
       {estado.error && (
-        <p className="w-full text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-2 py-1">
+        <p role="alert" className="w-full text-xs text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-2 py-1">
           {estado.error}
         </p>
       )}
