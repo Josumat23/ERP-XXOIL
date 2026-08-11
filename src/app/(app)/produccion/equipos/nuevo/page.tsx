@@ -6,12 +6,21 @@ import { crearEquipo } from "../actions";
 
 export default async function NuevoEquipoPage() {
   const [almacenes, activosFijos, centrosCosto, equipos] = await Promise.all([
-    prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.activoFijo.findMany({
-      where: { activo: true, equipo: null },
+    prisma.almacen.findMany({
+      where: { activo: true },
+      select: { id: true, nombre: true },
       orderBy: { nombre: "asc" },
     }),
-    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.activoFijo.findMany({
+      where: { activo: true, equipo: null },
+      select: { id: true, codigo: true, nombre: true },
+      orderBy: { nombre: "asc" },
+    }),
+    prisma.centroCosto.findMany({
+      where: { activo: true },
+      select: { id: true, codigo: true, nombre: true },
+      orderBy: { codigo: "asc" },
+    }),
     prisma.equipo.findMany({ orderBy: { creadoEn: "desc" } }),
   ]);
 
