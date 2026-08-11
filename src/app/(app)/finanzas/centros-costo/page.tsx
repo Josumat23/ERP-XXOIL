@@ -55,8 +55,8 @@ export default async function CentrosCostoPage({
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
-        <div>
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
             Centros de costo
           </h1>
@@ -67,7 +67,7 @@ export default async function CentrosCostoPage({
             contabilizan automáticamente (AVC) hasta que se regularice el presupuesto.
           </p>
         </div>
-        <div className="flex gap-2 no-imprimir">
+        <div className="flex flex-wrap gap-2 no-imprimir">
           <Link href="/finanzas/centros-costo/reglas" className="boton-secundario">
             Reglas y asignación
           </Link>
