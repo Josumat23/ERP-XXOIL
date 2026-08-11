@@ -60,14 +60,14 @@ export function ControlFormulario({
   );
 
   return (
-    <form action={formAction} className="flex items-center gap-3">
-      <span className="text-sm w-72 shrink-0">{etiqueta}</span>
+    <form action={formAction} className="flex flex-col items-stretch gap-2 sm:flex-row sm:items-center sm:gap-3">
+      <span className="text-sm sm:w-72 sm:shrink-0">{etiqueta}</span>
       <input type="hidden" name="clave" value={clave} />
       <select
         name="cuentaId"
         aria-label={etiqueta}
         defaultValue={cuentaActualId ?? ""}
-        className="campo-input flex-1"
+        className="campo-input w-full min-w-0 sm:flex-1"
       >
         <option value="" disabled>
           Sin cuenta asignada
@@ -78,7 +78,12 @@ export function ControlFormulario({
           </option>
         ))}
       </select>
-      <button type="submit" aria-label={`Guardar ${etiqueta}`} disabled={enviando} className="boton-secundario text-xs whitespace-nowrap">
+      <button
+        type="submit"
+        aria-label={`Guardar ${etiqueta}`}
+        disabled={enviando}
+        className="boton-secundario min-h-11 self-end whitespace-nowrap text-xs sm:min-h-0 sm:self-auto"
+      >
         {enviando ? "Guardando…" : "Guardar"}
       </button>
       {estado.error && <span role="alert" className="text-xs text-red-600 dark:text-red-400">{estado.error}</span>}
