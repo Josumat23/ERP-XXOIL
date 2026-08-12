@@ -936,17 +936,26 @@ model CotizacionDetalle {
 }
 
 model Pedido {
-  id            String       @id @default(cuid())
-  empresaId     String       @default("1")
-  numero        String       @unique // PED-00001
-  clienteId     String
-  vendedorId    String
-  fecha         DateTime     @default(now())
-  estado        EstadoPedido @default(PENDIENTE)
-  total         Decimal
-  notas         String?
-  usuarioId     String
-  usuarioNombre String
+  id                      String           @id @default(cuid())
+  empresaId               String           @default("1")
+  numero                  String           @unique // PED-00001
+  clienteId               String
+  vendedorId              String
+  fecha                   DateTime         @default(now())
+  estado                  EstadoPedido     @default(PENDIENTE)
+  total                   Decimal
+  notas                   String?
+  usuarioId               String
+  usuarioNombre           String
+  estadoAprobacionCredito EstadoAprobacion @default(NO_REQUERIDA)
+  condicionPagoCredito    CondicionPago?
+  deudaCreditoEvaluada    Decimal?
+  montoCreditoEvaluado    Decimal?
+  limiteCreditoEvaluado   Decimal?
+  creditoSolicitadoEn     DateTime?
+  creditoResueltoEn       DateTime?
+  creditoResueltoPor      String?
+  motivoRechazoCredito    String?
 
   cliente          Cliente         @relation(fields: [clienteId], references: [id])
   vendedor         Vendedor        @relation(fields: [vendedorId], references: [id])

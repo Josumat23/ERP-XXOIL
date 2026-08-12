@@ -5,8 +5,11 @@ import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_PEDIDO } from "@/lib/etiquetas";
 import { seriesActivas } from "@/lib/series";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
-import { anularPedido } from "../actions";
+import { aprobarCreditoPedido, anularPedido } from "../actions";
 import FacturarFormulario from "./FacturarFormulario";
+import ResolverCreditoFormulario from "./ResolverCreditoFormulario";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -37,6 +40,12 @@ export default async function DetallePedidoPage({
 
   const series =
     pedido.estado === "PENDIENTE" ? await seriesActivas("FACTURA") : [];
+  const usuario = await obtenerUsuario();
+  const puedeAprobarCredito =
+    pedido.estadoAprobacionCredito === "PENDIENTE" &&
+    usuario !== null &&
+    (usuario.rol === "ADMIN" || usuario.rol === "GERENCIA") &&
+    (await puedeRealizar(usuario, "ventas", "aprobar"));
 
   return (
     <div>
@@ -105,6 +114,43 @@ export default async function DetallePedidoPage({
         </tbody>
       </table>
 
+
+      {pedido.estadoAprobacionCredito === "PENDIENTE" && (
+        <section className="mt-8 border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/30 rounded-lg p-4 no-imprimir">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Excepción de crédito pendiente</h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+            Deuda actual {formatMoneda(pedido.deudaCreditoEvaluada ?? 0)} + factura proyectada {formatMoneda(pedido.montoCreditoEvaluado ?? 0)} supera el límite de {formatMoneda(pedido.limiteCreditoEvaluado ?? 0)}. Condición solicitada: {pedido.condicionPagoCredito === "DIAS_15" ? "Crédito 15 días" : "Crédito 30 días"}.
+          </p>
+          {puedeAprobarCredito ? (
+            <div className="flex flex-col gap-3 mt-4">
+              <form action={async () => { "use server"; await aprobarCreditoPedido(pedido.id); }}>
+                <button type="submit" className="boton-primario text-sm">Aprobar excepción</button>
+              </form>
+              <ResolverCreditoFormulario pedidoId={pedido.id} />
+            </div>
+          ) : (
+            <p className="text-xs text-neutral-500 mt-3">Solo Gerencia o un Administrador con permiso de aprobación de Ventas puede resolverla.</p>
+          )}
+        </section>
+      )}
+
+      {pedido.estadoAprobacionCredito === "APROBADA" && (
+        <section className="mt-8 border border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/20 rounded-lg p-4 no-imprimir">
+          <h2 className="font-medium text-green-800 dark:text-green-400">Excepción de crédito aprobada</h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+            Aprobada por {pedido.creditoResueltoPor} para {formatMoneda(pedido.montoCreditoEvaluado ?? 0)} y la condición evaluada. Facture usando esa misma condición.
+          </p>
+        </section>
+      )}
+
+      {pedido.estadoAprobacionCredito === "RECHAZADA" && (
+        <section className="mt-8 border border-red-200 dark:border-red-900 bg-red-50 dark:bg-red-950/20 rounded-lg p-4 no-imprimir">
+          <h2 className="font-medium text-red-700 dark:text-red-400">Excepción de crédito rechazada</h2>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
+            {pedido.motivoRechazoCredito} — {pedido.creditoResueltoPor}. Puede facturar al contado o reevaluar después de reducir la deuda.
+          </p>
+        </section>
+      )}
       {pedido.estado === "PENDIENTE" && (
         <>
           <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4">
