@@ -76,6 +76,7 @@ export type DetalleCalculado = {
   precio: number;
   costoPromedio: number;
   stock: number;
+  stockReservado: number;
   stockMinimo: number;
   ventasBase: number;
   indiceEstacionalidad: number;
@@ -95,6 +96,7 @@ export function calcularDemanda(
     precio: number;
     costoPromedio: number;
     stock: number;
+    stockReservado: number;
     stockMinimo: number;
     ventasBase: number;
     indiceEstacionalidad: number;
@@ -136,9 +138,19 @@ export type ResultadoOperaciones = {
   presentacionesSinFormula: string[];
 };
 
+export function calcularUnidadesAProducir(detalle: {
+  demandaProyectada: number;
+  stock: number;
+  stockReservado: number;
+  stockMinimo: number;
+}): number {
+  const stockDisponible = detalle.stock - detalle.stockReservado;
+  return Math.max(0, detalle.demandaProyectada + detalle.stockMinimo - stockDisponible);
+}
+
 /**
  * Plan de producción: para cada presentación con demanda proyectada, cubre el
- * faltante contra stock (con stock mínimo como colchón) y consume la fórmula
+ * faltante contra stock disponible (físico menos reservado, con stock mínimo como colchón) y consume la fórmula
  * activa más reciente del producto para estimar insumos, costo y mano de obra.
  * La capacidad disponible sale del calendario de producción de los almacenes
  * (Configuración → Almacenes) para el rango de fechas del trimestre proyectado.
@@ -179,7 +191,7 @@ export async function calcularOperaciones(
 
   for (const d of detalles) {
     if (d.demandaProyectada <= 0) continue;
-    const unidadesAProducir = Math.max(0, d.demandaProyectada + d.stockMinimo - d.stock);
+    const unidadesAProducir = calcularUnidadesAProducir(d);
     if (unidadesAProducir <= 0) continue;
     const kgGranel = unidadesAProducir * d.contenidoKg;
 
