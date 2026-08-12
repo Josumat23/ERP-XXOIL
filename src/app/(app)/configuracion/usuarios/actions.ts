@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol, hashPassword } from "@/lib/auth";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -30,8 +31,11 @@ export async function crearUsuario(
   if (!ROLES_VALIDOS.includes(rol)) return { error: "Seleccione el rol." };
 
   try {
-    await prisma.usuario.create({
-      data: { nombre, usuario, rol, grupoSeguridadId, passwordHash: hashPassword(password) },
+    await prisma.$transaction(async (tx) => {
+      const creado = await tx.usuario.create({
+        data: { nombre, usuario, rol, grupoSeguridadId, passwordHash: hashPassword(password) },
+      });
+      await registrarAuditoriaMaestro(tx, { entidad: "Usuario", registroId: creado.id, accion: "CREAR", despues: creado, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -55,11 +59,13 @@ export async function restablecerPassword(
   const password = String(formData.get("password") ?? "");
   if (password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres." };
 
-  await prisma.$transaction([
-    prisma.usuario.update({ where: { id }, data: { passwordHash: hashPassword(password) } }),
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.usuario.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.usuario.update({ where: { id }, data: { passwordHash: hashPassword(password) } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Usuario", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     // Cierra todas las sesiones abiertas del usuario afectado.
-    prisma.sesion.deleteMany({ where: { usuarioId: id } }),
-  ]);
+    await tx.sesion.deleteMany({ where: { usuarioId: id } });
+  });
 
   revalidatePath("/configuracion/usuarios");
   return {};
@@ -69,7 +75,11 @@ export async function asignarGrupoUsuario(id: string, grupoSeguridadId: string |
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return;
 
-  await prisma.usuario.update({ where: { id }, data: { grupoSeguridadId } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.usuario.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.usuario.update({ where: { id }, data: { grupoSeguridadId } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Usuario", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/configuracion/usuarios");
 }
 
@@ -78,9 +88,11 @@ export async function alternarActivoUsuario(id: string, activo: boolean) {
   if ("error" in auth) return;
   if (auth.usuario.id === id) return; // nadie se desactiva a sí mismo
 
-  await prisma.$transaction([
-    prisma.usuario.update({ where: { id }, data: { activo } }),
-    ...(activo ? [] : [prisma.sesion.deleteMany({ where: { usuarioId: id } })]),
-  ]);
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.usuario.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.usuario.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Usuario", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+    if (!activo) await tx.sesion.deleteMany({ where: { usuarioId: id } });
+  });
   revalidatePath("/configuracion/usuarios");
 }

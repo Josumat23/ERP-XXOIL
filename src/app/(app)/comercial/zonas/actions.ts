@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -22,7 +23,10 @@ export async function crearZona(
   if (!nombre) return { error: "El nombre es obligatorio." };
 
   try {
-    await prisma.zona.create({ data: { nombre } });
+    await prisma.$transaction(async (tx) => {
+      const zona = await tx.zona.create({ data: { nombre } });
+      await registrarAuditoriaMaestro(tx, { entidad: "Zona", registroId: zona.id, accion: "CREAR", despues: zona, usuario: auth.usuario });
+    });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: `Ya existe la zona "${nombre}".` };
@@ -49,7 +53,11 @@ export async function actualizarZona(
   if (!nombre) return { error: "El nombre es obligatorio." };
 
   try {
-    await prisma.zona.update({ where: { id }, data: { nombre } });
+    await prisma.$transaction(async (tx) => {
+      const antes = await tx.zona.findUniqueOrThrow({ where: { id } });
+      const despues = await tx.zona.update({ where: { id }, data: { nombre } });
+      await registrarAuditoriaMaestro(tx, { entidad: "Zona", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+    });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: `Ya existe la zona "${nombre}".` };
@@ -66,6 +74,10 @@ export async function alternarActivoZona(id: string, activo: boolean) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
-  await prisma.zona.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.zona.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.zona.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Zona", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/comercial/zonas");
 }

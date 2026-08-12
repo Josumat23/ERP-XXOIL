@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { feriadosPeru } from "@/lib/calendarioProduccion";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -34,20 +35,11 @@ export async function crearAlmacen(
   if (!codigo || !nombre) return { error: "Código y nombre son obligatorios." };
 
   try {
-    await prisma.almacen.create({
-      data: {
-        codigo,
-        nombre,
-        direccion,
-        direccion2,
-        ciudad,
-        distrito,
-        provincia,
-        departamento,
-        codigoPostal,
-        pais,
-        encargado,
-      },
+    await prisma.$transaction(async (tx) => {
+      const almacen = await tx.almacen.create({
+        data: { codigo, nombre, direccion, direccion2, ciudad, distrito, provincia, departamento, codigoPostal, pais, encargado },
+      });
+      await registrarAuditoriaMaestro(tx, { entidad: "Almacen", registroId: almacen.id, accion: "CREAR", despues: almacen, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -78,7 +70,10 @@ export async function crearZonaAlmacen(
   if (!codigo) return { error: "El código de la zona es obligatorio." };
 
   try {
-    await prisma.zonaAlmacen.create({ data: { almacenId, codigo, nombre } });
+    await prisma.$transaction(async (tx) => {
+      const zona = await tx.zonaAlmacen.create({ data: { almacenId, codigo, nombre } });
+      await registrarAuditoriaMaestro(tx, { entidad: "ZonaAlmacen", registroId: zona.id, accion: "CREAR", despues: zona, usuario: auth.usuario });
+    });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: `Ya existe la zona "${codigo}" en ese almacén.` };
@@ -94,7 +89,11 @@ export async function alternarActivoAlmacen(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "configuracion", "editar"))) return;
-  await prisma.almacen.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.almacen.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.almacen.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Almacen", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/configuracion/almacenes");
 }
 
@@ -102,7 +101,11 @@ export async function alternarActivoZona(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "configuracion", "editar"))) return;
-  await prisma.zonaAlmacen.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.zonaAlmacen.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.zonaAlmacen.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "ZonaAlmacen", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/configuracion/almacenes");
 }
 
@@ -129,10 +132,10 @@ export async function guardarHorasCalendario(
     horas[`horas${dia}`] = valor;
   }
 
-  await prisma.calendarioProduccion.upsert({
-    where: { almacenId },
-    update: horas,
-    create: { almacenId, ...horas },
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.calendarioProduccion.findUnique({ where: { almacenId } });
+    const despues = await tx.calendarioProduccion.upsert({ where: { almacenId }, update: horas, create: { almacenId, ...horas } });
+    await registrarAuditoriaMaestro(tx, { entidad: "CalendarioProduccion", registroId: despues.id, accion: antes ? "ACTUALIZAR" : "CREAR", antes, despues, usuario: auth.usuario });
   });
 
   revalidatePath("/configuracion/almacenes");
@@ -154,15 +157,11 @@ export async function agregarDiaNoLaborable(
   const motivo = String(formData.get("motivo") ?? "").trim() || null;
   if (!fecha) return { error: "Seleccione la fecha." };
 
-  const calendario = await prisma.calendarioProduccion.upsert({
-    where: { almacenId },
-    update: {},
-    create: { almacenId },
-  });
-
   try {
-    await prisma.diaNoLaborable.create({
-      data: { calendarioId: calendario.id, fecha: new Date(`${fecha}T00:00:00`), motivo },
+    await prisma.$transaction(async (tx) => {
+      const calendario = await tx.calendarioProduccion.upsert({ where: { almacenId }, update: {}, create: { almacenId } });
+      const dia = await tx.diaNoLaborable.create({ data: { calendarioId: calendario.id, fecha: new Date(`${fecha}T00:00:00`), motivo } });
+      await registrarAuditoriaMaestro(tx, { entidad: "DiaNoLaborable", registroId: dia.id, accion: "CREAR", despues: dia, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -179,7 +178,10 @@ export async function quitarDiaNoLaborable(id: string) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "configuracion", "editar"))) return;
-  await prisma.diaNoLaborable.delete({ where: { id } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.diaNoLaborable.delete({ where: { id } });
+    await registrarAuditoriaMaestro(tx, { entidad: "DiaNoLaborable", registroId: id, accion: "ELIMINAR", antes, usuario: auth.usuario });
+  });
   revalidatePath("/configuracion/almacenes");
 }
 
@@ -189,30 +191,30 @@ export async function cargarFeriadosPeru(almacenId: string, anio: number) {
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "configuracion", "editar"))) return;
 
-  const calendario = await prisma.calendarioProduccion.upsert({
-    where: { almacenId },
-    update: {},
-    create: { almacenId },
-  });
+  const feriados = feriadosPeru(anio);
+  await prisma.$transaction(async (tx) => {
+    const calendario = await tx.calendarioProduccion.upsert({ where: { almacenId }, update: {}, create: { almacenId } });
+    const existentes = await tx.diaNoLaborable.findMany({
+      where: { calendarioId: calendario.id, fecha: { in: feriados.map((feriado) => feriado.fecha) } },
+      select: { fecha: true },
+    });
 
-  // SQLite no admite `skipDuplicates` en createMany (a diferencia de
-  // Postgres/MySQL). En vez de leer las fechas existentes y luego insertar
-  // las faltantes (una condición de carrera entre solicitudes concurrentes:
-  // ambas podrían leer el mismo estado y chocar contra la restricción única
-  // al insertar), cada feriado se resuelve con upsert sobre la restricción
-  // real (calendarioId, fecha): crea el que falta, deja intacto el que ya
-  // existe (update vacío, igual que skipDuplicates), sin poder fallar por
-  // duplicado — la propia base de datos, no el código, es la garantía
-  // final contra duplicados.
-  await prisma.$transaction(
-    feriadosPeru(anio).map((f) =>
-      prisma.diaNoLaborable.upsert({
-        where: { calendarioId_fecha: { calendarioId: calendario.id, fecha: f.fecha } },
-        update: {},
-        create: { calendarioId: calendario.id, fecha: f.fecha, motivo: f.motivo },
-      })
-    )
-  );
+    // La restricción única (calendarioId, fecha) resuelve de forma segura
+    // solicitudes concurrentes y conserva los feriados ya configurados.
+    await Promise.all(feriados.map((feriado) => tx.diaNoLaborable.upsert({
+      where: { calendarioId_fecha: { calendarioId: calendario.id, fecha: feriado.fecha } },
+      update: {},
+      create: { calendarioId: calendario.id, fecha: feriado.fecha, motivo: feriado.motivo },
+    })));
+    await registrarAuditoriaMaestro(tx, {
+      entidad: "CalendarioProduccion",
+      registroId: calendario.id,
+      accion: "ACTUALIZAR",
+      antes: { anio, feriadosExistentes: existentes.length },
+      despues: { anio, feriadosConfigurados: feriados.length },
+      usuario: auth.usuario,
+    });
+  });
 
   revalidatePath("/configuracion/almacenes");
 }

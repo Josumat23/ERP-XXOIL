@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { MODULOS } from "./modulos";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -21,14 +22,12 @@ export async function crearGrupoSeguridad(
   if (!codigo || !nombre) return { error: "Código y nombre son obligatorios." };
 
   try {
-    await prisma.grupoSeguridad.create({
-      data: {
-        codigo,
-        nombre,
-        permisos: {
-          create: MODULOS.map((m) => ({ modulo: m.clave, puedeVer: true })),
-        },
-      },
+    await prisma.$transaction(async (tx) => {
+      const grupo = await tx.grupoSeguridad.create({
+        data: { codigo, nombre, permisos: { create: MODULOS.map((m) => ({ modulo: m.clave, puedeVer: true })) } },
+        include: { permisos: true },
+      });
+      await registrarAuditoriaMaestro(tx, { entidad: "GrupoSeguridad", registroId: grupo.id, accion: "CREAR", despues: grupo, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -55,7 +54,10 @@ export async function actualizarPermiso(
   });
   if (!permiso || permiso.grupo.esPredefinido) return; // los predefinidos son de solo lectura
 
-  await prisma.permisoGrupo.update({ where: { id: permisoId }, data: { [campo]: valor } });
+  await prisma.$transaction(async (tx) => {
+    const despues = await tx.permisoGrupo.update({ where: { id: permisoId }, data: { [campo]: valor } });
+    await registrarAuditoriaMaestro(tx, { entidad: "GrupoSeguridad", registroId: permiso.grupoId, accion: "ACTUALIZAR", antes: permiso, despues, usuario: auth.usuario });
+  });
   revalidatePath("/configuracion/grupos-seguridad");
 }
 
@@ -64,6 +66,9 @@ export async function alternarActivoGrupo(id: string, activo: boolean) {
   if ("error" in auth) return;
   const grupo = await prisma.grupoSeguridad.findUnique({ where: { id } });
   if (!grupo || grupo.esPredefinido) return;
-  await prisma.grupoSeguridad.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const despues = await tx.grupoSeguridad.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "GrupoSeguridad", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes: grupo, despues, usuario: auth.usuario });
+  });
   revalidatePath("/configuracion/grupos-seguridad");
 }
