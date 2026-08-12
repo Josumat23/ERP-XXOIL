@@ -137,6 +137,12 @@ export async function anularPedido(id: string) {
     const pedido = await tx.pedido.findUnique({ where: { id }, include: { detalles: true } });
     if (!pedido || pedido.estado !== "PENDIENTE") return;
 
+    const reclamo = await tx.pedido.updateMany({
+      where: { id, estado: "PENDIENTE" },
+      data: { estado: "ANULADO" },
+    });
+    if (reclamo.count !== 1) return;
+
     // Libera la reserva de stock (el pedido nunca llegó a facturarse).
     for (const d of pedido.detalles) {
       await tx.presentacion.update({
@@ -144,8 +150,6 @@ export async function anularPedido(id: string) {
         data: { stockReservado: { decrement: d.cantidad } },
       });
     }
-
-    await tx.pedido.update({ where: { id }, data: { estado: "ANULADO" } });
   });
 
   revalidatePath("/comercial/pedidos");
@@ -249,6 +253,14 @@ export async function facturarPedido(
           }
         }
       }
+      const reclamo = await tx.pedido.updateMany({
+        where: { id, estado: "PENDIENTE" },
+        data: { estado: "FACTURADO" },
+      });
+      if (reclamo.count !== 1) {
+        throw new Error("El pedido cambió mientras se facturaba. Actualice la página e intente nuevamente.");
+      }
+
       const fechaEmision = new Date();
       const fechaVencimiento = new Date(
         fechaEmision.getTime() + DIAS_CONDICION[condicionPago] * 24 * 60 * 60 * 1000
@@ -321,7 +333,6 @@ export async function facturarPedido(
         },
       });
 
-      await tx.pedido.update({ where: { id }, data: { estado: "FACTURADO" } });
       await avanzarSerie(tx, serieId);
 
       // Asiento contable automático (best-effort: sin controles configurados
