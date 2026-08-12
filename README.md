@@ -69,6 +69,16 @@ actualiza el costo promedio de la presentación, del que sale el margen de venta
    ```
 6. Abrir [http://localhost:3000](http://localhost:3000).
 
+### Pruebas automatizadas
+
+```bash
+npm test
+```
+
+La suite crea una base SQLite efímera en el directorio temporal del sistema,
+aplica las migraciones y el seed mínimo, y valida inventario, producción,
+calidad, envasado, contabilidad, MRP y UBL. Nunca utiliza `dev.db`.
+
 > Nota: los scripts `dev` y `build` usan webpack (`--webpack`) porque Turbopack
 > falla al procesar CSS en este entorno Windows/OneDrive.
 
