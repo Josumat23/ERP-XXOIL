@@ -32,6 +32,9 @@ El ERP cubre de manera material los ciclos principales de SAP Business One, pero
 1. PR #61, merge 86dc20a: el XML UBL usa la tasa de IGV congelada en la factura/NC en vez de 18% fijo por línea.
 2. PR #62, merge b524c24: MRP calcula disponibilidad como stock físico menos stock reservado, consistente con ATP y pedidos.
 3. El hallazgo histórico de autorización de envío SUNAT ya estaba corregido: factura y NC exigen sesión, rol y permiso.
+4. PR #64, merge 6509cdd: suite permanente con SQLite efímero fuera del repositorio para kardex, venta/cobro, compra/pago, producción/calidad/envasado, MRP y UBL.
+5. PR #65, merge 7bab3f6: cookies de sesión y empresa activa limitadas a HTTPS en producción mediante `secure`.
+6. PR #66, merge d5bd652: CI en cada PR y push a `main`, con Prisma, lint, TypeScript, suite crítica y build; ejecución Linux verificada.
 
 ## 4. Localización peruana: estado vigente y límites
 
@@ -116,7 +119,7 @@ No se recomienda copiar literalmente SAP GUI. Deben preservarse su trazabilidad,
 3. RFQ y liberación multinivel de compras.
 4. Parámetros de calidad y certificado de análisis si los clientes lo exigen.
 5. Auditoría de cambios de maestros y segregación de funciones.
-6. Suite automatizada de ciclos contables, inventario y documentos.
+6. Ampliar la suite ya existente hacia planilla, documentos completos y los restantes puntos transaccionales críticos.
 
 ### UX
 

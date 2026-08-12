@@ -1,6 +1,6 @@
 # 09 — Roadmap por oleadas
 
-> **Actualización 2026-08-12:** los ítems 0.1 (autorización SUNAT) y 0.1b (stock reservado en MRP, PR #62, merge b524c24) están completados. El resto requiere las dependencias y decisiones indicadas; no autoriza cambios de esquema.
+> **Actualización 2026-08-12:** los ítems 0.1 (autorización SUNAT), 0.1b (stock reservado en MRP, PR #62, merge b524c24), cookie `secure` en producción (PR #65, merge 7bab3f6) y framework de pruebas + CI (PR #64/#66, merges 6509cdd/d5bd652) están completados. El resto requiere las dependencias y decisiones indicadas; no autoriza cambios de esquema.
 
 **Principio de secuenciación**: la Oleada 0 resuelve los prerrequisitos estructurales de los que dependen casi todos los demás gaps (sin sociedad/planta real, no tiene sentido construir jerarquía de centro de costo "por planta"; sin partición de stock por zona, no tiene sentido construir picking). Las oleadas siguientes se ordenan por impacto/riesgo, no por dominio SAP — varios ítems de distintos dominios conviven en la misma oleada cuando comparten dependencia técnica o urgencia.
 
@@ -79,9 +79,9 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 | Estructura organizativa jerárquica RR.HH. (`jefeDirectoId`/posición) | ninguna | Se puede generar un organigrama real y aprobar solicitudes con el flujo jefe→reporte | P1 |
 | Motor de conflictos de SoD (GRC) | ninguna | Asignar un permiso que viole una regla conocida (ej. "crea y aprueba la misma OC") genera una advertencia o bloqueo | P1 |
 | Bloqueo de cuenta / rate limiting en login | ninguna | Tras N intentos fallidos, la cuenta se bloquea temporalmente | P1 |
-| Cookie de sesión con flag `secure` en producción | ninguna | Confirmar despliegue HTTPS y activar el flag | P1 |
+| Cookie de sesión con flag `secure` en producción | ninguna | **Completado**: sesión y empresa activa usan `secure` cuando `NODE_ENV=production` (PR #65) | P1 completado |
 | Change log genérico para catálogos editables | ninguna | Editar `Cliente.limiteCredito` (u otro campo sensible) deja un registro de valor anterior/nuevo/usuario/fecha | P1 |
-| Framework de pruebas automatizadas + pipeline CI | ninguna | Cobertura mínima en los 66 puntos de transacción crítica (kardex, contabilidad, planilla); pipeline corre en cada PR | **P1, transversal — habilita hacer todo lo demás con menos riesgo** |
+| Framework de pruebas automatizadas + pipeline CI | ninguna | **Base completada**: SQLite efímero cubre seis invariantes de kardex, contabilidad, producción, MRP y UBL; CI ejecuta Prisma, lint, TypeScript, pruebas y build en cada PR. La cobertura debe ampliarse hacia planilla y los demás puntos críticos (PR #64/#66) | **P1 transversal, base completada** |
 | Estrategia de backup/DR documentada e implementada | ninguna | Backup automatizado programado + procedimiento de restauración probado al menos una vez | **P1, transversal** |
 | Consentimiento/retención de datos personales (Ley 29733) | ninguna | Definir con legal qué controles mínimos aplican; implementar lo que se confirme necesario | P1 |
 
@@ -117,6 +117,6 @@ Confirmado por el propio repositorio como buena práctica ya establecida (`docs/
 
 ## Nota metodológica sobre pruebas y rollback transversal
 
-Dado que **no existe hoy ningún framework de pruebas automatizadas** (Blueprint 08), cada ítem de este roadmap que toque el motor de kardex, contabilidad o planilla debe, como mínimo, incluir un script de verificación manual reproducible (al estilo de los que ya se usaron en sesiones anteriores de este proyecto para verificar Proyectos y SUNAT) hasta que la Oleada 1 (framework de pruebas) esté lista — momento en el cual esos scripts manuales deberían convertirse en pruebas automatizadas permanentes, no descartarse.
+Desde los PR #64 y #66 existe una base permanente de pruebas automatizadas y CI. Cada ítem de este roadmap que toque kardex, contabilidad, planilla o documentos debe ampliar esa suite con el caso afectado; un script manual reproducible sigue siendo útil para exploración, pero ya no sustituye una prueba automatizada de regresión.
 
 Para el rollback de cambios de esquema: el patrón ya establecido en este repositorio (agregar campos/modelos nuevos como opcionales, nunca eliminar ni renombrar en la misma migración que se agrega la funcionalidad) debe mantenerse en todo este roadmap — es consistente con el principio de diseño ya documentado en `prisma/schema.prisma:5-7` ("la historia nunca se edita ni se borra") y reduce el riesgo de cada oleada.
