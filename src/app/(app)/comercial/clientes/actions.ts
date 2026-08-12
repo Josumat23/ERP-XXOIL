@@ -8,6 +8,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoCliente } from "@/lib/correlativos";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -97,7 +98,17 @@ export async function crearCliente(
     const empresaId = await obtenerEmpresaActivaId();
     await prisma.$transaction(async (tx) => {
       const codigo = await siguienteCodigoCliente(tx);
-      await tx.cliente.create({ data: { ...resultado.datos, codigo, empresaId } });
+      const cliente = await tx.cliente.create({
+        data: { ...resultado.datos, codigo, empresaId },
+      });
+      await registrarAuditoriaMaestro(tx, {
+        empresaId,
+        entidad: "Cliente",
+        registroId: cliente.id,
+        accion: "CREAR",
+        despues: cliente,
+        usuario: auth.usuario,
+      });
     });
   } catch (e) {
     if (esErrorDuplicado(e)) {
@@ -125,7 +136,19 @@ export async function actualizarCliente(
   if ("error" in resultado) return resultado;
 
   try {
-    await prisma.cliente.update({ where: { id }, data: resultado.datos });
+    await prisma.$transaction(async (tx) => {
+      const antes = await tx.cliente.findUniqueOrThrow({ where: { id } });
+      const despues = await tx.cliente.update({ where: { id }, data: resultado.datos });
+      await registrarAuditoriaMaestro(tx, {
+        empresaId: despues.empresaId,
+        entidad: "Cliente",
+        registroId: id,
+        accion: "ACTUALIZAR",
+        antes,
+        despues,
+        usuario: auth.usuario,
+      });
+    });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un cliente con el documento ${resultado.datos.ruc}.` };
@@ -141,6 +164,18 @@ export async function alternarActivoCliente(id: string, activo: boolean) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
-  await prisma.cliente.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.cliente.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.cliente.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, {
+      empresaId: despues.empresaId,
+      entidad: "Cliente",
+      registroId: id,
+      accion: activo ? "ACTIVAR" : "DESACTIVAR",
+      antes,
+      despues,
+      usuario: auth.usuario,
+    });
+  });
   revalidatePath("/comercial/clientes");
 }
