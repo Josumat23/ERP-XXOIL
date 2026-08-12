@@ -168,6 +168,15 @@ export async function registrarCobro(
         throw new Error(`El monto supera el saldo pendiente (${saldo.toFixed(2)}).`);
       }
 
+      const nuevoSaldo = saldo - monto;
+      const reclamo = await tx.factura.updateMany({
+        where: { id: facturaId, estado: factura.estado, saldo: factura.saldo },
+        data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
+      });
+      if (reclamo.count !== 1) {
+        throw new Error("La factura cambió mientras se registraba el cobro. Revise el saldo e intente nuevamente.");
+      }
+
       await tx.cobro.create({
         data: {
           facturaId,
@@ -189,15 +198,6 @@ export async function registrarCobro(
           referencia: factura.numero,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
-        },
-      });
-
-      const nuevoSaldo = saldo - monto;
-      await tx.factura.update({
-        where: { id: facturaId },
-        data: {
-          saldo: nuevoSaldo,
-          estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE",
         },
       });
 
@@ -431,6 +431,26 @@ export async function anularFactura(
         throw new Error("No se puede anular una factura con notas de crédito.");
       }
 
+      const reclamo = await tx.factura.updateMany({
+        where: {
+          id: facturaId,
+          estado: factura.estado,
+          saldo: factura.saldo,
+          cobros: { none: {} },
+          notasCredito: { none: {} },
+        },
+        data: {
+          estado: "ANULADA",
+          saldo: 0,
+          motivoAnulacion: motivo,
+          anuladaEn: new Date(),
+          anuladaPor: auth.usuario.nombre,
+        },
+      });
+      if (reclamo.count !== 1) {
+        throw new Error("La factura cambió mientras se anulaba. Actualice la página e intente nuevamente.");
+      }
+
       // Reingreso del stock vendido
       for (const d of factura.pedido.detalles) {
         const mov = await registrarMovimiento(tx, {
@@ -467,16 +487,6 @@ export async function anularFactura(
         });
       }
 
-      await tx.factura.update({
-        where: { id: facturaId },
-        data: {
-          estado: "ANULADA",
-          saldo: 0,
-          motivoAnulacion: motivo,
-          anuladaEn: new Date(),
-          anuladaPor: auth.usuario.nombre,
-        },
-      });
 
       // El pedido queda anulado junto con su factura; si la venta se
       // retoma, se registra un pedido nuevo (la historia no se reutiliza).
