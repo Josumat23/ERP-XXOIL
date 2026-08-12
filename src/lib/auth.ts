@@ -13,12 +13,21 @@ export function hashPassword(password: string): string {
   return `${sal}:${hash}`;
 }
 
+// Ejecutar scrypt también cuando el usuario no existe evita que el tiempo de
+// respuesta revele qué nombres de acceso están registrados.
+const HASH_PASSWORD_FICTICIO = hashPassword("credencial-inexistente");
+
 export function verificarPassword(password: string, passwordHash: string): boolean {
   const [sal, hash] = passwordHash.split(":");
   if (!sal || !hash) return false;
   const calculado = scryptSync(password, sal, 64);
   const esperado = Buffer.from(hash, "hex");
   return calculado.length === esperado.length && timingSafeEqual(calculado, esperado);
+}
+
+export function verificarPasswordUniforme(password: string, passwordHash?: string): boolean {
+  const coincide = verificarPassword(password, passwordHash ?? HASH_PASSWORD_FICTICIO);
+  return Boolean(passwordHash) && coincide;
 }
 
 export async function crearSesion(usuarioId: string): Promise<void> {
