@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { verificarPassword, crearSesion } from "@/lib/auth";
+import { verificarPasswordUniforme, crearSesion } from "@/lib/auth";
 
 export type EstadoLogin = { error?: string };
 
@@ -16,12 +16,16 @@ export async function iniciarSesion(
   if (!usuario || !password) {
     return { error: "Ingrese su usuario y contraseña." };
   }
+  if (usuario.length > 100 || password.length > 256) {
+    return { error: "Usuario o contraseña incorrectos." };
+  }
 
   const registro = await prisma.usuario.findUnique({
     where: { empresaId_usuario: { empresaId: "1", usuario } },
   });
 
-  if (!registro || !registro.activo || !verificarPassword(password, registro.passwordHash)) {
+  const passwordValido = verificarPasswordUniforme(password, registro?.passwordHash);
+  if (!registro || !registro.activo || !passwordValido) {
     return { error: "Usuario o contraseña incorrectos." };
   }
 

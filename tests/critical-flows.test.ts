@@ -14,6 +14,7 @@ import { calcularUnidadesAProducir } from "@/lib/proyecciones";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
+import { hashPassword, verificarPasswordUniforme } from "@/lib/auth";
 
 function estaDentro(ruta: string, padre: string): boolean {
   const relativa = relative(padre, ruta);
@@ -542,4 +543,10 @@ test("UBL usa la tasa congelada y rechaza una tasa ausente", () => {
     () => construirFacturaUBL({ ...datos, tasaIgv: undefined }, emisor),
     /Falta una tasa de IGV válida/
   );
+});
+test("login verifica credenciales inexistentes sin omitir el hash costoso", () => {
+  const hash = hashPassword("clave-correcta");
+  assert.equal(verificarPasswordUniforme("clave-correcta", hash), true);
+  assert.equal(verificarPasswordUniforme("clave-incorrecta", hash), false);
+  assert.equal(verificarPasswordUniforme("cualquier-clave", undefined), false);
 });
