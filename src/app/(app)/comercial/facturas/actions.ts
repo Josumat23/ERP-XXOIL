@@ -58,6 +58,7 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
       totalGravada: factura.subtotal.toNumber(),
       totalIgv: factura.igv.toNumber(),
       total: factura.total.toNumber(),
+      tasaIgv: factura.tasaIgv.toNumber(),
       items: factura.pedido.detalles.map((d) => ({
         descripcion: d.presentacion.nombre,
         unidadMedida: d.presentacion.unidadMedidaSunat,
@@ -110,6 +111,7 @@ export async function enviarComprobanteNotaCredito(notaCreditoId: string): Promi
       totalGravada: montoBase,
       totalIgv: montoIgv,
       total: nc.monto.toNumber(),
+      tasaIgv: nc.factura.tasaIgv.toNumber(),
       items: nc.detalles.map((d) => ({
         descripcion: d.pedidoDetalle.presentacion.nombre,
         unidadMedida: d.pedidoDetalle.presentacion.unidadMedidaSunat,

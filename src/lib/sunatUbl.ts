@@ -138,8 +138,13 @@ function bloqueTaxTotal(totalGravada: number, totalIgv: number): string {
 
 // Catálogo 07 SUNAT: tipo de afectación IGV. 10 = gravado - operación onerosa
 // (el único caso que este ERP maneja — no hay ventas exoneradas/inafectas).
-function bloqueLineaFactura(idx: number, item: DatosComprobante["items"][number]): string {
-  const igvLinea = item.valorUnitario * item.cantidad * 0.18;
+function bloqueLineaFactura(
+  idx: number,
+  item: DatosComprobante["items"][number],
+  tasaIgv: number
+): string {
+  const factorIgv = tasaIgv / 100;
+  const igvLinea = item.valorUnitario * item.cantidad * factorIgv;
   const totalLinea = item.valorUnitario * item.cantidad + igvLinea;
   return `<cac:InvoiceLine>
     <cbc:ID>${idx + 1}</cbc:ID>
@@ -147,7 +152,7 @@ function bloqueLineaFactura(idx: number, item: DatosComprobante["items"][number]
     <cbc:LineExtensionAmount currencyID="PEN">${formatearMonto(item.valorUnitario * item.cantidad)}</cbc:LineExtensionAmount>
     <cac:PricingReference>
       <cac:AlternativeConditionPrice>
-        <cbc:PriceAmount currencyID="PEN">${formatearMonto(item.valorUnitario * 1.18)}</cbc:PriceAmount>
+        <cbc:PriceAmount currencyID="PEN">${formatearMonto(item.valorUnitario * (1 + factorIgv))}</cbc:PriceAmount>
         <cbc:PriceTypeCode>01</cbc:PriceTypeCode>
       </cac:AlternativeConditionPrice>
     </cac:PricingReference>
@@ -157,7 +162,7 @@ function bloqueLineaFactura(idx: number, item: DatosComprobante["items"][number]
         <cbc:TaxableAmount currencyID="PEN">${formatearMonto(item.valorUnitario * item.cantidad)}</cbc:TaxableAmount>
         <cbc:TaxAmount currencyID="PEN">${formatearMonto(igvLinea)}</cbc:TaxAmount>
         <cac:TaxCategory>
-          <cbc:Percent>18</cbc:Percent>
+          <cbc:Percent>${tasaIgv}</cbc:Percent>
           <cbc:TaxExemptionReasonCode>10</cbc:TaxExemptionReasonCode>
           <cac:TaxScheme>
             <cbc:ID>1000</cbc:ID>
@@ -178,8 +183,12 @@ function bloqueLineaFactura(idx: number, item: DatosComprobante["items"][number]
 }
 
 export function construirFacturaUBL(datos: DatosComprobante, emisor: DatosEmisor): string {
+  const tasaIgv = datos.tasaIgv;
+  if (tasaIgv === undefined || !Number.isFinite(tasaIgv) || tasaIgv < 0) {
+    throw new Error("Falta una tasa de IGV válida para construir la factura UBL.");
+  }
   const items = datos.items
-    .map((item, idx) => bloqueLineaFactura(idx, item))
+    .map((item, idx) => bloqueLineaFactura(idx, item, tasaIgv))
     .join("\n  ");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -209,8 +218,14 @@ export function construirFacturaUBL(datos: DatosComprobante, emisor: DatosEmisor
 }
 
 export function construirNotaCreditoUBL(datos: DatosComprobante, emisor: DatosEmisor): string {
+  const tasaIgv = datos.tasaIgv;
+  if (tasaIgv === undefined || !Number.isFinite(tasaIgv) || tasaIgv < 0) {
+    throw new Error("Falta una tasa de IGV válida para construir la nota de crédito UBL.");
+  }
   const items = datos.items
-    .map((item, idx) => bloqueLineaFactura(idx, item).replace(/InvoiceLine/g, "CreditNoteLine"))
+    .map((item, idx) =>
+      bloqueLineaFactura(idx, item, tasaIgv).replace(/InvoiceLine/g, "CreditNoteLine")
+    )
     .join("\n  ");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
