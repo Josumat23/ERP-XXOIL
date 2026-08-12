@@ -38,6 +38,7 @@ export default async function DetalleProyeccionPage({
     precio: d.presentacion.precio.toNumber(),
     costoPromedio: d.presentacion.costoPromedio.toNumber(),
     stock: d.presentacion.stock.toNumber(),
+    stockReservado: d.presentacion.stockReservado.toNumber(),
     stockMinimo: d.presentacion.stockMinimo.toNumber(),
     ventasBase: d.ventasBase.toNumber(),
     indiceEstacionalidad: d.indiceEstacionalidad.toNumber(),
