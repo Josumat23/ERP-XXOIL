@@ -13,6 +13,7 @@ import {
 import { calcularUnidadesAProducir } from "@/lib/proyecciones";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
+import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
 
 function estaDentro(ruta: string, padre: string): boolean {
   const relativa = relative(padre, ruta);
@@ -318,6 +319,54 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   assert.equal(lote.controlCalidad?.resultado, "APROBADO");
   assert.equal(lote.envasados[0]?.unidadesDisponibles, 10);
   assert.deepEqual(movimientos.map((movimiento) => movimiento.origen), ["PRODUCCION", "ENVASADO"]);
+  const vendedor = await prisma.vendedor.create({
+    data: { nombre: "Vendedor recall " + sufijo, tipo: "SOLO_COMISION", tasaComision: 2 },
+  });
+  const cliente = await prisma.cliente.create({
+    data: { codigo: "CLI-RECALL-" + sufijo, razonSocial: "Cliente recall " + sufijo },
+  });
+  const pedido = await prisma.pedido.create({
+    data: {
+      numero: "PED-RECALL-" + sufijo,
+      clienteId: cliente.id,
+      vendedorId: vendedor.id,
+      total: 140,
+      ...audit,
+      detalles: {
+        create: { presentacionId: presentacion.id, cantidad: 7, precioUnitario: 20, subtotal: 140 },
+      },
+    },
+    include: { detalles: true },
+  });
+  const detalleId = pedido.detalles[0]?.id;
+  assert.ok(detalleId);
+
+  await prisma.$transaction((tx) =>
+    asignarLoteVenta(tx, { pedidoDetalleId: detalleId, presentacionId: presentacion.id, cantidad: 7 })
+  );
+  await prisma.$transaction((tx) =>
+    liberarAsignacionesLote(tx, { pedidoDetalleId: detalleId, cantidad: 3, motivo: "Devolución parcial de prueba" })
+  );
+  await prisma.$transaction((tx) =>
+    liberarAsignacionesLote(tx, { pedidoDetalleId: detalleId, motivo: "Anulación del saldo de prueba" })
+  );
+  await prisma.$transaction((tx) =>
+    liberarAsignacionesLote(tx, { pedidoDetalleId: detalleId, motivo: "Segundo intento idempotente" })
+  );
+
+  const [envasadoRestituido, eventosRecall] = await Promise.all([
+    prisma.envasado.findUniqueOrThrow({ where: { id: lote.envasados[0]!.id } }),
+    prisma.asignacionLoteVenta.findMany({ where: { pedidoDetalleId: detalleId }, orderBy: { creadoEn: "asc" } }),
+  ]);
+  assert.equal(envasadoRestituido.unidadesDisponibles, 10);
+  assert.deepEqual(
+    eventosRecall.map((evento) => ({ tipo: evento.tipo, cantidad: evento.cantidad })),
+    [
+      { tipo: "ASIGNADA", cantidad: 7 },
+      { tipo: "LIBERADA", cantidad: 3 },
+      { tipo: "LIBERADA", cantidad: 4 },
+    ]
+  );
 });
 test("planilla usa parámetros versionados, excluye configuraciones incompletas y contabiliza", async () => {
   const audit = await auditoria();
