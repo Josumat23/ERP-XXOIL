@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { registrarMovimiento } from "@/lib/inventario";
 
 export type EstadoFormulario = { error?: string };
@@ -90,6 +91,7 @@ export async function crearInsumo(
   try {
     await prisma.$transaction(async (tx) => {
       const creado = await tx.insumo.create({ data: resultado.datos });
+      await registrarAuditoriaMaestro(tx, { entidad: "Insumo", registroId: creado.id, accion: "CREAR", despues: creado, usuario: auth.usuario });
       if (stockInicial > 0) {
         const mov = await registrarMovimiento(tx, {
           tipoItem: "INSUMO",
@@ -132,7 +134,11 @@ export async function actualizarInsumo(
   if ("error" in resultado) return resultado;
 
   try {
-    await prisma.insumo.update({ where: { id }, data: resultado.datos });
+    await prisma.$transaction(async (tx) => {
+      const antes = await tx.insumo.findUniqueOrThrow({ where: { id } });
+      const despues = await tx.insumo.update({ where: { id }, data: resultado.datos });
+      await registrarAuditoriaMaestro(tx, { entidad: "Insumo", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+    });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un insumo con el código "${resultado.datos.codigo}".` };
@@ -149,6 +155,10 @@ export async function alternarActivoInsumo(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
-  await prisma.insumo.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.insumo.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.insumo.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Insumo", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/catalogo/insumos");
 }
