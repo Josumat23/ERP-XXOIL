@@ -14,6 +14,7 @@ import { DIAS_CONDICION } from "@/lib/etiquetas";
 import { avanzarSerie } from "@/lib/series";
 import { postearVenta } from "@/lib/contabilidad";
 import { enviarComprobanteFactura } from "@/app/(app)/comercial/facturas/actions";
+import { coincideEvaluacionCredito, evaluarCredito } from "@/lib/credito";
 
 export type EstadoFormulario = { error?: string };
 
@@ -173,6 +174,7 @@ export async function facturarPedido(
   }
 
   let facturaId = "";
+  let errorCredito: string | null = null;
   try {
     await prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.findUnique({
@@ -207,14 +209,40 @@ export async function facturarPedido(
           where: { clienteId: pedido.clienteId, estado: "PENDIENTE" },
         });
         const deudaActual = pendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
-        const proyectada = deudaActual + totalConIgv;
-        if (proyectada > limite + 1e-9) {
-          throw new Error(
-            `Límite de crédito excedido: deuda actual S/ ${deudaActual.toFixed(2)} + esta factura S/ ${totalConIgv.toFixed(2)} supera el límite de S/ ${limite.toFixed(2)}. Cobre pendientes, facture al contado o amplíe el límite en la ficha del cliente.`
-          );
+        const evaluacion = evaluarCredito(deudaActual, totalConIgv, limite);
+        if (evaluacion.excede) {
+          const mismaEvaluacion =
+            pedido.condicionPagoCredito === condicionPago &&
+            coincideEvaluacionCredito(pedido.deudaCreditoEvaluada, deudaActual) &&
+            coincideEvaluacionCredito(pedido.montoCreditoEvaluado, totalConIgv) &&
+            coincideEvaluacionCredito(pedido.limiteCreditoEvaluado, limite);
+          const aprobada = pedido.estadoAprobacionCredito === "APROBADA" && mismaEvaluacion;
+          if (!aprobada) {
+            if (pedido.estadoAprobacionCredito === "RECHAZADA" && mismaEvaluacion) {
+              errorCredito = `La excepción de crédito fue rechazada: ${pedido.motivoRechazoCredito ?? "sin motivo registrado"}.`;
+              return;
+            }
+            if (pedido.estadoAprobacionCredito !== "PENDIENTE" || !mismaEvaluacion) {
+              await tx.pedido.update({
+                where: { id: pedido.id },
+                data: {
+                  estadoAprobacionCredito: "PENDIENTE",
+                  condicionPagoCredito: condicionPago,
+                  deudaCreditoEvaluada: deudaActual,
+                  montoCreditoEvaluado: totalConIgv,
+                  limiteCreditoEvaluado: limite,
+                  creditoSolicitadoEn: new Date(),
+                  creditoResueltoEn: null,
+                  creditoResueltoPor: null,
+                  motivoRechazoCredito: null,
+                },
+              });
+            }
+            errorCredito = `Se solicitó aprobación de Gerencia: la exposición proyectada de S/ ${evaluacion.exposicionProyectada.toFixed(2)} supera el límite de S/ ${limite.toFixed(2)}.`;
+            return;
+          }
         }
       }
-
       const fechaEmision = new Date();
       const fechaVencimiento = new Date(
         fechaEmision.getTime() + DIAS_CONDICION[condicionPago] * 24 * 60 * 60 * 1000
@@ -313,6 +341,10 @@ export async function facturarPedido(
     throw e;
   }
 
+  if (errorCredito) {
+    revalidatePath(`/comercial/pedidos/${id}`);
+    return { error: errorCredito };
+  }
   // Envío al OSE fuera de la transacción (llamada de red): best-effort, si
   // falla la factura ya quedó creada y se puede reintentar desde su ficha.
   await enviarComprobanteFactura(facturaId);
@@ -320,4 +352,61 @@ export async function facturarPedido(
   revalidatePath("/comercial/pedidos");
   revalidatePath("/comercial/facturas");
   redirect(`/comercial/facturas/${facturaId}`);
+}
+
+export async function aprobarCreditoPedido(id: string): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["GERENCIA"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "aprobar"))) {
+    return { error: "Su grupo de seguridad no permite aprobar excepciones de crédito." };
+  }
+  const pedido = await prisma.pedido.findUnique({ where: { id } });
+  if (!pedido || pedido.estado !== "PENDIENTE") return { error: "El pedido no está pendiente." };
+  if (pedido.estadoAprobacionCredito !== "PENDIENTE") {
+    return { error: "El pedido no tiene una excepción de crédito pendiente." };
+  }
+  const resultado = await prisma.pedido.updateMany({
+    where: { id, estado: "PENDIENTE", estadoAprobacionCredito: "PENDIENTE" },
+    data: {
+      estadoAprobacionCredito: "APROBADA",
+      creditoResueltoEn: new Date(),
+      creditoResueltoPor: auth.usuario.nombre,
+      motivoRechazoCredito: null,
+    },
+  });
+  if (resultado.count !== 1) return { error: "La excepción ya fue resuelta por otro usuario." };
+  revalidatePath(`/comercial/pedidos/${id}`);
+  return {};
+}
+
+export async function rechazarCreditoPedido(
+  id: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["GERENCIA"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "aprobar"))) {
+    return { error: "Su grupo de seguridad no permite resolver excepciones de crédito." };
+  }
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
+  if (motivo.length > 500) return { error: "El motivo no puede superar 500 caracteres." };
+  const pedido = await prisma.pedido.findUnique({ where: { id } });
+  if (!pedido || pedido.estado !== "PENDIENTE") return { error: "El pedido no está pendiente." };
+  if (pedido.estadoAprobacionCredito !== "PENDIENTE") {
+    return { error: "El pedido no tiene una excepción de crédito pendiente." };
+  }
+  const resultado = await prisma.pedido.updateMany({
+    where: { id, estado: "PENDIENTE", estadoAprobacionCredito: "PENDIENTE" },
+    data: {
+      estadoAprobacionCredito: "RECHAZADA",
+      creditoResueltoEn: new Date(),
+      creditoResueltoPor: auth.usuario.nombre,
+      motivoRechazoCredito: motivo,
+    },
+  });
+  if (resultado.count !== 1) return { error: "La excepción ya fue resuelta por otro usuario." };
+  revalidatePath(`/comercial/pedidos/${id}`);
+  return {};
 }

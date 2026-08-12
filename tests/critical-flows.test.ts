@@ -12,6 +12,7 @@ import {
 } from "@/lib/contabilidad";
 import { calcularUnidadesAProducir } from "@/lib/proyecciones";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
+import { evaluarCredito } from "@/lib/credito";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
@@ -620,4 +621,10 @@ test("auditoría de maestros conserva actor y cambios sin exponer secretos", asy
     serializarCambiosMaestro({ passwordHash: "secreto", nombre: "visible" }),
     '{"passwordHash":"[PROTEGIDO]","nombre":"visible"}'
   );
+});
+test("crédito exige aprobación solo cuando la exposición supera un límite positivo", () => {
+  assert.equal(evaluarCredito(800, 300, 1000).excede, true);
+  assert.equal(evaluarCredito(700, 300, 1000).excede, false);
+  assert.equal(evaluarCredito(800, 300, 0).excede, false);
+  assert.equal(evaluarCredito(800, 300, 1000).exposicionProyectada, 1100);
 });
