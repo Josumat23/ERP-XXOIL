@@ -152,6 +152,31 @@ model Sesion {
   @@map("sesiones")
 }
 
+enum AccionAuditoriaMaestro {
+  CREAR
+  ACTUALIZAR
+  ACTIVAR
+  DESACTIVAR
+  ELIMINAR
+}
+
+model AuditoriaMaestro {
+  id             String                 @id @default(cuid())
+  empresaId      String                 @default("1")
+  entidad        String
+  registroId     String
+  accion         AccionAuditoriaMaestro
+  valoresAntes   String?
+  valoresDespues String?
+  usuarioId      String
+  usuarioNombre  String
+  creadoEn       DateTime               @default(now())
+
+  @@index([empresaId, entidad, registroId, creadoEn])
+  @@index([usuarioId, creadoEn])
+  @@map("auditoria_maestros")
+}
+
 // ---------------------------------------------------------------------------
 // CATALOGO
 // ---------------------------------------------------------------------------

@@ -12,6 +12,7 @@ import {
 } from "@/lib/contabilidad";
 import { calcularUnidadesAProducir } from "@/lib/proyecciones";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
+import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
 import {
@@ -590,4 +591,33 @@ test("login bloquea persistentemente la cuenta al quinto fallo y reinicia la ven
   );
   assert.equal(despuesDelBloqueo.intentosFallidos, 1);
   assert.equal(despuesDelBloqueo.bloqueadoHasta, null);
+});
+test("auditoría de maestros conserva actor y cambios sin exponer secretos", async () => {
+  const [usuario, cliente] = await Promise.all([
+    prisma.usuario.findFirstOrThrow({ where: { rol: "ADMIN", activo: true } }),
+    prisma.cliente.findFirstOrThrow(),
+  ]);
+
+  await prisma.$transaction(async (tx) => {
+    await registrarAuditoriaMaestro(tx, {
+      empresaId: cliente.empresaId,
+      entidad: "Cliente",
+      registroId: cliente.id,
+      accion: "ACTUALIZAR",
+      antes: { razonSocial: cliente.razonSocial },
+      despues: { razonSocial: `${cliente.razonSocial} auditado` },
+      usuario,
+    });
+  });
+
+  const auditoria = await prisma.auditoriaMaestro.findFirstOrThrow({
+    where: { entidad: "Cliente", registroId: cliente.id },
+    orderBy: { creadoEn: "desc" },
+  });
+  assert.equal(auditoria.usuarioId, usuario.id);
+  assert.match(auditoria.valoresAntes ?? "", new RegExp(cliente.razonSocial));
+  assert.equal(
+    serializarCambiosMaestro({ passwordHash: "secreto", nombre: "visible" }),
+    '{"passwordHash":"[PROTEGIDO]","nombre":"visible"}'
+  );
 });
