@@ -78,10 +78,10 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 | Jerarquía de ubicación técnica de mantenimiento | 0.3 | Un equipo puede pertenecer a una ubicación técnica multinivel (planta→línea→equipo) | P1 |
 | Estructura organizativa jerárquica RR.HH. (`jefeDirectoId`/posición) | ninguna | Se puede generar un organigrama real y aprobar solicitudes con el flujo jefe→reporte | P1 |
 | Motor de conflictos de SoD (GRC) | ninguna | Asignar un permiso que viole una regla conocida (ej. "crea y aprueba la misma OC") genera una advertencia o bloqueo | P1 |
-| Bloqueo de cuenta / rate limiting en login | ninguna | Tras N intentos fallidos, la cuenta se bloquea temporalmente | P1 |
+| Bloqueo de cuenta / rate limiting en login | migración para persistir intentos/ventana/bloqueo | **Parcial**: PR #70 uniformó el costo `scrypt`, evitó enumeración temporal y limitó entradas; el bloqueo temporal persistente sigue pendiente y no debe implementarse en memoria volátil | P1 parcial |
 | Cookie de sesión con flag `secure` en producción | ninguna | **Completado**: sesión y empresa activa usan `secure` cuando `NODE_ENV=production` (PR #65) | P1 completado |
 | Change log genérico para catálogos editables | ninguna | Editar `Cliente.limiteCredito` (u otro campo sensible) deja un registro de valor anterior/nuevo/usuario/fecha | P1 |
-| Framework de pruebas automatizadas + pipeline CI | ninguna | **Base completada**: SQLite efímero cubre seis invariantes de kardex, contabilidad, producción, MRP y UBL; CI ejecuta Prisma, lint, TypeScript, pruebas y build en cada PR. La cobertura debe ampliarse hacia planilla y los demás puntos críticos (PR #64/#66) | **P1 transversal, base completada** |
+| Framework de pruebas automatizadas + pipeline CI | ninguna | **Base completada y ampliada**: SQLite efímero cubre ocho escenarios de kardex, contabilidad, producción, calidad, envasado, recall, planilla, MRP, UBL y autenticación; CI ejecuta Prisma, lint, TypeScript, pruebas y build en cada PR (PR #64/#66/#68/#69/#70) | **P1 transversal, en expansión** |
 | Estrategia de backup/DR documentada e implementada | ninguna | Backup automatizado programado + procedimiento de restauración probado al menos una vez | **P1, transversal** |
 | Consentimiento/retención de datos personales (Ley 29733) | ninguna | Definir con legal qué controles mínimos aplican; implementar lo que se confirme necesario | P1 |
 

@@ -35,6 +35,9 @@ El ERP cubre de manera material los ciclos principales de SAP Business One, pero
 4. PR #64, merge 6509cdd: suite permanente con SQLite efímero fuera del repositorio para kardex, venta/cobro, compra/pago, producción/calidad/envasado, MRP y UBL.
 5. PR #65, merge 7bab3f6: cookies de sesión y empresa activa limitadas a HTTPS en producción mediante `secure`.
 6. PR #66, merge d5bd652: CI en cada PR y push a `main`, con Prisma, lint, TypeScript, suite crítica y build; ejecución Linux verificada.
+7. PR #68, merge 8bda85c: cálculo y contabilización de planilla cubiertos con parámetros ficticios versionados, advertencias por configuración incompleta y rechazo de duplicados.
+8. PR #69, merge 0e5fe2b: ledger de trazabilidad para recall cubierto con asignación, devolución parcial, liberación restante e idempotencia.
+9. PR #70, merge be3ff73: verificación de login con costo `scrypt` uniforme para evitar enumeración temporal; el rate limiting persistente sigue pendiente de migración.
 
 ## 4. Localización peruana: estado vigente y límites
 
@@ -119,7 +122,7 @@ No se recomienda copiar literalmente SAP GUI. Deben preservarse su trazabilidad,
 3. RFQ y liberación multinivel de compras.
 4. Parámetros de calidad y certificado de análisis si los clientes lo exigen.
 5. Auditoría de cambios de maestros y segregación de funciones.
-6. Ampliar la suite ya existente hacia planilla, documentos completos y los restantes puntos transaccionales críticos.
+6. Continuar ampliando la suite ya existente hacia documentos completos y los restantes puntos transaccionales; planilla y recall ya tienen regresión automatizada.
 
 ### UX
 
