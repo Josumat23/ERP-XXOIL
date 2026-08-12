@@ -27,3 +27,30 @@ export function coincideEvaluacionCredito(
 ): boolean {
   return valorGuardado !== null && Math.abs(valorGuardado.toNumber() - valorActual) <= 1e-9;
 }
+type NumeroDecimal = { toNumber(): number } | null;
+
+type AprobacionCreditoGuardada = {
+  estadoAprobacionCredito: "NO_REQUERIDA" | "PENDIENTE" | "APROBADA" | "RECHAZADA";
+  condicionPagoCredito: "CONTADO" | "DIAS_15" | "DIAS_30" | null;
+  deudaCreditoEvaluada: NumeroDecimal;
+  montoCreditoEvaluado: NumeroDecimal;
+  limiteCreditoEvaluado: NumeroDecimal;
+};
+
+export function esAprobacionCreditoVigente(
+  guardada: AprobacionCreditoGuardada,
+  actual: {
+    condicionPago: "CONTADO" | "DIAS_15" | "DIAS_30";
+    deudaActual: number;
+    montoFactura: number;
+    limite: number;
+  }
+): boolean {
+  return (
+    guardada.estadoAprobacionCredito === "APROBADA" &&
+    guardada.condicionPagoCredito === actual.condicionPago &&
+    coincideEvaluacionCredito(guardada.deudaCreditoEvaluada, actual.deudaActual) &&
+    coincideEvaluacionCredito(guardada.montoCreditoEvaluado, actual.montoFactura) &&
+    coincideEvaluacionCredito(guardada.limiteCreditoEvaluado, actual.limite)
+  );
+}
