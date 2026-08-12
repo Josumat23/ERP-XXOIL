@@ -16,8 +16,6 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      DATABASE_URL: file:${{ runner.temp }}/erp-ci.db
 
     steps:
       - name: Checkout
@@ -51,3 +49,5 @@ jobs:
 
       - name: Build
         run: npm run build
+        env:
+          DATABASE_URL: file:${{ runner.temp }}/erp-ci.db
