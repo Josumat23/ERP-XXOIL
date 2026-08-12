@@ -1,5 +1,7 @@
 # 04 — Matriz fit/gap por dominio SAP
 
+> **Actualización 2026-08-12:** la inconsistencia MRP descrita en este documento fue corregida por PR #62 (merge b524c24). Para la comparación orientada a SAP Business One, localización vigente y estrategia UX, ver Blueprint 11.
+
 **Cómo leer este documento**: cada dominio SAP S/4HANA tiene una tabla con: requisito de referencia · **aplicabilidad** a la escala objetivo (fabricante grande, varias plantas, varios almacenes, varias compañías, canales múltiples, alto volumen) · evidencia en código (ruta:línea/función) · **estado** (verificado completo / parcial / solo UI / solo documentación / ausente / no aplicable justificado) · riesgo de dejarlo así · solución recomendada (estándar SAP / configuración / extensión propia / integración) · prioridad.
 
 **Regla de re-examen aplicada en todo el documento**: cuando `docs/gobernanza/02-cruce-rf/*.md` marcó un requisito "No aplica" citando volumen/tamaño de la empresa (motivos M1/M2/M4 según la síntesis de gobernanza), este documento **no hereda esa conclusión** — la vuelve a evaluar contra el tamaño objetivo del encargo y declara explícitamente si sigue sin aplicar o si ahora es un gap real. Se cita la fuente original para que quede trazable qué cambió y por qué.
