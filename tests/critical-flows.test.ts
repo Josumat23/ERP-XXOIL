@@ -14,7 +14,13 @@ import { calcularUnidadesAProducir } from "@/lib/proyecciones";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
-import { hashPassword, verificarPasswordUniforme } from "@/lib/auth";
+import {
+  calcularIntentoFallidoLogin,
+  DURACION_BLOQUEO_LOGIN_MS,
+  hashPassword,
+  registrarIntentoFallidoLogin,
+  verificarPasswordUniforme,
+} from "@/lib/auth";
 
 function estaDentro(ruta: string, padre: string): boolean {
   const relativa = relative(padre, ruta);
@@ -549,4 +555,39 @@ test("login verifica credenciales inexistentes sin omitir el hash costoso", () =
   assert.equal(verificarPasswordUniforme("clave-correcta", hash), true);
   assert.equal(verificarPasswordUniforme("clave-incorrecta", hash), false);
   assert.equal(verificarPasswordUniforme("cualquier-clave", undefined), false);
+});
+
+test("login bloquea persistentemente la cuenta al quinto fallo y reinicia la ventana", async () => {
+  const ahora = new Date("2026-08-12T15:00:00.000Z");
+  const usuario = await prisma.usuario.findFirstOrThrow({ where: { rol: "ADMIN", activo: true } });
+  await prisma.usuario.update({
+    where: { id: usuario.id },
+    data: { intentosFallidos: 0, ultimoIntentoFallidoEn: null, bloqueadoHasta: null },
+  });
+
+  for (let intento = 0; intento < 5; intento += 1) {
+    await registrarIntentoFallidoLogin(usuario.id, new Date(ahora.getTime() + intento * 1000));
+  }
+
+  const bloqueado = await prisma.usuario.findUniqueOrThrow({ where: { id: usuario.id } });
+  assert.equal(bloqueado.intentosFallidos, 5);
+  assert.equal(
+    bloqueado.bloqueadoHasta?.getTime(),
+    ahora.getTime() + 4000 + DURACION_BLOQUEO_LOGIN_MS
+  );
+
+  const fueraDeVentana = calcularIntentoFallidoLogin(
+    { intentosFallidos: 4, ultimoIntentoFallidoEn: ahora, bloqueadoHasta: null },
+    new Date(ahora.getTime() + 16 * 60 * 1000)
+  );
+  assert.equal(fueraDeVentana.intentosFallidos, 1);
+  assert.equal(fueraDeVentana.bloqueadoHasta, null);
+
+  assert.ok(bloqueado.bloqueadoHasta);
+  const despuesDelBloqueo = calcularIntentoFallidoLogin(
+    bloqueado,
+    new Date(bloqueado.bloqueadoHasta.getTime() + 1)
+  );
+  assert.equal(despuesDelBloqueo.intentosFallidos, 1);
+  assert.equal(despuesDelBloqueo.bloqueadoHasta, null);
 });

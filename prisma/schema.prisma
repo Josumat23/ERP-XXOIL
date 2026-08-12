@@ -119,15 +119,18 @@ enum EstadoAprobacion {
 }
 
 model Usuario {
-  id               String     @id @default(cuid())
-  empresaId        String     @default("1")
-  nombre           String
-  usuario          String // nombre de acceso
-  passwordHash     String
-  rol              RolUsuario
-  grupoSeguridadId String?
-  activo           Boolean    @default(true)
-  creadoEn         DateTime   @default(now())
+  id                     String     @id @default(cuid())
+  empresaId              String     @default("1")
+  nombre                 String
+  usuario                String // nombre de acceso
+  passwordHash           String
+  rol                    RolUsuario
+  grupoSeguridadId       String?
+  activo                 Boolean    @default(true)
+  intentosFallidos       Int        @default(0)
+  ultimoIntentoFallidoEn DateTime?
+  bloqueadoHasta         DateTime?
+  creadoEn               DateTime   @default(now())
 
   grupoSeguridad GrupoSeguridad? @relation(fields: [grupoSeguridadId], references: [id])
   sesiones       Sesion[]

@@ -2,7 +2,13 @@
 
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { verificarPasswordUniforme, crearSesion } from "@/lib/auth";
+import {
+  crearSesion,
+  estaBloqueadoLogin,
+  registrarIntentoFallidoLogin,
+  reiniciarIntentosLogin,
+  verificarPasswordUniforme,
+} from "@/lib/auth";
 
 export type EstadoLogin = { error?: string };
 
@@ -25,10 +31,16 @@ export async function iniciarSesion(
   });
 
   const passwordValido = verificarPasswordUniforme(password, registro?.passwordHash);
-  if (!registro || !registro.activo || !passwordValido) {
+  const ahora = new Date();
+  const bloqueado = registro ? estaBloqueadoLogin(registro.bloqueadoHasta, ahora) : false;
+  if (!registro || !registro.activo || !passwordValido || bloqueado) {
+    if (registro && !bloqueado) {
+      await registrarIntentoFallidoLogin(registro.id, ahora);
+    }
     return { error: "Usuario o contraseña incorrectos." };
   }
 
+  await reiniciarIntentosLogin(registro.id);
   await crearSesion(registro.id);
   redirect("/");
 }

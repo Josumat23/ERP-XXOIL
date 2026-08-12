@@ -6,6 +6,50 @@ import type { $Enums, Usuario } from "@/generated/prisma/client";
 
 const COOKIE_SESION = "erp_sesion";
 const DURACION_SESION_DIAS = 7;
+export const MAX_INTENTOS_LOGIN = 5;
+export const VENTANA_INTENTOS_LOGIN_MS = 15 * 60 * 1000;
+export const DURACION_BLOQUEO_LOGIN_MS = 15 * 60 * 1000;
+
+type EstadoIntentosLogin = Pick<
+  Usuario,
+  "intentosFallidos" | "ultimoIntentoFallidoEn" | "bloqueadoHasta"
+>;
+
+export function calcularIntentoFallidoLogin(estado: EstadoIntentosLogin, ahora: Date) {
+  const bloqueoAnteriorVencio =
+    estado.bloqueadoHasta !== null && estado.bloqueadoHasta.getTime() <= ahora.getTime();
+  const dentroDeVentana =
+    !bloqueoAnteriorVencio &&
+    estado.ultimoIntentoFallidoEn !== null &&
+    ahora.getTime() - estado.ultimoIntentoFallidoEn.getTime() <= VENTANA_INTENTOS_LOGIN_MS;
+  const intentosFallidos = dentroDeVentana ? estado.intentosFallidos + 1 : 1;
+  const bloqueadoHasta =
+    intentosFallidos >= MAX_INTENTOS_LOGIN
+      ? new Date(ahora.getTime() + DURACION_BLOQUEO_LOGIN_MS)
+      : null;
+
+  return { intentosFallidos, ultimoIntentoFallidoEn: ahora, bloqueadoHasta };
+}
+
+export function estaBloqueadoLogin(bloqueadoHasta: Date | null, ahora: Date): boolean {
+  return bloqueadoHasta !== null && bloqueadoHasta.getTime() > ahora.getTime();
+}
+
+export async function registrarIntentoFallidoLogin(usuarioId: string, ahora = new Date()) {
+  return prisma.$transaction(async (tx) => {
+    const usuario = await tx.usuario.findUniqueOrThrow({ where: { id: usuarioId } });
+    const estado = calcularIntentoFallidoLogin(usuario, ahora);
+    await tx.usuario.update({ where: { id: usuarioId }, data: estado });
+    return estado;
+  });
+}
+
+export async function reiniciarIntentosLogin(usuarioId: string): Promise<void> {
+  await prisma.usuario.update({
+    where: { id: usuarioId },
+    data: { intentosFallidos: 0, ultimoIntentoFallidoEn: null, bloqueadoHasta: null },
+  });
+}
 
 export function hashPassword(password: string): string {
   const sal = randomBytes(16).toString("hex");
