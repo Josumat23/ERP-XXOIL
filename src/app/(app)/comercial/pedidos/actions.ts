@@ -14,7 +14,7 @@ import { DIAS_CONDICION } from "@/lib/etiquetas";
 import { avanzarSerie } from "@/lib/series";
 import { postearVenta } from "@/lib/contabilidad";
 import { enviarComprobanteFactura } from "@/app/(app)/comercial/facturas/actions";
-import { coincideEvaluacionCredito, evaluarCredito } from "@/lib/credito";
+import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 
 export type EstadoFormulario = { error?: string };
 
@@ -213,10 +213,15 @@ export async function facturarPedido(
         if (evaluacion.excede) {
           const mismaEvaluacion =
             pedido.condicionPagoCredito === condicionPago &&
-            coincideEvaluacionCredito(pedido.deudaCreditoEvaluada, deudaActual) &&
-            coincideEvaluacionCredito(pedido.montoCreditoEvaluado, totalConIgv) &&
-            coincideEvaluacionCredito(pedido.limiteCreditoEvaluado, limite);
-          const aprobada = pedido.estadoAprobacionCredito === "APROBADA" && mismaEvaluacion;
+            pedido.deudaCreditoEvaluada?.toNumber() === deudaActual &&
+            pedido.montoCreditoEvaluado?.toNumber() === totalConIgv &&
+            pedido.limiteCreditoEvaluado?.toNumber() === limite;
+          const aprobada = esAprobacionCreditoVigente(pedido, {
+            condicionPago,
+            deudaActual,
+            montoFactura: totalConIgv,
+            limite,
+          });
           if (!aprobada) {
             if (pedido.estadoAprobacionCredito === "RECHAZADA" && mismaEvaluacion) {
               errorCredito = `La excepción de crédito fue rechazada: ${pedido.motivoRechazoCredito ?? "sin motivo registrado"}.`;

@@ -12,7 +12,7 @@ import {
 } from "@/lib/contabilidad";
 import { calcularUnidadesAProducir } from "@/lib/proyecciones";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
-import { evaluarCredito } from "@/lib/credito";
+import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
@@ -627,4 +627,22 @@ test("crédito exige aprobación solo cuando la exposición supera un límite po
   assert.equal(evaluarCredito(700, 300, 1000).excede, false);
   assert.equal(evaluarCredito(800, 300, 0).excede, false);
   assert.equal(evaluarCredito(800, 300, 1000).exposicionProyectada, 1100);
+});
+test("aprobación de crédito solo se reutiliza para la evaluación exacta", () => {
+  const decimal = (valor: number) => ({ toNumber: () => valor });
+  const aprobada = {
+    estadoAprobacionCredito: "APROBADA" as const,
+    condicionPagoCredito: "DIAS_30" as const,
+    deudaCreditoEvaluada: decimal(800),
+    montoCreditoEvaluado: decimal(300),
+    limiteCreditoEvaluado: decimal(1000),
+  };
+  const actual = { condicionPago: "DIAS_30" as const, deudaActual: 800, montoFactura: 300, limite: 1000 };
+
+  assert.equal(esAprobacionCreditoVigente(aprobada, actual), true);
+  assert.equal(esAprobacionCreditoVigente({ ...aprobada, estadoAprobacionCredito: "RECHAZADA" }, actual), false);
+  assert.equal(esAprobacionCreditoVigente(aprobada, { ...actual, condicionPago: "DIAS_15" }), false);
+  assert.equal(esAprobacionCreditoVigente(aprobada, { ...actual, deudaActual: 801 }), false);
+  assert.equal(esAprobacionCreditoVigente(aprobada, { ...actual, montoFactura: 301 }), false);
+  assert.equal(esAprobacionCreditoVigente(aprobada, { ...actual, limite: 1100 }), false);
 });
