@@ -7,6 +7,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoEquipo } from "@/lib/correlativos";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -41,9 +42,10 @@ export async function crearEquipo(
   try {
     await prisma.$transaction(async (tx) => {
       const codigo = await siguienteCodigoEquipo(tx);
-      await tx.equipo.create({
+      const equipo = await tx.equipo.create({
         data: { codigo, nombre, almacenId, activoFijoId, centroCostoId, notas, unidadContador, contadorActual },
       });
+      await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: equipo.id, accion: "CREAR", despues: equipo, usuario: auth.usuario });
     });
   } catch (e) {
     if (esErrorDuplicado(e)) {
@@ -60,7 +62,11 @@ export async function alternarActivoEquipo(id: string, activo: boolean) {
   const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
-  await prisma.equipo.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.equipo.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.equipo.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/produccion/equipos");
 }
 
@@ -86,7 +92,10 @@ export async function actualizarContadorEquipo(
     return { error: "La nueva lectura no puede ser menor a la actual." };
   }
 
-  await prisma.equipo.update({ where: { id }, data: { contadorActual } });
+  await prisma.$transaction(async (tx) => {
+    const despues = await tx.equipo.update({ where: { id }, data: { contadorActual } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: id, accion: "ACTUALIZAR", antes: equipo, despues, usuario: auth.usuario });
+  });
   revalidatePath(`/produccion/equipos/${id}`);
   return {};
 }
@@ -128,16 +137,11 @@ export async function crearPlanMantenimiento(
     }
   }
 
-  await prisma.planMantenimiento.create({
-    data: {
-      equipoId,
-      nombre,
-      tipo: tipo as (typeof TIPOS_PLAN_VALIDOS)[number],
-      frecuenciaDias,
-      frecuenciaContador,
-      usuarioId: auth.usuario.id,
-      usuarioNombre: auth.usuario.nombre,
-    },
+  await prisma.$transaction(async (tx) => {
+    const plan = await tx.planMantenimiento.create({
+      data: { equipoId, nombre, tipo: tipo as (typeof TIPOS_PLAN_VALIDOS)[number], frecuenciaDias, frecuenciaContador, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre },
+    });
+    await registrarAuditoriaMaestro(tx, { entidad: "PlanMantenimiento", registroId: plan.id, accion: "CREAR", despues: plan, usuario: auth.usuario });
   });
 
   revalidatePath(`/produccion/equipos/${equipoId}`);
@@ -148,6 +152,10 @@ export async function alternarActivoPlan(id: string, equipoId: string, activo: b
   const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
-  await prisma.planMantenimiento.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.planMantenimiento.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.planMantenimiento.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "PlanMantenimiento", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath(`/produccion/equipos/${equipoId}`);
 }

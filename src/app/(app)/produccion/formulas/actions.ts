@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -53,11 +54,19 @@ export async function crearFormula(
     const ahora = new Date();
     // La nueva versión nace vigente: cierra la vigencia de cualquier otra versión
     // activa del mismo producto para que nunca haya dos versiones vigentes a la vez.
+    const vigentes = await tx.formula.findMany({
+      where: { productoId, activo: true },
+      include: { detalles: true },
+    });
     await tx.formula.updateMany({
       where: { productoId, activo: true },
       data: { activo: false, vigenteHasta: ahora },
     });
-    await tx.formula.create({
+    for (const vigente of vigentes) {
+      const despuesVigente = await tx.formula.findUniqueOrThrow({ where: { id: vigente.id }, include: { detalles: true } });
+      await registrarAuditoriaMaestro(tx, { entidad: "Formula", registroId: vigente.id, accion: "DESACTIVAR", antes: vigente, despues: despuesVigente, usuario: auth.usuario });
+    }
+    const formula = await tx.formula.create({
       data: {
         productoId,
         version: (ultima?.version ?? 0) + 1,
@@ -68,7 +77,9 @@ export async function crearFormula(
         usuarioNombre: auth.usuario.nombre,
         detalles: { create: detalles.map((d) => ({ insumoId: d.insumoId, cantidad: d.cantidad })) },
       },
+      include: { detalles: true },
     });
+    await registrarAuditoriaMaestro(tx, { entidad: "Formula", registroId: formula.id, accion: "CREAR", despues: formula, usuario: auth.usuario });
   });
 
   revalidatePath("/produccion/formulas");
@@ -82,20 +93,31 @@ export async function alternarActivoFormula(id: string, activo: boolean) {
 
   const ahora = new Date();
   await prisma.$transaction(async (tx) => {
+    const antes = await tx.formula.findUniqueOrThrow({ where: { id }, include: { detalles: true } });
     if (activo) {
-      const formula = await tx.formula.findUniqueOrThrow({ where: { id } });
       // Reactivar una versión anterior cierra la vigencia de la que estuviera
       // activa en ese momento para el mismo producto (nunca dos a la vez).
+      const vigentes = await tx.formula.findMany({
+        where: { productoId: antes.productoId, activo: true, id: { not: id } },
+        include: { detalles: true },
+      });
       await tx.formula.updateMany({
-        where: { productoId: formula.productoId, activo: true, id: { not: id } },
+        where: { productoId: antes.productoId, activo: true, id: { not: id } },
         data: { activo: false, vigenteHasta: ahora },
       });
-      await tx.formula.update({
+      for (const vigente of vigentes) {
+        const despuesVigente = await tx.formula.findUniqueOrThrow({ where: { id: vigente.id }, include: { detalles: true } });
+        await registrarAuditoriaMaestro(tx, { entidad: "Formula", registroId: vigente.id, accion: "DESACTIVAR", antes: vigente, despues: despuesVigente, usuario: auth.usuario });
+      }
+      const despues = await tx.formula.update({
         where: { id },
         data: { activo: true, vigenteDesde: ahora, vigenteHasta: null },
+        include: { detalles: true },
       });
+      await registrarAuditoriaMaestro(tx, { entidad: "Formula", registroId: id, accion: "ACTIVAR", antes, despues, usuario: auth.usuario });
     } else {
-      await tx.formula.update({ where: { id }, data: { activo: false, vigenteHasta: ahora } });
+      const despues = await tx.formula.update({ where: { id }, data: { activo: false, vigenteHasta: ahora }, include: { detalles: true } });
+      await registrarAuditoriaMaestro(tx, { entidad: "Formula", registroId: id, accion: "DESACTIVAR", antes, despues, usuario: auth.usuario });
     }
   });
 
