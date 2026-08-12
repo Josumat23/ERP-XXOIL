@@ -29,6 +29,7 @@ export async function crearSesion(usuarioId: string): Promise<void> {
   const almacen = await cookies();
   almacen.set(COOKIE_SESION, token, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     expires: expiraEn,

@@ -38,6 +38,7 @@ export async function establecerEmpresaActivaId(id: string): Promise<void> {
   const almacen = await cookies();
   almacen.set(COOKIE_EMPRESA_ACTIVA, id, {
     httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
     maxAge: 60 * 60 * 24 * 365,
