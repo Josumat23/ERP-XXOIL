@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { registrarMovimiento } from "@/lib/inventario";
 
 export type EstadoFormulario = { error?: string };
@@ -104,6 +105,7 @@ export async function crearPresentacion(
   try {
     await prisma.$transaction(async (tx) => {
       const creada = await tx.presentacion.create({ data: resultado.datos });
+      await registrarAuditoriaMaestro(tx, { entidad: "Presentacion", registroId: creada.id, accion: "CREAR", despues: creada, usuario: auth.usuario });
       if (stockInicial > 0) {
         const mov = await registrarMovimiento(tx, {
           tipoItem: "PRESENTACION",
@@ -146,7 +148,11 @@ export async function actualizarPresentacion(
   if ("error" in resultado) return resultado;
 
   try {
-    await prisma.presentacion.update({ where: { id }, data: resultado.datos });
+    await prisma.$transaction(async (tx) => {
+      const antes = await tx.presentacion.findUniqueOrThrow({ where: { id } });
+      const despues = await tx.presentacion.update({ where: { id }, data: resultado.datos });
+      await registrarAuditoriaMaestro(tx, { entidad: "Presentacion", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+    });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe una presentación con el SKU "${resultado.datos.sku}".` };
@@ -163,7 +169,11 @@ export async function alternarActivoPresentacion(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
-  await prisma.presentacion.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.presentacion.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.presentacion.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Presentacion", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/catalogo/presentaciones");
 }
 

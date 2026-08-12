@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
@@ -84,7 +85,10 @@ export async function crearProveedor(
 
   try {
     const empresaId = await obtenerEmpresaActivaId();
-    await prisma.proveedor.create({ data: { ...resultado.datos, empresaId } });
+    await prisma.$transaction(async (tx) => {
+      const registro = await tx.proveedor.create({ data: { ...resultado.datos, empresaId } });
+      await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Proveedor", registroId: registro.id, accion: "CREAR", despues: registro, usuario: auth.usuario });
+    });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un proveedor con el RUC ${resultado.datos.ruc}.` };
@@ -111,7 +115,11 @@ export async function actualizarProveedor(
   if ("error" in resultado) return resultado;
 
   try {
-    await prisma.proveedor.update({ where: { id }, data: resultado.datos });
+    await prisma.$transaction(async (tx) => {
+      const antes = await tx.proveedor.findUniqueOrThrow({ where: { id } });
+      const despues = await tx.proveedor.update({ where: { id }, data: resultado.datos });
+      await registrarAuditoriaMaestro(tx, { empresaId: despues.empresaId, entidad: "Proveedor", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+    });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un proveedor con el RUC ${resultado.datos.ruc}.` };
@@ -127,6 +135,10 @@ export async function alternarActivoProveedor(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
-  await prisma.proveedor.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.proveedor.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.proveedor.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { empresaId: despues.empresaId, entidad: "Proveedor", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/catalogo/proveedores");
 }

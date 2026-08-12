@@ -15,6 +15,7 @@ const SEGMENTOS_VALIDOS: $Enums.SegmentoMercado[] = [
 ];
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -84,7 +85,10 @@ export async function crearProducto(
   if ("error" in resultado) return resultado;
 
   try {
-    await prisma.producto.create({ data: resultado.datos });
+    await prisma.$transaction(async (tx) => {
+      const registro = await tx.producto.create({ data: resultado.datos });
+      await registrarAuditoriaMaestro(tx, { entidad: "Producto", registroId: registro.id, accion: "CREAR", despues: registro, usuario: auth.usuario });
+    });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un producto con el código "${resultado.datos.codigo}".` };
@@ -111,7 +115,11 @@ export async function actualizarProducto(
   if ("error" in resultado) return resultado;
 
   try {
-    await prisma.producto.update({ where: { id }, data: resultado.datos });
+    await prisma.$transaction(async (tx) => {
+      const antes = await tx.producto.findUniqueOrThrow({ where: { id } });
+      const despues = await tx.producto.update({ where: { id }, data: resultado.datos });
+      await registrarAuditoriaMaestro(tx, { entidad: "Producto", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+    });
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un producto con el código "${resultado.datos.codigo}".` };
@@ -127,6 +135,10 @@ export async function actualizarProducto(
 export async function alternarActivoProducto(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
-  await prisma.producto.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.producto.findUniqueOrThrow({ where: { id } });
+    const despues = await tx.producto.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { entidad: "Producto", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/catalogo/productos");
 }
