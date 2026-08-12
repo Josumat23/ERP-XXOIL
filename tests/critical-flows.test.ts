@@ -12,6 +12,7 @@ import {
 } from "@/lib/contabilidad";
 import { calcularUnidadesAProducir } from "@/lib/proyecciones";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
+import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 
 function estaDentro(ruta: string, padre: string): boolean {
   const relativa = relative(padre, ruta);
@@ -317,6 +318,146 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   assert.equal(lote.controlCalidad?.resultado, "APROBADO");
   assert.equal(lote.envasados[0]?.unidadesDisponibles, 10);
   assert.deepEqual(movimientos.map((movimiento) => movimiento.origen), ["PRODUCCION", "ENVASADO"]);
+});
+test("planilla usa parámetros versionados, excluye configuraciones incompletas y contabiliza", async () => {
+  const audit = await auditoria();
+  const vigenteDesde = new Date("2098-01-01T00:00:00.000Z");
+  const plan = await prisma.planCuentas.findFirstOrThrow();
+
+  assert.equal(calcularRetencion5taMensual(2_500, 5_000), 0);
+  assert.equal(calcularRetencion5taMensual(3_000, 5_000), 46.67);
+
+  await prisma.empleado.updateMany({ where: { estado: "ACTIVO" }, data: { estado: "CESADO" } });
+  const cuentasPrueba = [
+    { codigo: "TEST-6211", nombre: "Gasto de personal prueba", clave: "GASTO_PERSONAL", tipo: "GASTO" },
+    { codigo: "TEST-4031", nombre: "Pensiones por pagar prueba", clave: "ONP_AFP_POR_PAGAR", tipo: "PASIVO" },
+    { codigo: "TEST-4032", nombre: "EsSalud por pagar prueba", clave: "ESSALUD_POR_PAGAR", tipo: "PASIVO" },
+    { codigo: "TEST-4017", nombre: "Quinta categoría por pagar prueba", clave: "RETENCION_5TA_POR_PAGAR", tipo: "PASIVO" },
+    { codigo: "TEST-4111", nombre: "Sueldos por pagar prueba", clave: "SUELDOS_POR_PAGAR", tipo: "PASIVO" },
+  ] satisfies Array<{ codigo: string; nombre: string; clave: string; tipo: "GASTO" | "PASIVO" }>;
+  const cuentas = await Promise.all(
+    cuentasPrueba.map(async ({ codigo, nombre, clave, tipo }) => {
+      const cuenta = await prisma.cuentaContable.create({
+        data: { planCuentasId: plan.id, codigo, nombre, tipo },
+      });
+      await prisma.controlContable.upsert({
+        where: { empresaId_clave: { empresaId: "1", clave } },
+        update: { cuentaId: cuenta.id },
+        create: { clave, cuentaId: cuenta.id },
+      });
+      return cuenta;
+    })
+  );
+  assert.equal(cuentas.length, 5);
+
+  await prisma.parametroPlanilla.create({
+    data: {
+      rmv: 1_000,
+      uit: 5_000,
+      tasaEsSalud: 9,
+      tasaOnp: 13,
+      vigenteDesde,
+      ...audit,
+    },
+  });
+  await prisma.tasaAfp.create({
+    data: {
+      afp: "PRIMA",
+      tipoComision: "FLUJO",
+      tasaAporteObligatorio: 10,
+      tasaComision: 1.5,
+      primaSeguro: 1.5,
+      vigenteDesde,
+    },
+  });
+
+  const empleados = await Promise.all([
+    prisma.empleado.create({
+      data: {
+        codigo: "EMP-TEST-ONP",
+        nombres: "Ana",
+        apellidos: "ONP",
+        fechaIngreso: new Date("2098-01-01"),
+        cargo: "Operaria",
+        area: "Producción",
+        tipoContrato: "PLAZO_INDETERMINADO",
+        sueldoBasico: 2_000,
+        sistemaPension: "ONP",
+        asignacionFamiliar: true,
+      },
+    }),
+    prisma.empleado.create({
+      data: {
+        codigo: "EMP-TEST-AFP",
+        nombres: "Bruno",
+        apellidos: "AFP",
+        fechaIngreso: new Date("2098-01-01"),
+        cargo: "Analista",
+        area: "Administración",
+        tipoContrato: "PLAZO_INDETERMINADO",
+        sueldoBasico: 3_000,
+        sistemaPension: "AFP",
+        afp: "PRIMA",
+      },
+    }),
+    prisma.empleado.create({
+      data: {
+        codigo: "EMP-TEST-INCOMPLETO",
+        nombres: "Carla",
+        apellidos: "Sin pensión",
+        fechaIngreso: new Date("2098-01-01"),
+        cargo: "Auxiliar",
+        area: "Almacén",
+        tipoContrato: "PLAZO_FIJO",
+        sueldoBasico: 1_500,
+      },
+    }),
+  ]);
+
+  const resultado = await prisma.$transaction((tx) =>
+    generarPlanillaMensual(tx, { anio: 2099, mes: 3, ...audit })
+  );
+  assert.equal(resultado.ok, true);
+  if (!resultado.ok) return;
+  assert.equal(resultado.advertencias?.length, 1);
+  assert.match(resultado.advertencias?.[0] ?? "", /EMP-TEST-INCOMPLETO/);
+
+  const periodo = await prisma.planillaPeriodo.findUniqueOrThrow({
+    where: { id: resultado.periodoId },
+    include: { detalles: { orderBy: { sueldoBasico: "asc" } } },
+  });
+  assert.equal(periodo.detalles.length, 2);
+  assert.deepEqual(
+    periodo.detalles.map((detalle) => detalle.empleadoId).sort(),
+    empleados.slice(0, 2).map((empleado) => empleado.id).sort()
+  );
+  assert.deepEqual(
+    periodo.detalles.map((detalle) => ({
+      sueldo: detalle.sueldoBasico.toNumber(),
+      familiar: detalle.asignacionFamiliar.toNumber(),
+      pension: detalle.descuentoPension.toNumber(),
+      essalud: detalle.essaludPatronal.toNumber(),
+      quinta: detalle.retencion5ta.toNumber(),
+      neto: detalle.neto.toNumber(),
+    })),
+    [
+      { sueldo: 2_000, familiar: 100, pension: 273, essalud: 189, quinta: 0, neto: 1_827 },
+      { sueldo: 3_000, familiar: 0, pension: 390, essalud: 270, quinta: 46.67, neto: 2_563.33 },
+    ]
+  );
+  assert.ok(periodo.detalles.every((detalle) => detalle.asientoNumero));
+
+  const asiento = await prisma.asientoContable.findFirstOrThrow({
+    where: { origen: "PLANILLA", referencia: "2099-03" },
+    include: { detalles: true },
+  });
+  comprobarCuadre(asiento);
+  assert.equal(asiento.detalles.reduce((total, linea) => total + linea.debe.toNumber(), 0), 5_559);
+
+  const duplicado = await prisma.$transaction((tx) =>
+    generarPlanillaMensual(tx, { anio: 2099, mes: 3, ...audit })
+  );
+  assert.deepEqual(duplicado, { ok: false, error: "Ya existe una planilla mensual para 3/2099." });
 });
 test("MRP protege stock comprometido por pedidos", () => {
   assert.equal(
