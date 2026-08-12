@@ -61,6 +61,7 @@ export type DatosComprobante = {
   totalGravada: number;
   totalIgv: number;
   total: number;
+  tasaIgv?: number;
   items: ItemComprobante[];
   // Datos propios de la nota de crédito (solo tipoDocumento = NOTA_CREDITO)
   facturaAfectadaSerie?: string;
