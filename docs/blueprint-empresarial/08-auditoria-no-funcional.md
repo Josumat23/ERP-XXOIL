@@ -1,5 +1,7 @@
 # 08 — Auditoría no funcional
 
+> **Actualización 2026-08-12:** el hallazgo de autorización de envío SUNAT ya está corregido: las dos acciones exigen rol y permiso. Las filas históricas se conservan como evidencia del estado al corte original. Ver Blueprint 11.
+
 **Metodología**: lectura directa de `src/lib/auth.ts`, `src/lib/permisos.ts`, `src/lib/prisma.ts`, `src/lib/inventario.ts`, `src/lib/correlativos.ts`, `src/lib/contabilidad.ts`, `src/lib/monitoreo/*`, `server.ts`, `next.config.ts`, `tsconfig.json`, `package.json`, `Dockerfile`, `docker-compose.yml`, y muestreo de 8+ `actions.ts` de módulos distintos, más `git status` para verificar el estado real de los archivos `.bak`. Toda cita es verbatim de código al 2026-08-06.
 
 ---

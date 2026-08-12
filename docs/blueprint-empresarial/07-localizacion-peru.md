@@ -1,5 +1,7 @@
 # 07 — Matriz de localización Perú
 
+> **Actualización 2026-08-12:** la inconsistencia de IGV fijo en UBL fue corregida por PR #61 (merge 86dc20a). La RS 000125-2026/SUNAT postergó hasta octubre de 2026 el ingreso a SIRE del grupo específico de principales contribuyentes designados al 31/12/2024 con ingresos netos 2024 superiores a 2300 UIT; la obligación concreta debe determinarse por RUC. Ver Blueprint 11.
+
 **Metodología**: verificación directa de `src/lib/facturacionElectronica.ts`, `sunatUbl.ts`, `sunatFirma.ts`, `sunatSoap.ts`, `ple.ts`, `planilla.ts`, `prisma/schema.prisma` y los `actions.ts` llamadores. Toda cita es verbatim de código al 2026-08-06. Donde una tasa, umbral legal o vigencia normativa está en juego, se marca explícitamente **"requiere validación profesional"** — este documento no certifica que esos valores sean correctos hoy, solo que la lógica/estructura existe.
 
 ---

@@ -16,6 +16,7 @@ Auditoría del repositorio ERP-XXOIL para el objetivo declarado: fabricante y di
 8. [08-auditoria-no-funcional.md](08-auditoria-no-funcional.md) — seguridad, arquitectura, concurrencia, testing, CI/CD, backup/DR. Incluye un hallazgo crítico de autorización de corrección inmediata.
 9. [09-roadmap-oleadas.md](09-roadmap-oleadas.md) — oleadas con dependencias, criterios de aceptación, pruebas, rollback.
 10. [10-preguntas-abiertas.md](10-preguntas-abiertas.md) — 24 preguntas de negocio/legales que el código no puede responder.
+11. [11-actualizacion-sap-peru-ux-2026-08-12.md](11-actualizacion-sap-peru-ux-2026-08-12.md) — actualización contra SAP Business One, vigencia SIRE 2026 y patrón UX por maestro/transacción.
 
 ## Los 3 hallazgos más importantes
 

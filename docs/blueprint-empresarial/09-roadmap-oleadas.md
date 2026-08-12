@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Actualización 2026-08-12:** los ítems 0.1 (autorización SUNAT) y 0.1b (stock reservado en MRP, PR #62, merge b524c24) están completados. El resto requiere las dependencias y decisiones indicadas; no autoriza cambios de esquema.
+
 **Principio de secuenciación**: la Oleada 0 resuelve los prerrequisitos estructurales de los que dependen casi todos los demás gaps (sin sociedad/planta real, no tiene sentido construir jerarquía de centro de costo "por planta"; sin partición de stock por zona, no tiene sentido construir picking). Las oleadas siguientes se ordenan por impacto/riesgo, no por dominio SAP — varios ítems de distintos dominios conviven en la misma oleada cuando comparten dependencia técnica o urgencia.
 
 Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probarlo**, **plan de rollback**.
