@@ -15,6 +15,7 @@ import { avanzarSerie } from "@/lib/series";
 import { postearVenta } from "@/lib/contabilidad";
 import { enviarComprobanteFactura } from "@/app/(app)/comercial/facturas/actions";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
+import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 
 export type EstadoFormulario = { error?: string };
 
@@ -367,11 +368,19 @@ export async function aprobarCreditoPedido(id: string): Promise<EstadoFormulario
   }
   const pedido = await prisma.pedido.findUnique({ where: { id } });
   if (!pedido || pedido.estado !== "PENDIENTE") return { error: "El pedido no está pendiente." };
+  if (!puedeResolverSolicitud(pedido.usuarioId, auth.usuario.id)) {
+    return { error: "La persona que creó el pedido no puede resolver su excepción de crédito." };
+  }
   if (pedido.estadoAprobacionCredito !== "PENDIENTE") {
     return { error: "El pedido no tiene una excepción de crédito pendiente." };
   }
   const resultado = await prisma.pedido.updateMany({
-    where: { id, estado: "PENDIENTE", estadoAprobacionCredito: "PENDIENTE" },
+    where: {
+      id,
+      estado: "PENDIENTE",
+      estadoAprobacionCredito: "PENDIENTE",
+      usuarioId: { not: auth.usuario.id },
+    },
     data: {
       estadoAprobacionCredito: "APROBADA",
       creditoResueltoEn: new Date(),
@@ -399,11 +408,19 @@ export async function rechazarCreditoPedido(
   if (motivo.length > 500) return { error: "El motivo no puede superar 500 caracteres." };
   const pedido = await prisma.pedido.findUnique({ where: { id } });
   if (!pedido || pedido.estado !== "PENDIENTE") return { error: "El pedido no está pendiente." };
+  if (!puedeResolverSolicitud(pedido.usuarioId, auth.usuario.id)) {
+    return { error: "La persona que creó el pedido no puede resolver su excepción de crédito." };
+  }
   if (pedido.estadoAprobacionCredito !== "PENDIENTE") {
     return { error: "El pedido no tiene una excepción de crédito pendiente." };
   }
   const resultado = await prisma.pedido.updateMany({
-    where: { id, estado: "PENDIENTE", estadoAprobacionCredito: "PENDIENTE" },
+    where: {
+      id,
+      estado: "PENDIENTE",
+      estadoAprobacionCredito: "PENDIENTE",
+      usuarioId: { not: auth.usuario.id },
+    },
     data: {
       estadoAprobacionCredito: "RECHAZADA",
       creditoResueltoEn: new Date(),

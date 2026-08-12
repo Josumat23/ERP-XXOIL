@@ -13,6 +13,7 @@ import {
 import { postearRecepcionCompra, postearDevolucionCompra } from "@/lib/contabilidad";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { convertirAPen } from "@/lib/tipoCambio";
+import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 
 export type EstadoFormulario = { error?: string };
 
@@ -397,14 +398,18 @@ export async function aprobarOrdenCompra(id: string) {
 
   const oc = await prisma.ordenCompra.findUnique({ where: { id } });
   if (!oc) return { error: "La orden no existe." };
+  if (!puedeResolverSolicitud(oc.usuarioId, auth.usuario.id)) {
+    return { error: "La persona que creó la orden no puede aprobarla." };
+  }
   if (oc.estadoAprobacion !== "PENDIENTE") {
     return { error: "Esta orden no está pendiente de aprobación." };
   }
 
-  await prisma.ordenCompra.update({
-    where: { id },
+  const resultado = await prisma.ordenCompra.updateMany({
+    where: { id, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
     data: { estadoAprobacion: "APROBADA", aprobadaPor: auth.usuario.nombre, aprobadaEn: new Date() },
   });
+  if (resultado.count !== 1) return { error: "La orden ya fue resuelta por otro usuario." };
 
   revalidatePath("/logistica/ordenes-compra");
   revalidatePath(`/logistica/ordenes-compra/${id}`);
@@ -427,12 +432,15 @@ export async function rechazarOrdenCompra(
 
   const oc = await prisma.ordenCompra.findUnique({ where: { id } });
   if (!oc) return { error: "La orden no existe." };
+  if (!puedeResolverSolicitud(oc.usuarioId, auth.usuario.id)) {
+    return { error: "La persona que creó la orden no puede rechazarla." };
+  }
   if (oc.estadoAprobacion !== "PENDIENTE") {
     return { error: "Esta orden no está pendiente de aprobación." };
   }
 
-  await prisma.ordenCompra.update({
-    where: { id },
+  const resultado = await prisma.ordenCompra.updateMany({
+    where: { id, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
     data: {
       estadoAprobacion: "RECHAZADA",
       aprobadaPor: auth.usuario.nombre,
@@ -440,6 +448,7 @@ export async function rechazarOrdenCompra(
       motivoRechazo: motivo,
     },
   });
+  if (resultado.count !== 1) return { error: "La orden ya fue resuelta por otro usuario." };
 
   revalidatePath("/logistica/ordenes-compra");
   revalidatePath(`/logistica/ordenes-compra/${id}`);

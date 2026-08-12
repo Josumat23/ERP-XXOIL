@@ -13,6 +13,7 @@ import {
 import { calcularUnidadesAProducir } from "@/lib/proyecciones";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
+import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
@@ -645,4 +646,8 @@ test("aprobación de crédito solo se reutiliza para la evaluación exacta", () 
   assert.equal(esAprobacionCreditoVigente(aprobada, { ...actual, deudaActual: 801 }), false);
   assert.equal(esAprobacionCreditoVigente(aprobada, { ...actual, montoFactura: 301 }), false);
   assert.equal(esAprobacionCreditoVigente(aprobada, { ...actual, limite: 1100 }), false);
+});
+test("aprobaciones separan al solicitante de quien resuelve", () => {
+  assert.equal(puedeResolverSolicitud("usuario-solicitante", "usuario-gerencia"), true);
+  assert.equal(puedeResolverSolicitud("usuario-solicitante", "usuario-solicitante"), false);
 });
