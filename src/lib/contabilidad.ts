@@ -93,6 +93,23 @@ async function libroDiario(tx: Tx) {
   return tx.libro.create({ data: { codigo: "DIARIO", nombre: "Libro diario" } });
 }
 
+export async function reclamarPeriodoAbierto(tx: Tx, fecha: Date): Promise<boolean> {
+  const anio = fecha.getFullYear();
+  const mes = fecha.getMonth() + 1;
+  const periodo = await tx.periodoFiscal.findUnique({
+    where: { empresaId_anio_mes: { empresaId: "1", anio, mes } },
+    select: { id: true, estado: true },
+  });
+  if (!periodo) return true;
+  if (periodo.estado === "CERRADO") return false;
+
+  const reclamo = await tx.periodoFiscal.updateMany({
+    where: { id: periodo.id, estado: "ABIERTO" },
+    data: { estado: "ABIERTO" },
+  });
+  return reclamo.count === 1;
+}
+
 /**
  * Genera un asiento automático dentro de la transacción en curso.
  * - Redondea cada línea a 2 decimales y descarta líneas en cero.
@@ -111,11 +128,8 @@ export async function postearAsiento(
   const anio = fecha.getFullYear();
   const mes = fecha.getMonth() + 1;
 
-  // Período fiscal cerrado → no postear
-  const periodo = await tx.periodoFiscal.findUnique({
-    where: { empresaId_anio_mes: { empresaId: "1", anio, mes } },
-  });
-  if (periodo?.estado === "CERRADO") {
+  // La escritura condicional serializa el posteo contra el cierre del período.
+  if (!(await reclamarPeriodoAbierto(tx, fecha))) {
     return { ok: false, motivo: `Período fiscal ${mes}/${anio} cerrado` };
   }
 

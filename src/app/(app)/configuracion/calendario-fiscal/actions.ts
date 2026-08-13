@@ -27,8 +27,8 @@ export async function alternarPeriodoFiscal(id: string) {
   if (!periodo) return;
 
   const cerrando = periodo.estado === "ABIERTO";
-  await prisma.periodoFiscal.update({
-    where: { id },
+  await prisma.periodoFiscal.updateMany({
+    where: { id, estado: periodo.estado },
     data: {
       estado: cerrando ? "CERRADO" : "ABIERTO",
       cerradoEn: cerrando ? new Date() : null,
