@@ -124,6 +124,9 @@ export async function reversarAsiento(
       if (original.reversadoPor) {
         throw new Error(`El asiento ya fue reversado por ${original.reversadoPor}.`);
       }
+      if (original.origen === "REVERSO") {
+        throw new Error("Un asiento de reverso no puede volver a reversarse.");
+      }
 
       const hoy = new Date();
       const anio = hoy.getFullYear();
@@ -136,6 +139,14 @@ export async function reversarAsiento(
       }
 
       const numero = await siguienteNumeroAsiento(tx);
+      const reclamo = await tx.asientoContable.updateMany({
+        where: { id, reversadoPor: null, origen: { not: "REVERSO" } },
+        data: { reversadoPor: numero },
+      });
+      if (reclamo.count !== 1) {
+        throw new Error("El asiento cambi\u00f3 mientras se reversaba. Actualice la p\u00e1gina e intente nuevamente.");
+      }
+
       const reverso = await tx.asientoContable.create({
         data: {
           libroId: original.libroId,
@@ -160,11 +171,6 @@ export async function reversarAsiento(
         },
       });
       reversoId = reverso.id;
-
-      await tx.asientoContable.update({
-        where: { id },
-        data: { reversadoPor: numero },
-      });
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
