@@ -78,6 +78,14 @@ export async function crearEnvasado(
         );
       }
 
+      const reserva = await tx.loteGranel.updateMany({
+        where: { id: loteGranelId, estado: "APROBADO", kgDisponibles: { gte: kgConsumidos } },
+        data: { kgDisponibles: { decrement: kgConsumidos } },
+      });
+      if (reserva.count !== 1) {
+        throw new Error("El saldo del lote cambio durante el envasado. Actualice la pagina e intente nuevamente.");
+      }
+
       const codigo = await siguienteCodigoEnvasado(tx);
 
       const vidaUtilMeses = lote.formula.producto.vidaUtilMeses;
@@ -156,10 +164,6 @@ export async function crearEnvasado(
       });
       if (!entrada.ok) throw new Error(entrada.error);
 
-      await tx.loteGranel.update({
-        where: { id: loteGranelId },
-        data: { kgDisponibles: disponibles - kgConsumidos },
-      });
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
