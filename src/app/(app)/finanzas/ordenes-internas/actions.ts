@@ -69,16 +69,13 @@ export async function agregarCostoOrdenInterna(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const orden = await tx.ordenInterna.findUniqueOrThrow({ where: { id: ordenInternaId } });
-      if (orden.estado !== "ABIERTA") {
-        throw new Error("Solo se pueden agregar costos a una orden abierta.");
-      }
+      const reclamo = await tx.ordenInterna.updateMany({
+        where: { id: ordenInternaId, estado: "ABIERTA" },
+        data: { totalAcumulado: { increment: monto } },
+      });
+      if (reclamo.count !== 1) throw new Error("Solo se pueden agregar costos a una orden abierta.");
       await tx.ordenInternaCosto.create({
         data: { ordenInternaId, concepto, monto, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre },
-      });
-      await tx.ordenInterna.update({
-        where: { id: ordenInternaId },
-        data: { totalAcumulado: { increment: monto } },
       });
     });
   } catch (e) {
@@ -113,10 +110,13 @@ export async function liquidarOrdenInterna(
       const total = orden.totalAcumulado.toNumber();
       if (total <= 0) throw new Error("La orden no tiene costos acumulados que liquidar.");
 
-      await tx.ordenInterna.update({
-        where: { id },
+      const reclamo = await tx.ordenInterna.updateMany({
+        where: { id, estado: "ABIERTA", totalAcumulado: orden.totalAcumulado },
         data: { estado: "LIQUIDADA", centroCostoId, fechaLiquidacion: new Date() },
       });
+      if (reclamo.count !== 1) {
+        throw new Error("La orden cambi\u00f3 mientras se liquidaba. Actualice la p\u00e1gina e intente nuevamente.");
+      }
 
       // Best-effort, igual que el resto del motor: si el control contable no
       // está configurado, la liquidación queda registrada igual, sin asiento.
@@ -142,9 +142,10 @@ export async function anularOrdenInterna(id: string) {
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) return;
 
   await prisma.$transaction(async (tx) => {
-    const orden = await tx.ordenInterna.findUnique({ where: { id } });
-    if (!orden || orden.estado !== "ABIERTA" || orden.totalAcumulado.toNumber() > 0) return;
-    await tx.ordenInterna.update({ where: { id }, data: { estado: "ANULADA" } });
+    await tx.ordenInterna.updateMany({
+      where: { id, estado: "ABIERTA", totalAcumulado: 0 },
+      data: { estado: "ANULADA" },
+    });
   });
 
   revalidatePath("/finanzas/ordenes-internas");
