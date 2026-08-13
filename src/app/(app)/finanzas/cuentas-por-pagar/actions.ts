@@ -8,6 +8,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { postearPagoProveedor } from "@/lib/contabilidad";
 import { ejecutarPagoProveedor } from "@/lib/pagosProveedor";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 
 export type EstadoFormulario = { error?: string };
 
@@ -86,6 +87,15 @@ export async function aprobarPagoProveedor(pagoId: string) {
       if (pago.estadoAprobacion !== "PENDIENTE") {
         throw new Error("Este pago no está pendiente de aprobación.");
       }
+      if (!puedeResolverSolicitud(pago.usuarioId, auth.usuario.id)) {
+        throw new Error("La persona que solicitó el pago no puede aprobarlo.");
+      }
+
+      const reclamo = await tx.pagoProveedor.updateMany({
+        where: { id: pagoId, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
+        data: { estadoAprobacion: "APROBADA", aprobadoPor: auth.usuario.nombre, aprobadoEn: new Date() },
+      });
+      if (reclamo.count !== 1) throw new Error("Este pago ya fue resuelto.");
 
       const cuenta = pago.cuentaPorPagar;
       const monto = pago.monto.toNumber();
@@ -103,15 +113,13 @@ export async function aprobarPagoProveedor(pagoId: string) {
       });
 
       const nuevoSaldo = cuenta.saldo.toNumber() - monto;
-      await tx.cuentaPorPagar.update({
-        where: { id: cuenta.id },
+      const saldoActualizado = await tx.cuentaPorPagar.updateMany({
+        where: { id: cuenta.id, saldo: cuenta.saldo },
         data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
       });
-
-      await tx.pagoProveedor.update({
-        where: { id: pagoId },
-        data: { estadoAprobacion: "APROBADA", aprobadoPor: auth.usuario.nombre, aprobadoEn: new Date() },
-      });
+      if (saldoActualizado.count !== 1 || nuevoSaldo < -1e-9) {
+        throw new Error("El saldo de la cuenta cambi\u00f3 y ya no cubre este pago.");
+      }
 
       await postearPagoProveedor(
         tx,
@@ -149,8 +157,12 @@ export async function rechazarPagoProveedor(
     return { error: "Este pago no está pendiente de aprobación." };
   }
 
-  await prisma.pagoProveedor.update({
-    where: { id: pagoId },
+  if (!puedeResolverSolicitud(pago.usuarioId, auth.usuario.id)) {
+    return { error: "La persona que solicitó el pago no puede rechazarlo." };
+  }
+
+  const reclamo = await prisma.pagoProveedor.updateMany({
+    where: { id: pagoId, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
     data: {
       estadoAprobacion: "RECHAZADA",
       aprobadoPor: auth.usuario.nombre,
@@ -158,6 +170,7 @@ export async function rechazarPagoProveedor(
       motivoRechazo: motivo,
     },
   });
+  if (reclamo.count !== 1) return { error: "Este pago ya fue resuelto." };
 
   revalidatePath("/finanzas/cuentas-por-pagar");
   return {};

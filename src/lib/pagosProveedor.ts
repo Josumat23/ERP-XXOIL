@@ -21,6 +21,12 @@ export async function ejecutarPagoProveedor(
   },
   audit: Auditoria
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const bloqueo = await tx.cuentaPorPagar.updateMany({
+    where: { id: params.cuentaId },
+    data: { saldo: { increment: 0 } },
+  });
+  if (bloqueo.count !== 1) return { ok: false, error: "La cuenta por pagar no existe." };
+
   const cuenta = await tx.cuentaPorPagar.findUnique({
     where: { id: params.cuentaId },
     include: { proveedor: true, pagos: true },
@@ -69,10 +75,13 @@ export async function ejecutarPagoProveedor(
   });
 
   const nuevoSaldo = saldo - params.monto;
-  await tx.cuentaPorPagar.update({
-    where: { id: params.cuentaId },
+  const saldoActualizado = await tx.cuentaPorPagar.updateMany({
+    where: { id: params.cuentaId, saldo: cuenta.saldo },
     data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
   });
+  if (saldoActualizado.count !== 1) {
+    return { ok: false, error: `${cuenta.proveedor.razonSocial}: el saldo cambi\u00f3 durante el pago.` };
+  }
 
   await postearPagoProveedor(
     tx,
