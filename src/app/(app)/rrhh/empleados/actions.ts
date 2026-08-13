@@ -150,10 +150,13 @@ export async function darDeBajaEmpleado(
   let advertenciaLiquidacion: string | null = null;
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.empleado.update({
-        where: { id },
+      const reclamo = await tx.empleado.updateMany({
+        where: { id, estado: empleado.estado },
         data: { estado: "CESADO", fechaCese, motivoCese },
       });
+      if (reclamo.count !== 1) {
+        throw new Error("El empleado cambi\u00f3 mientras se procesaba la baja. Actualice la p\u00e1gina e intente nuevamente.");
+      }
       if (empleado.tipoContrato !== "LOCACION_SERVICIOS") {
         const diasAprobados = empleado.vacaciones.reduce((acc, v) => acc + v.diasSolicitados, 0);
         const resultado = await generarLiquidacion(tx, {
