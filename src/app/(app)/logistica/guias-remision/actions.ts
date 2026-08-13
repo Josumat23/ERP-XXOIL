@@ -201,10 +201,13 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
     return { error: "Esta guía ya no está planificada." };
   }
 
-  await prisma.guiaRemision.update({
-    where: { id: guiaId },
+  const resultado = await prisma.guiaRemision.updateMany({
+    where: { id: guiaId, estadoDespacho: "PLANIFICADO" },
     data: { estadoDespacho: "EN_RUTA", fechaSalida: new Date() },
   });
+  if (resultado.count !== 1) {
+    return { error: "La gu\u00eda cambi\u00f3 mientras se marcaba la salida. Actualice la p\u00e1gina e intente nuevamente." };
+  }
 
   revalidatePath("/logistica/guias-remision");
   revalidatePath(`/logistica/guias-remision/${guiaId}`);
@@ -224,10 +227,13 @@ export async function marcarEntregaGuia(guiaId: string): Promise<EstadoFormulari
     return { error: "Esta guía todavía no salió a ruta." };
   }
 
-  await prisma.guiaRemision.update({
-    where: { id: guiaId },
+  const resultado = await prisma.guiaRemision.updateMany({
+    where: { id: guiaId, estadoDespacho: "EN_RUTA" },
     data: { estadoDespacho: "ENTREGADO", fechaEntrega: new Date() },
   });
+  if (resultado.count !== 1) {
+    return { error: "La gu\u00eda cambi\u00f3 mientras se marcaba la entrega. Actualice la p\u00e1gina e intente nuevamente." };
+  }
 
   revalidatePath("/logistica/guias-remision");
   revalidatePath(`/logistica/guias-remision/${guiaId}`);
