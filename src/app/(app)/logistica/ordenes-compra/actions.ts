@@ -228,6 +228,31 @@ export async function registrarRecepcion(
         }
       }
 
+      // Reclama todas las cantidades antes de generar cualquier efecto de la
+      // recepción. El snapshot evita que dos solicitudes sumen desde el mismo
+      // saldo pendiente o que una sobrescriba la cantidad recibida por otra.
+      for (const linea of lineas) {
+        const detalle = oc.detalles.find((item) => item.id === linea.detalleId);
+        if (!detalle) throw new Error("Línea de recepción inválida.");
+
+        const pendiente = detalle.cantidad.toNumber() - detalle.cantidadRecibida.toNumber();
+        if (linea.cantidad > pendiente + 1e-9) {
+          throw new Error(
+            `"${detalle.insumo.nombre}": se intenta recibir ${linea.cantidad} pero quedan ${pendiente} pendientes.`
+          );
+        }
+
+        const reclamoLinea = await tx.ordenCompraDetalle.updateMany({
+          where: { id: detalle.id, cantidadRecibida: detalle.cantidadRecibida },
+          data: { cantidadRecibida: { increment: linea.cantidad } },
+        });
+        if (reclamoLinea.count !== 1) {
+          throw new Error(
+            `La cantidad pendiente de "${detalle.insumo.nombre}" cambió durante la recepción. Actualice la página e intente nuevamente.`
+          );
+        }
+      }
+
       const numero = await siguienteNumeroRecepcion(tx);
       const recepcion = await tx.recepcionCompra.create({
         data: {
@@ -250,13 +275,6 @@ export async function registrarRecepcion(
       for (const linea of lineas) {
         const detalle = oc.detalles.find((d) => d.id === linea.detalleId);
         if (!detalle) throw new Error("Línea de recepción inválida.");
-
-        const pendiente = detalle.cantidad.toNumber() - detalle.cantidadRecibida.toNumber();
-        if (linea.cantidad > pendiente + 1e-9) {
-          throw new Error(
-            `"${detalle.insumo.nombre}": se intenta recibir ${linea.cantidad} pero quedan ${pendiente} pendientes.`
-          );
-        }
 
         // costo queda en la moneda de la OC (lo que dice el documento);
         // costoPen es lo que se usa para valorizar inventario y contabilizar
@@ -323,11 +341,6 @@ export async function registrarRecepcion(
           });
           if (!mov.ok) throw new Error(mov.error);
         }
-
-        await tx.ordenCompraDetalle.update({
-          where: { id: detalle.id },
-          data: { cantidadRecibida: detalle.cantidadRecibida.toNumber() + linea.cantidad },
-        });
 
         totalRecepcion += linea.cantidad * costo;
         totalRecepcionPen += linea.cantidad * costoPen;
