@@ -105,14 +105,14 @@ export async function iniciarOrdenMantenimiento(id: string) {
   const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
   if ("error" in auth) return auth;
 
-  const orden = await prisma.ordenMantenimiento.findUnique({ where: { id } });
-  if (!orden) return { error: "La orden no existe." };
-  if (orden.estado !== "PROGRAMADA") return { error: "La orden ya fue iniciada o cerrada." };
+  const existe = await prisma.ordenMantenimiento.findUnique({ where: { id }, select: { id: true } });
+  if (!existe) return { error: "La orden no existe." };
 
-  await prisma.ordenMantenimiento.update({
-    where: { id },
+  const resultado = await prisma.ordenMantenimiento.updateMany({
+    where: { id, estado: "PROGRAMADA" },
     data: { estado: "EN_PROCESO", fechaInicio: new Date() },
   });
+  if (resultado.count !== 1) return { error: "La orden ya fue iniciada o cerrada." };
 
   revalidatePath("/produccion/mantenimiento");
   revalidatePath(`/produccion/mantenimiento/${id}`);
@@ -275,7 +275,13 @@ export async function cancelarOrdenMantenimiento(id: string) {
         throw new Error("Solo se puede cancelar una orden que aún no se ha iniciado.");
       }
 
-      await tx.ordenMantenimiento.update({ where: { id }, data: { estado: "CANCELADA" } });
+      const reclamo = await tx.ordenMantenimiento.updateMany({
+        where: { id, estado: "PROGRAMADA" },
+        data: { estado: "CANCELADA" },
+      });
+      if (reclamo.count !== 1) {
+        throw new Error("La orden cambió mientras se cancelaba. Actualice la página e intente nuevamente.");
+      }
 
       const calendario = await tx.calendarioProduccion.findUnique({
         where: { almacenId: orden.equipo.almacenId },
