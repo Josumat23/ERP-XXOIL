@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { formatFecha } from "@/lib/format";
-import { aprobarVacaciones } from "../empleados/actions";
+import AprobarVacacionesFormulario from "./AprobarVacacionesFormulario";
 import RechazarVacacionesFormulario from "./RechazarVacacionesFormulario";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
@@ -71,16 +71,7 @@ export default async function VacacionesPage() {
               <td className="text-right">
                 {s.estado === "PENDIENTE" && (
                   <div className="flex items-center gap-2 justify-end">
-                    <form
-                      action={async () => {
-                        "use server";
-                        await aprobarVacaciones(s.id);
-                      }}
-                    >
-                      <button type="submit" className="boton-secundario text-xs px-2 py-1">
-                        Aprobar
-                      </button>
-                    </form>
+                    <AprobarVacacionesFormulario solicitudId={s.id} />
                     <RechazarVacacionesFormulario solicitudId={s.id} />
                   </div>
                 )}

@@ -9,7 +9,7 @@ import PanelDirecciones from "@/components/PanelDirecciones";
 import PanelContactos from "@/components/PanelContactos";
 import VacacionesFormulario from "./VacacionesFormulario";
 import BajaEmpleadoFormulario from "./BajaEmpleadoFormulario";
-import { aprobarVacaciones } from "../actions";
+import AprobarVacacionesFormulario from "../../vacaciones/AprobarVacacionesFormulario";
 
 const ETIQUETA_CONTRATO: Record<string, string> = {
   PLAZO_FIJO: "Plazo fijo",
@@ -206,17 +206,9 @@ export default async function DetalleEmpleadoPage({
                       {ETIQUETA_ESTADO_VACACIONES[v.estado]}
                     </span>
                     {v.estado === "PENDIENTE" && (
-                      <form
-                        action={async () => {
-                          "use server";
-                          await aprobarVacaciones(v.id);
-                        }}
-                        className="inline ml-2"
-                      >
-                        <button type="submit" className="text-xs text-neutral-500 hover:underline">
-                          Aprobar
-                        </button>
-                      </form>
+                      <span className="inline-block ml-2">
+                        <AprobarVacacionesFormulario solicitudId={v.id} />
+                      </span>
                     )}
                     {v.estado === "RECHAZADA" && v.motivoRechazo && (
                       <span className="text-xs text-neutral-400 ml-2">({v.motivoRechazo})</span>
