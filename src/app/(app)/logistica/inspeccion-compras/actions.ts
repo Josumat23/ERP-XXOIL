@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
-import { registrarMovimiento } from "@/lib/inventario";
+import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 
 export type EstadoFormulario = { error?: string };
 
@@ -60,13 +60,15 @@ export async function resolverInspeccionCompra(
           data: { cantidadDisponible: cantidad },
         });
 
-        const stockActual = insumo.stock.toNumber();
-        const costoActual = insumo.costoUnitario.toNumber();
-        const nuevoCosto =
-          stockActual + cantidad > 0
-            ? (stockActual * costoActual + cantidad * costo) / (stockActual + cantidad)
-            : costo;
-        await tx.insumo.update({ where: { id: insumo.id }, data: { costoUnitario: nuevoCosto } });
+        const costoActualizado = await actualizarCostoPromedioEntrada(tx, {
+          tipoItem: "INSUMO",
+          itemId: insumo.id,
+          stockActual: insumo.stock,
+          costoActual: insumo.costoUnitario,
+          cantidadEntrada: cantidad,
+          costoEntrada: costo,
+        });
+        if (!costoActualizado.ok) throw new Error(costoActualizado.error);
 
         const mov = await registrarMovimiento(tx, {
           tipoItem: "INSUMO",

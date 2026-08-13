@@ -3,7 +3,7 @@ import { after, test } from "node:test";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { prisma } from "@/lib/prisma";
-import { registrarMovimiento } from "@/lib/inventario";
+import { calcularCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import {
   postearCobro,
   postearPagoProveedor,
@@ -650,4 +650,8 @@ test("aprobación de crédito solo se reutiliza para la evaluación exacta", () 
 test("aprobaciones separan al solicitante de quien resuelve", () => {
   assert.equal(puedeResolverSolicitud("usuario-solicitante", "usuario-gerencia"), true);
   assert.equal(puedeResolverSolicitud("usuario-solicitante", "usuario-solicitante"), false);
+});
+test("costo promedio pondera el stock previo y la entrada", () => {
+  assert.equal(calcularCostoPromedioEntrada(100, 4, 20, 7), 4.5);
+  assert.equal(calcularCostoPromedioEntrada(0, 0, 20, 7), 7);
 });

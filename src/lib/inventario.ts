@@ -3,6 +3,52 @@ import type { Prisma, $Enums } from "@/generated/prisma/client";
 // Cliente de transacción de Prisma (lo que recibe el callback de $transaction)
 export type Tx = Prisma.TransactionClient;
 
+export function calcularCostoPromedioEntrada(
+  stockActual: number,
+  costoActual: number,
+  cantidadEntrada: number,
+  costoEntrada: number
+): number {
+  const stockNuevo = stockActual + cantidadEntrada;
+  return stockNuevo > 0
+    ? (stockActual * costoActual + cantidadEntrada * costoEntrada) / stockNuevo
+    : costoEntrada;
+}
+
+type ParamsCostoPromedio = {
+  tipoItem: "INSUMO" | "PRESENTACION";
+  itemId: string;
+  stockActual: Prisma.Decimal;
+  costoActual: Prisma.Decimal;
+  cantidadEntrada: number;
+  costoEntrada: number;
+};
+
+export async function actualizarCostoPromedioEntrada(
+  tx: Tx,
+  params: ParamsCostoPromedio
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const nuevoCosto = calcularCostoPromedioEntrada(
+    params.stockActual.toNumber(),
+    params.costoActual.toNumber(),
+    params.cantidadEntrada,
+    params.costoEntrada
+  );
+  const resultado = params.tipoItem === "INSUMO"
+    ? await tx.insumo.updateMany({
+        where: { id: params.itemId, stock: params.stockActual, costoUnitario: params.costoActual },
+        data: { costoUnitario: nuevoCosto },
+      })
+    : await tx.presentacion.updateMany({
+        where: { id: params.itemId, stock: params.stockActual, costoPromedio: params.costoActual },
+        data: { costoPromedio: nuevoCosto },
+      });
+
+  return resultado.count === 1
+    ? { ok: true }
+    : { ok: false, error: "El stock o costo cambió durante la entrada. Actualice la página e intente nuevamente." };
+}
+
 type ParamsMovimiento = {
   tipoItem: $Enums.TipoItemKardex;
   presentacionId?: string;
