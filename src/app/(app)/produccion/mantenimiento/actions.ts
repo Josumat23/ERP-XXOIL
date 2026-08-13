@@ -160,8 +160,19 @@ export async function completarOrdenMantenimiento(
       if (orden.estado === "COMPLETADA" || orden.estado === "CANCELADA") {
         throw new Error("Esta orden ya está cerrada.");
       }
+      if (orden.estado !== "EN_PROCESO") {
+        throw new Error("Solo se puede completar una orden que ya fue iniciada.");
+      }
       if (orden.planMantenimiento?.tipo === "POR_CONTADOR" && contadorLectura === null) {
         throw new Error("Ingrese la lectura actual del contador para cerrar este plan preventivo.");
+      }
+
+      const reclamo = await tx.ordenMantenimiento.updateMany({
+        where: { id, estado: "EN_PROCESO" },
+        data: { estado: "COMPLETADA" },
+      });
+      if (reclamo.count !== 1) {
+        throw new Error("La orden cambi\u00f3 mientras se completaba. Actualice la p\u00e1gina e intente nuevamente.");
       }
 
       let costoRepuestos = 0;
