@@ -49,6 +49,17 @@ export async function registrarCalidad(
       }
       if (lote.controlCalidad) throw new Error("El lote ya fue evaluado.");
 
+      const reclamo = await tx.loteGranel.updateMany({
+        where: { id: loteId, estado: "PENDIENTE_CALIDAD" },
+        data: {
+          estado: resultado,
+          kgDisponibles: resultado === "APROBADO" ? lote.kgProducidos : 0,
+        },
+      });
+      if (reclamo.count !== 1) {
+        throw new Error("El lote cambi\u00f3 mientras se evaluaba. Actualice la p\u00e1gina e intente nuevamente.");
+      }
+
       await tx.controlCalidad.create({
         data: {
           loteGranelId: loteId,
@@ -59,14 +70,6 @@ export async function registrarCalidad(
           accionCorrectiva,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
-        },
-      });
-
-      await tx.loteGranel.update({
-        where: { id: loteId },
-        data: {
-          estado: resultado,
-          kgDisponibles: resultado === "APROBADO" ? lote.kgProducidos : 0,
         },
       });
     });
