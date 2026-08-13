@@ -84,13 +84,22 @@ export async function cerrarHojaRuta(
   if (!hoja) return { error: "La hoja de ruta no existe." };
   if (hoja.estado === "COMPLETADA") return { error: "La ruta ya fue cerrada." };
 
-  await prisma.$transaction(async (tx) => {
+  const cerrada = await prisma.$transaction(async (tx) => {
+    const reclamo = await tx.hojaRuta.updateMany({
+      where: { id: hojaId, estado: "PLANIFICADA" },
+      data: { estado: "COMPLETADA" },
+    });
+    if (reclamo.count !== 1) return false;
+
     for (const visita of hoja.visitas) {
       const resultado = String(formData.get(`resultado_${visita.id}`) ?? "").trim() || null;
       await tx.hojaRutaVisita.update({ where: { id: visita.id }, data: { resultado } });
     }
-    await tx.hojaRuta.update({ where: { id: hojaId }, data: { estado: "COMPLETADA" } });
+    return true;
   });
+  if (!cerrada) {
+    return { error: "La ruta cambi\u00f3 mientras se cerraba. Actualice la p\u00e1gina e intente nuevamente." };
+  }
 
   revalidatePath("/comercial/hojas-ruta");
   revalidatePath(`/comercial/hojas-ruta/${hojaId}`);
