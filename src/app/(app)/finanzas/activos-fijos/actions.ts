@@ -110,14 +110,14 @@ export async function darDeBajaActivoFijo(
   const motivoBaja = String(formData.get("motivoBaja") ?? "").trim();
   if (!motivoBaja) return { error: "El motivo de la baja es obligatorio." };
 
-  const activo = await prisma.activoFijo.findUnique({ where: { id } });
-  if (!activo) return { error: "El activo no existe." };
-  if (!activo.activo) return { error: "Este activo ya fue dado de baja." };
-
-  await prisma.activoFijo.update({
-    where: { id },
+  const actualizado = await prisma.activoFijo.updateMany({
+    where: { id, activo: true },
     data: { activo: false, fechaBaja: new Date(), motivoBaja },
   });
+  if (actualizado.count !== 1) {
+    const existe = await prisma.activoFijo.findUnique({ where: { id }, select: { id: true } });
+    return { error: existe ? "Este activo ya fue dado de baja." : "El activo no existe." };
+  }
 
   revalidatePath("/finanzas/activos-fijos");
   revalidatePath(`/finanzas/activos-fijos/${id}`);
@@ -162,10 +162,11 @@ export async function venderActivoFijo(
       if (!activo) throw new Error("El activo no existe.");
       if (!activo.activo) throw new Error("Este activo ya fue dado de baja.");
 
-      await tx.activoFijo.update({
-        where: { id },
+      const actualizado = await tx.activoFijo.updateMany({
+        where: { id, activo: true },
         data: { activo: false, fechaBaja: new Date(), motivoBaja, precioVenta },
       });
+      if (actualizado.count !== 1) throw new Error("Este activo ya fue dado de baja.");
 
       if (precioVenta > 0) {
         await tx.movimientoCaja.create({
