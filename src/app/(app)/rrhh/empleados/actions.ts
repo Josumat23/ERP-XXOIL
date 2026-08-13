@@ -211,6 +211,7 @@ export async function solicitarVacaciones(
     include: { vacaciones: { where: { estado: "APROBADA" } } },
   });
   if (!empleado) return { error: "El empleado no existe." };
+  if (empleado.estado !== "ACTIVO") return { error: "No se pueden solicitar vacaciones para un empleado cesado." };
 
   const diasAprobados = empleado.vacaciones.reduce((acc, v) => acc + v.diasSolicitados, 0);
   const saldo = saldoVacaciones(empleado.fechaIngreso, diasAprobados);
@@ -236,21 +237,56 @@ export async function solicitarVacaciones(
   return {};
 }
 
-export async function aprobarVacaciones(id: string) {
+export async function aprobarVacaciones(
+  id: string,
+  _prevState: EstadoFormulario,
+  _formData: FormData
+): Promise<EstadoFormulario> {
+  void _prevState;
+  void _formData;
   const auth = await requerirRol([...ROLES_RRHH]);
-  if ("error" in auth) return;
-  if (!(await puedeRealizar(auth.usuario, "rrhh", "aprobar"))) return;
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "aprobar"))) {
+    return { error: "Su grupo de seguridad no permite resolver solicitudes de vacaciones." };
+  }
 
-  const solicitud = await prisma.solicitudVacaciones.findUnique({ where: { id } });
-  if (!solicitud || solicitud.estado !== "PENDIENTE") return;
+  const pendiente = await prisma.solicitudVacaciones.findUnique({ where: { id }, select: { empleadoId: true } });
+  if (!pendiente) return { error: "La solicitud no existe." };
 
-  await prisma.solicitudVacaciones.update({
-    where: { id },
-    data: { estado: "APROBADA", aprobadaPor: auth.usuario.nombre, aprobadaEn: new Date() },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const bloqueo = await tx.empleado.updateMany({
+        where: { id: pendiente.empleadoId, estado: "ACTIVO" },
+        data: { estado: "ACTIVO" },
+      });
+      if (bloqueo.count !== 1) throw new Error("No se pueden aprobar vacaciones para un empleado cesado.");
 
-  revalidatePath(`/rrhh/empleados/${solicitud.empleadoId}`);
+      const solicitud = await tx.solicitudVacaciones.findUnique({
+        where: { id },
+        include: { empleado: { include: { vacaciones: { where: { estado: "APROBADA" } } } } },
+      });
+      if (!solicitud || solicitud.estado !== "PENDIENTE") throw new Error("Esta solicitud ya fue resuelta.");
+
+      const diasAprobados = solicitud.empleado.vacaciones.reduce((acc, v) => acc + v.diasSolicitados, 0);
+      const saldo = saldoVacaciones(solicitud.empleado.fechaIngreso, diasAprobados);
+      if (solicitud.diasSolicitados > saldo + 0.5) {
+        throw new Error(`El saldo actual es ${saldo.toFixed(1)} d\u00edas y ya no cubre los ${solicitud.diasSolicitados} solicitados.`);
+      }
+
+      const reclamo = await tx.solicitudVacaciones.updateMany({
+        where: { id, estado: "PENDIENTE" },
+        data: { estado: "APROBADA", aprobadaPor: auth.usuario.nombre, aprobadaEn: new Date() },
+      });
+      if (reclamo.count !== 1) throw new Error("Esta solicitud ya fue resuelta.");
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath(`/rrhh/empleados/${pendiente.empleadoId}`);
   revalidatePath("/rrhh/vacaciones");
+  return {};
 }
 
 export async function rechazarVacaciones(
@@ -271,8 +307,8 @@ export async function rechazarVacaciones(
   if (!solicitud) return { error: "La solicitud no existe." };
   if (solicitud.estado !== "PENDIENTE") return { error: "Esta solicitud ya fue resuelta." };
 
-  await prisma.solicitudVacaciones.update({
-    where: { id },
+  const reclamo = await prisma.solicitudVacaciones.updateMany({
+    where: { id, estado: "PENDIENTE" },
     data: {
       estado: "RECHAZADA",
       motivoRechazo: motivo,
@@ -280,6 +316,7 @@ export async function rechazarVacaciones(
       aprobadaEn: new Date(),
     },
   });
+  if (reclamo.count !== 1) return { error: "Esta solicitud ya fue resuelta." };
 
   revalidatePath(`/rrhh/empleados/${solicitud.empleadoId}`);
   revalidatePath("/rrhh/vacaciones");
