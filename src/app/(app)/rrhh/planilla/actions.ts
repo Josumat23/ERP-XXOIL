@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { generarPlanillaMensual, generarGratificacion, generarCts } from "@/lib/planilla";
 
@@ -30,6 +31,9 @@ export async function crearPlanillaMensual(
     if (!resultado.ok) return { error: resultado.error };
     periodoId = resultado.periodoId;
   } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: `Ya existe una planilla mensual para ${mes}/${anio}.` };
+    }
     if (e instanceof Error) return { error: e.message };
     throw e;
   }
@@ -58,6 +62,9 @@ export async function crearGratificacion(
     if (!resultado.ok) return { error: resultado.error };
     periodoId = resultado.periodoId;
   } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: `Ya existe una gratificación de ${mitad.toLowerCase()} ${anio}.` };
+    }
     if (e instanceof Error) return { error: e.message };
     throw e;
   }
@@ -86,6 +93,9 @@ export async function crearCts(
     if (!resultado.ok) return { error: resultado.error };
     periodoId = resultado.periodoId;
   } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: `Ya existe una CTS de ${mitad.toLowerCase()} ${anio}.` };
+    }
     if (e instanceof Error) return { error: e.message };
     throw e;
   }
