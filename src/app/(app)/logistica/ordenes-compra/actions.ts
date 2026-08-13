@@ -143,19 +143,16 @@ export async function anularOrdenCompra(
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo de anulación es obligatorio." };
 
-  const oc = await prisma.ordenCompra.findUnique({
-    where: { id },
-    include: { recepciones: true },
-  });
-  if (!oc) return { error: "La orden no existe." };
-  if (oc.estado !== "PENDIENTE" || oc.recepciones.length > 0) {
-    return { error: "Solo se puede anular una orden pendiente sin recepciones." };
-  }
+  const existe = await prisma.ordenCompra.findUnique({ where: { id }, select: { id: true } });
+  if (!existe) return { error: "La orden no existe." };
 
-  await prisma.ordenCompra.update({
-    where: { id },
+  const resultado = await prisma.ordenCompra.updateMany({
+    where: { id, estado: "PENDIENTE", recepciones: { none: {} } },
     data: { estado: "ANULADA", motivoAnulacion: motivo },
   });
+  if (resultado.count !== 1) {
+    return { error: "Solo se puede anular una orden pendiente sin recepciones." };
+  }
 
   revalidatePath("/logistica/ordenes-compra");
   revalidatePath(`/logistica/ordenes-compra/${id}`);
@@ -219,6 +216,16 @@ export async function registrarRecepcion(
       }
       if (oc.estadoAprobacion === "RECHAZADA") {
         throw new Error("Esta orden fue rechazada por Gerencia y no admite recepciones.");
+      }
+
+      if (oc.estado === "PENDIENTE") {
+        const reclamo = await tx.ordenCompra.updateMany({
+          where: { id: ordenCompraId, estado: "PENDIENTE" },
+          data: { estado: "PARCIAL" },
+        });
+        if (reclamo.count !== 1) {
+          throw new Error("La orden cambió mientras se registraba la recepción. Actualice la página e intente nuevamente.");
+        }
       }
 
       const numero = await siguienteNumeroRecepcion(tx);
