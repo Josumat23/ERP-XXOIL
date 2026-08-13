@@ -135,8 +135,8 @@ export async function finalizarLote(
   const costoManoObra = horasManoObra * tarifaHoraManoObra.toNumber();
   const merma = Math.max(0, lote.kgObjetivo.toNumber() - kgProducidos);
 
-  await prisma.loteGranel.update({
-    where: { id },
+  const resultado = await prisma.loteGranel.updateMany({
+    where: { id, estado: "EN_PROCESO" },
     data: {
       kgProducidos,
       mermaKg: merma,
@@ -148,6 +148,9 @@ export async function finalizarLote(
       fechaFin: new Date(),
     },
   });
+  if (resultado.count !== 1) {
+    return { error: "El lote cambi\u00f3 mientras se finalizaba. Actualice la p\u00e1gina e intente nuevamente." };
+  }
 
   revalidatePath("/produccion/lotes");
   revalidatePath(`/produccion/lotes/${id}`);
