@@ -130,14 +130,17 @@ export async function registrarMovimiento(
   }
 
   let nombreItem: string;
+  let stockAgregado: Prisma.Decimal;
   if (tipoItem === "PRESENTACION") {
     const item = await tx.presentacion.findUnique({ where: { id: presentacionId } });
     if (!item) return { ok: false, error: "La presentación no existe." };
     nombreItem = item.nombre;
+    stockAgregado = item.stock;
   } else {
     const item = await tx.insumo.findUnique({ where: { id: insumoId } });
     if (!item) return { ok: false, error: "El insumo no existe." };
     nombreItem = item.nombre;
+    stockAgregado = item.stock;
   }
 
   // findFirst (no findUnique) a propósito: el índice compuesto
@@ -164,6 +167,47 @@ export async function registrarMovimiento(
     };
   }
 
+  // El stock agregado funciona como cerrojo del ítem completo. Esto serializa
+  // movimientos del mismo ítem incluso entre almacenes distintos y evita que
+  // dos transacciones creen simultáneamente el primer saldo lógico (la clave
+  // de SaldoAlmacen contiene columnas nulleables en SQLite).
+  const reclamoAgregado = tipoItem === "PRESENTACION"
+    ? await tx.presentacion.updateMany({
+        where: { id: presentacionId, stock: stockAgregado },
+        data: { stock: { increment: delta } },
+      })
+    : await tx.insumo.updateMany({
+        where: { id: insumoId, stock: stockAgregado },
+        data: { stock: { increment: delta } },
+      });
+  if (reclamoAgregado.count !== 1) {
+    throw new Error(
+      `El stock de "${nombreItem}" cambió durante el movimiento. Actualice la página e intente nuevamente.`
+    );
+  }
+
+  if (saldoAlmacen) {
+    const reclamoSaldo = await tx.saldoAlmacen.updateMany({
+      where: { id: saldoAlmacen.id, cantidad: saldoAlmacen.cantidad },
+      data: { cantidad: saldoNuevo },
+    });
+    if (reclamoSaldo.count !== 1) {
+      throw new Error(
+        `El saldo de "${nombreItem}" cambió durante el movimiento. Actualice la página e intente nuevamente.`
+      );
+    }
+  } else {
+    await tx.saldoAlmacen.create({
+      data: {
+        almacenId,
+        tipoItem,
+        presentacionId: tipoItem === "PRESENTACION" ? presentacionId : null,
+        insumoId: tipoItem === "INSUMO" ? insumoId : null,
+        cantidad: saldoNuevo,
+      },
+    });
+  }
+
   await tx.movimientoKardex.create({
     data: {
       almacenId,
@@ -181,28 +225,5 @@ export async function registrarMovimiento(
       usuarioNombre,
     },
   });
-
-  // Update-by-id o create (en vez de upsert-por-clave-compuesta) por la misma
-  // razón: ya tenemos saldoAlmacen (o null) del findFirst de arriba.
-  if (saldoAlmacen) {
-    await tx.saldoAlmacen.update({ where: { id: saldoAlmacen.id }, data: { cantidad: saldoNuevo } });
-  } else {
-    await tx.saldoAlmacen.create({
-      data: {
-        almacenId,
-        tipoItem,
-        presentacionId: tipoItem === "PRESENTACION" ? presentacionId : null,
-        insumoId: tipoItem === "INSUMO" ? insumoId : null,
-        cantidad: saldoNuevo,
-      },
-    });
-  }
-
-  if (tipoItem === "PRESENTACION") {
-    await tx.presentacion.update({ where: { id: presentacionId }, data: { stock: { increment: delta } } });
-  } else {
-    await tx.insumo.update({ where: { id: insumoId }, data: { stock: { increment: delta } } });
-  }
-
   return { ok: true };
 }
