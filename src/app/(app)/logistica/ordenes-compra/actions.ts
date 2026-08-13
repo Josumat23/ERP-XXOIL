@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
-import { registrarMovimiento } from "@/lib/inventario";
+import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import {
   siguienteNumeroOrdenCompra,
   siguienteNumeroRecepcion,
@@ -313,17 +313,16 @@ export async function registrarRecepcion(
             where: { id: detalleRecepcion.id },
             data: { cantidadDisponible: linea.cantidad },
           });
-          // Costo promedio ponderado ANTES de mover el stock (siempre en PEN)
-          const stockActual = insumo.stock.toNumber();
-          const costoActual = insumo.costoUnitario.toNumber();
-          const nuevoCosto =
-            stockActual + linea.cantidad > 0
-              ? (stockActual * costoActual + linea.cantidad * costoPen) / (stockActual + linea.cantidad)
-              : costoPen;
-          await tx.insumo.update({
-            where: { id: insumo.id },
-            data: { costoUnitario: nuevoCosto },
+          // Costo promedio ponderado ANTES de mover el stock (siempre en PEN).
+          const costoActualizado = await actualizarCostoPromedioEntrada(tx, {
+            tipoItem: "INSUMO",
+            itemId: insumo.id,
+            stockActual: insumo.stock,
+            costoActual: insumo.costoUnitario,
+            cantidadEntrada: linea.cantidad,
+            costoEntrada: costoPen,
           });
+          if (!costoActualizado.ok) throw new Error(costoActualizado.error);
 
           const mov = await registrarMovimiento(tx, {
             tipoItem: "INSUMO",

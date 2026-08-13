@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
-import { registrarMovimiento } from "@/lib/inventario";
+import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoEnvasado } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
@@ -129,20 +129,19 @@ export async function crearEnvasado(
       const costoTotal = kgConsumidos * lote.costoKg.toNumber() + costoEnvases + costoManoObra;
       const costoUnitario = costoTotal / unidades;
 
-      // Costo promedio ponderado de la presentación ANTES de la entrada
-      const stockAntes = presentacion.stock.toNumber();
-      const costoPromAntes = presentacion.costoPromedio.toNumber();
-      const nuevoCostoPromedio =
-        (stockAntes * costoPromAntes + unidades * costoUnitario) / (stockAntes + unidades);
-
       await tx.envasado.update({
         where: { id: envasado.id },
         data: { costoTotal, costoUnitario },
       });
-      await tx.presentacion.update({
-        where: { id: presentacionId },
-        data: { costoPromedio: nuevoCostoPromedio },
+      const costoActualizado = await actualizarCostoPromedioEntrada(tx, {
+        tipoItem: "PRESENTACION",
+        itemId: presentacionId,
+        stockActual: presentacion.stock,
+        costoActual: presentacion.costoPromedio,
+        cantidadEntrada: unidades,
+        costoEntrada: costoUnitario,
       });
+      if (!costoActualizado.ok) throw new Error(costoActualizado.error);
 
       // Entrada del producto terminado
       const entrada = await registrarMovimiento(tx, {
