@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import type { Tx } from "@/lib/inventario";
+import { reclamarPeriodoAbierto } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -66,7 +67,13 @@ export async function crearAsientoManual(
   }
 
   let asientoId = "";
+  let periodoAbierto = true;
   await prisma.$transaction(async (tx) => {
+    if (!(await reclamarPeriodoAbierto(tx, fecha))) {
+      periodoAbierto = false;
+      return;
+    }
+
     const libro =
       (await tx.libro.findFirst({ where: { codigo: "DIARIO" } })) ??
       (await tx.libro.create({ data: { codigo: "DIARIO", nombre: "Libro diario" } }));
@@ -95,6 +102,9 @@ export async function crearAsientoManual(
     });
     asientoId = asiento.id;
   });
+  if (!periodoAbierto) {
+    return { error: `El período fiscal ${mes}/${anio} está cerrado. Reábralo en Configuración → Calendario fiscal.` };
+  }
 
   revalidatePath("/finanzas/asientos");
   redirect(`/finanzas/asientos/${asientoId}`);
@@ -131,10 +141,7 @@ export async function reversarAsiento(
       const hoy = new Date();
       const anio = hoy.getFullYear();
       const mes = hoy.getMonth() + 1;
-      const periodo = await tx.periodoFiscal.findUnique({
-        where: { empresaId_anio_mes: { empresaId: "1", anio, mes } },
-      });
-      if (periodo?.estado === "CERRADO") {
+      if (!(await reclamarPeriodoAbierto(tx, hoy))) {
         throw new Error(`El período fiscal ${mes}/${anio} está cerrado.`);
       }
 
