@@ -142,6 +142,25 @@ export async function crearGuiaRemision(
   let guiaId = "";
   try {
     await prisma.$transaction(async (tx) => {
+      if (facturaId) {
+        // Reclama una factura vigente antes de vincularla. La validación en
+        // servidor no depende del autocompletado manipulable del formulario.
+        const reclamoFactura = await tx.factura.updateMany({
+          where: { id: facturaId, estado: { not: "ANULADA" } },
+          data: { saldo: { increment: 0 } },
+        });
+        if (reclamoFactura.count !== 1) {
+          throw new Error("La factura asociada no existe o está anulada.");
+        }
+
+        const factura = await tx.factura.findUnique({
+          where: { id: facturaId },
+          select: { clienteId: true },
+        });
+        if (factura?.clienteId !== clienteId) {
+          throw new Error("La factura asociada pertenece a otro cliente.");
+        }
+      }
       const guia = await tx.guiaRemision.create({
         data: {
           numero,
@@ -176,6 +195,7 @@ export async function crearGuiaRemision(
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: `Ya existe una guía con el número ${numero}.` };
     }
+    if (e instanceof Error) return { error: e.message };
     throw e;
   }
 
