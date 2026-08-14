@@ -501,6 +501,12 @@ export async function registrarDevolucionProveedor(
 
   try {
     await prisma.$transaction(async (tx) => {
+      const bloqueo = await tx.recepcionCompraDetalle.updateMany({
+        where: { id: recepcionCompraDetalleId },
+        data: { cantidad: { increment: 0 } },
+      });
+      if (bloqueo.count !== 1) throw new Error("La línea recibida no existe.");
+
       const detalle = await tx.recepcionCompraDetalle.findUnique({
         where: { id: recepcionCompraDetalleId },
         include: {
@@ -558,14 +564,17 @@ export async function registrarDevolucionProveedor(
       if (cxp) {
         const nuevoTotal = Math.max(0, cxp.total.toNumber() - montoCredito);
         const nuevoSaldo = Math.max(0, cxp.saldo.toNumber() - montoCredito);
-        await tx.cuentaPorPagar.update({
-          where: { id: cxp.id },
+        const actualizada = await tx.cuentaPorPagar.updateMany({
+          where: { id: cxp.id, total: cxp.total, saldo: cxp.saldo, estado: cxp.estado },
           data: {
             total: nuevoTotal,
             saldo: nuevoSaldo,
             estado: nuevoSaldo <= 1e-9 ? "PAGADA" : cxp.estado,
           },
         });
+        if (actualizada.count !== 1) {
+          throw new Error("La cuenta por pagar cambió durante la devolución. Intente nuevamente.");
+        }
       }
 
       await postearDevolucionCompra(
