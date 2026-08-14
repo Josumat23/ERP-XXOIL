@@ -162,6 +162,27 @@ export async function convertirCotizacionAPedido(id: string): Promise<EstadoForm
         throw new Error("Solo se puede convertir una cotización pendiente o aceptada.");
       }
 
+      // Al convertirse en pedido pendiente, las líneas pasan de ser una
+      // propuesta comercial a comprometer inventario real disponible.
+      for (const detalle of cotizacion.detalles) {
+        const presentacion = await tx.presentacion.findUnique({
+          where: { id: detalle.presentacionId },
+        });
+        if (!presentacion) throw new Error("Una presentación de la cotización ya no existe.");
+
+        const disponible = presentacion.stock.toNumber() - presentacion.stockReservado.toNumber();
+        if (detalle.cantidad > disponible) {
+          throw new Error(
+            `Stock disponible insuficiente de "${presentacion.nombre}": disponible ${disponible}, se requiere ${detalle.cantidad}.`
+          );
+        }
+
+        await tx.presentacion.update({
+          where: { id: detalle.presentacionId },
+          data: { stockReservado: { increment: detalle.cantidad } },
+        });
+      }
+
       const numero = await siguienteNumeroPedido(tx);
       const pedido = await tx.pedido.create({
         data: {
