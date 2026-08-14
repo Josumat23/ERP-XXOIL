@@ -49,6 +49,20 @@ export async function resolverInspeccionCompra(
         throw new Error("Esta recepción ya fue evaluada.");
       }
 
+      const reclamo = await tx.inspeccionCompra.updateMany({
+        where: { id: inspeccionId, resultado: "PENDIENTE" },
+        data: {
+          resultado,
+          observaciones,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+          fecha: new Date(),
+        },
+      });
+      if (reclamo.count !== 1) {
+        throw new Error("Esta recepción cambió mientras se evaluaba. Actualice la página e intente nuevamente.");
+      }
+
       const detalle = inspeccion.recepcionDetalle;
       const insumo = detalle.insumo;
       const cantidad = detalle.cantidad.toNumber();
@@ -82,17 +96,6 @@ export async function resolverInspeccionCompra(
         });
         if (!mov.ok) throw new Error(mov.error);
       }
-
-      await tx.inspeccionCompra.update({
-        where: { id: inspeccionId },
-        data: {
-          resultado,
-          observaciones,
-          usuarioId: auth.usuario.id,
-          usuarioNombre: auth.usuario.nombre,
-          fecha: new Date(),
-        },
-      });
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
