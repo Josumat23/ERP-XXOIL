@@ -164,11 +164,15 @@ export async function convertirCotizacionAPedido(id: string): Promise<EstadoForm
 
       // Al convertirse en pedido pendiente, las líneas pasan de ser una
       // propuesta comercial a comprometer inventario real disponible.
-      for (const detalle of cotizacion.detalles) {
-        const presentacion = await tx.presentacion.findUnique({
+      for (const detalle of [...cotizacion.detalles].sort((a, b) =>
+        a.presentacionId.localeCompare(b.presentacionId)
+      )) {
+        // Comparte el protocolo de bloqueo y el orden determinista con la
+        // creación manual de pedidos para impedir reservas concurrentes.
+        const presentacion = await tx.presentacion.update({
           where: { id: detalle.presentacionId },
+          data: { stockReservado: { increment: 0 } },
         });
-        if (!presentacion) throw new Error("Una presentación de la cotización ya no existe.");
 
         const disponible = presentacion.stock.toNumber() - presentacion.stockReservado.toNumber();
         if (detalle.cantidad > disponible) {
