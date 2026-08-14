@@ -106,10 +106,13 @@ export async function crearGuiaRemision(
   const observaciones = String(formData.get("observaciones") ?? "").trim() || null;
   const serieId = String(formData.get("serieId") ?? "") || null;
 
-  let lineas: LineaGuia[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
+    return { error: "El detalle de la guía es inválido." };
+  }
+  if (!Array.isArray(lineasRaw)) {
     return { error: "El detalle de la guía es inválido." };
   }
 
@@ -134,7 +137,29 @@ export async function crearGuiaRemision(
   if (modalidadTransporte === "PRIVADO" && (!placaVehiculo || !dniConductor)) {
     return { error: "La placa del vehículo y el DNI del conductor son obligatorios en transporte privado." };
   }
-  lineas = lineas.filter((l) => l.presentacionId && Number.isInteger(l.cantidad) && l.cantidad > 0);
+  const cantidadesPorPresentacion = new Map<string, number>();
+  for (const linea of lineasRaw) {
+    if (
+      typeof linea !== "object" ||
+      linea === null ||
+      !("presentacionId" in linea) ||
+      !("cantidad" in linea) ||
+      typeof linea.presentacionId !== "string" ||
+      typeof linea.cantidad !== "number" ||
+      !linea.presentacionId ||
+      !Number.isInteger(linea.cantidad) ||
+      linea.cantidad <= 0
+    ) {
+      continue;
+    }
+    cantidadesPorPresentacion.set(
+      linea.presentacionId,
+      (cantidadesPorPresentacion.get(linea.presentacionId) ?? 0) + linea.cantidad
+    );
+  }
+  const lineas: LineaGuia[] = [...cantidadesPorPresentacion].map(
+    ([presentacionId, cantidad]) => ({ presentacionId, cantidad })
+  );
   if (lineas.length === 0) {
     return { error: "Agregue al menos una línea con cantidad válida." };
   }
@@ -155,10 +180,48 @@ export async function crearGuiaRemision(
 
         const factura = await tx.factura.findUnique({
           where: { id: facturaId },
-          select: { clienteId: true },
+          select: {
+            clienteId: true,
+            pedido: {
+              select: { detalles: { select: { presentacionId: true, cantidad: true } } },
+            },
+            guias: {
+              select: { detalles: { select: { presentacionId: true, cantidad: true } } },
+            },
+          },
         });
-        if (factura?.clienteId !== clienteId) {
+        if (!factura || factura.clienteId !== clienteId) {
           throw new Error("La factura asociada pertenece a otro cliente.");
+        }
+
+        const facturadoPorPresentacion = new Map<string, number>();
+        for (const detalle of factura.pedido.detalles) {
+          facturadoPorPresentacion.set(
+            detalle.presentacionId,
+            (facturadoPorPresentacion.get(detalle.presentacionId) ?? 0) + detalle.cantidad
+          );
+        }
+        const guiadoPorPresentacion = new Map<string, number>();
+        for (const guiaPrevia of factura.guias) {
+          for (const detalle of guiaPrevia.detalles) {
+            guiadoPorPresentacion.set(
+              detalle.presentacionId,
+              (guiadoPorPresentacion.get(detalle.presentacionId) ?? 0) + detalle.cantidad
+            );
+          }
+        }
+        for (const linea of lineas) {
+          const facturado = facturadoPorPresentacion.get(linea.presentacionId) ?? 0;
+          const guiado = guiadoPorPresentacion.get(linea.presentacionId) ?? 0;
+          const disponible = facturado - guiado;
+          if (facturado === 0) {
+            throw new Error("La guía contiene una presentación que no pertenece a la factura.");
+          }
+          if (linea.cantidad > disponible) {
+            throw new Error(
+              `La cantidad de una presentación supera las ${disponible} unidad(es) pendientes de guía.`
+            );
+          }
         }
       }
       const guia = await tx.guiaRemision.create({
