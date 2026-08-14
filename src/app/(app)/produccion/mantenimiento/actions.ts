@@ -232,7 +232,10 @@ export async function completarOrdenMantenimiento(
           },
         });
         if (orden.planMantenimiento.tipo === "POR_CONTADOR" && contadorLectura !== null) {
-          await tx.equipo.update({ where: { id: orden.equipoId }, data: { contadorActual: contadorLectura } });
+          await tx.equipo.updateMany({
+            where: { id: orden.equipoId, contadorActual: { lte: contadorLectura } },
+            data: { contadorActual: contadorLectura },
+          });
         }
       }
 

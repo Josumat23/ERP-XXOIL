@@ -86,16 +86,29 @@ export async function actualizarContadorEquipo(
     return { error: "La lectura del contador debe ser un número válido." };
   }
 
-  const equipo = await prisma.equipo.findUnique({ where: { id } });
-  if (!equipo) return { error: "El equipo no existe." };
-  if (contadorActual < equipo.contadorActual.toNumber()) {
-    return { error: "La nueva lectura no puede ser menor a la actual." };
-  }
+  try {
+    await prisma.$transaction(async (tx) => {
+      const antes = await tx.equipo.findUnique({ where: { id } });
+      if (!antes) throw new Error("El equipo no existe.");
+      if (contadorActual < antes.contadorActual.toNumber()) {
+        throw new Error("La nueva lectura no puede ser menor a la actual.");
+      }
 
-  await prisma.$transaction(async (tx) => {
-    const despues = await tx.equipo.update({ where: { id }, data: { contadorActual } });
-    await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: id, accion: "ACTUALIZAR", antes: equipo, despues, usuario: auth.usuario });
-  });
+      const actualizado = await tx.equipo.updateMany({
+        where: { id, contadorActual: antes.contadorActual },
+        data: { contadorActual },
+      });
+      if (actualizado.count !== 1) {
+        throw new Error("El contador cambió mientras se actualizaba. Intente nuevamente.");
+      }
+
+      const despues = await tx.equipo.findUniqueOrThrow({ where: { id } });
+      await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
   revalidatePath(`/produccion/equipos/${id}`);
   return {};
 }
