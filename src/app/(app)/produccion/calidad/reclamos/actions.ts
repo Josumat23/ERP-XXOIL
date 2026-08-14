@@ -64,7 +64,7 @@ export async function crearReclamo(
   redirect(`/produccion/calidad/reclamos/${id}`);
 }
 
-const ESTADOS_VALIDOS: $Enums.EstadoReclamo[] = ["ABIERTO", "EN_PROCESO", "CERRADO"];
+const ESTADOS_VALIDOS: $Enums.EstadoReclamo[] = ["EN_PROCESO", "CERRADO"];
 
 export async function actualizarEstadoReclamo(
   id: string,
@@ -85,14 +85,27 @@ export async function actualizarEstadoReclamo(
     return { error: "Para cerrar el reclamo, indique la acción correctiva aplicada." };
   }
 
-  await prisma.reclamoCliente.update({
+  const reclamo = await prisma.reclamoCliente.findUnique({
     where: { id },
+    select: { estado: true },
+  });
+  if (!reclamo) return { error: "El reclamo no existe." };
+  if (reclamo.estado === "CERRADO") return { error: "El reclamo ya está cerrado." };
+  if (reclamo.estado === "EN_PROCESO" && estado !== "CERRADO") {
+    return { error: "Un reclamo en proceso solo puede cerrarse." };
+  }
+
+  const resultado = await prisma.reclamoCliente.updateMany({
+    where: { id, estado: reclamo.estado },
     data: {
       estado,
       accionCorrectiva,
       fechaCierre: estado === "CERRADO" ? new Date() : null,
     },
   });
+  if (resultado.count !== 1) {
+    return { error: "El reclamo cambió mientras se actualizaba. Actualice la página e intente nuevamente." };
+  }
 
   revalidatePath("/produccion/calidad/reclamos");
   revalidatePath(`/produccion/calidad/reclamos/${id}`);
