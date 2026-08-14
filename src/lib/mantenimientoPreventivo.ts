@@ -44,14 +44,25 @@ export async function generarOrdenesPreventivasVencidas(
 ): Promise<{ generadas: number; detalle: string[] }> {
   const planes = await tx.planMantenimiento.findMany({
     where: { activo: true },
-    include: { equipo: true, ordenes: { where: { estado: { in: ["PROGRAMADA", "EN_PROCESO"] } } } },
+    select: { id: true },
+    orderBy: { id: "asc" },
   });
 
   let generadas = 0;
   const detalle: string[] = [];
 
-  for (const plan of planes) {
-    if (plan.ordenes.length > 0) continue; // ya hay una orden abierta de este plan
+  for (const { id } of planes) {
+    const bloqueo = await tx.planMantenimiento.updateMany({
+      where: { id, activo: true },
+      data: { activo: true },
+    });
+    if (bloqueo.count !== 1) continue;
+
+    const plan = await tx.planMantenimiento.findUnique({
+      where: { id },
+      include: { equipo: true, ordenes: { where: { estado: { in: ["PROGRAMADA", "EN_PROCESO"] } } } },
+    });
+    if (!plan || !plan.activo || plan.ordenes.length > 0) continue; // ya hay una orden abierta
     if (!plan.equipo.activo) continue;
 
     const vencido = planVencido(

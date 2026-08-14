@@ -80,6 +80,15 @@ export async function siguienteCodigoEquipo(tx: Tx): Promise<string> {
 }
 
 export async function siguienteCodigoOrdenMantenimiento(tx: Tx): Promise<string> {
+  const ancla = await tx.equipo.findFirst({ orderBy: { id: "asc" }, select: { id: true } });
+  if (!ancla) throw new Error("No hay equipos configurados para generar la orden de mantenimiento.");
+
+  const bloqueo = await tx.equipo.updateMany({
+    where: { id: ancla.id },
+    data: { contadorActual: { increment: 0 } },
+  });
+  if (bloqueo.count !== 1) throw new Error("No se pudo reservar el correlativo de mantenimiento.");
+
   const ultimo = await tx.ordenMantenimiento.findFirst({ orderBy: { codigo: "desc" } });
   return siguiente("OM", ultimo?.codigo ?? null);
 }
