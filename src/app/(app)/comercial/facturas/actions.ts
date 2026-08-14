@@ -615,10 +615,18 @@ export async function aplicarRecargoMora(facturaId: string): Promise<EstadoFormu
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
   }
 
-  const resultado = await prisma.$transaction((tx) =>
-    aplicarRecargoAFactura(tx, facturaId, { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre })
-  );
-  if (!resultado.ok) return { error: resultado.error };
+  try {
+    const resultado = await prisma.$transaction((tx) =>
+      aplicarRecargoAFactura(tx, facturaId, {
+        usuarioId: auth.usuario.id,
+        usuarioNombre: auth.usuario.nombre,
+      })
+    );
+    if (!resultado.ok) return { error: resultado.error };
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
 
   revalidatePath(`/comercial/facturas/${facturaId}`);
   return {};

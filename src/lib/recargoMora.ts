@@ -14,6 +14,12 @@ export async function aplicarRecargoAFactura(
   facturaId: string,
   actor: ActorTarea
 ): Promise<ResultadoRecargoMora> {
+  const bloqueo = await tx.factura.updateMany({
+    where: { id: facturaId },
+    data: { saldo: { increment: 0 } },
+  });
+  if (bloqueo.count !== 1) return { ok: false, error: "La factura no existe." };
+
   const factura = await tx.factura.findUnique({
     where: { id: facturaId },
     include: { recargosMora: { orderBy: { fecha: "desc" }, take: 1 } },
@@ -46,10 +52,13 @@ export async function aplicarRecargoAFactura(
       usuarioNombre: actor.usuarioNombre,
     },
   });
-  await tx.factura.update({
-    where: { id: facturaId },
+  const actualizada = await tx.factura.updateMany({
+    where: { id: facturaId, estado: factura.estado, saldo: factura.saldo },
     data: { saldo: { increment: monto } },
   });
+  if (actualizada.count !== 1) {
+    throw new Error("La factura cambió durante el cálculo del recargo. Intente nuevamente.");
+  }
 
   return { ok: true, monto };
 }
