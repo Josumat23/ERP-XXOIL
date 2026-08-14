@@ -47,6 +47,13 @@ export async function crearFormula(
   }
 
   await prisma.$transaction(async (tx) => {
+    // Serializa todas las versiones del mismo producto antes de calcular el
+    // siguiente número o cambiar cuál queda vigente.
+    await tx.producto.update({
+      where: { id: productoId },
+      data: { id: productoId },
+      select: { id: true },
+    });
     const ultima = await tx.formula.findFirst({
       where: { productoId },
       orderBy: { version: "desc" },
@@ -91,8 +98,17 @@ export async function alternarActivoFormula(id: string, activo: boolean) {
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
 
-  const ahora = new Date();
   await prisma.$transaction(async (tx) => {
+    const referencia = await tx.formula.findUniqueOrThrow({
+      where: { id },
+      select: { productoId: true },
+    });
+    await tx.producto.update({
+      where: { id: referencia.productoId },
+      data: { id: referencia.productoId },
+      select: { id: true },
+    });
+    const ahora = new Date();
     const antes = await tx.formula.findUniqueOrThrow({ where: { id }, include: { detalles: true } });
     if (activo) {
       // Reactivar una versión anterior cierra la vigencia de la que estuviera
