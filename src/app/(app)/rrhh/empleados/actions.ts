@@ -139,24 +139,25 @@ export async function darDeBajaEmpleado(
   const motivoCese = String(formData.get("motivoCese") ?? "").trim();
   if (!motivoCese) return { error: "El motivo del cese es obligatorio." };
 
-  const empleado = await prisma.empleado.findUnique({
-    where: { id },
-    include: { vacaciones: { where: { estado: "APROBADA" } } },
-  });
-  if (!empleado) return { error: "El empleado no existe." };
-  if (empleado.estado === "CESADO") return { error: "Este empleado ya fue dado de baja." };
-
   const fechaCese = new Date();
   let advertenciaLiquidacion: string | null = null;
   try {
     await prisma.$transaction(async (tx) => {
       const reclamo = await tx.empleado.updateMany({
-        where: { id, estado: empleado.estado },
+        where: { id, estado: "ACTIVO" },
         data: { estado: "CESADO", fechaCese, motivoCese },
       });
       if (reclamo.count !== 1) {
-        throw new Error("El empleado cambi\u00f3 mientras se procesaba la baja. Actualice la p\u00e1gina e intente nuevamente.");
+        throw new Error("El empleado no existe, ya fue dado de baja o cambió mientras se procesaba el cese.");
       }
+
+      // La aprobación de vacaciones también reclama al empleado activo. Leer
+      // después del reclamo garantiza que la liquidación incluya cualquier
+      // aprobación que haya terminado antes del cese.
+      const empleado = await tx.empleado.findUniqueOrThrow({
+        where: { id },
+        include: { vacaciones: { where: { estado: "APROBADA" } } },
+      });
       if (empleado.tipoContrato !== "LOCACION_SERVICIOS") {
         const diasAprobados = empleado.vacaciones.reduce((acc, v) => acc + v.diasSolicitados, 0);
         const resultado = await generarLiquidacion(tx, {
