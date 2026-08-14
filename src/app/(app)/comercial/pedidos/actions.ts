@@ -208,8 +208,20 @@ export async function facturarPedido(
       // Control de límite de crédito (0 = sin límite). Solo aplica a ventas
       // al crédito: la deuda vigente más esta factura (IGV incluido) no puede
       // exceder el límite.
-      const limite = pedido.cliente.limiteCredito.toNumber();
-      if (limite > 0 && condicionPago !== "CONTADO") {
+      // Serializa la evaluación del cupo entre pedidos distintos del mismo
+      // cliente. Sin este bloqueo, dos facturas concurrentes podían leer la
+      // misma deuda y aprobarse ambas contra un límite ya insuficiente.
+      const limite =
+        condicionPago === "CONTADO"
+          ? 0
+          : (
+              await tx.cliente.update({
+                where: { id: pedido.clienteId },
+                data: { limiteCredito: { increment: 0 } },
+                select: { limiteCredito: true },
+              })
+            ).limiteCredito.toNumber();
+      if (limite > 0) {
         const pendientes = await tx.factura.findMany({
           where: { clienteId: pedido.clienteId, estado: "PENDIENTE" },
         });
