@@ -259,13 +259,39 @@ export async function crearNotaCredito(
     return { error: "Seleccione el tipo de nota de crédito (Catálogo 9 SUNAT)." };
   }
 
-  let lineas: LineaNotaCredito[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
     return { error: "El detalle de la nota de crédito es inválido." };
   }
-  lineas = lineas.filter((l) => l.pedidoDetalleId && Number.isFinite(l.cantidad) && l.cantidad > 0);
+  if (!Array.isArray(lineasRaw)) {
+    return { error: "El detalle de la nota de crédito es inválido." };
+  }
+
+  const cantidadesPorDetalle = new Map<string, number>();
+  for (const linea of lineasRaw) {
+    if (
+      typeof linea !== "object" ||
+      linea === null ||
+      !("pedidoDetalleId" in linea) ||
+      !("cantidad" in linea) ||
+      typeof linea.pedidoDetalleId !== "string" ||
+      typeof linea.cantidad !== "number" ||
+      !linea.pedidoDetalleId ||
+      !Number.isFinite(linea.cantidad) ||
+      linea.cantidad <= 0
+    ) {
+      continue;
+    }
+    cantidadesPorDetalle.set(
+      linea.pedidoDetalleId,
+      (cantidadesPorDetalle.get(linea.pedidoDetalleId) ?? 0) + linea.cantidad
+    );
+  }
+  const lineas: LineaNotaCredito[] = [...cantidadesPorDetalle].map(
+    ([pedidoDetalleId, cantidad]) => ({ pedidoDetalleId, cantidad })
+  );
   if (lineas.length === 0) {
     return { error: "Agregue al menos una línea con cantidad válida." };
   }
