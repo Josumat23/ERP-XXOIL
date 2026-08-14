@@ -31,6 +31,16 @@ export async function crearReclamo(
   let id: string;
   try {
     id = await prisma.$transaction(async (tx) => {
+      if (facturaId) {
+        const factura = await tx.factura.findUnique({
+          where: { id: facturaId },
+          select: { clienteId: true },
+        });
+        if (!factura) throw new Error("La factura relacionada no existe.");
+        if (factura.clienteId !== clienteId) {
+          throw new Error("La factura relacionada pertenece a otro cliente.");
+        }
+      }
       const numero = await siguienteNumeroReclamo(tx);
       const creado = await tx.reclamoCliente.create({
         data: {
