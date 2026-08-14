@@ -70,8 +70,13 @@ export async function crearPedido(
       // Reserva de stock: un pedido pendiente compromete stock disponible
       // para que dos vendedores no ofrezcan lo mismo dos veces antes de
       // facturar. Se libera al anular o al facturar (kardex real).
-      for (const l of lineas) {
-        const presentacion = await tx.presentacion.findUniqueOrThrow({ where: { id: l.presentacionId } });
+      for (const l of [...lineas].sort((a, b) => a.presentacionId.localeCompare(b.presentacionId))) {
+        // La escritura neutra adquiere el bloqueo antes de calcular el
+        // disponible. Todas las reservas usan el mismo orden determinista.
+        const presentacion = await tx.presentacion.update({
+          where: { id: l.presentacionId },
+          data: { stockReservado: { increment: 0 } },
+        });
         const disponible = presentacion.stock.toNumber() - presentacion.stockReservado.toNumber();
         if (l.cantidad > disponible) {
           // ATP informativo: no cambia el bloqueo (solo se reserva stock real),
