@@ -564,6 +564,18 @@ export async function registrarDevolucion(
 
   try {
     await prisma.$transaction(async (tx) => {
+      // Serializa devoluciones y anulaciones sobre la misma factura antes de
+      // calcular el acumulado devuelto. Sin este reclamo, dos solicitudes
+      // concurrentes podrían validar contra el mismo saldo y reingresar más
+      // unidades de las que se vendieron.
+      const bloqueo = await tx.factura.updateMany({
+        where: { id: facturaId, estado: { not: "ANULADA" } },
+        data: { saldo: { increment: 0 } },
+      });
+      if (bloqueo.count !== 1) {
+        throw new Error("La factura no existe, está anulada o cambió mientras se registraba la devolución.");
+      }
+
       const factura = await tx.factura.findUnique({ where: { id: facturaId } });
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
