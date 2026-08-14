@@ -42,6 +42,10 @@ export async function crearConteo(
   if (lineas.length === 0) {
     return { error: "Agregue al menos un ítem con la cantidad contada." };
   }
+  const itemsUnicos = new Set(lineas.map((linea) => `${linea.tipoItem}:${linea.itemId}`));
+  if (itemsUnicos.size !== lineas.length) {
+    return { error: "Hay ítems repetidos en el conteo." };
+  }
 
   let conteoId = "";
   try {
@@ -52,11 +56,27 @@ export async function crearConteo(
       });
       conteoId = conteo.id;
 
-      for (const l of lineas) {
+      for (const l of [...lineas].sort((a, b) =>
+        `${a.tipoItem}:${a.itemId}`.localeCompare(`${b.tipoItem}:${b.itemId}`)
+      )) {
+        // La escritura neutra bloquea el saldo antes de calcular la diferencia;
+        // todos los conteos adquieren varios ítems en el mismo orden.
         const cantidadSistema =
           l.tipoItem === "PRESENTACION"
-            ? (await tx.presentacion.findUniqueOrThrow({ where: { id: l.itemId } })).stock.toNumber()
-            : (await tx.insumo.findUniqueOrThrow({ where: { id: l.itemId } })).stock.toNumber();
+            ? (
+                await tx.presentacion.update({
+                  where: { id: l.itemId },
+                  data: { stock: { increment: 0 } },
+                  select: { stock: true },
+                })
+              ).stock.toNumber()
+            : (
+                await tx.insumo.update({
+                  where: { id: l.itemId },
+                  data: { stock: { increment: 0 } },
+                  select: { stock: true },
+                })
+              ).stock.toNumber();
         const diferencia = l.cantidadContada - cantidadSistema;
 
         await tx.conteoInventarioDetalle.create({
