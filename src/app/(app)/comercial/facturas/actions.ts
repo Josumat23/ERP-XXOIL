@@ -273,6 +273,12 @@ export async function crearNotaCredito(
   let notaCreditoId = "";
   try {
     await prisma.$transaction(async (tx) => {
+      const bloqueo = await tx.factura.updateMany({
+        where: { id: facturaId },
+        data: { saldo: { increment: 0 } },
+      });
+      if (bloqueo.count !== 1) throw new Error("La factura no existe.");
+
       const factura = await tx.factura.findUnique({
         where: { id: facturaId },
         include: { notasCredito: true, comisiones: true, pedido: { include: { detalles: true } } },
@@ -343,10 +349,13 @@ export async function crearNotaCredito(
 
       // El saldo por cobrar baja hasta un mínimo de cero.
       const nuevoSaldo = Math.max(0, factura.saldo.toNumber() - monto);
-      await tx.factura.update({
-        where: { id: facturaId },
+      const actualizada = await tx.factura.updateMany({
+        where: { id: facturaId, estado: factura.estado, saldo: factura.saldo },
         data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : factura.estado },
       });
+      if (actualizada.count !== 1) {
+        throw new Error("La factura cambió mientras se registraba la nota de crédito. Intente nuevamente.");
+      }
 
       // Reversión proporcional de la comisión generada, sobre la base
       // imponible real de la NC (ya calculada arriba, no una estimación).
