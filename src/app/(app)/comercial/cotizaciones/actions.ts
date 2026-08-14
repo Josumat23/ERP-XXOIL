@@ -90,15 +90,13 @@ export async function marcarCotizacion(id: string, estado: "ACEPTADA" | "RECHAZA
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
 
-  const cotizacion = await prisma.cotizacion.findUnique({ where: { id } });
-  if (!cotizacion || cotizacion.estado !== "PENDIENTE") return;
-
   // El cierre real (ganada/perdida) fija la probabilidad al valor obvio —
   // ya no es una estimación, es el resultado.
-  await prisma.cotizacion.update({
-    where: { id },
+  const actualizada = await prisma.cotizacion.updateMany({
+    where: { id, estado: "PENDIENTE" },
     data: { estado, probabilidad: estado === "ACEPTADA" ? 100 : 0 },
   });
+  if (actualizada.count !== 1) return;
   revalidatePath("/comercial/cotizaciones");
   revalidatePath(`/comercial/cotizaciones/${id}`);
   revalidatePath("/comercial/pipeline");
@@ -122,13 +120,18 @@ export async function actualizarProbabilidad(
     return { error: "La probabilidad debe ser un número entero entre 0 y 100." };
   }
 
-  const cotizacion = await prisma.cotizacion.findUnique({ where: { id } });
-  if (!cotizacion) return { error: "La cotización no existe." };
-  if (cotizacion.estado !== "PENDIENTE") {
-    return { error: "Solo se puede ajustar la probabilidad de una cotización pendiente." };
+  const actualizada = await prisma.cotizacion.updateMany({
+    where: { id, estado: "PENDIENTE" },
+    data: { probabilidad },
+  });
+  if (actualizada.count !== 1) {
+    const existe = await prisma.cotizacion.findUnique({ where: { id }, select: { id: true } });
+    return {
+      error: existe
+        ? "Solo se puede ajustar la probabilidad de una cotización pendiente."
+        : "La cotización no existe.",
+    };
   }
-
-  await prisma.cotizacion.update({ where: { id }, data: { probabilidad } });
   revalidatePath(`/comercial/cotizaciones/${id}`);
   revalidatePath("/comercial/cotizaciones");
   revalidatePath("/comercial/pipeline");
@@ -147,6 +150,11 @@ export async function convertirCotizacionAPedido(id: string): Promise<EstadoForm
   let pedidoId = "";
   try {
     await prisma.$transaction(async (tx) => {
+      await tx.cotizacion.updateMany({
+        where: { id, estado: { in: ["PENDIENTE", "ACEPTADA"] }, pedidoId: null },
+        data: { probabilidad: { increment: 0 } },
+      });
+
       const cotizacion = await tx.cotizacion.findUnique({ where: { id }, include: { detalles: true } });
       if (!cotizacion) throw new Error("La cotización no existe.");
       if (cotizacion.estado === "CONVERTIDA") throw new Error("Esta cotización ya fue convertida a pedido.");
@@ -176,10 +184,13 @@ export async function convertirCotizacionAPedido(id: string): Promise<EstadoForm
       });
       pedidoId = pedido.id;
 
-      await tx.cotizacion.update({
-        where: { id },
+      const convertida = await tx.cotizacion.updateMany({
+        where: { id, estado: cotizacion.estado, pedidoId: null },
         data: { estado: "CONVERTIDA", pedidoId: pedido.id },
       });
+      if (convertida.count !== 1) {
+        throw new Error("La cotización cambió mientras se convertía. Intente nuevamente.");
+      }
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
