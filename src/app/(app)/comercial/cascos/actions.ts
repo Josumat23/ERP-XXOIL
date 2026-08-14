@@ -35,17 +35,55 @@ export async function registrarMovimientoCasco(
     return { error: "La cantidad debe ser un entero mayor a 0." };
   }
 
-  await prisma.movimientoCasco.create({
-    data: {
-      clienteId,
-      insumoId,
-      tipo,
-      cantidad,
-      referencia,
-      usuarioId: auth.usuario.id,
-      usuarioNombre: auth.usuario.nombre,
-    },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Todos los movimientos del cliente comparten este bloqueo para que
+      // dos devoluciones no validen simultáneamente contra el mismo saldo.
+      const bloqueo = await tx.cliente.updateMany({
+        where: { id: clienteId },
+        data: { limiteCredito: { increment: 0 } },
+      });
+      if (bloqueo.count !== 1) throw new Error("El cliente no existe.");
+
+      const insumo = await tx.insumo.findUnique({
+        where: { id: insumoId },
+        select: { esRetornable: true },
+      });
+      if (!insumo?.esRetornable) {
+        throw new Error("El insumo seleccionado no es un envase retornable.");
+      }
+
+      if (tipo === "DEVUELTO") {
+        const movimientos = await tx.movimientoCasco.findMany({
+          where: { clienteId, insumoId },
+          select: { tipo: true, cantidad: true },
+        });
+        const saldo = movimientos.reduce(
+          (total, movimiento) =>
+            total + (movimiento.tipo === "ENTREGADO" ? movimiento.cantidad : -movimiento.cantidad),
+          0
+        );
+        if (cantidad > saldo) {
+          throw new Error(`Solo hay ${saldo} envase(s) pendiente(s) de devolución.`);
+        }
+      }
+
+      await tx.movimientoCasco.create({
+        data: {
+          clienteId,
+          insumoId,
+          tipo,
+          cantidad,
+          referencia,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
 
   revalidatePath("/comercial/cascos");
   return {};
