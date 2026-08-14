@@ -16,14 +16,25 @@ export async function ejecutarDepreciacionDelMes(
 ): Promise<{ procesados: number; totalMes: number }> {
   const activos = await tx.activoFijo.findMany({
     where: { activo: true },
-    include: { depreciaciones: { where: { anio, mes } } },
+    select: { id: true },
+    orderBy: { id: "asc" },
   });
 
   let totalMes = 0;
   let procesados = 0;
   const montoPorCentro = new Map<string | null, number>();
-  for (const a of activos) {
-    if (a.depreciaciones.length > 0) continue; // ya se registró este período
+  for (const { id } of activos) {
+    const bloqueo = await tx.activoFijo.updateMany({
+      where: { id, activo: true },
+      data: { depreciacionAcumulada: { increment: 0 } },
+    });
+    if (bloqueo.count !== 1) continue;
+
+    const a = await tx.activoFijo.findUnique({
+      where: { id },
+      include: { depreciaciones: { where: { anio, mes } } },
+    });
+    if (!a || !a.activo || a.depreciaciones.length > 0) continue; // ya se registró este período
 
     const costo = a.costoAdquisicion.toNumber();
     const residual = a.valorResidual.toNumber();
@@ -39,10 +50,13 @@ export async function ejecutarDepreciacionDelMes(
     await tx.depreciacionActivo.create({
       data: { activoFijoId: a.id, anio, mes, monto: cargo },
     });
-    await tx.activoFijo.update({
-      where: { id: a.id },
-      data: { depreciacionAcumulada: acumulada + cargo },
+    const actualizado = await tx.activoFijo.updateMany({
+      where: { id: a.id, activo: true, depreciacionAcumulada: a.depreciacionAcumulada },
+      data: { depreciacionAcumulada: { increment: cargo } },
     });
+    if (actualizado.count !== 1) {
+      throw new Error(`El activo ${a.codigo} cambió durante la depreciación. Intente nuevamente.`);
+    }
 
     totalMes += cargo;
     procesados++;
