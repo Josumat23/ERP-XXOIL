@@ -28,12 +28,14 @@ export async function asignarLoteVenta(
     const tomar = Math.min(restante, e.unidadesDisponibles);
     if (tomar <= 0) continue;
 
+    const reclamo = await tx.envasado.updateMany({
+      where: { id: e.id, unidadesDisponibles: { gte: tomar } },
+      data: { unidadesDisponibles: { decrement: tomar } },
+    });
+    if (reclamo.count !== 1) continue;
+
     await tx.asignacionLoteVenta.create({
       data: { pedidoDetalleId, envasadoId: e.id, tipo: "ASIGNADA", cantidad: tomar },
-    });
-    await tx.envasado.update({
-      where: { id: e.id },
-      data: { unidadesDisponibles: { decrement: tomar } },
     });
     restante -= tomar;
   }
@@ -65,12 +67,14 @@ export async function asignarLoteInsumo(
     const tomar = Math.min(restante, disponible);
     if (tomar <= 0) continue;
 
+    const reclamo = await tx.recepcionCompraDetalle.updateMany({
+      where: { id: r.id, cantidadDisponible: { gte: tomar } },
+      data: { cantidadDisponible: { decrement: tomar } },
+    });
+    if (reclamo.count !== 1) continue;
+
     await tx.asignacionLoteInsumo.create({
       data: { loteGranelId, recepcionCompraDetalleId: r.id, cantidad: tomar },
-    });
-    await tx.recepcionCompraDetalle.update({
-      where: { id: r.id },
-      data: { cantidadDisponible: { decrement: tomar } },
     });
     restante -= tomar;
   }
