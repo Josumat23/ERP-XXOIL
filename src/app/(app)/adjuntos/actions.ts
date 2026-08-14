@@ -34,20 +34,30 @@ export async function subirAdjunto(
   await mkdir(DIRECTORIO_ADJUNTOS, { recursive: true });
   const nombreArchivo = `${randomUUID()}-${archivo.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const buffer = Buffer.from(await archivo.arrayBuffer());
-  await writeFile(path.join(DIRECTORIO_ADJUNTOS, nombreArchivo), buffer);
+  const rutaArchivo = path.join(DIRECTORIO_ADJUNTOS, nombreArchivo);
+  await writeFile(rutaArchivo, buffer);
 
-  await prisma.adjunto.create({
-    data: {
-      entidadTipo,
-      entidadId,
-      nombreArchivo,
-      nombreOriginal: archivo.name,
-      mimeType: archivo.type,
-      tamanioBytes: archivo.size,
-      usuarioId: usuario.id,
-      usuarioNombre: usuario.nombre,
-    },
-  });
+  try {
+    await prisma.adjunto.create({
+      data: {
+        entidadTipo,
+        entidadId,
+        nombreArchivo,
+        nombreOriginal: archivo.name,
+        mimeType: archivo.type,
+        tamanioBytes: archivo.size,
+        usuarioId: usuario.id,
+        usuarioNombre: usuario.nombre,
+      },
+    });
+  } catch {
+    try {
+      await unlink(rutaArchivo);
+    } catch {
+      throw new Error("Falló el registro del adjunto y no se pudo limpiar el archivo físico.");
+    }
+    return { error: "No se pudo registrar el adjunto. El archivo cargado fue descartado." };
+  }
 
   revalidatePath(rutaRevalidar);
   return {};
