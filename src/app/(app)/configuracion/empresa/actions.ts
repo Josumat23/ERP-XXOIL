@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
+import { validarArchivoCertificadoSunat } from "@/lib/certificadoSunat";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -94,6 +95,8 @@ export async function guardarConfiguracionEmpresa(
   const archivoCertificado = formData.get("sunatCertificadoArchivo");
   let sunatCertificadoBase64 = existente?.sunatCertificadoBase64 ?? null;
   if (archivoCertificado instanceof File && archivoCertificado.size > 0) {
+    const errorCertificado = validarArchivoCertificadoSunat(archivoCertificado);
+    if (errorCertificado) return { error: errorCertificado };
     const buffer = Buffer.from(await archivoCertificado.arrayBuffer());
     sunatCertificadoBase64 = buffer.toString("base64");
   }
