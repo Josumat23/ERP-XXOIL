@@ -5,6 +5,49 @@
 // puras (sin Prisma) para poder usarlas también desde un componente cliente.
 // ---------------------------------------------------------------------------
 
+export type LineaPersistenciaSimulacion = {
+  detalleId: string;
+  precioSimulado: number | null;
+  precioCompetidorRef: number | null;
+};
+
+export type ResultadoLineasSimulacion =
+  | { lineas: LineaPersistenciaSimulacion[] }
+  | { error: string };
+
+function esPrecioOpcionalValido(valor: unknown): valor is number | null {
+  return valor === null || (typeof valor === "number" && Number.isFinite(valor) && valor >= 0);
+}
+
+export function validarLineasSimulacion(valor: unknown): ResultadoLineasSimulacion {
+  if (!Array.isArray(valor)) return { error: "El detalle de la simulación es inválido." };
+
+  const ids = new Set<string>();
+  const lineas: LineaPersistenciaSimulacion[] = [];
+  for (const linea of valor) {
+    if (typeof linea !== "object" || linea === null || Array.isArray(linea)) {
+      return { error: "El detalle de la simulación es inválido." };
+    }
+
+    const detalleId = "detalleId" in linea ? linea.detalleId : undefined;
+    const precioSimulado = "precioSimulado" in linea ? linea.precioSimulado : undefined;
+    const precioCompetidorRef = "precioCompetidorRef" in linea ? linea.precioCompetidorRef : undefined;
+    if (
+      typeof detalleId !== "string" ||
+      detalleId.trim() === "" ||
+      ids.has(detalleId) ||
+      !esPrecioOpcionalValido(precioSimulado) ||
+      !esPrecioOpcionalValido(precioCompetidorRef)
+    ) {
+      return { error: "El detalle de la simulación es inválido." };
+    }
+
+    ids.add(detalleId);
+    lineas.push({ detalleId, precioSimulado, precioCompetidorRef });
+  }
+
+  return { lineas };
+}
 export type LineaSimulada = {
   presentacionId: string;
   nombre: string;

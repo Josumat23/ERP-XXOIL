@@ -12,6 +12,7 @@ import {
   calcularIndiceEstacionalidad,
 } from "@/lib/proyecciones";
 import { obtenerFactorMacro } from "@/lib/bcrp";
+import { validarLineasSimulacion } from "@/lib/simuladorPrecios";
 
 export type EstadoFormulario = { error?: string };
 
@@ -161,22 +162,37 @@ export async function guardarSimulacionPrecios(
     return { error: "La meta de utilidad debe ser un número válido." };
   }
 
-  let lineas: { detalleId: string; precioSimulado: number | null; precioCompetidorRef: number | null }[];
+  let payload: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    payload = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
     return { error: "El detalle de la simulación es inválido." };
   }
+  const resultadoLineas = validarLineasSimulacion(payload);
+  if ("error" in resultadoLineas) return resultadoLineas;
 
-  await prisma.$transaction(async (tx) => {
-    await tx.proyeccion.update({ where: { id: proyeccionId }, data: { metaUtilidadOperativa } });
-    for (const l of lineas) {
-      await tx.proyeccionDetalle.update({
-        where: { id: l.detalleId },
-        data: { precioSimulado: l.precioSimulado, precioCompetidorRef: l.precioCompetidorRef },
-      });
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.proyeccion.update({ where: { id: proyeccionId }, data: { metaUtilidadOperativa } });
+      for (const linea of resultadoLineas.lineas) {
+        const actualizada = await tx.proyeccionDetalle.updateMany({
+          where: { id: linea.detalleId, proyeccionId },
+          data: {
+            precioSimulado: linea.precioSimulado,
+            precioCompetidorRef: linea.precioCompetidorRef,
+          },
+        });
+        if (actualizada.count !== 1) {
+          throw new Error("LINEA_SIMULACION_AJENA");
+        }
+      }
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "LINEA_SIMULACION_AJENA") {
+      return { error: "Una línea no pertenece a la proyección indicada." };
     }
-  });
+    throw error;
+  }
 
   revalidatePath(`/proyecciones/${proyeccionId}`);
   return {};

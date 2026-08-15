@@ -11,6 +11,7 @@ import {
   postearVenta,
 } from "@/lib/contabilidad";
 import { calcularUnidadesAProducir, esPeriodoProyeccionValido } from "@/lib/proyecciones";
+import { validarLineasSimulacion } from "@/lib/simuladorPrecios";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
@@ -52,6 +53,35 @@ test("proyecciones aceptan únicamente años y trimestres enteros dentro del ran
   assert.equal(esPeriodoProyeccionValido(2026, 5), false);
 });
 
+test("simulador de proyecciones rechaza líneas duplicadas y precios manipulados", () => {
+  assert.deepEqual(
+    validarLineasSimulacion([
+      { detalleId: "detalle-1", precioSimulado: 12.5, precioCompetidorRef: null },
+    ]),
+    {
+      lineas: [{ detalleId: "detalle-1", precioSimulado: 12.5, precioCompetidorRef: null }],
+    }
+  );
+  assert.ok(
+    "error" in
+      validarLineasSimulacion([
+        { detalleId: "detalle-1", precioSimulado: 12.5, precioCompetidorRef: null },
+        { detalleId: "detalle-1", precioSimulado: 13, precioCompetidorRef: null },
+      ])
+  );
+  assert.ok(
+    "error" in
+      validarLineasSimulacion([
+        { detalleId: "detalle-1", precioSimulado: -1, precioCompetidorRef: null },
+      ])
+  );
+  assert.ok(
+    "error" in
+      validarLineasSimulacion([
+        { detalleId: "detalle-1", precioSimulado: Number.POSITIVE_INFINITY, precioCompetidorRef: null },
+      ])
+  );
+});
 async function auditoria() {
   const usuario = await prisma.usuario.findFirstOrThrow({ where: { rol: "ADMIN", activo: true } });
   return { usuarioId: usuario.id, usuarioNombre: usuario.nombre };
