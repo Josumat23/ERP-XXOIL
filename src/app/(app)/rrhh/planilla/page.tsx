@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import PlanillaFormulario from "./PlanillaFormulario";
 import GratificacionFormulario from "./GratificacionFormulario";
@@ -15,6 +18,9 @@ const ETIQUETA_TIPO: Record<string, string> = {
 };
 
 export default async function PlanillaPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
+  if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
   const periodos = await prisma.planillaPeriodo.findMany({
     include: { detalles: true },
     orderBy: [{ anio: "desc" }, { mes: "desc" }],
