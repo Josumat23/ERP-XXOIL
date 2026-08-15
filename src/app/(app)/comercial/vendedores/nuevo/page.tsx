@@ -1,11 +1,17 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { ETIQUETA_TIPO_VENDEDOR } from "@/lib/etiquetas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import VendedorFormulario from "../VendedorFormulario";
 import { crearVendedor } from "../actions";
 
 export default async function NuevoVendedorPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const [zonas, vendedores] = await Promise.all([
     prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.vendedor.findMany({ orderBy: { nombre: "asc" } }),

@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_TIPO_VENDEDOR } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -12,6 +15,9 @@ export default async function VendedoresPage({
 }: {
   searchParams: Promise<{ q?: string; estado?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const { q, estado } = await searchParams;
 
   const vendedores = await prisma.vendedor.findMany({

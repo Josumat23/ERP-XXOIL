@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import BarraRanking from "@/components/BarraRanking";
@@ -16,6 +19,9 @@ const BUCKETS = [
 ];
 
 export default async function PipelinePage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const cotizaciones = await prisma.cotizacion.findMany({
     where: { estado: "PENDIENTE", validaHasta: { gte: new Date() } },
     include: { cliente: true, vendedor: true },

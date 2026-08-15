@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import BarraFiltro from "@/components/BarraFiltro";
@@ -24,6 +27,9 @@ export default async function BacklogPedidosPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const { q } = await searchParams;
 
   const pedidos = await prisma.pedido.findMany({
