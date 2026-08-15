@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatFecha } from "@/lib/format";
 import type { $Enums } from "@/generated/prisma/client";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -22,6 +25,9 @@ export default async function ActivosFijosPage({
 }: {
   searchParams: Promise<{ q?: string; categoria?: string; estado?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+
   const { q, categoria, estado } = await searchParams;
   const filtroCategoria = CATEGORIAS.find((c) => c === categoria);
 

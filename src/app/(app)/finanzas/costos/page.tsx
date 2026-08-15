@@ -1,10 +1,16 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 
 // Reporte de costos: costo promedio de insumos, costo/kg de lotes y
 // margen por presentación (precio de venta vs costo promedio de envasado).
 export default async function CostosPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+
   const [insumos, lotes, presentaciones] = await Promise.all([
     prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.loteGranel.findMany({

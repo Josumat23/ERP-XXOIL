@@ -1,10 +1,16 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { ETIQUETA_CONTROL, type ClaveControl } from "@/lib/contabilidad";
 import { alternarActivoRegla } from "../actions";
 import ControlCentroFormulario from "../ControlCentroFormulario";
 
 export default async function ReglasAsignacionCostoPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+
   const [reglas, centros, controles] = await Promise.all([
     prisma.reglaAsignacionCosto.findMany({
       include: { lineas: { include: { centroCosto: true } } },
