@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { zonasAlmacenParaSelect } from "@/lib/almacenes";
 import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -7,6 +10,9 @@ import InsumoFormulario from "../InsumoFormulario";
 import { crearInsumo } from "../actions";
 
 export default async function NuevoInsumoPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+
   const [proveedores, zonasAlmacen, unidadesMedida, insumos] = await Promise.all([
     prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     zonasAlmacenParaSelect(),

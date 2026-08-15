@@ -1,11 +1,17 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import CategoriaFormulario from "./CategoriaFormulario";
 import { alternarActivoCategoria } from "./actions";
 
 export default async function CategoriasPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+
   const categorias = await prisma.categoria.findMany({
     include: { _count: { select: { productos: true } } },
     orderBy: { nombre: "asc" },
