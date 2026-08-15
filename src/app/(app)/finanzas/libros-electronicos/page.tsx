@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { formatMoneda } from "@/lib/format";
+import { puedeRealizar } from "@/lib/permisos";
 
 const NOMBRE_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -15,6 +16,7 @@ export default async function LibrosElectronicosPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
+  if (!(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
 
   const hoy = new Date();
   const { anio: anioParam, mes: mesParam } = await searchParams;
