@@ -48,6 +48,15 @@ export async function alternarActivaEmpresa(id: string, activa: boolean) {
 }
 
 export async function cambiarEmpresaActiva(id: string) {
-  await establecerEmpresaActivaId(id);
+  const auth = await requerirRol([]);
+  if ("error" in auth) return;
+
+  const empresa = await prisma.empresa.findFirst({
+    where: { id, activa: true },
+    select: { id: true },
+  });
+  if (!empresa) return;
+
+  await establecerEmpresaActivaId(empresa.id);
   revalidatePath("/", "layout");
 }
