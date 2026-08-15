@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import { costoRealProyecto } from "@/lib/proyectos";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -25,6 +28,9 @@ export default async function ProyectosPage({
 }: {
   searchParams: Promise<{ q?: string; estado?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "proyectos", "ver"))) redirect("/");
+
   const { q, estado } = await searchParams;
 
   const proyectos = await prisma.proyecto.findMany({

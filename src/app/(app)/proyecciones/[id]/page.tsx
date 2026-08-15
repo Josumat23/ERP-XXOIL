@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import FichaTabs from "@/components/FichaTabs";
 import BarraRanking from "@/components/BarraRanking";
@@ -22,6 +23,14 @@ export default async function DetalleProyeccionPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (
+    !usuario ||
+    !["ADMIN", "GERENCIA", "VENTAS", "PRODUCCION"].includes(usuario.rol)
+  ) {
+    redirect("/");
+  }
+
   const { id } = await params;
 
   const proyeccion = await prisma.proyeccion.findUnique({

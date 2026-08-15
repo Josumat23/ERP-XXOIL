@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatFecha } from "@/lib/format";
 import { costoRealProyecto } from "@/lib/proyectos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -55,6 +57,9 @@ async function cargarProyecto(id: string) {
 }
 
 export default async function DetalleProyectoPage({ params }: { params: Promise<{ id: string }> }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "proyectos", "ver"))) redirect("/");
+
   const { id } = await params;
 
   const [proyecto, proyectos, empleados, equipos, precedencias] = await Promise.all([

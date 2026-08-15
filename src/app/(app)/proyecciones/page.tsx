@@ -1,10 +1,20 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
 import { irAProyeccionActual } from "./actions";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
 
 export default async function ProyeccionesPage() {
+  const usuario = await obtenerUsuario();
+  if (
+    !usuario ||
+    !["ADMIN", "GERENCIA", "VENTAS", "PRODUCCION"].includes(usuario.rol)
+  ) {
+    redirect("/");
+  }
+
   const proyecciones = await prisma.proyeccion.findMany({
     orderBy: [{ anio: "desc" }, { trimestre: "desc" }],
     include: { _count: { select: { detalles: true } } },
