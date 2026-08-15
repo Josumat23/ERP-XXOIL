@@ -96,8 +96,8 @@ export async function ejecutarPropuestaPago(
           { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
         );
         if (!resultado.ok) throw new Error(resultado.error);
-        exitosas.push(linea.cuentaId);
       });
+      exitosas.push(linea.cuentaId);
     } catch (e) {
       fallidas.push(e instanceof Error ? e.message : "Error desconocido");
     }
