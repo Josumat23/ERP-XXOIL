@@ -1,10 +1,16 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PedidoFormulario from "../PedidoFormulario";
 import { calcularAtpPorProducto, unidadesEquivalentes } from "@/lib/atp";
 
 export default async function NuevoPedidoPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const [clientes, vendedores, presentaciones, pedidos, descuentosCanal, atpPorProducto] = await Promise.all([
     prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),

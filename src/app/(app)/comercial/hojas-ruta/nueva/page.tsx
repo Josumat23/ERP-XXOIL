@@ -1,9 +1,15 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import HojaRutaFormulario from "../HojaRutaFormulario";
 
 export default async function NuevaHojaRutaPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const [vendedores, clientes, hojas] = await Promise.all([
     prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.cliente.findMany({

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_PEDIDO } from "@/lib/etiquetas";
@@ -22,6 +22,9 @@ export default async function DetallePedidoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const { id } = await params;
 
   const [pedido, pedidos] = await Promise.all([
@@ -40,7 +43,6 @@ export default async function DetallePedidoPage({
 
   const series =
     pedido.estado === "PENDIENTE" ? await seriesActivas("FACTURA") : [];
-  const usuario = await obtenerUsuario();
   const puedeAprobarCredito =
     pedido.estadoAprobacionCredito === "PENDIENTE" &&
     usuario !== null &&

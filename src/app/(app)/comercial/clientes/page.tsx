@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -15,6 +18,9 @@ export default async function ClientesPage({
 }: {
   searchParams: Promise<{ q?: string; estado?: string; canal?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const { q, estado, canal } = await searchParams;
   const filtroCanal = CANALES.find((c) => c === canal);
   const empresaId = await obtenerEmpresaActivaId();

@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { ETIQUETA_TIPO_VENDEDOR } from "@/lib/etiquetas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import VendedorFormulario from "../VendedorFormulario";
@@ -11,6 +13,9 @@ export default async function EditarVendedorPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const { id } = await params;
 
   const [vendedor, vendedores, zonas] = await Promise.all([

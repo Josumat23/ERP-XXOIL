@@ -1,9 +1,15 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import { calcularAtpPorProducto, unidadesEquivalentes } from "@/lib/atp";
 
 export default async function AtpPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const [presentaciones, atpPorProducto] = await Promise.all([
     prisma.presentacion.findMany({
       where: { activo: true },

@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_ESTADO_FACTURA, ETIQUETA_CONDICION_PAGO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -17,6 +20,9 @@ export default async function FacturasPage({
 }: {
   searchParams: Promise<{ q?: string; estado?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const { q, estado } = await searchParams;
   const ESTADOS_VALIDOS = ["PENDIENTE", "PAGADA", "ANULADA"] as const;
   const estadoFiltro = ESTADOS_VALIDOS.find((e) => e === estado);

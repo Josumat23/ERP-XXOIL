@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -10,6 +13,9 @@ export default async function ComisionesPage({
 }: {
   searchParams: Promise<{ q?: string; vendedorId?: string; estado?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const { q, vendedorId, estado } = await searchParams;
 
   const vendedores = await prisma.vendedor.findMany({ orderBy: { nombre: "asc" } });

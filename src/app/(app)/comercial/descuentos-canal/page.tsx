@@ -1,10 +1,16 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { ETIQUETA_CANAL_CLIENTE } from "@/lib/etiquetas";
 import DescuentoCanalFormulario from "./DescuentoCanalFormulario";
 
 const CANALES = Object.keys(ETIQUETA_CANAL_CLIENTE) as (keyof typeof ETIQUETA_CANAL_CLIENTE)[];
 
 export default async function DescuentosCanalPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const descuentos = await prisma.descuentoCanal.findMany();
   const porCanal = new Map(descuentos.map((d) => [d.canal, d.descuentoPct.toNumber()]));
 

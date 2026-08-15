@@ -1,11 +1,17 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ZonaFormulario from "./ZonaFormulario";
 import { alternarActivoZona } from "./actions";
 
 export default async function ZonasPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const zonas = await prisma.zona.findMany({
     include: { _count: { select: { vendedores: true, clientes: true } } },
     orderBy: { nombre: "asc" },

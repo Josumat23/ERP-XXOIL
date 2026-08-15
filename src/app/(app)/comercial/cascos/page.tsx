@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import CascoFormulario from "./CascoFormulario";
 
 export default async function CascosPage({
@@ -6,6 +9,9 @@ export default async function CascosPage({
 }: {
   searchParams: Promise<{ clienteId?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+
   const { clienteId } = await searchParams;
 
   const [clientes, insumosRetornables, movimientos] = await Promise.all([
