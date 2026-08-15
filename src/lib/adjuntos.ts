@@ -1,4 +1,20 @@
 import path from "path";
+import type { $Enums, Usuario } from "@/generated/prisma/client";
+
+const ROLES_LECTURA_POR_ENTIDAD: Record<string, $Enums.RolUsuario[]> = {
+  Insumo: ["ALMACEN"],
+  Cliente: ["VENTAS"],
+  Proveedor: ["ALMACEN"],
+  OrdenCompra: ["ALMACEN"],
+  Empleado: ["GERENCIA"],
+  Equipo: ["PRODUCCION", "ALMACEN"],
+  ActivoFijo: ["ALMACEN"],
+};
+
+export function puedeLeerAdjunto(usuario: Usuario, entidadTipo: string): boolean {
+  if (usuario.rol === "ADMIN") return true;
+  return ROLES_LECTURA_POR_ENTIDAD[entidadTipo]?.includes(usuario.rol) ?? false;
+}
 
 // En Docker, process.cwd() es /app (WORKDIR) — esto resuelve dentro del mismo
 // volumen persistente que ya usa la base SQLite (ver docker-compose.yml).
