@@ -20,6 +20,7 @@ import {
   validarArchivoCertificadoSunat,
 } from "@/lib/certificadoSunat";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
@@ -718,6 +719,21 @@ test("aprobaciones separan al solicitante de quien resuelve", () => {
   assert.equal(puedeResolverSolicitud("usuario-solicitante", "usuario-gerencia"), true);
   assert.equal(puedeResolverSolicitud("usuario-solicitante", "usuario-solicitante"), false);
 });
+test("Server Actions solo amplían orígenes explícitamente en producción", () => {
+  assert.deepEqual(obtenerOrigenesServerActions({ NODE_ENV: "production" }), []);
+  assert.deepEqual(obtenerOrigenesServerActions({ NODE_ENV: "development" }), [
+    "*.app.github.dev",
+    "localhost:3000",
+  ]);
+  assert.deepEqual(
+    obtenerOrigenesServerActions({
+      NODE_ENV: "production",
+      SERVER_ACTIONS_ALLOWED_ORIGINS: "erp.example.com, proxy.example.com,erp.example.com",
+    }),
+    ["erp.example.com", "proxy.example.com"]
+  );
+});
+
 test("certificados SUNAT limitan extensión y tamaño antes de leer el contenido", () => {
   assert.equal(validarArchivoCertificadoSunat({ name: "firma.pfx", size: 1024 }), null);
   assert.equal(validarArchivoCertificadoSunat({ name: "firma.P12", size: 1024 }), null);

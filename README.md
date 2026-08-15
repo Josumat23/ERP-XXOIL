@@ -69,6 +69,16 @@ actualiza el costo promedio de la presentación, del que sale el margen de venta
    ```
 6. Abrir [http://localhost:3000](http://localhost:3000).
 
+En producción, si un proxy autorizado usa un origen distinto al host público, configure una lista
+explícita separada por comas, por ejemplo:
+
+```bash
+SERVER_ACTIONS_ALLOWED_ORIGINS="erp.example.com,proxy.example.com"
+```
+
+Si no se configura, Next.js conserva su comprobación segura de mismo origen. El comodín de
+GitHub Codespaces solo se habilita automáticamente durante desarrollo.
+
 ### Pruebas automatizadas
 
 ```bash
