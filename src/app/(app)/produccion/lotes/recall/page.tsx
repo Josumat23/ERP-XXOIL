@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -13,6 +16,9 @@ export default async function RecallPage({
 }: {
   searchParams: Promise<{ loteId?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const { loteId } = await searchParams;
 
   const lotes = await prisma.loteGranel.findMany({

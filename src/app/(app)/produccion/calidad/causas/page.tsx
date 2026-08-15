@@ -1,10 +1,16 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import CausaFormulario from "./CausaFormulario";
 import { alternarActivoCausaCalidad } from "./actions";
 
 export default async function CausasCalidadPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const causas = await prisma.causaCalidad.findMany({
     include: { _count: { select: { controlesCalidad: true, reclamosCliente: true } } },
     orderBy: { nombre: "asc" },

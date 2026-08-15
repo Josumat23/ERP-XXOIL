@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import OrdenMantenimientoFormulario from "../OrdenMantenimientoFormulario";
 import { crearOrdenMantenimiento } from "../actions";
@@ -9,6 +12,9 @@ export default async function NuevaOrdenMantenimientoPage({
 }: {
   searchParams: Promise<{ equipoId?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const { equipoId } = await searchParams;
 
   const [equipos, centrosCosto, ordenes] = await Promise.all([

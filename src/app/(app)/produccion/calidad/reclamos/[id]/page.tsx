@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BotonImprimir from "@/components/BotonImprimir";
 import ReclamoEstadoFormulario from "./ReclamoEstadoFormulario";
@@ -16,6 +18,9 @@ export default async function DetalleReclamoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const { id } = await params;
 
   const [reclamo, reclamos] = await Promise.all([

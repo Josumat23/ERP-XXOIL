@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import EnvasadoFormulario from "../EnvasadoFormulario";
 
@@ -8,6 +11,9 @@ export default async function NuevoEnvasadoPage({
 }: {
   searchParams: Promise<{ loteId?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const { loteId } = await searchParams;
 
   const [lotes, presentaciones, insumos, envasados] = await Promise.all([

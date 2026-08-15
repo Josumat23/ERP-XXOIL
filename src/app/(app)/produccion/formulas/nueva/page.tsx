@@ -1,9 +1,15 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import FormulaFormulario from "../FormulaFormulario";
 
 export default async function NuevaFormulaPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const [productos, insumos, formulas] = await Promise.all([
     prisma.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.insumo.findMany({

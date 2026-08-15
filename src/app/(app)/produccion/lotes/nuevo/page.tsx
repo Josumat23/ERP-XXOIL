@@ -1,9 +1,15 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import LoteFormulario from "../LoteFormulario";
 
 export default async function NuevoLotePage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const [formulas, lotes, lotesRechazados] = await Promise.all([
     prisma.formula.findMany({
       where: { activo: true },

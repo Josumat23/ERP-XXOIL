@@ -1,10 +1,16 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import EquipoFormulario from "../EquipoFormulario";
 import { crearEquipo } from "../actions";
 
 export default async function NuevoEquipoPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const [almacenes, activosFijos, centrosCosto, equipos] = await Promise.all([
     prisma.almacen.findMany({
       where: { activo: true },
