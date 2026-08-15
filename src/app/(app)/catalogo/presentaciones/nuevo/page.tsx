@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { zonasAlmacenParaSelect } from "@/lib/almacenes";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PresentacionFormulario from "../PresentacionFormulario";
@@ -10,6 +13,9 @@ export default async function NuevaPresentacionPage({
 }: {
   searchParams: Promise<{ productoId?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+
   const { productoId } = await searchParams;
 
   const [productos, zonasAlmacen, presentaciones] = await Promise.all([
