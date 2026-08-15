@@ -6,7 +6,12 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
-import { DIRECTORIO_ADJUNTOS, TIPOS_MIME_PERMITIDOS, TAMANIO_MAXIMO_BYTES } from "@/lib/adjuntos";
+import {
+  DIRECTORIO_ADJUNTOS,
+  TIPOS_MIME_PERMITIDOS,
+  TAMANIO_MAXIMO_BYTES,
+  puedeEditarAdjunto,
+} from "@/lib/adjuntos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -19,6 +24,9 @@ export async function subirAdjunto(
 ): Promise<EstadoFormulario> {
   const usuario = await obtenerUsuario();
   if (!usuario) return { error: "Sesión expirada. Vuelva a iniciar sesión." };
+  if (!(await puedeEditarAdjunto(usuario, entidadTipo))) {
+    return { error: "No tiene permiso para adjuntar archivos en este módulo." };
+  }
 
   const archivo = formData.get("archivo");
   if (!(archivo instanceof File) || archivo.size === 0) {
@@ -69,6 +77,7 @@ export async function eliminarAdjunto(id: string, rutaRevalidar: string) {
 
   const adjunto = await prisma.adjunto.findUnique({ where: { id } });
   if (!adjunto) return;
+  if (!(await puedeEditarAdjunto(usuario, adjunto.entidadTipo))) return;
   if (usuario.rol !== "ADMIN" && adjunto.usuarioId !== usuario.id) return;
 
   await prisma.adjunto.delete({ where: { id } });

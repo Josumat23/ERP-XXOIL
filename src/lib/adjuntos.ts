@@ -1,5 +1,7 @@
 import path from "path";
 import type { $Enums, Usuario } from "@/generated/prisma/client";
+import type { ClaveModulo } from "@/lib/permisos";
+import { puedeRealizar } from "@/lib/permisos";
 
 const ROLES_LECTURA_POR_ENTIDAD: Record<string, $Enums.RolUsuario[]> = {
   Insumo: ["ALMACEN"],
@@ -11,9 +13,25 @@ const ROLES_LECTURA_POR_ENTIDAD: Record<string, $Enums.RolUsuario[]> = {
   ActivoFijo: ["ALMACEN"],
 };
 
+const MODULO_POR_ENTIDAD: Record<string, ClaveModulo> = {
+  Insumo: "materiales",
+  Cliente: "ventas",
+  Proveedor: "materiales",
+  OrdenCompra: "materiales",
+  Empleado: "rrhh",
+  Equipo: "produccion",
+  ActivoFijo: "finanzas",
+};
+
 export function puedeLeerAdjunto(usuario: Usuario, entidadTipo: string): boolean {
   if (usuario.rol === "ADMIN") return true;
   return ROLES_LECTURA_POR_ENTIDAD[entidadTipo]?.includes(usuario.rol) ?? false;
+}
+
+export async function puedeEditarAdjunto(usuario: Usuario, entidadTipo: string): Promise<boolean> {
+  if (!puedeLeerAdjunto(usuario, entidadTipo)) return false;
+  const modulo = MODULO_POR_ENTIDAD[entidadTipo];
+  return modulo ? puedeRealizar(usuario, modulo, "editar") : false;
 }
 
 // En Docker, process.cwd() es /app (WORKDIR) — esto resuelve dentro del mismo
