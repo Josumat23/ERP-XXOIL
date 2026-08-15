@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
@@ -16,6 +19,9 @@ export default async function ReclamosClientePage({
 }: {
   searchParams: Promise<{ q?: string; estado?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const { q, estado } = await searchParams;
   const filtroEstado = Object.keys(ETIQUETA_ESTADO).find((e) => e === estado);
 

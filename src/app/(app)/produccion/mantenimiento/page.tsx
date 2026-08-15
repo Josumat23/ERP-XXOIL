@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatFecha, formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -26,6 +29,9 @@ export default async function MantenimientoPage({
 }: {
   searchParams: Promise<{ q?: string; tipo?: string; estado?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
+
   const { q, tipo, estado } = await searchParams;
   const filtroTipo = tipo === "PREVENTIVO" || tipo === "CORRECTIVO" ? tipo : undefined;
   const filtroEstado = ESTADOS.find((e) => e === estado);
