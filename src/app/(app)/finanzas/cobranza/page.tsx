@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import { diasVencidos, nivelSugerido, ETIQUETA_NIVEL } from "@/lib/cobranza";
@@ -9,7 +10,11 @@ import { registrarAvisoCobranza, alternarBloqueoCliente } from "./actions";
 
 export default async function CobranzaPage() {
   const usuario = await obtenerUsuario();
-  if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA" && usuario.rol !== "VENTAS")) {
+  if (
+    !usuario ||
+    (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA" && usuario.rol !== "VENTAS") ||
+    !(await puedeRealizar(usuario, "finanzas", "ver"))
+  ) {
     redirect("/");
   }
 

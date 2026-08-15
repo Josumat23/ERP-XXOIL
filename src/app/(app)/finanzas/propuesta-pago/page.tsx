@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PropuestaPagoFormulario from "./PropuestaPagoFormulario";
@@ -16,7 +17,13 @@ export default async function PropuestaPagoPage({
   searchParams: Promise<{ hasta?: string }>;
 }) {
   const usuario = await obtenerUsuario();
-  if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
+  if (
+    !usuario ||
+    (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA") ||
+    !(await puedeRealizar(usuario, "finanzas", "ver"))
+  ) {
+    redirect("/");
+  }
 
   const { hasta: hastaParam } = await searchParams;
   const hoy = new Date();

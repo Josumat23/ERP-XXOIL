@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import BarraFiltro from "@/components/BarraFiltro";
@@ -24,6 +27,8 @@ export default async function CuentasPorCobrarPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
   const { q } = await searchParams;
 
   const facturas = await prisma.factura.findMany({

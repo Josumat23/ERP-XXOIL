@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -10,6 +13,8 @@ export default async function CuentasPorPagarPage({
 }: {
   searchParams: Promise<{ q?: string; estado?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
   const { q, estado } = await searchParams;
   const filtroEstado = estado === "pendiente" || estado === "pagada" ? estado : undefined;
 
