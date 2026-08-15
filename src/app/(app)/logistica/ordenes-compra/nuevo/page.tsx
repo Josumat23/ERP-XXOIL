@@ -1,10 +1,16 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import OrdenCompraFormulario from "../OrdenCompraFormulario";
 import { obtenerTipoCambioVigente } from "@/lib/tipoCambio";
 
 export default async function NuevaOrdenCompraPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+
   const [proveedores, insumos, almacenes, ordenes, tipoCambioSugerido, proyectos, edts] = await Promise.all([
     prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),

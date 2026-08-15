@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ORIGEN } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -9,6 +12,9 @@ export default async function KardexPage({
 }: {
   searchParams: Promise<{ tipo?: string; item?: string; almacenId?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+
   const { tipo, item, almacenId } = await searchParams;
   const filtroTipo = tipo === "PRESENTACION" || tipo === "INSUMO" ? tipo : undefined;
 

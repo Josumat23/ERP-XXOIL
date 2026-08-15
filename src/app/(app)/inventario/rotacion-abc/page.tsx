@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 
@@ -141,6 +144,9 @@ async function cargarDatosRotacionAbc(): Promise<DatosRotacionAbc> {
 }
 
 export default async function RotacionAbcPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+
   const { filasProductos, filasInsumos } = await cargarDatosRotacionAbc();
 
   return (

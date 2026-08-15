@@ -1,8 +1,14 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatFecha, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 
 export default async function ExactitudInventarioPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+
   const conteos = await prisma.conteoInventario.findMany({
     include: { detalles: true },
     orderBy: { fecha: "desc" },

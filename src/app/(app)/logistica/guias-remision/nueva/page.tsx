@@ -1,10 +1,16 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { seriesActivas } from "@/lib/series";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import GuiaFormulario from "../GuiaFormulario";
 
 export default async function NuevaGuiaPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+
   const [facturas, clientes, presentaciones, equipos, series, guias, ubigeos] = await Promise.all([
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" } },
