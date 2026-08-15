@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { AlmacenFormulario, ZonaFormulario } from "./AlmacenFormularios";
 import { CalendarioProduccionFormulario } from "./CalendarioProduccionFormulario";
@@ -9,6 +10,7 @@ import { alternarActivoAlmacen, alternarActivoZona } from "./actions";
 export default async function AlmacenesPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "ALMACEN")) redirect("/");
+  if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const almacenes = await prisma.almacen.findMany({
     include: {

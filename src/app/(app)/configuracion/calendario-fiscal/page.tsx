@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { generarAnioFiscal, alternarPeriodoFiscal } from "./actions";
 
 const NOMBRES_MES = [
@@ -15,6 +16,7 @@ export default async function CalendarioFiscalPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
+  if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const { anio: anioParam } = await searchParams;
   const hoy = new Date();

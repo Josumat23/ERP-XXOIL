@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { ETIQUETA_TAREA, type ClaveTarea } from "@/lib/tareasProgramadas";
 import { ejecutarTareaAhora } from "./actions";
 
@@ -13,6 +14,7 @@ function formatearFechaHora(fecha: Date): string {
 export default async function TareasProgramadasPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
+  if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const [ultimasPorClave, historial] = await Promise.all([
     Promise.all(

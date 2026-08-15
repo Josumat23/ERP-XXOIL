@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { AccionAuditoriaMaestro, Prisma } from "@/generated/prisma/client";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { prisma } from "@/lib/prisma";
 
 const ACCIONES = Object.values(AccionAuditoriaMaestro);
@@ -34,6 +35,7 @@ export default async function AuditoriaPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
+  if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const filtros = await searchParams;
   const entidad = filtros.entidad?.trim() || undefined;

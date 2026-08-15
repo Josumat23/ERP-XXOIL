@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatearNumeroSerie } from "@/lib/series";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import SerieFormulario from "./SerieFormulario";
@@ -15,6 +16,7 @@ const ETIQUETA_TIPO: Record<string, string> = {
 export default async function SeriesPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
+  if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const series = await prisma.serieDocumento.findMany({
     orderBy: [{ tipoDocumento: "asc" }, { serie: "asc" }],
