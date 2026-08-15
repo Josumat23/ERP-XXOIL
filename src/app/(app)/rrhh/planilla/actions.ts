@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { generarPlanillaMensual, generarGratificacion, generarCts } from "@/lib/planilla";
 
 export type EstadoFormulario = { error?: string };
@@ -17,6 +18,9 @@ export async function crearPlanillaMensual(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([...ROLES_RRHH]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "crear"))) {
+    return { error: "No tiene permiso para crear registros de planilla." };
+  }
 
   const anio = Number(formData.get("anio") ?? 0);
   const mes = Number(formData.get("mes") ?? 0);
@@ -48,6 +52,9 @@ export async function crearGratificacion(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([...ROLES_RRHH]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "crear"))) {
+    return { error: "No tiene permiso para crear registros de planilla." };
+  }
 
   const anio = Number(formData.get("anio") ?? 0);
   const mitad = String(formData.get("mitad") ?? "");
@@ -79,6 +86,9 @@ export async function crearCts(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([...ROLES_RRHH]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "crear"))) {
+    return { error: "No tiene permiso para crear registros de planilla." };
+  }
 
   const anio = Number(formData.get("anio") ?? 0);
   const mitad = String(formData.get("mitad") ?? "");
