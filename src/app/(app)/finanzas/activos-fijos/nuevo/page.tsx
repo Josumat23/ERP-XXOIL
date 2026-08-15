@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ActivoFijoFormulario from "../ActivoFijoFormulario";
 import { crearActivoFijo } from "../actions";
@@ -10,6 +13,9 @@ export default async function NuevoActivoFijoPage({
 }: {
   searchParams: Promise<{ proyectoId?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+
   const { proyectoId } = await searchParams;
 
   const [almacenes, centrosCosto, activos, proyecto] = await Promise.all([

@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_CANAL_CLIENTE, ETIQUETA_SEGMENTO_MERCADO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -77,6 +80,9 @@ export default async function RentabilidadPage({
     clienteId?: string;
   }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+
   const hoy = new Date();
   const { anio: anioParam, mes: mesParam, comparar, vendedorId, zonaId, clienteId } =
     await searchParams;

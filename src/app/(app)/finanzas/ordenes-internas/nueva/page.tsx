@@ -1,9 +1,15 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import OrdenInternaFormulario from "../OrdenInternaFormulario";
 
 export default async function NuevaOrdenInternaPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+
   const [centrosCosto, ordenes] = await Promise.all([
     prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.ordenInterna.findMany({ orderBy: { creadoEn: "desc" } }),

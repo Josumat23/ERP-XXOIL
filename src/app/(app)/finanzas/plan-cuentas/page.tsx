@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { ETIQUETA_CONTROL, type ClaveControl } from "@/lib/contabilidad";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { CuentaFormulario, ControlFormulario } from "./PlanCuentasFormularios";
@@ -24,7 +25,9 @@ const COLOR_TIPO: Record<string, string> = {
 
 export default async function PlanCuentasPage() {
   const usuario = await obtenerUsuario();
-  if (!usuario || usuario.rol !== "ADMIN") redirect("/");
+  if (!usuario || usuario.rol !== "ADMIN" || !(await puedeRealizar(usuario, "finanzas", "ver"))) {
+    redirect("/");
+  }
 
   const [cuentas, controles] = await Promise.all([
     prisma.cuentaContable.findMany({ orderBy: { codigo: "asc" } }),

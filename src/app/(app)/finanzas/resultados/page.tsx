@@ -1,5 +1,8 @@
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 
@@ -106,6 +109,9 @@ export default async function ResultadosPage({
 }: {
   searchParams: Promise<{ mes?: string; comparar?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+
   const { mes, comparar } = await searchParams;
   const modoComparacion = comparar === "anio" ? "anio" : "mes";
 
