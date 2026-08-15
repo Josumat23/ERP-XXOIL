@@ -1,10 +1,17 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 
 type Fila = { area: string; headcount: number; costoMensual: number };
 
 export default async function HeadcountPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
+  if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
+
   const empleados = await prisma.empleado.findMany({
     where: { estado: "ACTIVO" },
     orderBy: { area: "asc" },

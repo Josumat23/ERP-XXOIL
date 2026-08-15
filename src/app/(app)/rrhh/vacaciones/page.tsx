@@ -1,5 +1,8 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatFecha } from "@/lib/format";
 import AprobarVacacionesFormulario from "./AprobarVacacionesFormulario";
 import RechazarVacacionesFormulario from "./RechazarVacacionesFormulario";
@@ -17,6 +20,10 @@ const COLOR_ESTADO: Record<string, string> = {
 };
 
 export default async function VacacionesPage() {
+  const usuario = await obtenerUsuario();
+  if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
+  if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
+
   const solicitudes = await prisma.solicitudVacaciones.findMany({
     include: { empleado: true },
     orderBy: [{ estado: "asc" }, { fechaInicio: "desc" }],
