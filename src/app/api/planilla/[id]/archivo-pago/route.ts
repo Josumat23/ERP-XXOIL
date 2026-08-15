@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 // Exportador GENÉRICO de archivo de pago de haberes — NO es el formato exacto
 // de carga masiva de ningún banco (BBVA u otro). Contiene los datos mínimos
@@ -20,8 +21,14 @@ function csvEscape(valor: string): string {
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await obtenerUsuario();
-  if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) {
+  if (!usuario) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+  if (
+    (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA") ||
+    !(await puedeRealizar(usuario, "rrhh", "ver"))
+  ) {
+    return NextResponse.json({ error: "Acceso denegado." }, { status: 403 });
   }
 
   const { id } = await params;

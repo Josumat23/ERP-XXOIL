@@ -1,7 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 
@@ -23,6 +25,10 @@ export default async function BoletaPagoPage({
 }: {
   params: Promise<{ id: string; detalleId: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
+  if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
+
   const { id, detalleId } = await params;
 
   const detalle = await prisma.planillaDetalle.findUnique({
