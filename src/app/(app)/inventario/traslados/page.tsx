@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import TrasladoFormulario from "./TrasladoFormulario";
 import ReubicarZonaFormulario from "./ReubicarZonaFormulario";
@@ -14,6 +15,7 @@ export default async function TrasladosPage({
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "ALMACEN")) {
     redirect("/inventario/kardex");
   }
+  if (!(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
   const { almacenId } = await searchParams;
 
   const [presentaciones, insumos, almacenes, zonas, saldos, movimientos] = await Promise.all([

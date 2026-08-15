@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import AjusteFormulario from "./AjusteFormulario";
 
 export default async function AjustesPage() {
@@ -8,6 +9,7 @@ export default async function AjustesPage() {
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "ALMACEN")) {
     redirect("/inventario/kardex");
   }
+  if (!(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const [presentaciones, insumos] = await Promise.all([
     prisma.presentacion.findMany({

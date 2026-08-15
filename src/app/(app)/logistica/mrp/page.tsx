@@ -16,6 +16,7 @@ export default async function MrpPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario) redirect("/");
+  if (!(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { proyeccionId } = await searchParams;
 

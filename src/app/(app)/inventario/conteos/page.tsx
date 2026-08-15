@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ConteoFormulario from "./ConteoFormulario";
 
@@ -10,6 +11,7 @@ export default async function ConteosPage() {
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "ALMACEN")) {
     redirect("/inventario/kardex");
   }
+  if (!(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const [presentaciones, insumos, conteos] = await Promise.all([
     prisma.presentacion.findMany({
