@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { codigoTipoDocumento, generarArchivoPLE, generarLineaCompra, periodoAAAAMM, separarSerieNumero } from "@/lib/ple";
 
 export async function GET(req: NextRequest) {
   const usuario = await obtenerUsuario();
-  if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) {
+  if (!usuario) {
     return NextResponse.json({ error: "No autorizado." }, { status: 401 });
+  }
+  if (
+    (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA") ||
+    !(await puedeRealizar(usuario, "finanzas", "ver"))
+  ) {
+    return NextResponse.json({ error: "Acceso denegado." }, { status: 403 });
   }
 
   const anio = Number(req.nextUrl.searchParams.get("anio"));
