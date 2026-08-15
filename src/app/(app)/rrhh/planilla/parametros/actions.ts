@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -15,6 +16,9 @@ export async function crearParametroPlanilla(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([...ROLES_RRHH]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "crear"))) {
+    return { error: "No tiene permiso para crear registros de planilla." };
+  }
 
   const rmv = Number(formData.get("rmv") ?? 0);
   const uit = Number(formData.get("uit") ?? 0);
@@ -51,6 +55,9 @@ export async function crearTasaAfp(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([...ROLES_RRHH]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "crear"))) {
+    return { error: "No tiene permiso para crear registros de planilla." };
+  }
 
   const afp = String(formData.get("afp") ?? "") as $Enums.Afp;
   const tipoComision = String(formData.get("tipoComision") ?? "FLUJO") as $Enums.TipoComisionAfp;

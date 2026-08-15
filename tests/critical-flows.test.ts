@@ -696,12 +696,18 @@ test("permisos de grupo restringen la lectura financiera sin limitar al administ
       data: {
         codigo: "TEST-SIN-FINANZAS",
         nombre: "Prueba sin lectura financiera",
-        permisos: { create: { modulo: "finanzas", puedeVer: false } },
+        permisos: {
+          create: [
+            { modulo: "finanzas", puedeVer: false },
+            { modulo: "rrhh", puedeCrear: false },
+          ],
+        },
       },
     }),
   ]);
 
   assert.equal(await puedeRealizar({ ...gerencia, grupoSeguridadId: grupo.id }, "finanzas", "ver"), false);
+  assert.equal(await puedeRealizar({ ...gerencia, grupoSeguridadId: grupo.id }, "rrhh", "crear"), false);
   assert.equal(await puedeRealizar(administrador, "finanzas", "ver"), true);
 });
 test("aprobaciones separan al solicitante de quien resuelve", () => {
