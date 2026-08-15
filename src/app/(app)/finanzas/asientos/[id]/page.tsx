@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -14,8 +15,10 @@ export default async function DetalleAsientoPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
   const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+
+  const { id } = await params;
 
   const [asiento, asientos] = await Promise.all([
     prisma.asientoContable.findUnique({
