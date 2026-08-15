@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_MEDIO_PAGO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -13,6 +16,8 @@ export default async function CajaPage({
 }: {
   searchParams: Promise<{ q?: string; tipo?: string; medioPago?: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
   const { q, tipo, medioPago } = await searchParams;
   const filtroTipo = tipo === "INGRESO" || tipo === "EGRESO" ? tipo : undefined;
   const filtroMedio = MEDIOS.find((m) => m === medioPago);

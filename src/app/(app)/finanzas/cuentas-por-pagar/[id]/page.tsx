@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_MEDIO_PAGO, ETIQUETA_ESTADO_APROBACION } from "@/lib/etiquetas";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PagoFormulario from "./PagoFormulario";
 import { aprobarPagoProveedor } from "../actions";
@@ -20,9 +21,12 @@ export default async function DetalleCuentaPorPagarPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const usuario = await obtenerUsuario();
+  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+
   const { id } = await params;
 
-  const [cuenta, cuentas, usuario] = await Promise.all([
+  const [cuenta, cuentas] = await Promise.all([
     prisma.cuentaPorPagar.findUnique({
       where: { id },
       include: {
@@ -32,7 +36,6 @@ export default async function DetalleCuentaPorPagarPage({
       },
     }),
     prisma.cuentaPorPagar.findMany({ include: { proveedor: true }, orderBy: { fechaEmision: "desc" } }),
-    obtenerUsuario(),
   ]);
   if (!cuenta) notFound();
 
