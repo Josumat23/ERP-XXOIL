@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { prisma } from "@/lib/prisma";
 import EmpresaFormulario from "./EmpresaFormulario";
@@ -8,6 +9,7 @@ import CuentasBancarias from "./CuentasBancarias";
 export default async function EmpresaPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
+  if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const [config, cuentasBancarias] = await Promise.all([
     obtenerConfiguracionEmpresa(),

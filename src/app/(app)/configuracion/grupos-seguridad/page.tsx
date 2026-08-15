@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { MODULOS } from "./modulos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import GrupoFormulario from "./GrupoFormulario";
@@ -10,6 +11,7 @@ import { alternarActivoGrupo } from "./actions";
 export default async function GruposSeguridadPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
+  if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const grupos = await prisma.grupoSeguridad.findMany({
     include: { permisos: true },

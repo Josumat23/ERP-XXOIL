@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { ClaseFormulario, UnidadFormulario } from "./UnidadMedidaFormularios";
 import { alternarActivoUnidad } from "./actions";
@@ -8,6 +9,7 @@ import { alternarActivoUnidad } from "./actions";
 export default async function UnidadesMedidaPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
+  if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const clases = await prisma.claseUnidadMedida.findMany({
     include: { unidades: true },

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import { asegurarEmpresaPrincipal, obtenerEmpresaActivaId } from "@/lib/empresas";
 import { crearEmpresa, alternarActivaEmpresa, cambiarEmpresaActiva } from "./actions";
 import EmpresaFormulario from "./EmpresaFormulario";
@@ -8,6 +9,7 @@ import EmpresaFormulario from "./EmpresaFormulario";
 export default async function EmpresasPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
+  if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   await asegurarEmpresaPrincipal();
 

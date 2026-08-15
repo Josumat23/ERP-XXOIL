@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario, ETIQUETA_ROL } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import {
@@ -16,6 +17,7 @@ const MS_POR_DIA = 1000 * 60 * 60 * 24;
 export default async function UsuariosPage() {
   const actual = await obtenerUsuario();
   if (!actual || actual.rol !== "ADMIN") redirect("/");
+  if (!(await puedeRealizar(actual, "configuracion", "ver"))) redirect("/");
 
   const [usuarios, grupos, sesiones] = await Promise.all([
     prisma.usuario.findMany({ orderBy: { nombre: "asc" } }),
