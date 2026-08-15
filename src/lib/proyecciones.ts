@@ -13,6 +13,17 @@ export function trimestreDe(fecha: Date): { anio: number; trimestre: number } {
   return { anio: fecha.getFullYear(), trimestre: Math.floor(fecha.getMonth() / 3) + 1 };
 }
 
+export function esPeriodoProyeccionValido(anio: number, trimestre: number): boolean {
+  return (
+    Number.isInteger(anio) &&
+    anio >= 2000 &&
+    anio <= 2100 &&
+    Number.isInteger(trimestre) &&
+    trimestre >= 1 &&
+    trimestre <= 4
+  );
+}
+
 export function rangoTrimestre(anio: number, trimestre: number): { inicio: Date; fin: Date } {
   const mesInicio = (trimestre - 1) * 3;
   return { inicio: new Date(anio, mesInicio, 1), fin: new Date(anio, mesInicio + 3, 1) };

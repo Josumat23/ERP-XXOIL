@@ -10,7 +10,7 @@ import {
   postearRecepcionCompra,
   postearVenta,
 } from "@/lib/contabilidad";
-import { calcularUnidadesAProducir } from "@/lib/proyecciones";
+import { calcularUnidadesAProducir, esPeriodoProyeccionValido } from "@/lib/proyecciones";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
@@ -40,6 +40,16 @@ assert.ok(!estaDentro(rutaBase, resolve(process.cwd())), "La base de pruebas no 
 
 after(async () => {
   await prisma.$disconnect();
+});
+
+test("proyecciones aceptan únicamente años y trimestres enteros dentro del rango operativo", () => {
+  assert.equal(esPeriodoProyeccionValido(2026, 1), true);
+  assert.equal(esPeriodoProyeccionValido(2100, 4), true);
+  assert.equal(esPeriodoProyeccionValido(1999, 1), false);
+  assert.equal(esPeriodoProyeccionValido(2101, 4), false);
+  assert.equal(esPeriodoProyeccionValido(2026.5, 2), false);
+  assert.equal(esPeriodoProyeccionValido(2026, 0), false);
+  assert.equal(esPeriodoProyeccionValido(2026, 5), false);
 });
 
 async function auditoria() {
