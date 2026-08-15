@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { ETIQUETA_ORIGEN_ASIENTO } from "@/lib/etiquetas";
 import AsientoManualFormulario from "../AsientoManualFormulario";
@@ -9,6 +10,7 @@ import AsientoManualFormulario from "../AsientoManualFormulario";
 export default async function NuevoAsientoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/finanzas/asientos");
+  if (!(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
 
   const [cuentas, asientos] = await Promise.all([
     prisma.cuentaContable.findMany({
