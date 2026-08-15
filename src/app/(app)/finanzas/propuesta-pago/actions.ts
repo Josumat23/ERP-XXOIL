@@ -41,15 +41,38 @@ export async function ejecutarPropuestaPago(
   const medioPago = String(formData.get("medioPago") ?? "") as $Enums.MedioPago;
   if (!MEDIOS_VALIDOS.includes(medioPago)) return { error: "Seleccione el medio de pago." };
 
-  let lineas: LineaPropuesta[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
     return { error: "La selección de cuentas es inválida." };
   }
-  lineas = lineas.filter((l) => l.cuentaId && Number.isFinite(l.monto) && l.monto > 0);
+  if (!Array.isArray(lineasRaw)) {
+    return { error: "La selección de cuentas es inválida." };
+  }
+
+  const lineas: LineaPropuesta[] = [];
+  for (const linea of lineasRaw) {
+    if (
+      typeof linea !== "object" ||
+      linea === null ||
+      !("cuentaId" in linea) ||
+      !("monto" in linea) ||
+      typeof linea.cuentaId !== "string" ||
+      typeof linea.monto !== "number" ||
+      !linea.cuentaId ||
+      !Number.isFinite(linea.monto) ||
+      linea.monto <= 0
+    ) {
+      continue;
+    }
+    lineas.push({ cuentaId: linea.cuentaId, monto: linea.monto });
+  }
   if (lineas.length === 0) {
     return { error: "Seleccione al menos una cuenta por pagar con un monto mayor a 0." };
+  }
+  if (new Set(lineas.map((linea) => linea.cuentaId)).size !== lineas.length) {
+    return { error: "La propuesta contiene cuentas por pagar repetidas." };
   }
 
   const { montoAprobacionPagos } = await obtenerConfiguracionEmpresa();
