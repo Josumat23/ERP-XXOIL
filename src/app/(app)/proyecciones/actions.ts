@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import {
   trimestreDe,
   trimestreAnterior,
+  esPeriodoProyeccionValido,
   ventasHistoricasPorTrimestre,
   calcularIndiceEstacionalidad,
 } from "@/lib/proyecciones";
@@ -18,13 +19,16 @@ const ROLES_PROYECCIONES = ["ADMIN", "GERENCIA", "VENTAS", "PRODUCCION"] as cons
 
 /** Crea la proyección del trimestre si no existe, con estacionalidad calculada de la historia. */
 export async function obtenerOCrearProyeccion(anio: number, trimestre: number): Promise<string> {
+  const auth = await requerirRol([...ROLES_PROYECCIONES]);
+  if ("error" in auth) throw new Error(auth.error);
+  if (!esPeriodoProyeccionValido(anio, trimestre)) {
+    throw new Error("El período de proyección no es válido.");
+  }
+
   const existente = await prisma.proyeccion.findUnique({
     where: { empresaId_anio_trimestre: { empresaId: "1", anio, trimestre } },
   });
   if (existente) return existente.id;
-
-  const auth = await requerirRol([...ROLES_PROYECCIONES]);
-  if ("error" in auth) throw new Error(auth.error);
 
   const base = trimestreAnterior(anio, trimestre);
 
