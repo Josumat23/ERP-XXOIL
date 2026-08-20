@@ -10,6 +10,7 @@ import { reservarCorrelativo, siguienteCodigoProyecto } from "@/lib/correlativos
 import {
   recalcularRutaCritica,
   formariaCiclo,
+  edtPerteneceAProyecto,
   siguienteCodigoActividad,
   siguienteCodigoEdt,
 } from "@/lib/proyectos";
@@ -301,16 +302,33 @@ export async function agregarCostoProyecto(
   if (!concepto) return { error: "Ingrese el concepto del costo." };
   if (!Number.isFinite(monto) || monto <= 0) return { error: "El monto debe ser mayor a 0." };
 
-  await prisma.costoProyecto.create({
-    data: {
-      proyectoId,
-      edtId,
-      concepto,
-      monto,
-      usuarioId: auth.usuario.id,
-      usuarioNombre: auth.usuario.nombre,
-    },
-  });
+  try {
+    await prisma.$transaction(async (tx) => {
+      const proyecto = await tx.proyecto.findUnique({ where: { id: proyectoId }, select: { id: true } });
+      if (!proyecto) throw new Error("El proyecto no existe.");
+
+      if (edtId) {
+        const edt = await tx.edtProyecto.findUnique({ where: { id: edtId }, select: { proyectoId: true } });
+        if (!edtPerteneceAProyecto(edt, proyectoId)) {
+          throw new Error("La fase seleccionada no pertenece a este proyecto.");
+        }
+      }
+
+      await tx.costoProyecto.create({
+        data: {
+          proyectoId,
+          edtId,
+          concepto,
+          monto,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
 
   revalidatePath(`/proyectos/${proyectoId}`);
   return {};
