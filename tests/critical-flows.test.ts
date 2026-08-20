@@ -22,6 +22,7 @@ import {
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
+import { esTipoEntidadAdjunto } from "@/lib/adjuntos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
@@ -725,6 +726,13 @@ test("secretos de configuración solo se reemplazan con un valor nuevo", () => {
   assert.equal(resolverSecretoFormulario("   ", "secreto-existente"), "secreto-existente");
   assert.equal(resolverSecretoFormulario(" nuevo ", "secreto-existente"), "nuevo");
   assert.equal(resolverSecretoFormulario("", null), null);
+});
+
+test("adjuntos aceptan únicamente tipos de entidad registrados", () => {
+  assert.equal(esTipoEntidadAdjunto("OrdenCompra"), true);
+  assert.equal(esTipoEntidadAdjunto("Empleado"), true);
+  assert.equal(esTipoEntidadAdjunto("EntidadInventada"), false);
+  assert.equal(esTipoEntidadAdjunto(""), false);
 });
 
 test("Server Actions solo amplían orígenes explícitamente en producción", () => {
