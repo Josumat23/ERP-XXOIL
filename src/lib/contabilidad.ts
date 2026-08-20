@@ -1,5 +1,6 @@
 import type { Tx } from "@/lib/inventario";
 import type { $Enums } from "@/generated/prisma/client";
+import { reservarCorrelativo } from "@/lib/correlativos";
 
 // ---------------------------------------------------------------------------
 // Motor de contabilización automática (equivalente reducido a los GL Controls
@@ -82,6 +83,7 @@ type ParamsAsiento = {
 };
 
 async function siguienteNumeroAsiento(tx: Tx): Promise<string> {
+  await reservarCorrelativo(tx);
   const ultimo = await tx.asientoContable.findFirst({ orderBy: { numero: "desc" } });
   const n = ultimo ? parseInt(ultimo.numero.slice(3), 10) + 1 : 1;
   return `AS-${String(n).padStart(5, "0")}`;
