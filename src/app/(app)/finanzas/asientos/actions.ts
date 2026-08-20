@@ -6,12 +6,14 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import type { Tx } from "@/lib/inventario";
 import { reclamarPeriodoAbierto } from "@/lib/contabilidad";
+import { reservarCorrelativo } from "@/lib/correlativos";
 
 export type EstadoFormulario = { error?: string };
 
 type LineaManual = { cuentaId: string; glosa: string; debe: number; haber: number };
 
 async function siguienteNumeroAsiento(tx: Tx): Promise<string> {
+  await reservarCorrelativo(tx);
   const ultimo = await tx.asientoContable.findFirst({ orderBy: { numero: "desc" } });
   const n = ultimo ? parseInt(ultimo.numero.slice(3), 10) + 1 : 1;
   return `AS-${String(n).padStart(5, "0")}`;
