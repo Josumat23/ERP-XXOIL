@@ -14,6 +14,7 @@ import { postearRecepcionCompra, postearDevolucionCompra } from "@/lib/contabili
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { convertirAPen } from "@/lib/tipoCambio";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
+import { edtPerteneceAProyecto } from "@/lib/proyectos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -44,6 +45,17 @@ export async function crearOrdenCompraDesdeDatos(
 
   let ocId = "";
   await prisma.$transaction(async (tx) => {
+    if (datos.edtId) {
+      if (!datos.proyectoId) throw new Error("Seleccione el proyecto al que pertenece la fase.");
+      const edt = await tx.edtProyecto.findUnique({
+        where: { id: datos.edtId },
+        select: { proyectoId: true },
+      });
+      if (!edtPerteneceAProyecto(edt, datos.proyectoId)) {
+        throw new Error("La fase seleccionada no pertenece al proyecto de la orden.");
+      }
+    }
+
     const numero = await siguienteNumeroOrdenCompra(tx);
     const total = datos.lineas.reduce((acc, l) => acc + l.cantidad * l.costoUnitario, 0);
     const totalPen = convertirAPen(total, datos.moneda, datos.tipoCambio);
@@ -120,10 +132,16 @@ export async function crearOrdenCompra(
     return { error: "Agregue al menos una línea con cantidad y costo válidos." };
   }
 
-  const ocId = await crearOrdenCompraDesdeDatos(
-    { proveedorId, almacenId, notas, moneda, tipoCambio, lineas, proyectoId, edtId },
-    { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
-  );
+  let ocId: string;
+  try {
+    ocId = await crearOrdenCompraDesdeDatos(
+      { proveedorId, almacenId, notas, moneda, tipoCambio, lineas, proyectoId, edtId },
+      { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+    );
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
 
   revalidatePath("/logistica/ordenes-compra");
   redirect(`/logistica/ordenes-compra/${ocId}`);
