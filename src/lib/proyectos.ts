@@ -22,6 +22,13 @@ export function siguienteCodigoEdt(codigos: string[], codigoPadre: string | null
   return codigoPadre ? `${codigoPadre}.${siguiente}` : String(siguiente);
 }
 
+export function edtPerteneceAProyecto(
+  edt: { proyectoId: string } | null,
+  proyectoId: string
+): boolean {
+  return edt?.proyectoId === proyectoId;
+}
+
 export function siguienteCodigoActividad(codigos: string[]): string {
   const numeros = codigos.map((codigo) => (codigo.startsWith("A-") ? codigo.slice(2) : ""));
   const siguiente = maximoSegmento(numeros, null) + 1;

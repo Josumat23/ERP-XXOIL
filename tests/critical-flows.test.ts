@@ -23,7 +23,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { esTipoEntidadAdjunto } from "@/lib/adjuntos";
-import { siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
+import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
@@ -734,6 +734,12 @@ test("adjuntos aceptan únicamente tipos de entidad registrados", () => {
   assert.equal(esTipoEntidadAdjunto("Empleado"), true);
   assert.equal(esTipoEntidadAdjunto("EntidadInventada"), false);
   assert.equal(esTipoEntidadAdjunto(""), false);
+});
+
+test("una fase EDT solo puede imputarse a su propio proyecto", () => {
+  assert.equal(edtPerteneceAProyecto({ proyectoId: "proyecto-a" }, "proyecto-a"), true);
+  assert.equal(edtPerteneceAProyecto({ proyectoId: "proyecto-b" }, "proyecto-a"), false);
+  assert.equal(edtPerteneceAProyecto(null, "proyecto-a"), false);
 });
 
 test("proyectos no reutilizan códigos locales después de eliminar filas intermedias", () => {
