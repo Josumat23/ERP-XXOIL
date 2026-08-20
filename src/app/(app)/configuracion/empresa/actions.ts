@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { validarArchivoCertificadoSunat } from "@/lib/certificadoSunat";
+import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -45,10 +46,10 @@ export async function guardarConfiguracionEmpresa(
   const tasaCreditoLargoPlazo = Number(formData.get("tasaCreditoLargoPlazo"));
   const tasaRecargoMora = Number(formData.get("tasaRecargoMora") ?? 0);
   const oseProveedor = String(formData.get("oseProveedor") ?? "SIMULADO");
-  const oseToken = String(formData.get("oseToken") ?? "").trim() || null;
+  const oseTokenIngresado = formData.get("oseToken");
   const sunatUsuarioSol = String(formData.get("sunatUsuarioSol") ?? "").trim() || null;
-  const sunatClaveSol = String(formData.get("sunatClaveSol") ?? "").trim() || null;
-  const sunatCertificadoPassword = String(formData.get("sunatCertificadoPassword") ?? "").trim() || null;
+  const sunatClaveSolIngresada = formData.get("sunatClaveSol");
+  const sunatCertificadoPasswordIngresada = formData.get("sunatCertificadoPassword");
 
   if (!razonSocial) return { error: "La razón social es obligatoria." };
   if (ruc && !/^\d{11}$/.test(ruc)) return { error: "El RUC debe tener 11 dígitos." };
@@ -82,13 +83,22 @@ export async function guardarConfiguracionEmpresa(
   if (!["SIMULADO", "NUBEFACT", "SUNAT_DIRECTO"].includes(oseProveedor)) {
     return { error: "Seleccione un proveedor OSE válido." };
   }
+  const existente = await prisma.configuracionEmpresa.findUnique({ where: { id: "1" } });
+  const oseToken = resolverSecretoFormulario(oseTokenIngresado, existente?.oseToken ?? null);
+  const sunatClaveSol = resolverSecretoFormulario(
+    sunatClaveSolIngresada,
+    existente?.sunatClaveSol ?? null
+  );
+  const sunatCertificadoPassword = resolverSecretoFormulario(
+    sunatCertificadoPasswordIngresada,
+    existente?.sunatCertificadoPassword ?? null
+  );
+
   if (oseProveedor === "NUBEFACT" && (!ruc || !oseToken)) {
     return {
       error: "Para usar Nubefact, complete el RUC de la empresa y el token del proveedor.",
     };
   }
-
-  const existente = await prisma.configuracionEmpresa.findUnique({ where: { id: "1" } });
 
   // El certificado (.pfx/.p12) solo se reemplaza si se subió un archivo
   // nuevo — de lo contrario se conserva el que ya estaba guardado.

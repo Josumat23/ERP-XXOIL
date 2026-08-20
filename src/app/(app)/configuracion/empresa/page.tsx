@@ -58,10 +58,10 @@ export default async function EmpresaPage() {
             tasaCreditoLargoPlazo: config.tasaCreditoLargoPlazo.toNumber(),
             tasaRecargoMora: config.tasaRecargoMora.toNumber(),
             oseProveedor: config.oseProveedor,
-            oseToken: config.oseToken,
+            tieneOseToken: Boolean(config.oseToken),
             sunatUsuarioSol: config.sunatUsuarioSol,
-            sunatClaveSol: config.sunatClaveSol,
-            sunatCertificadoPassword: config.sunatCertificadoPassword,
+            tieneClaveSol: Boolean(config.sunatClaveSol),
+            tieneCertificadoPassword: Boolean(config.sunatCertificadoPassword),
             tieneCertificado: Boolean(config.sunatCertificadoBase64),
           }}
         />
