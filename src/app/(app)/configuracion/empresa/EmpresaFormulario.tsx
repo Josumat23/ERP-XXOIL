@@ -33,10 +33,10 @@ type Props = {
     tasaCreditoLargoPlazo: number;
     tasaRecargoMora: number;
     oseProveedor: string;
-    oseToken: string | null;
+    tieneOseToken: boolean;
     sunatUsuarioSol: string | null;
-    sunatClaveSol: string | null;
-    sunatCertificadoPassword: string | null;
+    tieneClaveSol: boolean;
+    tieneCertificadoPassword: boolean;
     tieneCertificado: boolean;
   };
 };
@@ -315,8 +315,11 @@ export default function EmpresaFormulario({ valores }: Props) {
               <input
                 name="oseToken"
                 type="password"
-                defaultValue={valores.oseToken ?? ""}
-                placeholder="Token que entrega el OSE al contratarlo"
+                placeholder={
+                  valores.tieneOseToken
+                    ? "Configurado; deje vacío para conservarlo"
+                    : "Token que entrega el OSE al contratarlo"
+                }
                 className="campo-input"
               />
             </Campo>
@@ -344,7 +347,11 @@ export default function EmpresaFormulario({ valores }: Props) {
                 <input
                   name="sunatCertificadoPassword"
                   type="password"
-                  defaultValue={valores.sunatCertificadoPassword ?? ""}
+                  placeholder={
+                    valores.tieneCertificadoPassword
+                      ? "Configurada; deje vacío para conservarla"
+                      : undefined
+                  }
                   className="campo-input"
                 />
               </Campo>
@@ -355,7 +362,11 @@ export default function EmpresaFormulario({ valores }: Props) {
                 <input
                   name="sunatClaveSol"
                   type="password"
-                  defaultValue={valores.sunatClaveSol ?? ""}
+                  placeholder={
+                    valores.tieneClaveSol
+                      ? "Configurada; deje vacío para conservarla"
+                      : undefined
+                  }
                   className="campo-input"
                 />
               </Campo>
