@@ -11,6 +11,7 @@ import {
   TIPOS_MIME_PERMITIDOS,
   TAMANIO_MAXIMO_BYTES,
   puedeEditarAdjunto,
+  existeEntidadAdjunto,
 } from "@/lib/adjuntos";
 
 export type EstadoFormulario = { error?: string };
@@ -27,6 +28,9 @@ export async function subirAdjunto(
   if (!(await puedeEditarAdjunto(usuario, entidadTipo))) {
     return { error: "No tiene permiso para adjuntar archivos en este módulo." };
   }
+  if (!(await existeEntidadAdjunto(entidadTipo, entidadId))) {
+    return { error: "La entidad donde intenta adjuntar el archivo ya no existe." };
+  }
 
   const archivo = formData.get("archivo");
   if (!(archivo instanceof File) || archivo.size === 0) {
@@ -37,6 +41,9 @@ export async function subirAdjunto(
   }
   if (!TIPOS_MIME_PERMITIDOS.includes(archivo.type)) {
     return { error: "Tipo de archivo no permitido (use PDF, imagen o documento de Office)." };
+  }
+  if (archivo.name.length > 255) {
+    return { error: "El nombre del archivo no puede superar 255 caracteres." };
   }
 
   await mkdir(DIRECTORIO_ADJUNTOS, { recursive: true });

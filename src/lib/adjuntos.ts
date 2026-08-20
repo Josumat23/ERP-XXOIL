@@ -2,6 +2,47 @@ import path from "path";
 import type { $Enums, Usuario } from "@/generated/prisma/client";
 import type { ClaveModulo } from "@/lib/permisos";
 import { puedeRealizar } from "@/lib/permisos";
+import { prisma } from "@/lib/prisma";
+
+export const TIPOS_ENTIDAD_ADJUNTO = [
+  "Insumo",
+  "Cliente",
+  "Proveedor",
+  "OrdenCompra",
+  "Empleado",
+  "Equipo",
+  "ActivoFijo",
+] as const;
+
+export type TipoEntidadAdjunto = (typeof TIPOS_ENTIDAD_ADJUNTO)[number];
+
+export function esTipoEntidadAdjunto(valor: string): valor is TipoEntidadAdjunto {
+  return TIPOS_ENTIDAD_ADJUNTO.some((tipo) => tipo === valor);
+}
+
+export async function existeEntidadAdjunto(
+  entidadTipo: string,
+  entidadId: string
+): Promise<boolean> {
+  if (!esTipoEntidadAdjunto(entidadTipo) || !entidadId || entidadId.length > 64) return false;
+
+  switch (entidadTipo) {
+    case "Insumo":
+      return Boolean(await prisma.insumo.findUnique({ where: { id: entidadId }, select: { id: true } }));
+    case "Cliente":
+      return Boolean(await prisma.cliente.findUnique({ where: { id: entidadId }, select: { id: true } }));
+    case "Proveedor":
+      return Boolean(await prisma.proveedor.findUnique({ where: { id: entidadId }, select: { id: true } }));
+    case "OrdenCompra":
+      return Boolean(await prisma.ordenCompra.findUnique({ where: { id: entidadId }, select: { id: true } }));
+    case "Empleado":
+      return Boolean(await prisma.empleado.findUnique({ where: { id: entidadId }, select: { id: true } }));
+    case "Equipo":
+      return Boolean(await prisma.equipo.findUnique({ where: { id: entidadId }, select: { id: true } }));
+    case "ActivoFijo":
+      return Boolean(await prisma.activoFijo.findUnique({ where: { id: entidadId }, select: { id: true } }));
+  }
+}
 
 const ROLES_LECTURA_POR_ENTIDAD: Record<string, $Enums.RolUsuario[]> = {
   Insumo: ["ALMACEN"],
