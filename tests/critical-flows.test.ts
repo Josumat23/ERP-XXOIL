@@ -23,6 +23,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { esTipoEntidadAdjunto } from "@/lib/adjuntos";
+import { siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
@@ -733,6 +734,13 @@ test("adjuntos aceptan únicamente tipos de entidad registrados", () => {
   assert.equal(esTipoEntidadAdjunto("Empleado"), true);
   assert.equal(esTipoEntidadAdjunto("EntidadInventada"), false);
   assert.equal(esTipoEntidadAdjunto(""), false);
+});
+
+test("proyectos no reutilizan códigos locales después de eliminar filas intermedias", () => {
+  assert.equal(siguienteCodigoActividad(["A-01", "A-03"]), "A-04");
+  assert.equal(siguienteCodigoActividad([]), "A-01");
+  assert.equal(siguienteCodigoEdt(["1", "3"], null), "4");
+  assert.equal(siguienteCodigoEdt(["2.1", "2.3", "20.9"], "2"), "2.4");
 });
 
 test("Server Actions solo amplían orígenes explícitamente en producción", () => {

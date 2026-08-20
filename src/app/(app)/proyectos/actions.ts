@@ -6,8 +6,13 @@ import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
-import { siguienteCodigoProyecto } from "@/lib/correlativos";
-import { recalcularRutaCritica, formariaCiclo } from "@/lib/proyectos";
+import { reservarCorrelativo, siguienteCodigoProyecto } from "@/lib/correlativos";
+import {
+  recalcularRutaCritica,
+  formariaCiclo,
+  siguienteCodigoActividad,
+  siguienteCodigoEdt,
+} from "@/lib/proyectos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -118,16 +123,18 @@ export async function crearEdt(
   try {
     await prisma.$transaction(async (tx) => {
       const proyecto = await tx.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });
-      let codigo: string;
+      await reservarCorrelativo(tx);
+      let codigoPadre: string | null = null;
       if (parentId) {
         const parent = await tx.edtProyecto.findUniqueOrThrow({ where: { id: parentId } });
         if (parent.proyectoId !== proyectoId) throw new Error("La fase padre no pertenece a este proyecto.");
-        const hermanos = await tx.edtProyecto.count({ where: { parentId } });
-        codigo = `${parent.codigo}.${hermanos + 1}`;
-      } else {
-        const hermanos = await tx.edtProyecto.count({ where: { proyectoId, parentId: null } });
-        codigo = String(hermanos + 1);
+        codigoPadre = parent.codigo;
       }
+      const hermanos = await tx.edtProyecto.findMany({
+        where: parentId ? { parentId } : { proyectoId, parentId: null },
+        select: { codigo: true },
+      });
+      const codigo = siguienteCodigoEdt(hermanos.map((hermano) => hermano.codigo), codigoPadre);
       await tx.edtProyecto.create({
         data: { proyectoId: proyecto.id, parentId, codigo, nombre, presupuesto },
       });
@@ -167,8 +174,12 @@ export async function crearActividad(
     await prisma.$transaction(async (tx) => {
       const edt = await tx.edtProyecto.findUniqueOrThrow({ where: { id: edtId } });
       proyectoId = edt.proyectoId;
-      const cantidad = await tx.actividadProyecto.count({ where: { edtId } });
-      const codigo = `A-${String(cantidad + 1).padStart(2, "0")}`;
+      await reservarCorrelativo(tx);
+      const actividades = await tx.actividadProyecto.findMany({
+        where: { edtId },
+        select: { codigo: true },
+      });
+      const codigo = siguienteCodigoActividad(actividades.map((actividad) => actividad.codigo));
       await tx.actividadProyecto.create({
         data: { edtId, codigo, nombre, duracionDias, responsableId, equipoId },
       });

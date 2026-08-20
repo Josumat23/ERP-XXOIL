@@ -3,6 +3,31 @@ import { convertirAPen } from "@/lib/tipoCambio";
 
 const MS_DIA = 24 * 60 * 60 * 1000;
 
+function maximoSegmento(codigos: string[], codigoPadre: string | null): number {
+  const prefijo = codigoPadre ? `${codigoPadre}.` : "";
+  return codigos.reduce((maximo, codigo) => {
+    const segmento = codigoPadre
+      ? codigo.startsWith(prefijo)
+        ? codigo.slice(prefijo.length)
+        : ""
+      : codigo;
+    if (!/^\d+$/.test(segmento)) return maximo;
+    const numero = Number(segmento);
+    return Number.isSafeInteger(numero) && numero > maximo ? numero : maximo;
+  }, 0);
+}
+
+export function siguienteCodigoEdt(codigos: string[], codigoPadre: string | null): string {
+  const siguiente = maximoSegmento(codigos, codigoPadre) + 1;
+  return codigoPadre ? `${codigoPadre}.${siguiente}` : String(siguiente);
+}
+
+export function siguienteCodigoActividad(codigos: string[]): string {
+  const numeros = codigos.map((codigo) => (codigo.startsWith("A-") ? codigo.slice(2) : ""));
+  const siguiente = maximoSegmento(numeros, null) + 1;
+  return `A-${String(siguiente).padStart(2, "0")}`;
+}
+
 // Costo real = CostoProyecto (ledger manual) + OrdenCompra etiquetadas no
 // anuladas (convertidas a PEN) — sin doble registro, sin campo acumulado
 // propio que se pueda desincronizar.
