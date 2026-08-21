@@ -38,6 +38,7 @@ import { normalizarDetallesFormula } from "@/lib/detallesFormula";
 import { normalizarInsumosEnvasado } from "@/lib/insumosEnvasado";
 import { normalizarRepuestosMantenimiento } from "@/lib/repuestosMantenimiento";
 import { normalizarLecturaContador } from "@/lib/lecturasContador";
+import { normalizarLineasOrdenCompra } from "@/lib/lineasOrdenCompra";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -58,6 +59,18 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("órdenes de compra aceptan solo líneas con cantidades y costos válidos", () => {
+  assert.equal(normalizarLineasOrdenCompra({}), null);
+  assert.deepEqual(normalizarLineasOrdenCompra([null, "línea", { insumoId: "1" }]), []);
+  assert.deepEqual(
+    normalizarLineasOrdenCompra([
+      { insumoId: "insumo-1", cantidad: 2, costoUnitario: 10.5, fechaEntregaEsperada: "2026-09-01" },
+      { insumoId: "insumo-2", cantidad: 0, costoUnitario: 5 },
+      { insumoId: "insumo-3", cantidad: 1, costoUnitario: Number.NaN },
+    ]),
+    [{ insumoId: "insumo-1", cantidad: 2, costoUnitario: 10.5, fechaEntregaEsperada: "2026-09-01" }]
+  );
+});
 test("lecturas de contador aceptan solo valores finitos no negativos", () => {
   assert.equal(normalizarLecturaContador(""), null);
   assert.equal(normalizarLecturaContador("100.25"), 100.25);

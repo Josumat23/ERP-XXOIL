@@ -21,15 +21,10 @@ import {
   type LineaRecepcionCompra,
 } from "@/lib/recepcionesCompra";
 import { edtPerteneceAProyecto } from "@/lib/proyectos";
+import { normalizarLineasOrdenCompra, type LineaOrdenCompraNormalizada } from "@/lib/lineasOrdenCompra";
 
 export type EstadoFormulario = { error?: string };
 
-type LineaOC = {
-  insumoId: string;
-  cantidad: number;
-  costoUnitario: number;
-  fechaEntregaEsperada?: string;
-};
 
 // Compartido entre el formulario manual y la generación sugerida desde MRP
 // (src/app/(app)/logistica/mrp/actions.ts) — misma lógica de creación en un
@@ -41,7 +36,7 @@ export async function crearOrdenCompraDesdeDatos(
     notas: string | null;
     moneda: string;
     tipoCambio: number;
-    lineas: LineaOC[];
+    lineas: LineaOrdenCompraNormalizada[];
     proyectoId?: string | null;
     edtId?: string | null;
   },
@@ -118,22 +113,19 @@ export async function crearOrdenCompra(
     return { error: "Ingrese un tipo de cambio válido para la orden en dólares." };
   }
 
-  let lineas: LineaOC[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
+    return { error: "El detalle de la orden es inválido." };
+  }
+  const lineas: LineaOrdenCompraNormalizada[] | null =
+    normalizarLineasOrdenCompra(lineasRaw);
+  if (lineas === null) {
     return { error: "El detalle de la orden es inválido." };
   }
 
   if (!proveedorId) return { error: "Seleccione el proveedor." };
-  lineas = lineas.filter(
-    (l) =>
-      l.insumoId &&
-      Number.isFinite(l.cantidad) &&
-      l.cantidad > 0 &&
-      Number.isFinite(l.costoUnitario) &&
-      l.costoUnitario >= 0
-  );
   if (lineas.length === 0) {
     return { error: "Agregue al menos una línea con cantidad y costo válidos." };
   }
