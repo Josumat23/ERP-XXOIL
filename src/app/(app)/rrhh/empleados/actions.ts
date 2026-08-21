@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Prisma, type $Enums } from "@/generated/prisma/client";
+import { Prisma, TipoDocumentoIdentidad, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoEmpleado } from "@/lib/correlativos";
@@ -33,9 +33,10 @@ export async function crearEmpleado(
 
   const nombres = String(formData.get("nombres") ?? "").trim();
   const apellidos = String(formData.get("apellidos") ?? "").trim();
-  const tipoDocumentoIdentidad = String(
-    formData.get("tipoDocumentoIdentidad") ?? "DNI"
-  ) as $Enums.TipoDocumentoIdentidad;
+  const tipoDocumentoIdentidadRaw = String(formData.get("tipoDocumentoIdentidad") ?? "DNI");
+  const tipoDocumentoIdentidad = Object.values(TipoDocumentoIdentidad).find(
+    (tipo) => tipo === tipoDocumentoIdentidadRaw
+  );
   const dni = String(formData.get("dni") ?? "").trim() || null;
   const nacionalidad = String(formData.get("nacionalidad") ?? "Peruana").trim() || "Peruana";
   const fechaNacimientoRaw = String(formData.get("fechaNacimiento") ?? "").trim();
@@ -65,6 +66,9 @@ export async function crearEmpleado(
   const asignacionFamiliar = formData.get("asignacionFamiliar") === "on";
 
   if (!nombres || !apellidos) return { error: "Nombres y apellidos son obligatorios." };
+  if (!tipoDocumentoIdentidad) {
+    return { error: "Seleccione un tipo de documento de identidad válido." };
+  }
   if (!cargo) return { error: "El cargo es obligatorio." };
   if (!area) return { error: "El área es obligatoria." };
   if (!TIPOS_CONTRATO_VALIDOS.includes(tipoContrato)) {
