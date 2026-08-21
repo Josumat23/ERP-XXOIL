@@ -37,6 +37,7 @@ import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
 import { normalizarInsumosEnvasado } from "@/lib/insumosEnvasado";
 import { normalizarRepuestosMantenimiento } from "@/lib/repuestosMantenimiento";
+import { normalizarLecturaContador } from "@/lib/lecturasContador";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -57,6 +58,13 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("lecturas de contador aceptan solo valores finitos no negativos", () => {
+  assert.equal(normalizarLecturaContador(""), null);
+  assert.equal(normalizarLecturaContador("100.25"), 100.25);
+  assert.equal(normalizarLecturaContador("-1"), undefined);
+  assert.equal(normalizarLecturaContador("texto"), undefined);
+  assert.equal(normalizarLecturaContador("Infinity"), undefined);
+});
 test("mantenimiento acepta solo repuestos y cantidades consumibles válidas", () => {
   assert.equal(normalizarRepuestosMantenimiento({}), null);
   assert.deepEqual(normalizarRepuestosMantenimiento([null, "repuesto", { insumoId: "1", cantidad: "2" }]), []);
