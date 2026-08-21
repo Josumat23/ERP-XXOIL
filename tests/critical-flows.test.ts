@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
+import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { calcularCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import {
@@ -58,6 +59,17 @@ import {
   registrarIntentoFallidoLogin,
   verificarPasswordUniforme,
 } from "@/lib/auth";
+
+test("la creación interna de órdenes no queda expuesta como Server Action", async () => {
+  const acciones = await readFile(
+    resolve(process.cwd(), "src/app/(app)/logistica/ordenes-compra/actions.ts"),
+    "utf8"
+  );
+  const servicio = await readFile(resolve(process.cwd(), "src/lib/ordenesCompra.ts"), "utf8");
+
+  assert.doesNotMatch(acciones, /export async function crearOrdenCompraDesdeDatos/);
+  assert.match(servicio, /import ["']server-only["'];/);
+});
 
 test("órdenes de compra aceptan solo líneas con cantidades y costos válidos", () => {
   assert.equal(normalizarLineasOrdenCompra({}), null);
