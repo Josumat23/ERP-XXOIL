@@ -22,6 +22,7 @@ import {
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
+import { escaparCeldaCsv } from "@/lib/csv";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
@@ -753,6 +754,17 @@ test("secretos de configuración solo se reemplazan con un valor nuevo", () => {
   assert.equal(resolverSecretoFormulario("   ", "secreto-existente"), "secreto-existente");
   assert.equal(resolverSecretoFormulario(" nuevo ", "secreto-existente"), "nuevo");
   assert.equal(resolverSecretoFormulario("", null), null);
+});
+
+test("CSV neutraliza fórmulas y conserva el escape estructural", () => {
+  assert.equal(
+    escaparCeldaCsv("=HYPERLINK(\"https://ejemplo\")"),
+    "\"'=HYPERLINK(\"\"https://ejemplo\"\")\""
+  );
+  assert.equal(escaparCeldaCsv("+SUM(A1:A2)"), "'+SUM(A1:A2)");
+  assert.equal(escaparCeldaCsv("@comando"), "'@comando");
+  assert.equal(escaparCeldaCsv("Banco, Cuenta"), "\"Banco, Cuenta\"");
+  assert.equal(escaparCeldaCsv("Texto normal"), "Texto normal");
 });
 
 test("adjuntos aceptan únicamente tipos de entidad registrados", () => {
