@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { esPeriodoMensualValido } from "@/lib/periodos";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_CANAL_CLIENTE, ETIQUETA_SEGMENTO_MERCADO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -86,8 +87,11 @@ export default async function RentabilidadPage({
   const hoy = new Date();
   const { anio: anioParam, mes: mesParam, comparar, vendedorId, zonaId, clienteId } =
     await searchParams;
-  const anio = Number(anioParam) || hoy.getFullYear();
-  const mes = Number(mesParam) || hoy.getMonth() + 1;
+  const anioIngresado = Number(anioParam);
+  const mesIngresado = Number(mesParam);
+  const periodoValido = esPeriodoMensualValido(anioIngresado, mesIngresado);
+  const anio = periodoValido ? anioIngresado : hoy.getFullYear();
+  const mes = periodoValido ? mesIngresado : hoy.getMonth() + 1;
   const modoComparacion = comparar === "anio" ? "anio" : "mes";
   const filtros: Filtros = {
     vendedorId: vendedorId || undefined,
