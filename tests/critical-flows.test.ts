@@ -40,7 +40,11 @@ import { normalizarInsumosEnvasado } from "@/lib/insumosEnvasado";
 import { normalizarRepuestosMantenimiento } from "@/lib/repuestosMantenimiento";
 import { normalizarLecturaContador } from "@/lib/lecturasContador";
 import { esMonedaOrdenCompraValida, normalizarLineasOrdenCompra } from "@/lib/lineasOrdenCompra";
-import { normalizarLineasReglaAsignacion } from "@/lib/reglasAsignacionCosto";
+import {
+  esClaveControlValida,
+  normalizarDestinoControlCosto,
+  normalizarLineasReglaAsignacion,
+} from "@/lib/reglasAsignacionCosto";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -72,6 +76,21 @@ test("la creación interna de órdenes no queda expuesta como Server Action", as
   assert.match(servicio, /import ["']server-only["'];/);
 });
 
+test("asignaciones de costo aceptan solo claves y destinos registrados", () => {
+  assert.equal(esClaveControlValida("GASTO_MANTENIMIENTO"), true);
+  assert.equal(esClaveControlValida("CLAVE_MANIPULADA"), false);
+  assert.deepEqual(normalizarDestinoControlCosto("centro:centro-1"), {
+    tipo: "centro",
+    id: "centro-1",
+  });
+  assert.deepEqual(normalizarDestinoControlCosto("regla:regla-1"), {
+    tipo: "regla",
+    id: "regla-1",
+  });
+  assert.equal(normalizarDestinoControlCosto("otro:id"), null);
+  assert.equal(normalizarDestinoControlCosto("centro:"), null);
+  assert.equal(normalizarDestinoControlCosto("centro:id:extra"), null);
+});
 test("reglas de costo validan estructura, porcentajes y centros únicos", () => {
   assert.equal(normalizarLineasReglaAsignacion({}), null);
   assert.deepEqual(normalizarLineasReglaAsignacion([null, "línea"]), []);

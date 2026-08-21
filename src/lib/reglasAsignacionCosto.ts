@@ -1,3 +1,23 @@
+import { ETIQUETA_CONTROL, type ClaveControl } from "@/lib/contabilidad";
+
+export function esClaveControlValida(valor: unknown): valor is ClaveControl {
+  return typeof valor === "string" && Object.hasOwn(ETIQUETA_CONTROL, valor);
+}
+
+export type DestinoControlCosto =
+  | { tipo: "centro"; id: string }
+  | { tipo: "regla"; id: string };
+
+export function normalizarDestinoControlCosto(valor: unknown): DestinoControlCosto | null {
+  if (typeof valor !== "string") return null;
+  const coincidencia = /^(centro|regla):([^:]+)$/.exec(valor);
+  if (!coincidencia) return null;
+
+  const [, tipo, idRaw] = coincidencia;
+  const id = idRaw.trim();
+  if (!id) return null;
+  return tipo === "regla" ? { tipo, id } : { tipo: "centro", id };
+}
 export type LineaReglaAsignacionNormalizada = {
   centroCostoId: string;
   porcentaje: number;
