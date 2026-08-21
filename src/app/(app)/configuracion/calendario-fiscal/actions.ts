@@ -3,10 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
+import { esAnioOperativoValido } from "@/lib/periodos";
 
 export async function generarAnioFiscal(anio: number) {
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return;
+  if (!esAnioOperativoValido(anio)) return;
 
   for (let mes = 1; mes <= 12; mes++) {
     await prisma.periodoFiscal.upsert({
