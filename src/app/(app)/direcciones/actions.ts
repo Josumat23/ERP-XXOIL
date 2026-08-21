@@ -5,7 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar, type ClaveModulo } from "@/lib/permisos";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
-import type { $Enums, Usuario } from "@/generated/prisma/client";
+import { TipoDireccion, type $Enums, type Usuario } from "@/generated/prisma/client";
+import { esValorEnum } from "@/lib/enums";
 
 export type EstadoFormulario = { error?: string };
 
@@ -71,7 +72,10 @@ export async function agregarDireccion(
     return { error: "La entidad no existe en la compañía activa." };
   }
 
-  const tipo = String(formData.get("tipo") ?? "OTRA") as $Enums.TipoDireccion;
+  const tipo = String(formData.get("tipo") ?? "OTRA");
+  if (!esValorEnum(Object.values(TipoDireccion), tipo)) {
+    return { error: "Seleccione un tipo de dirección válido." };
+  }
   const pais = String(formData.get("pais") ?? "").trim();
   const departamento = String(formData.get("departamento") ?? "").trim() || null;
   const provincia = String(formData.get("provincia") ?? "").trim() || null;
