@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Prisma, type $Enums } from "@/generated/prisma/client";
+import { Prisma, TipoDocumentoFiscal } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
@@ -17,9 +17,10 @@ function esErrorDuplicado(e: unknown): boolean {
 
 function leerDatos(formData: FormData) {
   const razonSocial = String(formData.get("razonSocial") ?? "").trim();
-  const tipoDocumentoFiscal = String(
-    formData.get("tipoDocumentoFiscal") ?? "RUC"
-  ) as $Enums.TipoDocumentoFiscal;
+  const tipoDocumentoFiscalRaw = String(formData.get("tipoDocumentoFiscal") ?? "RUC");
+  const tipoDocumentoFiscal = Object.values(TipoDocumentoFiscal).find(
+    (tipo) => tipo === tipoDocumentoFiscalRaw
+  );
   const ruc = String(formData.get("ruc") ?? "").trim() || null;
   const pais = String(formData.get("pais") ?? "Peru").trim() || "Peru";
   const telefono = String(formData.get("telefono") ?? "").trim() || null;
@@ -37,6 +38,9 @@ function leerDatos(formData: FormData) {
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!razonSocial) return { error: "La razón social es obligatoria." } as const;
+  if (!tipoDocumentoFiscal) {
+    return { error: "Seleccione un tipo de documento fiscal válido." } as const;
+  }
   // El formato de 11 dígitos solo aplica al RUC peruano — un RUT, NIT, RFC,
   // EIN, VAT u otro documento extranjero tiene su propio formato, así que no
   // se valida con una regla fija.
