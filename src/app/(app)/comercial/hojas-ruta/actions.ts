@@ -6,10 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteNumeroHojaRuta } from "@/lib/correlativos";
+import { normalizarVisitasRuta, type VisitaRutaNormalizada } from "@/lib/visitasRuta";
 
 export type EstadoFormulario = { error?: string };
-
-type Visita = { clienteId: string; objetivo: string };
 
 export async function crearHojaRuta(
   _prevState: EstadoFormulario,
@@ -25,16 +24,19 @@ export async function crearHojaRuta(
   const fecha = String(formData.get("fecha") ?? "");
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
-  let visitas: Visita[];
+  let visitasRaw: unknown;
   try {
-    visitas = JSON.parse(String(formData.get("visitas") ?? "[]"));
+    visitasRaw = JSON.parse(String(formData.get("visitas") ?? "[]"));
   } catch {
+    return { error: "El detalle de visitas es inválido." };
+  }
+  const visitas: VisitaRutaNormalizada[] | null = normalizarVisitasRuta(visitasRaw);
+  if (visitas === null) {
     return { error: "El detalle de visitas es inválido." };
   }
 
   if (!vendedorId) return { error: "Seleccione el vendedor." };
   if (!fecha) return { error: "Indique la fecha de la ruta." };
-  visitas = visitas.filter((v) => v.clienteId);
   if (visitas.length === 0) return { error: "Agregue al menos un cliente a visitar." };
 
   let hojaId = "";
