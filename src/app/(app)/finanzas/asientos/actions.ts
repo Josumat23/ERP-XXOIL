@@ -7,10 +7,13 @@ import { requerirRol } from "@/lib/auth";
 import type { Tx } from "@/lib/inventario";
 import { reclamarPeriodoAbierto } from "@/lib/contabilidad";
 import { reservarCorrelativo } from "@/lib/correlativos";
+import {
+  crearFechaAsientoManual,
+  normalizarLineasAsientoManual,
+  type LineaAsientoManual,
+} from "@/lib/asientosManuales";
 
 export type EstadoFormulario = { error?: string };
-
-type LineaManual = { cuentaId: string; glosa: string; debe: number; haber: number };
 
 async function siguienteNumeroAsiento(tx: Tx): Promise<string> {
   await reservarCorrelativo(tx);
@@ -29,10 +32,14 @@ export async function crearAsientoManual(
   const glosa = String(formData.get("glosa") ?? "").trim();
   const fechaStr = String(formData.get("fecha") ?? "");
 
-  let lineas: LineaManual[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
+    return { error: "El detalle del asiento es inválido." };
+  }
+  const lineasNormalizadas: LineaAsientoManual[] | null = normalizarLineasAsientoManual(lineasRaw);
+  if (lineasNormalizadas === null) {
     return { error: "El detalle del asiento es inválido." };
   }
 
@@ -40,9 +47,9 @@ export async function crearAsientoManual(
   if (!fechaStr) return { error: "Indique la fecha del asiento." };
 
   const r2 = (n: number) => Math.round(n * 100) / 100;
-  lineas = lineas
-    .map((l) => ({ ...l, debe: r2(l.debe || 0), haber: r2(l.haber || 0) }))
-    .filter((l) => l.cuentaId && (l.debe > 0 || l.haber > 0));
+  const lineas = lineasNormalizadas.filter(
+    (linea) => linea.cuentaId && (linea.debe > 0 || linea.haber > 0)
+  );
 
   if (lineas.length < 2) return { error: "El asiento necesita al menos dos líneas con importe." };
   if (lineas.some((l) => l.debe > 0 && l.haber > 0)) {
@@ -57,7 +64,8 @@ export async function crearAsientoManual(
     };
   }
 
-  const fecha = new Date(`${fechaStr}T00:00:00`);
+  const fecha = crearFechaAsientoManual(fechaStr);
+  if (!fecha) return { error: "La fecha del asiento es inválida." };
   const anio = fecha.getFullYear();
   const mes = fecha.getMonth() + 1;
 
