@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { esPeriodoMensualValido } from "@/lib/periodos";
 import { CLAVES_RECLASIFICABLES, postearReclasificacionCosto, type ClaveControl } from "@/lib/contabilidad";
 import {
   esClaveControlValida,
@@ -73,7 +74,7 @@ export async function guardarPresupuesto(
   const mes = Number(formData.get("mes"));
   const montoPresupuestado = Number(formData.get("montoPresupuestado"));
 
-  if (!Number.isInteger(anio) || !Number.isInteger(mes) || mes < 1 || mes > 12) {
+  if (!esPeriodoMensualValido(anio, mes)) {
     return { error: "Período inválido." };
   }
   if (!Number.isFinite(montoPresupuestado) || montoPresupuestado < 0) {
