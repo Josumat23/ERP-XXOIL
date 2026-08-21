@@ -65,6 +65,18 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("el envío interno de guías queda aislado de las Server Actions", async () => {
+  const acciones = await readFile(
+    resolve(process.cwd(), "src/app/(app)/logistica/guias-remision/actions.ts"),
+    "utf8"
+  );
+  const servicio = await readFile(resolve(process.cwd(), "src/lib/guiasRemision.ts"), "utf8");
+
+  assert.match(acciones, /export async function enviarComprobanteGuia/);
+  assert.match(acciones, /requerirRol\(\["VENTAS", "ALMACEN"\]\)/);
+  assert.doesNotMatch(acciones, /export async function enviarComprobanteGuiaInterno/);
+  assert.match(servicio, /import ["']server-only["'];/);
+});
 test("la creación interna de órdenes no queda expuesta como Server Action", async () => {
   const acciones = await readFile(
     resolve(process.cwd(), "src/app/(app)/logistica/ordenes-compra/actions.ts"),
