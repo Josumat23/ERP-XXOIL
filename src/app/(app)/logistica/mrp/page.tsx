@@ -5,7 +5,7 @@ import { formatMoneda, formatNumero } from "@/lib/format";
 import { obtenerUsuario, requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { calcularDemanda, calcularOperaciones, type DetalleCalculado } from "@/lib/proyecciones";
-import { crearOrdenCompraDesdeDatos } from "../ordenes-compra/actions";
+import { crearOrdenCompraDesdeDatos } from "@/lib/ordenesCompra";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
 
