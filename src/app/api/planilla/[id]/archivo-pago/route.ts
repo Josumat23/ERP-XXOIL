@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { escaparCeldaCsv } from "@/lib/csv";
 
 // Exportador GENÉRICO de archivo de pago de haberes — NO es el formato exacto
 // de carga masiva de ningún banco (BBVA u otro). Contiene los datos mínimos
@@ -11,13 +12,6 @@ import { puedeRealizar } from "@/lib/permisos";
 // XXOil obtenga la plantilla real de su ejecutivo de banca empresas — ver
 // docs/gobernanza/04-hcm-nomina-investigacion-normativa.md, sección 5.
 const TIPOS_PAGABLES = ["MENSUAL", "GRATIFICACION_JULIO", "GRATIFICACION_DICIEMBRE"] as const;
-
-function csvEscape(valor: string): string {
-  if (valor.includes(",") || valor.includes('"') || valor.includes("\n")) {
-    return `"${valor.replace(/"/g, '""')}"`;
-  }
-  return valor;
-}
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const usuario = await obtenerUsuario();
@@ -64,7 +58,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     filas.push([`ADVERTENCIA: ${sinDatosBancarios.length} trabajador(es) sin banco/cuenta registrados — completar en su ficha antes de pagar.`]);
   }
 
-  const contenido = "﻿" + filas.map((f) => f.map((c) => csvEscape(String(c))).join(",")).join("\r\n");
+  const contenido = "﻿" + filas.map((f) => f.map((c) => escaparCeldaCsv(String(c))).join(",")).join("\r\n");
   const nombreArchivo = `pago-haberes_${periodo.tipo}_${periodo.anio}-${String(periodo.mes).padStart(2, "0")}.csv`;
 
   return new NextResponse(contenido, {
