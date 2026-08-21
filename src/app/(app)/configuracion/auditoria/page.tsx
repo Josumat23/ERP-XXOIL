@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { AccionAuditoriaMaestro, Prisma } from "@/generated/prisma/client";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { prisma } from "@/lib/prisma";
 
 const ACCIONES = Object.values(AccionAuditoriaMaestro);
@@ -14,9 +15,11 @@ const ETIQUETA_ACCION: Record<AccionAuditoriaMaestro, string> = {
 };
 
 function fechaValida(valor: string | undefined, finDelDia = false): Date | undefined {
-  if (!valor || !/^\d{4}-\d{2}-\d{2}$/.test(valor)) return undefined;
-  const fecha = new Date(`${valor}T${finDelDia ? "23:59:59.999" : "00:00:00.000"}`);
-  return Number.isNaN(fecha.getTime()) ? undefined : fecha;
+  if (!valor) return undefined;
+  const fecha = crearFechaCalendarioLocal(valor);
+  if (!fecha) return undefined;
+  if (finDelDia) fecha.setHours(23, 59, 59, 999);
+  return fecha;
 }
 
 function formatearJson(valor: string | null): string {
