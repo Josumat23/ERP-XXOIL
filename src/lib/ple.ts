@@ -177,6 +177,10 @@ export function generarLineaCompra(anio: number, mes: number, l: LineaCompra): s
   ];
 }
 
+export function sanitizarCampoPLE(valor: string): string {
+  return valor.replace(/[|\r\n]+/g, " ").trim();
+}
+
 export function generarArchivoPLE(lineas: string[][]): string {
-  return lineas.map((l) => l.join(SEPARADOR)).join("\r\n");
+  return lineas.map((linea) => linea.map(sanitizarCampoPLE).join(SEPARADOR)).join("\r\n");
 }

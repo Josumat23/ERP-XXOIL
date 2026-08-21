@@ -13,6 +13,7 @@ import {
 import { calcularUnidadesAProducir, esPeriodoProyeccionValido } from "@/lib/proyecciones";
 import { validarLineasSimulacion } from "@/lib/simuladorPrecios";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
+import { generarArchivoPLE, sanitizarCampoPLE } from "@/lib/ple";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 import {
@@ -754,6 +755,14 @@ test("secretos de configuración solo se reemplazan con un valor nuevo", () => {
   assert.equal(resolverSecretoFormulario("   ", "secreto-existente"), "secreto-existente");
   assert.equal(resolverSecretoFormulario(" nuevo ", "secreto-existente"), "nuevo");
   assert.equal(resolverSecretoFormulario("", null), null);
+});
+
+test("PLE neutraliza separadores y saltos dentro de campos maestros", () => {
+  assert.equal(sanitizarCampoPLE("Proveedor|inyectado\r\nsegunda fila"), "Proveedor inyectado segunda fila");
+  assert.equal(
+    generarArchivoPLE([["campo-1", "Razón|Social\nAlterada", "campo-3"]]),
+    "campo-1|Razón Social Alterada|campo-3"
+  );
 });
 
 test("CSV neutraliza fórmulas y conserva el escape estructural", () => {
