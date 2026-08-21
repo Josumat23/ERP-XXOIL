@@ -14,6 +14,7 @@ import {
   siguienteCodigoActividad,
   siguienteCodigoEdt,
 } from "@/lib/proyectos";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -41,13 +42,13 @@ export async function crearProyecto(
   if (!Number.isFinite(presupuestoTotal) || presupuestoTotal <= 0) {
     return { error: "El presupuesto total debe ser mayor a 0." };
   }
-  const fechaInicioPlan = fechaInicioPlanRaw ? new Date(fechaInicioPlanRaw) : null;
-  const fechaFinPlan = fechaFinPlanRaw ? new Date(fechaFinPlanRaw) : null;
-  if (!fechaInicioPlan || Number.isNaN(fechaInicioPlan.getTime())) {
-    return { error: "La fecha de inicio planificada es obligatoria." };
+  const fechaInicioPlan = crearFechaCalendarioLocal(fechaInicioPlanRaw);
+  const fechaFinPlan = crearFechaCalendarioLocal(fechaFinPlanRaw);
+  if (!fechaInicioPlan) {
+    return { error: "Ingrese una fecha de inicio planificada válida." };
   }
-  if (!fechaFinPlan || Number.isNaN(fechaFinPlan.getTime())) {
-    return { error: "La fecha de fin planificada es obligatoria." };
+  if (!fechaFinPlan) {
+    return { error: "Ingrese una fecha de fin planificada válida." };
   }
   if (fechaFinPlan < fechaInicioPlan) {
     return { error: "La fecha de fin planificada no puede ser anterior al inicio." };
