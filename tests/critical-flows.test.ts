@@ -33,6 +33,7 @@ import { esValorEnum } from "@/lib/enums";
 import { normalizarLineasVenta } from "@/lib/lineasVenta";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
+import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -53,6 +54,22 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("conteos aceptan solo ítems y cantidades físicas válidas", () => {
+  assert.equal(normalizarLineasConteo({}), null);
+  assert.deepEqual(normalizarLineasConteo([null, "línea", { tipoItem: "OTRO", itemId: "1", cantidadContada: 2 }]), []);
+  assert.deepEqual(
+    normalizarLineasConteo([
+      { tipoItem: "PRESENTACION", itemId: "presentacion-1", cantidadContada: 0 },
+      { tipoItem: "INSUMO", itemId: "insumo-1", cantidadContada: 2.5 },
+      { tipoItem: "INSUMO", itemId: "insumo-2", cantidadContada: -1 },
+      { tipoItem: "INSUMO", itemId: "insumo-3", cantidadContada: Number.NaN },
+    ]),
+    [
+      { tipoItem: "PRESENTACION", itemId: "presentacion-1", cantidadContada: 0 },
+      { tipoItem: "INSUMO", itemId: "insumo-1", cantidadContada: 2.5 },
+    ]
+  );
+});
 test("hojas de ruta ignoran visitas vacías y rechazan estructuras manipuladas", () => {
   assert.equal(normalizarVisitasRuta({}), null);
   assert.deepEqual(normalizarVisitasRuta([null, "visita", { clienteId: "", objetivo: "" }]), []);
