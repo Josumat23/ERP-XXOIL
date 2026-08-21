@@ -5,6 +5,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { ETIQUETA_ORIGEN_ASIENTO } from "@/lib/etiquetas";
+import { EMPRESA_CONTABLE_PRINCIPAL_ID } from "@/lib/asientosManuales";
 import AsientoManualFormulario from "../AsientoManualFormulario";
 
 export default async function NuevoAsientoPage() {
@@ -14,10 +15,14 @@ export default async function NuevoAsientoPage() {
 
   const [cuentas, asientos] = await Promise.all([
     prisma.cuentaContable.findMany({
-      where: { activo: true },
+      where: { activo: true, planCuentas: { empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID } },
       orderBy: { codigo: "asc" },
     }),
-    prisma.asientoContable.findMany({ orderBy: { numero: "desc" }, take: 100 }),
+    prisma.asientoContable.findMany({
+      where: { empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID },
+      orderBy: { numero: "desc" },
+      take: 100,
+    }),
   ]);
 
   return (

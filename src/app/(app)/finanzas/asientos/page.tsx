@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { ETIQUETA_ORIGEN_ASIENTO } from "@/lib/etiquetas";
+import { EMPRESA_CONTABLE_PRINCIPAL_ID } from "@/lib/asientosManuales";
 
 const ORIGENES = Object.keys(ETIQUETA_ORIGEN_ASIENTO) as (keyof typeof ETIQUETA_ORIGEN_ASIENTO)[];
 
@@ -24,6 +25,7 @@ export default async function AsientosPage({
 
   const asientos = await prisma.asientoContable.findMany({
     where: {
+      empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID,
       ...(filtroOrigen ? { origen: filtroOrigen } : {}),
       ...(q ? { OR: [{ numero: { contains: q } }, { glosa: { contains: q } }] } : {}),
     },

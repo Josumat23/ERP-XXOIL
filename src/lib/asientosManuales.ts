@@ -1,3 +1,7 @@
+import type { Tx } from "@/lib/inventario";
+
+export const EMPRESA_CONTABLE_PRINCIPAL_ID = "1";
+
 export type LineaAsientoManual = {
   cuentaId: string;
   glosa: string;
@@ -42,6 +46,25 @@ export function normalizarLineasAsientoManual(valor: unknown): LineaAsientoManua
   }
 
   return lineas;
+}
+
+export async function cuentasAsientoPertenecenAEmpresa(
+  tx: Tx,
+  cuentaIds: string[],
+  empresaId: string
+): Promise<boolean> {
+  const idsUnicos = [...new Set(cuentaIds)];
+  if (idsUnicos.length === 0) return false;
+
+  const cuentas = await tx.cuentaContable.findMany({
+    where: {
+      id: { in: idsUnicos },
+      activo: true,
+      planCuentas: { empresaId },
+    },
+    select: { id: true },
+  });
+  return cuentas.length === idsUnicos.length;
 }
 
 export function crearFechaAsientoManual(valor: string): Date | null {

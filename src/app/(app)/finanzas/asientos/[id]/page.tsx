@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { ETIQUETA_ORIGEN_ASIENTO } from "@/lib/etiquetas";
+import { EMPRESA_CONTABLE_PRINCIPAL_ID } from "@/lib/asientosManuales";
 import ReversarFormulario from "./ReversarFormulario";
 
 export default async function DetalleAsientoPage({
@@ -21,11 +22,15 @@ export default async function DetalleAsientoPage({
   const { id } = await params;
 
   const [asiento, asientos] = await Promise.all([
-    prisma.asientoContable.findUnique({
-      where: { id },
+    prisma.asientoContable.findFirst({
+      where: { id, empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID },
       include: { detalles: { include: { cuenta: true } }, libro: true },
     }),
-    prisma.asientoContable.findMany({ orderBy: { numero: "desc" }, take: 100 }),
+    prisma.asientoContable.findMany({
+      where: { empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID },
+      orderBy: { numero: "desc" },
+      take: 100,
+    }),
   ]);
   if (!asiento) notFound();
 
