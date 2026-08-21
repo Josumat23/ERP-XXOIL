@@ -7,10 +7,9 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoConteo } from "@/lib/correlativos";
+import { normalizarLineasConteo, type LineaConteoNormalizada } from "@/lib/lineasConteo";
 
 export type EstadoFormulario = { error?: string };
-
-type LineaConteo = { tipoItem: "PRESENTACION" | "INSUMO"; itemId: string; cantidadContada: number };
 
 // Conteo cíclico: registra lo contado físicamente contra el saldo del
 // sistema al momento de guardar, y genera un AJUSTE de kardex por cada línea
@@ -26,19 +25,16 @@ export async function crearConteo(
     return { error: "Su grupo de seguridad no permite crear registros en Materiales." };
   }
 
-  let lineas: LineaConteo[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
     return { error: "El detalle del conteo es inválido." };
   }
-  lineas = lineas.filter(
-    (l) =>
-      (l.tipoItem === "PRESENTACION" || l.tipoItem === "INSUMO") &&
-      l.itemId &&
-      Number.isFinite(l.cantidadContada) &&
-      l.cantidadContada >= 0
-  );
+  const lineas: LineaConteoNormalizada[] | null = normalizarLineasConteo(lineasRaw);
+  if (lineas === null) {
+    return { error: "El detalle del conteo es inválido." };
+  }
   if (lineas.length === 0) {
     return { error: "Agregue al menos un ítem con la cantidad contada." };
   }
