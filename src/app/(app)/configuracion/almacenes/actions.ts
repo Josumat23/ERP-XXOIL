@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { feriadosPeru } from "@/lib/calendarioProduccion";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
@@ -153,14 +154,16 @@ export async function agregarDiaNoLaborable(
     return { error: "Su grupo de seguridad no permite editar registros en Configuración del sistema." };
   }
 
-  const fecha = String(formData.get("fecha") ?? "");
+  const fechaRaw = String(formData.get("fecha") ?? "").trim();
+  const fecha = crearFechaCalendarioLocal(fechaRaw);
   const motivo = String(formData.get("motivo") ?? "").trim() || null;
-  if (!fecha) return { error: "Seleccione la fecha." };
+  if (!fechaRaw) return { error: "Seleccione la fecha." };
+  if (!fecha) return { error: "Seleccione una fecha válida." };
 
   try {
     await prisma.$transaction(async (tx) => {
       const calendario = await tx.calendarioProduccion.upsert({ where: { almacenId }, update: {}, create: { almacenId } });
-      const dia = await tx.diaNoLaborable.create({ data: { calendarioId: calendario.id, fecha: new Date(`${fecha}T00:00:00`), motivo } });
+      const dia = await tx.diaNoLaborable.create({ data: { calendarioId: calendario.id, fecha, motivo } });
       await registrarAuditoriaMaestro(tx, { entidad: "DiaNoLaborable", registroId: dia.id, accion: "CREAR", despues: dia, usuario: auth.usuario });
     });
   } catch (e) {
