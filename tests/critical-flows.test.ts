@@ -35,6 +35,7 @@ import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
+import { normalizarInsumosEnvasado } from "@/lib/insumosEnvasado";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -55,6 +56,18 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("envasados aceptan solo insumos y cantidades consumibles válidas", () => {
+  assert.equal(normalizarInsumosEnvasado({}), null);
+  assert.deepEqual(normalizarInsumosEnvasado([null, "insumo", { insumoId: "1", cantidad: "2" }]), []);
+  assert.deepEqual(
+    normalizarInsumosEnvasado([
+      { insumoId: "envase-1", cantidad: 10 },
+      { insumoId: "etiqueta-1", cantidad: -1 },
+      { insumoId: "etiqueta-2", cantidad: Number.NaN },
+    ]),
+    [{ insumoId: "envase-1", cantidad: 10 }]
+  );
+});
 test("fórmulas aceptan solo insumos y cantidades productivas válidas", () => {
   assert.equal(normalizarDetallesFormula({}), null);
   assert.deepEqual(normalizarDetallesFormula([null, "detalle", { insumoId: "1", cantidad: "2" }]), []);
