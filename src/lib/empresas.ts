@@ -31,6 +31,13 @@ export async function asegurarEmpresaPrincipal(): Promise<void> {
 // Compañía activa de la sesión (cookie propia, independiente de erp_sesion).
 // Todo lo que no llama a esta función sigue operando contra "1" por defecto
 // — ver la nota de alcance en el modelo Empresa del schema.
+export function perteneceAEmpresaActiva(
+  registro: { empresaId: string } | null,
+  empresaId: string
+): registro is { empresaId: string } {
+  return registro?.empresaId === empresaId;
+}
+
 export function empresaSolicitadaPermitida(
   usuario: Pick<Usuario, "rol" | "empresaId">,
   empresaSolicitadaId: string | undefined
