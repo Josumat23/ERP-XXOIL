@@ -6,10 +6,10 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { normalizarDetallesFormula, type DetalleFormulaNormalizado } from "@/lib/detallesFormula";
 
 export type EstadoFormulario = { error?: string };
 
-type LineaDetalle = { insumoId: string; cantidad: number };
 
 // Las fórmulas no se editan: cada cambio es una versión nueva (historia intacta).
 export async function crearFormula(
@@ -26,9 +26,9 @@ export async function crearFormula(
   const rendimientoKg = Number(formData.get("rendimientoKg"));
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
-  let detalles: LineaDetalle[];
+  let detallesRaw: unknown;
   try {
-    detalles = JSON.parse(String(formData.get("detalles") ?? "[]"));
+    detallesRaw = JSON.parse(String(formData.get("detalles") ?? "[]"));
   } catch {
     return { error: "El detalle de insumos es inválido." };
   }
@@ -37,7 +37,10 @@ export async function crearFormula(
   if (!Number.isFinite(rendimientoKg) || rendimientoKg <= 0) {
     return { error: "El rendimiento en kg debe ser mayor a 0." };
   }
-  detalles = detalles.filter((d) => d.insumoId && Number.isFinite(d.cantidad) && d.cantidad > 0);
+  const detalles: DetalleFormulaNormalizado[] | null = normalizarDetallesFormula(detallesRaw);
+  if (detalles === null) {
+    return { error: "El detalle de insumos es inválido." };
+  }
   if (detalles.length === 0) {
     return { error: "Agregue al menos un insumo con cantidad mayor a 0." };
   }
