@@ -37,6 +37,12 @@ export function estaBloqueadoLogin(bloqueadoHasta: Date | null, ahora: Date): bo
 
 export async function registrarIntentoFallidoLogin(usuarioId: string, ahora = new Date()) {
   return prisma.$transaction(async (tx) => {
+    const reserva = await tx.usuario.updateMany({
+      where: { id: usuarioId },
+      data: { intentosFallidos: { increment: 0 } },
+    });
+    if (reserva.count !== 1) throw new Error("El usuario ya no existe.");
+
     const usuario = await tx.usuario.findUniqueOrThrow({ where: { id: usuarioId } });
     const estado = calcularIntentoFallidoLogin(usuario, ahora);
     await tx.usuario.update({ where: { id: usuarioId }, data: estado });
