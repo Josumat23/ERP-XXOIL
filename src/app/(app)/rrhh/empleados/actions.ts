@@ -7,6 +7,7 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoEmpleado } from "@/lib/correlativos";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { saldoVacaciones } from "@/lib/vacaciones";
 import { generarLiquidacion } from "@/lib/planilla";
 
@@ -37,8 +38,8 @@ export async function crearEmpleado(
   ) as $Enums.TipoDocumentoIdentidad;
   const dni = String(formData.get("dni") ?? "").trim() || null;
   const nacionalidad = String(formData.get("nacionalidad") ?? "Peruana").trim() || "Peruana";
-  const fechaNacimientoRaw = String(formData.get("fechaNacimiento") ?? "");
-  const fechaIngresoRaw = String(formData.get("fechaIngreso") ?? "");
+  const fechaNacimientoRaw = String(formData.get("fechaNacimiento") ?? "").trim();
+  const fechaIngresoRaw = String(formData.get("fechaIngreso") ?? "").trim();
   const cargo = String(formData.get("cargo") ?? "").trim();
   const area = String(formData.get("area") ?? "").trim();
   const tipoContrato = String(formData.get("tipoContrato") ?? "") as $Enums.TipoContrato;
@@ -69,11 +70,16 @@ export async function crearEmpleado(
   if (!TIPOS_CONTRATO_VALIDOS.includes(tipoContrato)) {
     return { error: "Seleccione un tipo de contrato válido." };
   }
-  const fechaIngreso = fechaIngresoRaw ? new Date(fechaIngresoRaw) : null;
-  if (!fechaIngreso || Number.isNaN(fechaIngreso.getTime())) {
-    return { error: "La fecha de ingreso es obligatoria." };
+  const fechaIngreso = crearFechaCalendarioLocal(fechaIngresoRaw);
+  if (!fechaIngreso) {
+    return { error: "La fecha de ingreso es obligatoria y debe ser válida." };
   }
-  const fechaNacimiento = fechaNacimientoRaw ? new Date(fechaNacimientoRaw) : null;
+  const fechaNacimiento = fechaNacimientoRaw
+    ? crearFechaCalendarioLocal(fechaNacimientoRaw)
+    : null;
+  if (fechaNacimientoRaw && !fechaNacimiento) {
+    return { error: "Ingrese una fecha de nacimiento válida." };
+  }
   if (!Number.isFinite(sueldoBasico) || sueldoBasico < 0) {
     return { error: "El sueldo básico debe ser un número válido." };
   }
@@ -194,12 +200,12 @@ export async function solicitarVacaciones(
   const auth = await requerirRol([...ROLES_RRHH]);
   if ("error" in auth) return auth;
 
-  const fechaInicioRaw = String(formData.get("fechaInicio") ?? "");
-  const fechaFinRaw = String(formData.get("fechaFin") ?? "");
-  const fechaInicio = fechaInicioRaw ? new Date(fechaInicioRaw) : null;
-  const fechaFin = fechaFinRaw ? new Date(fechaFinRaw) : null;
+  const fechaInicioRaw = String(formData.get("fechaInicio") ?? "").trim();
+  const fechaFinRaw = String(formData.get("fechaFin") ?? "").trim();
+  const fechaInicio = crearFechaCalendarioLocal(fechaInicioRaw);
+  const fechaFin = crearFechaCalendarioLocal(fechaFinRaw);
 
-  if (!fechaInicio || !fechaFin || Number.isNaN(fechaInicio.getTime()) || Number.isNaN(fechaFin.getTime())) {
+  if (!fechaInicio || !fechaFin) {
     return { error: "Ingrese fecha de inicio y fin válidas." };
   }
   if (fechaFin < fechaInicio) {
