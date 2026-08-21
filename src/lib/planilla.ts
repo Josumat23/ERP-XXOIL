@@ -12,6 +12,10 @@ import { saldoVacaciones } from "@/lib/vacaciones";
 // los montos contra su propia herramienta.
 // ---------------------------------------------------------------------------
 
+export function esPorcentajePlanillaValido(valor: number): boolean {
+  return Number.isFinite(valor) && valor >= 0 && valor <= 100;
+}
+
 export async function obtenerParametroVigente(tx: Tx, fecha: Date) {
   return tx.parametroPlanilla.findFirst({
     where: { vigenteDesde: { lte: fecha } },
