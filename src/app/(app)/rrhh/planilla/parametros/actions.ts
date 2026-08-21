@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { esValorEnum } from "@/lib/enums";
 import { puedeRealizar } from "@/lib/permisos";
 import { esPorcentajePlanillaValido } from "@/lib/planilla";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -27,7 +28,7 @@ export async function crearParametroPlanilla(
   const tasaEsSalud = Number(formData.get("tasaEsSalud") ?? 9);
   const tasaOnp = Number(formData.get("tasaOnp") ?? 13);
   const vigenteDesdeRaw = String(formData.get("vigenteDesde") ?? "");
-  const vigenteDesde = vigenteDesdeRaw ? new Date(vigenteDesdeRaw) : null;
+  const vigenteDesde = crearFechaCalendarioLocal(vigenteDesdeRaw);
 
   if (!Number.isFinite(rmv) || rmv <= 0) return { error: "La RMV debe ser un número válido." };
   if (!Number.isFinite(uit) || uit <= 0) return { error: "La UIT debe ser un número válido." };
@@ -37,8 +38,8 @@ export async function crearParametroPlanilla(
   if (!esPorcentajePlanillaValido(tasaOnp)) {
     return { error: "La tasa de ONP debe estar entre 0 y 100%." };
   }
-  if (!vigenteDesde || Number.isNaN(vigenteDesde.getTime())) {
-    return { error: "La fecha de vigencia es obligatoria." };
+  if (!vigenteDesde) {
+    return { error: "Ingrese una fecha de vigencia válida." };
   }
 
   await prisma.parametroPlanilla.create({
@@ -73,7 +74,7 @@ export async function crearTasaAfp(
   const tasaComision = Number(formData.get("tasaComision") ?? 0);
   const primaSeguro = Number(formData.get("primaSeguro") ?? 0);
   const vigenteDesdeRaw = String(formData.get("vigenteDesde") ?? "");
-  const vigenteDesde = vigenteDesdeRaw ? new Date(vigenteDesdeRaw) : null;
+  const vigenteDesde = crearFechaCalendarioLocal(vigenteDesdeRaw);
 
   if (!esValorEnum(Object.values(Afp), afp)) {
     return { error: "Seleccione la AFP." };
@@ -90,8 +91,8 @@ export async function crearTasaAfp(
   if (!esPorcentajePlanillaValido(primaSeguro)) {
     return { error: "La prima de seguro debe estar entre 0 y 100%." };
   }
-  if (!vigenteDesde || Number.isNaN(vigenteDesde.getTime())) {
-    return { error: "La fecha de vigencia es obligatoria." };
+  if (!vigenteDesde) {
+    return { error: "Ingrese una fecha de vigencia válida." };
   }
 
   await prisma.tasaAfp.create({
