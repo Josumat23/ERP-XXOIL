@@ -10,6 +10,7 @@ import { siguienteCodigoOrdenMantenimiento } from "@/lib/correlativos";
 import { postearMantenimiento } from "@/lib/contabilidad";
 import { registrarMovimiento } from "@/lib/inventario";
 import { normalizarRepuestosMantenimiento, type RepuestoMantenimientoNormalizado } from "@/lib/repuestosMantenimiento";
+import { normalizarLecturaContador } from "@/lib/lecturasContador";
 
 export type EstadoFormulario = { error?: string };
 
@@ -138,7 +139,10 @@ export async function completarOrdenMantenimiento(
   const medioPago = String(formData.get("medioPago") ?? "") as $Enums.MedioPago;
   const observaciones = String(formData.get("observaciones") ?? "").trim() || null;
   const contadorLecturaRaw = String(formData.get("contadorLectura") ?? "").trim();
-  const contadorLectura = contadorLecturaRaw ? Number(contadorLecturaRaw) : null;
+  const contadorLectura = normalizarLecturaContador(contadorLecturaRaw);
+  if (contadorLectura === undefined) {
+    return { error: "La lectura del contador debe ser un número válido mayor o igual a 0." };
+  }
 
   let repuestosRaw: unknown;
   try {
@@ -171,6 +175,13 @@ export async function completarOrdenMantenimiento(
       }
       if (orden.planMantenimiento?.tipo === "POR_CONTADOR" && contadorLectura === null) {
         throw new Error("Ingrese la lectura actual del contador para cerrar este plan preventivo.");
+      }
+      if (
+        orden.planMantenimiento?.tipo === "POR_CONTADOR" &&
+        contadorLectura !== null &&
+        contadorLectura < orden.equipo.contadorActual.toNumber()
+      ) {
+        throw new Error("La lectura no puede ser menor al contador actual del equipo.");
       }
 
       const reclamo = await tx.ordenMantenimiento.updateMany({
