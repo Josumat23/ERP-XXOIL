@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import type { $Enums, Usuario } from "@/generated/prisma/client";
 
 const COOKIE_SESION = "erp_sesion";
+const COOKIE_EMPRESA_ACTIVA = "erp_empresa_activa";
 const DURACION_SESION_DIAS = 7;
 export const MAX_INTENTOS_LOGIN = 5;
 export const VENTANA_INTENTOS_LOGIN_MS = 15 * 60 * 1000;
@@ -86,6 +87,7 @@ export async function crearSesion(usuarioId: string): Promise<void> {
   await prisma.sesion.create({ data: { token, usuarioId, expiraEn } });
 
   const almacen = await cookies();
+  almacen.delete(COOKIE_EMPRESA_ACTIVA);
   almacen.set(COOKIE_SESION, token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
@@ -102,6 +104,7 @@ export async function cerrarSesion(): Promise<void> {
     await prisma.sesion.deleteMany({ where: { token } });
   }
   almacen.delete(COOKIE_SESION);
+  almacen.delete(COOKIE_EMPRESA_ACTIVA);
 }
 
 // cache() evita repetir la consulta dentro del mismo request
