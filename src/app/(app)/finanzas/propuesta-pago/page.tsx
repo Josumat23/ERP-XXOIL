@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PropuestaPagoFormulario from "./PropuestaPagoFormulario";
 
@@ -27,7 +28,7 @@ export default async function PropuestaPagoPage({
 
   const { hasta: hastaParam } = await searchParams;
   const hoy = new Date();
-  const hasta = hastaParam && /^\d{4}-\d{2}-\d{2}$/.test(hastaParam) ? new Date(hastaParam) : hoy;
+  const hasta = (hastaParam ? crearFechaCalendarioLocal(hastaParam) : null) ?? hoy;
 
   const cuentas = await prisma.cuentaPorPagar.findMany({
     where: {
