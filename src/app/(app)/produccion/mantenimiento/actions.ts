@@ -9,6 +9,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoOrdenMantenimiento } from "@/lib/correlativos";
 import { postearMantenimiento } from "@/lib/contabilidad";
 import { registrarMovimiento } from "@/lib/inventario";
+import { normalizarRepuestosMantenimiento, type RepuestoMantenimientoNormalizado } from "@/lib/repuestosMantenimiento";
 
 export type EstadoFormulario = { error?: string };
 
@@ -139,15 +140,17 @@ export async function completarOrdenMantenimiento(
   const contadorLecturaRaw = String(formData.get("contadorLectura") ?? "").trim();
   const contadorLectura = contadorLecturaRaw ? Number(contadorLecturaRaw) : null;
 
-  let repuestos: { insumoId: string; cantidad: number }[];
+  let repuestosRaw: unknown;
   try {
-    repuestos = JSON.parse(String(formData.get("repuestos") ?? "[]"));
+    repuestosRaw = JSON.parse(String(formData.get("repuestos") ?? "[]"));
   } catch {
     return { error: "El detalle de repuestos es inválido." };
   }
-  repuestos = repuestos.filter(
-    (r) => r.insumoId && Number.isFinite(r.cantidad) && r.cantidad > 0
-  );
+  const repuestos: RepuestoMantenimientoNormalizado[] | null =
+    normalizarRepuestosMantenimiento(repuestosRaw);
+  if (repuestos === null) {
+    return { error: "El detalle de repuestos es inválido." };
+  }
 
   if (!Number.isFinite(costoManoObra) || costoManoObra < 0) {
     return { error: "El costo de mano de obra debe ser un número válido." };
