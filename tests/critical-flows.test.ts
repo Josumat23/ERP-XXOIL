@@ -40,6 +40,7 @@ import { normalizarInsumosEnvasado } from "@/lib/insumosEnvasado";
 import { normalizarRepuestosMantenimiento } from "@/lib/repuestosMantenimiento";
 import { normalizarLecturaContador } from "@/lib/lecturasContador";
 import { esMonedaOrdenCompraValida, normalizarLineasOrdenCompra } from "@/lib/lineasOrdenCompra";
+import { normalizarLineasReglaAsignacion } from "@/lib/reglasAsignacionCosto";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -71,6 +72,28 @@ test("la creación interna de órdenes no queda expuesta como Server Action", as
   assert.match(servicio, /import ["']server-only["'];/);
 });
 
+test("reglas de costo validan estructura, porcentajes y centros únicos", () => {
+  assert.equal(normalizarLineasReglaAsignacion({}), null);
+  assert.deepEqual(normalizarLineasReglaAsignacion([null, "línea"]), []);
+  assert.deepEqual(
+    normalizarLineasReglaAsignacion([
+      { centroCostoId: " centro-1 ", porcentaje: 60 },
+      { centroCostoId: "centro-2", porcentaje: 40 },
+      { centroCostoId: "centro-3", porcentaje: Number.NaN },
+    ]),
+    [
+      { centroCostoId: "centro-1", porcentaje: 60 },
+      { centroCostoId: "centro-2", porcentaje: 40 },
+    ]
+  );
+  assert.equal(
+    normalizarLineasReglaAsignacion([
+      { centroCostoId: "centro-1", porcentaje: 50 },
+      { centroCostoId: "centro-1", porcentaje: 50 },
+    ]),
+    null
+  );
+});
 test("órdenes de compra rechazan monedas manipuladas", () => {
   assert.equal(esMonedaOrdenCompraValida("PEN"), true);
   assert.equal(esMonedaOrdenCompraValida("USD"), true);

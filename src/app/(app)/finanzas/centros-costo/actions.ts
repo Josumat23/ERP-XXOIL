@@ -7,6 +7,7 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { CLAVES_RECLASIFICABLES, postearReclasificacionCosto, type ClaveControl } from "@/lib/contabilidad";
+import { normalizarLineasReglaAsignacion } from "@/lib/reglasAsignacionCosto";
 
 export type EstadoFormulario = { error?: string };
 
@@ -93,8 +94,6 @@ export async function guardarPresupuesto(
   return {};
 }
 
-type LineaRegla = { centroCostoId: string; porcentaje: number };
-
 export async function crearReglaAsignacion(
   _prevState: EstadoFormulario,
   formData: FormData
@@ -103,17 +102,16 @@ export async function crearReglaAsignacion(
   if ("error" in auth) return auth;
 
   const nombre = String(formData.get("nombre") ?? "").trim();
-  let lineas: LineaRegla[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
     return { error: "El detalle de la regla es inválido." };
   }
 
   if (!nombre) return { error: "El nombre de la regla es obligatorio." };
-  lineas = lineas.filter(
-    (l) => l.centroCostoId && Number.isFinite(l.porcentaje) && l.porcentaje > 0
-  );
+  const lineas = normalizarLineasReglaAsignacion(lineasRaw);
+  if (lineas === null) return { error: "El detalle de la regla es inválido." };
   if (lineas.length < 2) {
     return { error: "Una regla de prorrateo necesita al menos 2 centros con porcentaje." };
   }
@@ -122,6 +120,12 @@ export async function crearReglaAsignacion(
     return { error: `Los porcentajes deben sumar 100% (suman ${suma.toFixed(1)}%).` };
   }
 
+  const centrosActivos = await prisma.centroCosto.count({
+    where: { id: { in: lineas.map((l) => l.centroCostoId) }, activo: true },
+  });
+  if (centrosActivos !== lineas.length) {
+    return { error: "Seleccione únicamente centros de costo activos." };
+  }
   await prisma.reglaAsignacionCosto.create({
     data: {
       nombre,
