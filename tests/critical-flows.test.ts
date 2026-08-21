@@ -36,6 +36,7 @@ import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
 import { normalizarInsumosEnvasado } from "@/lib/insumosEnvasado";
+import { normalizarRepuestosMantenimiento } from "@/lib/repuestosMantenimiento";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -56,6 +57,18 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("mantenimiento acepta solo repuestos y cantidades consumibles válidas", () => {
+  assert.equal(normalizarRepuestosMantenimiento({}), null);
+  assert.deepEqual(normalizarRepuestosMantenimiento([null, "repuesto", { insumoId: "1", cantidad: "2" }]), []);
+  assert.deepEqual(
+    normalizarRepuestosMantenimiento([
+      { insumoId: "repuesto-1", cantidad: 3 },
+      { insumoId: "repuesto-2", cantidad: 0 },
+      { insumoId: "repuesto-3", cantidad: Number.NEGATIVE_INFINITY },
+    ]),
+    [{ insumoId: "repuesto-1", cantidad: 3 }]
+  );
+});
 test("envasados aceptan solo insumos y cantidades consumibles válidas", () => {
   assert.equal(normalizarInsumosEnvasado({}), null);
   assert.deepEqual(normalizarInsumosEnvasado([null, "insumo", { insumoId: "1", cantidad: "2" }]), []);
