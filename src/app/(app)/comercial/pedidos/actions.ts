@@ -16,10 +16,9 @@ import { postearVenta } from "@/lib/contabilidad";
 import { enviarComprobanteFactura } from "@/app/(app)/comercial/facturas/actions";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
+import { normalizarLineasVenta, type LineaVentaNormalizada } from "@/lib/lineasVenta";
 
 export type EstadoFormulario = { error?: string };
-
-type LineaPedido = { presentacionId: string; cantidad: number; precioUnitario: number };
 
 export async function crearPedido(
   _prevState: EstadoFormulario,
@@ -35,10 +34,14 @@ export async function crearPedido(
   const vendedorId = String(formData.get("vendedorId") ?? "");
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
-  let lineas: LineaPedido[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
+    return { error: "El detalle del pedido es inválido." };
+  }
+  const lineas: LineaVentaNormalizada[] | null = normalizarLineasVenta(lineasRaw);
+  if (lineas === null) {
     return { error: "El detalle del pedido es inválido." };
   }
 
@@ -52,14 +55,6 @@ export async function crearPedido(
       error: `${cliente.razonSocial} está bloqueado por cobranza (facturas vencidas sin regularizar). Levante el bloqueo en Finanzas → Gestión de cobranza antes de crear un pedido nuevo.`,
     };
   }
-  lineas = lineas.filter(
-    (l) =>
-      l.presentacionId &&
-      Number.isInteger(l.cantidad) &&
-      l.cantidad > 0 &&
-      Number.isFinite(l.precioUnitario) &&
-      l.precioUnitario >= 0
-  );
   if (lineas.length === 0) {
     return { error: "Agregue al menos una línea con cantidad y precio válidos." };
   }
