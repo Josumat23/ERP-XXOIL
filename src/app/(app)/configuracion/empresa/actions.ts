@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { validarArchivoCertificadoSunat } from "@/lib/certificadoSunat";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
@@ -35,7 +36,7 @@ export async function guardarConfiguracionEmpresa(
     String(formData.get("registroHidrocarburosOsinergmin") ?? "").trim() || null;
   const registroHidrocarburosVigenciaRaw = String(formData.get("registroHidrocarburosVigencia") ?? "").trim();
   const registroHidrocarburosVigencia = registroHidrocarburosVigenciaRaw
-    ? new Date(`${registroHidrocarburosVigenciaRaw}T00:00:00`)
+    ? crearFechaCalendarioLocal(registroHidrocarburosVigenciaRaw)
     : null;
   const tarifaHoraManoObra = Number(formData.get("tarifaHoraManoObra"));
   const montoAprobacionCompras = Number(formData.get("montoAprobacionCompras"));
@@ -53,6 +54,9 @@ export async function guardarConfiguracionEmpresa(
 
   if (!razonSocial) return { error: "La razón social es obligatoria." };
   if (ruc && !/^\d{11}$/.test(ruc)) return { error: "El RUC debe tener 11 dígitos." };
+  if (registroHidrocarburosVigenciaRaw && !registroHidrocarburosVigencia) {
+    return { error: "Ingrese una fecha de vigencia del registro de hidrocarburos válida." };
+  }
   if (!Number.isFinite(tasaIgv) || tasaIgv < 0 || tasaIgv > 30) {
     return { error: "La tasa de IGV debe estar entre 0 y 30%." };
   }
