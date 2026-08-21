@@ -22,7 +22,7 @@ import {
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
-import { esTipoEntidadAdjunto, existeEntidadAdjunto } from "@/lib/adjuntos";
+import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
@@ -768,6 +768,16 @@ test("adjuntos de clientes respetan la compañía activa", async () => {
   assert.equal(await existeEntidadAdjunto("Cliente", cliente.id, cliente.empresaId), true);
   assert.equal(await existeEntidadAdjunto("Cliente", cliente.id, "empresa-ajena"), false);
   assert.equal(await existeEntidadAdjunto("Cliente", cliente.id), false);
+});
+test("rutas de adjuntos permanecen dentro de su directorio físico", () => {
+  assert.equal(
+    resolverRutaAdjunto("archivo-seguro.pdf"),
+    resolve(DIRECTORIO_ADJUNTOS, "archivo-seguro.pdf")
+  );
+  assert.equal(resolverRutaAdjunto("../fuera.pdf"), null);
+  assert.equal(resolverRutaAdjunto("subdirectorio/fuera.pdf"), null);
+  assert.equal(resolverRutaAdjunto(resolve(tmpdir(), "fuera.pdf")), null);
+  assert.equal(resolverRutaAdjunto(""), null);
 });
 
 test("una fase EDT solo puede imputarse a su propio proyecto", () => {

@@ -92,6 +92,16 @@ export async function puedeEditarAdjunto(usuario: Usuario, entidadTipo: string):
 // volumen persistente que ya usa la base SQLite (ver docker-compose.yml).
 // En desarrollo local/Codespaces, crea ./data/adjuntos relativo al repo.
 export const DIRECTORIO_ADJUNTOS = process.env.ADJUNTOS_DIR ?? path.join(process.cwd(), "data", "adjuntos");
+export function resolverRutaAdjunto(nombreArchivo: string): string | null {
+  if (!nombreArchivo || path.basename(nombreArchivo) !== nombreArchivo) return null;
+  const directorio = path.resolve(DIRECTORIO_ADJUNTOS);
+  const ruta = path.resolve(directorio, nombreArchivo);
+  const relativa = path.relative(directorio, ruta);
+  if (!relativa || relativa === ".." || relativa.startsWith(".." + path.sep) || path.isAbsolute(relativa)) {
+    return null;
+  }
+  return ruta;
+}
 
 export const TIPOS_MIME_PERMITIDOS = [
   "application/pdf",
