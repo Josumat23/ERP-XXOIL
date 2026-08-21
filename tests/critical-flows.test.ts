@@ -617,15 +617,19 @@ test("login bloquea persistentemente la cuenta al quinto fallo y reinicia la ven
     data: { intentosFallidos: 0, ultimoIntentoFallidoEn: null, bloqueadoHasta: null },
   });
 
-  for (let intento = 0; intento < 5; intento += 1) {
-    await registrarIntentoFallidoLogin(usuario.id, new Date(ahora.getTime() + intento * 1000));
-  }
+  await Promise.all(
+    Array.from({ length: 5 }, (_, intento) =>
+      registrarIntentoFallidoLogin(usuario.id, new Date(ahora.getTime() + intento * 1000))
+    )
+  );
 
   const bloqueado = await prisma.usuario.findUniqueOrThrow({ where: { id: usuario.id } });
   assert.equal(bloqueado.intentosFallidos, 5);
-  assert.equal(
-    bloqueado.bloqueadoHasta?.getTime(),
-    ahora.getTime() + 4000 + DURACION_BLOQUEO_LOGIN_MS
+  assert.ok(bloqueado.bloqueadoHasta);
+  assert.ok(bloqueado.bloqueadoHasta.getTime() >= ahora.getTime() + DURACION_BLOQUEO_LOGIN_MS);
+  assert.ok(
+    bloqueado.bloqueadoHasta.getTime() <=
+      ahora.getTime() + 4000 + DURACION_BLOQUEO_LOGIN_MS
   );
 
   const fueraDeVentana = calcularIntentoFallidoLogin(
