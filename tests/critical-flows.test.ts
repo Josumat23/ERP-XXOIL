@@ -24,7 +24,11 @@ import { existeGrupoSeguridadAsignable, puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { escaparCeldaCsv } from "@/lib/csv";
-import { crearFechaAsientoManual, normalizarLineasAsientoManual } from "@/lib/asientosManuales";
+import {
+  crearFechaAsientoManual,
+  cuentasAsientoPertenecenAEmpresa,
+  normalizarLineasAsientoManual,
+} from "@/lib/asientosManuales";
 import { esValorEnum } from "@/lib/enums";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
@@ -46,6 +50,44 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("asientos manuales aceptan solo cuentas activas de la compañía contable", async () => {
+  const sufijo = Date.now().toString();
+  const planPrincipal = await prisma.planCuentas.create({
+    data: { empresaId: "empresa-contable-a", codigo: `PLAN-A-${sufijo}`, nombre: "Plan A" },
+  });
+  const planAjeno = await prisma.planCuentas.create({
+    data: { empresaId: "empresa-contable-b", codigo: `PLAN-B-${sufijo}`, nombre: "Plan B" },
+  });
+  const [cuentaActiva, cuentaInactiva, cuentaAjena] = await Promise.all([
+    prisma.cuentaContable.create({
+      data: { planCuentasId: planPrincipal.id, codigo: `A-${sufijo}`, nombre: "Activa", tipo: "ACTIVO" },
+    }),
+    prisma.cuentaContable.create({
+      data: { planCuentasId: planPrincipal.id, codigo: `I-${sufijo}`, nombre: "Inactiva", tipo: "ACTIVO", activo: false },
+    }),
+    prisma.cuentaContable.create({
+      data: { planCuentasId: planAjeno.id, codigo: `X-${sufijo}`, nombre: "Ajena", tipo: "ACTIVO" },
+    }),
+  ]);
+
+  assert.equal(
+    await cuentasAsientoPertenecenAEmpresa(prisma, [cuentaActiva.id], "empresa-contable-a"),
+    true
+  );
+  assert.equal(
+    await cuentasAsientoPertenecenAEmpresa(prisma, [cuentaActiva.id, cuentaActiva.id], "empresa-contable-a"),
+    true
+  );
+  assert.equal(
+    await cuentasAsientoPertenecenAEmpresa(prisma, [cuentaInactiva.id], "empresa-contable-a"),
+    false
+  );
+  assert.equal(
+    await cuentasAsientoPertenecenAEmpresa(prisma, [cuentaAjena.id], "empresa-contable-a"),
+    false
+  );
+  assert.equal(await cuentasAsientoPertenecenAEmpresa(prisma, ["inexistente"], "empresa-contable-a"), false);
+});
 test("asientos manuales rechazan fechas e importes manipulados antes de contabilizar", () => {
   assert.equal(crearFechaAsientoManual("2026-08-20")?.getDate(), 20);
   assert.equal(crearFechaAsientoManual("2026-02-29"), null);

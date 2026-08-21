@@ -9,6 +9,8 @@ import { reclamarPeriodoAbierto } from "@/lib/contabilidad";
 import { reservarCorrelativo } from "@/lib/correlativos";
 import {
   crearFechaAsientoManual,
+  cuentasAsientoPertenecenAEmpresa,
+  EMPRESA_CONTABLE_PRINCIPAL_ID,
   normalizarLineasAsientoManual,
   type LineaAsientoManual,
 } from "@/lib/asientosManuales";
@@ -70,7 +72,7 @@ export async function crearAsientoManual(
   const mes = fecha.getMonth() + 1;
 
   const periodo = await prisma.periodoFiscal.findUnique({
-    where: { empresaId_anio_mes: { empresaId: "1", anio, mes } },
+    where: { empresaId_anio_mes: { empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID, anio, mes } },
   });
   if (periodo?.estado === "CERRADO") {
     return { error: `El período fiscal ${mes}/${anio} está cerrado. Reábralo en Configuración → Calendario fiscal.` };
@@ -78,19 +80,39 @@ export async function crearAsientoManual(
 
   let asientoId = "";
   let periodoAbierto = true;
+  let cuentasValidas = true;
   await prisma.$transaction(async (tx) => {
+    if (
+      !(await cuentasAsientoPertenecenAEmpresa(
+        tx,
+        lineas.map((linea) => linea.cuentaId),
+        EMPRESA_CONTABLE_PRINCIPAL_ID
+      ))
+    ) {
+      cuentasValidas = false;
+      return;
+    }
     if (!(await reclamarPeriodoAbierto(tx, fecha))) {
       periodoAbierto = false;
       return;
     }
 
     const libro =
-      (await tx.libro.findFirst({ where: { codigo: "DIARIO" } })) ??
-      (await tx.libro.create({ data: { codigo: "DIARIO", nombre: "Libro diario" } }));
+      (await tx.libro.findFirst({
+        where: { empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID, codigo: "DIARIO" },
+      })) ??
+      (await tx.libro.create({
+        data: {
+          empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID,
+          codigo: "DIARIO",
+          nombre: "Libro diario",
+        },
+      }));
     const numero = await siguienteNumeroAsiento(tx);
 
     const asiento = await tx.asientoContable.create({
       data: {
+        empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID,
         libroId: libro.id,
         numero,
         fecha,
@@ -112,6 +134,9 @@ export async function crearAsientoManual(
     });
     asientoId = asiento.id;
   });
+  if (!cuentasValidas) {
+    return { error: "Una o más cuentas no pertenecen a la compañía contable principal." };
+  }
   if (!periodoAbierto) {
     return { error: `El período fiscal ${mes}/${anio} está cerrado. Reábralo en Configuración → Calendario fiscal.` };
   }
@@ -136,8 +161,8 @@ export async function reversarAsiento(
   let reversoId = "";
   try {
     await prisma.$transaction(async (tx) => {
-      const original = await tx.asientoContable.findUnique({
-        where: { id },
+      const original = await tx.asientoContable.findFirst({
+        where: { id, empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID },
         include: { detalles: true },
       });
       if (!original) throw new Error("El asiento no existe.");
@@ -157,7 +182,7 @@ export async function reversarAsiento(
 
       const numero = await siguienteNumeroAsiento(tx);
       const reclamo = await tx.asientoContable.updateMany({
-        where: { id, reversadoPor: null, origen: { not: "REVERSO" } },
+        where: { id, empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID, reversadoPor: null, origen: { not: "REVERSO" } },
         data: { reversadoPor: numero },
       });
       if (reclamo.count !== 1) {
@@ -166,6 +191,7 @@ export async function reversarAsiento(
 
       const reverso = await tx.asientoContable.create({
         data: {
+          empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID,
           libroId: original.libroId,
           numero,
           fecha: hoy,
