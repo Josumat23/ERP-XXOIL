@@ -1,6 +1,8 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { obtenerUsuario } from "@/lib/auth";
+import type { Usuario } from "@/generated/prisma/client";
 
 const COOKIE_EMPRESA_ACTIVA = "erp_empresa_activa";
 
@@ -29,9 +31,28 @@ export async function asegurarEmpresaPrincipal(): Promise<void> {
 // Compañía activa de la sesión (cookie propia, independiente de erp_sesion).
 // Todo lo que no llama a esta función sigue operando contra "1" por defecto
 // — ver la nota de alcance en el modelo Empresa del schema.
+export function empresaSolicitadaPermitida(
+  usuario: Pick<Usuario, "rol" | "empresaId">,
+  empresaSolicitadaId: string | undefined
+): string {
+  if (usuario.rol !== "ADMIN") return usuario.empresaId;
+  return empresaSolicitadaId ?? usuario.empresaId;
+}
+
 export async function obtenerEmpresaActivaId(): Promise<string> {
+  const usuario = await obtenerUsuario();
+  if (!usuario) return "1";
+
   const almacen = await cookies();
-  return almacen.get(COOKIE_EMPRESA_ACTIVA)?.value ?? "1";
+  const empresaId = empresaSolicitadaPermitida(
+    usuario,
+    almacen.get(COOKIE_EMPRESA_ACTIVA)?.value
+  );
+  const empresa = await prisma.empresa.findFirst({
+    where: { id: empresaId, activa: true },
+    select: { id: true },
+  });
+  return empresa?.id ?? usuario.empresaId;
 }
 
 export async function establecerEmpresaActivaId(id: string): Promise<void> {
