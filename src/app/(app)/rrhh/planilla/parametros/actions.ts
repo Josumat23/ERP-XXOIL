@@ -2,8 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import type { $Enums } from "@/generated/prisma/client";
+import { Afp, TipoComisionAfp } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { esValorEnum } from "@/lib/enums";
 import { puedeRealizar } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
@@ -59,16 +60,19 @@ export async function crearTasaAfp(
     return { error: "No tiene permiso para crear registros de planilla." };
   }
 
-  const afp = String(formData.get("afp") ?? "") as $Enums.Afp;
-  const tipoComision = String(formData.get("tipoComision") ?? "FLUJO") as $Enums.TipoComisionAfp;
+  const afp = String(formData.get("afp") ?? "");
+  const tipoComision = String(formData.get("tipoComision") ?? "FLUJO");
   const tasaAporteObligatorio = Number(formData.get("tasaAporteObligatorio") ?? 10);
   const tasaComision = Number(formData.get("tasaComision") ?? 0);
   const primaSeguro = Number(formData.get("primaSeguro") ?? 0);
   const vigenteDesdeRaw = String(formData.get("vigenteDesde") ?? "");
   const vigenteDesde = vigenteDesdeRaw ? new Date(vigenteDesdeRaw) : null;
 
-  if (!["INTEGRA", "PRIMA", "HABITAT", "PROFUTURO"].includes(afp)) {
+  if (!esValorEnum(Object.values(Afp), afp)) {
     return { error: "Seleccione la AFP." };
+  }
+  if (!esValorEnum(Object.values(TipoComisionAfp), tipoComision)) {
+    return { error: "Seleccione el tipo de comisión." };
   }
   if (!Number.isFinite(tasaComision) || tasaComision < 0) {
     return { error: "La comisión debe ser un número válido." };
