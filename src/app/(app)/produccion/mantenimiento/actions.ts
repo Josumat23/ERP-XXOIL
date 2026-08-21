@@ -11,6 +11,7 @@ import { postearMantenimiento } from "@/lib/contabilidad";
 import { registrarMovimiento } from "@/lib/inventario";
 import { normalizarRepuestosMantenimiento, type RepuestoMantenimientoNormalizado } from "@/lib/repuestosMantenimiento";
 import { normalizarLecturaContador } from "@/lib/lecturasContador";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -58,9 +59,9 @@ export async function crearOrdenMantenimiento(
   if (!equipoId) return { error: "Seleccione el equipo." };
   if (!TIPOS_VALIDOS.includes(tipo)) return { error: "Seleccione el tipo de mantenimiento." };
   if (!descripcion) return { error: "La descripción es obligatoria." };
-  const fechaProgramada = fechaProgramadaRaw ? new Date(fechaProgramadaRaw) : null;
-  if (!fechaProgramada || Number.isNaN(fechaProgramada.getTime())) {
-    return { error: "La fecha programada es obligatoria." };
+  const fechaProgramada = crearFechaCalendarioLocal(fechaProgramadaRaw);
+  if (!fechaProgramada) {
+    return { error: "La fecha programada es inválida." };
   }
   if (!Number.isInteger(duracionDias) || duracionDias < 1) {
     return { error: "La duración en días debe ser un entero mayor a 0." };
