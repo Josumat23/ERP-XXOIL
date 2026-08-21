@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteNumeroCotizacion, siguienteNumeroPedido } from "@/lib/correlativos";
 import { normalizarLineasVenta, type LineaVentaNormalizada } from "@/lib/lineasVenta";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -41,6 +42,8 @@ export async function crearCotizacion(
   if (!clienteId) return { error: "Seleccione el cliente." };
   if (!vendedorId) return { error: "Seleccione el vendedor." };
   if (!validaHastaRaw) return { error: "Indique hasta cuándo es válida la cotización." };
+  const validaHasta = crearFechaCalendarioLocal(validaHastaRaw);
+  if (!validaHasta) return { error: "La fecha de vigencia de la cotización es inválida." };
   if (!Number.isInteger(probabilidad) || probabilidad < 0 || probabilidad > 100) {
     return { error: "La probabilidad debe ser un número entero entre 0 y 100." };
   }
@@ -57,7 +60,7 @@ export async function crearCotizacion(
         numero,
         clienteId,
         vendedorId,
-        validaHasta: new Date(`${validaHastaRaw}T00:00:00`),
+        validaHasta,
         total,
         probabilidad,
         notas,

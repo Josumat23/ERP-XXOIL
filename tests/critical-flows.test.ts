@@ -31,6 +31,7 @@ import {
 } from "@/lib/asientosManuales";
 import { esValorEnum } from "@/lib/enums";
 import { normalizarLineasVenta } from "@/lib/lineasVenta";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -51,6 +52,16 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("fechas calendario rechazan días inexistentes y formatos manipulados", () => {
+  const fecha = crearFechaCalendarioLocal("2028-02-29");
+  assert.equal(fecha?.getFullYear(), 2028);
+  assert.equal(fecha?.getMonth(), 1);
+  assert.equal(fecha?.getDate(), 29);
+  assert.equal(crearFechaCalendarioLocal("2026-02-29"), null);
+  assert.equal(crearFechaCalendarioLocal("2026-04-31"), null);
+  assert.equal(crearFechaCalendarioLocal("31/12/2026"), null);
+  assert.equal(crearFechaCalendarioLocal(""), null);
+});
 test("pedidos ignoran filas vacías y rechazan estructuras JSON manipuladas", () => {
   assert.equal(normalizarLineasVenta({}), null);
   assert.deepEqual(normalizarLineasVenta([null, "línea", { presentacionId: "", cantidad: 0, precioUnitario: 0 }]), []);
