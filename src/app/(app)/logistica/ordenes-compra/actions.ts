@@ -14,6 +14,12 @@ import { postearRecepcionCompra, postearDevolucionCompra } from "@/lib/contabili
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { convertirAPen } from "@/lib/tipoCambio";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
+import {
+  esTipoComprobanteRecepcionValido,
+  normalizarLineasRecepcionCompra,
+  sonDiasCreditoRecepcionValidos,
+  type LineaRecepcionCompra,
+} from "@/lib/recepcionesCompra";
 import { edtPerteneceAProyecto } from "@/lib/proyectos";
 
 export type EstadoFormulario = { error?: string };
@@ -177,12 +183,6 @@ export async function anularOrdenCompra(
   return {};
 }
 
-type LineaRecepcion = {
-  detalleId: string;
-  cantidad: number;
-  costoUnitario: number;
-  numeroLoteProveedor?: string;
-};
 
 // Recepción de mercadería: entra al kardex (origen COMPRA), actualiza el costo
 // promedio ponderado del insumo y genera la cuenta por pagar al proveedor.
@@ -202,19 +202,26 @@ export async function registrarRecepcion(
   const diasCredito = Number(formData.get("diasCredito") ?? 0);
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
-  let lineas: LineaRecepcion[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
+    return { error: "El detalle de la recepción es inválido." };
+  }
+  const lineas: LineaRecepcionCompra[] | null = normalizarLineasRecepcionCompra(lineasRaw);
+  if (lineas === null) {
     return { error: "El detalle de la recepción es inválido." };
   }
 
   if (!numeroDocumento) {
     return { error: "Ingrese el número de la factura o guía del proveedor." };
   }
-  lineas = lineas.filter(
-    (l) => l.detalleId && Number.isFinite(l.cantidad) && l.cantidad > 0
-  );
+  if (!esTipoComprobanteRecepcionValido(tipoComprobante)) {
+    return { error: "Seleccione un tipo de comprobante válido." };
+  }
+  if (!sonDiasCreditoRecepcionValidos(diasCredito)) {
+    return { error: "Seleccione una condición de pago válida." };
+  }
   if (lineas.length === 0) {
     return { error: "Ingrese al menos una cantidad recibida mayor a 0." };
   }

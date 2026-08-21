@@ -33,6 +33,11 @@ import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/audit
 import { calcularRetencion5taMensual, esPorcentajePlanillaValido, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
 import {
+  esTipoComprobanteRecepcionValido,
+  normalizarLineasRecepcionCompra,
+  sonDiasCreditoRecepcionValidos,
+} from "@/lib/recepcionesCompra";
+import {
   calcularIntentoFallidoLogin,
   DURACION_BLOQUEO_LOGIN_MS,
   hashPassword,
@@ -40,6 +45,29 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("recepciones validan comprobante, condición de pago y estructura de líneas", () => {
+  assert.equal(esTipoComprobanteRecepcionValido("01"), true);
+  assert.equal(esTipoComprobanteRecepcionValido("99"), false);
+  assert.equal(sonDiasCreditoRecepcionValidos(0), true);
+  assert.equal(sonDiasCreditoRecepcionValidos(15), true);
+  assert.equal(sonDiasCreditoRecepcionValidos(30), true);
+  assert.equal(sonDiasCreditoRecepcionValidos(15.5), false);
+  assert.equal(sonDiasCreditoRecepcionValidos(-15), false);
+  assert.equal(sonDiasCreditoRecepcionValidos(Number.NaN), false);
+  assert.equal(normalizarLineasRecepcionCompra({}), null);
+  assert.deepEqual(normalizarLineasRecepcionCompra([null, "línea", { detalleId: "", cantidad: 2 }]), []);
+  assert.deepEqual(
+    normalizarLineasRecepcionCompra([
+      { detalleId: "detalle-1", cantidad: 2, costoUnitario: 5.5, numeroLoteProveedor: "L-1" },
+      { detalleId: "detalle-2", cantidad: 0, costoUnitario: 4 },
+      { detalleId: "detalle-3", cantidad: 1, costoUnitario: "alterado", numeroLoteProveedor: 123 },
+    ]),
+    [
+      { detalleId: "detalle-1", cantidad: 2, costoUnitario: 5.5, numeroLoteProveedor: "L-1" },
+      { detalleId: "detalle-3", cantidad: 1, costoUnitario: Number.NaN, numeroLoteProveedor: undefined },
+    ]
+  );
+});
 test("tasas de planilla aceptan únicamente porcentajes finitos entre 0 y 100", () => {
   assert.equal(esPorcentajePlanillaValido(0), true);
   assert.equal(esPorcentajePlanillaValido(13), true);
