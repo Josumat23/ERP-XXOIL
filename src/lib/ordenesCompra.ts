@@ -5,14 +5,14 @@ import { siguienteNumeroOrdenCompra } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { convertirAPen } from "@/lib/tipoCambio";
 import { edtPerteneceAProyecto } from "@/lib/proyectos";
-import type { LineaOrdenCompraNormalizada } from "@/lib/lineasOrdenCompra";
+import type { LineaOrdenCompraNormalizada, MonedaOrdenCompra } from "@/lib/lineasOrdenCompra";
 
 export async function crearOrdenCompraDesdeDatos(
   datos: {
     proveedorId: string;
     almacenId: string | null;
     notas: string | null;
-    moneda: string;
+    moneda: MonedaOrdenCompra;
     tipoCambio: number;
     lineas: LineaOrdenCompraNormalizada[];
     proyectoId?: string | null;

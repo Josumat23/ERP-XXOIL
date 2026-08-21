@@ -1,5 +1,11 @@
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 
+export type MonedaOrdenCompra = "PEN" | "USD";
+
+export function esMonedaOrdenCompraValida(valor: unknown): valor is MonedaOrdenCompra {
+  return valor === "PEN" || valor === "USD";
+}
+
 export type LineaOrdenCompraNormalizada = {
   insumoId: string;
   cantidad: number;
