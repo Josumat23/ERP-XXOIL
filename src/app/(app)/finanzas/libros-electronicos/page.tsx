@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { formatMoneda } from "@/lib/format";
 import { puedeRealizar } from "@/lib/permisos";
+import { esPeriodoMensualValido } from "@/lib/periodos";
 
 const NOMBRE_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -20,8 +21,11 @@ export default async function LibrosElectronicosPage({
 
   const hoy = new Date();
   const { anio: anioParam, mes: mesParam } = await searchParams;
-  const anio = Number(anioParam) || hoy.getFullYear();
-  const mes = Number(mesParam) || hoy.getMonth() + 1;
+  const anioIngresado = Number(anioParam);
+  const mesIngresado = Number(mesParam);
+  const periodoValido = esPeriodoMensualValido(anioIngresado, mesIngresado);
+  const anio = periodoValido ? anioIngresado : hoy.getFullYear();
+  const mes = periodoValido ? mesIngresado : hoy.getMonth() + 1;
 
   const desde = new Date(anio, mes - 1, 1);
   const hasta = new Date(anio, mes, 1);
