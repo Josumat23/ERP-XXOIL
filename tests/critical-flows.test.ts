@@ -15,6 +15,7 @@ import { calcularUnidadesAProducir, esPeriodoProyeccionValido } from "@/lib/proy
 import { validarLineasSimulacion } from "@/lib/simuladorPrecios";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
 import { esPeriodoPLEValido, generarArchivoPLE, sanitizarCampoPLE } from "@/lib/ple";
+import { esAnioOperativoValido, esPeriodoMensualValido } from "@/lib/periodos";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 import {
@@ -64,6 +65,19 @@ import {
   registrarIntentoFallidoLogin,
   verificarPasswordUniforme,
 } from "@/lib/auth";
+
+test("períodos operativos aceptan solo años y meses enteros dentro del rango", () => {
+  assert.equal(esAnioOperativoValido(2000), true);
+  assert.equal(esAnioOperativoValido(2100), true);
+  assert.equal(esAnioOperativoValido(1999), false);
+  assert.equal(esAnioOperativoValido(2101), false);
+  assert.equal(esAnioOperativoValido(2026.5), false);
+  assert.equal(esPeriodoMensualValido(2026, 1), true);
+  assert.equal(esPeriodoMensualValido(2026, 12), true);
+  assert.equal(esPeriodoMensualValido(2026, 0), false);
+  assert.equal(esPeriodoMensualValido(2026, 13), false);
+  assert.equal(esPeriodoMensualValido(2026, 1.5), false);
+});
 
 test("el envío interno de guías queda aislado de las Server Actions", async () => {
   const acciones = await readFile(

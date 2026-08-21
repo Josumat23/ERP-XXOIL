@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { esAnioOperativoValido } from "@/lib/periodos";
 import { generarAnioFiscal, alternarPeriodoFiscal } from "./actions";
 
 const NOMBRES_MES = [
@@ -20,7 +21,8 @@ export default async function CalendarioFiscalPage({
 
   const { anio: anioParam } = await searchParams;
   const hoy = new Date();
-  const anio = anioParam ? Number(anioParam) : hoy.getFullYear();
+  const anioIngresado = anioParam ? Number(anioParam) : hoy.getFullYear();
+  const anio = esAnioOperativoValido(anioIngresado) ? anioIngresado : hoy.getFullYear();
 
   const periodos = await prisma.periodoFiscal.findMany({
     where: { anio },
