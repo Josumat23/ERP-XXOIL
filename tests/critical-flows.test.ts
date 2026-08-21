@@ -24,6 +24,7 @@ import { existeGrupoSeguridadAsignable, puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { escaparCeldaCsv } from "@/lib/csv";
+import { crearFechaAsientoManual, normalizarLineasAsientoManual } from "@/lib/asientosManuales";
 import { esValorEnum } from "@/lib/enums";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
@@ -45,6 +46,31 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("asientos manuales rechazan fechas e importes manipulados antes de contabilizar", () => {
+  assert.equal(crearFechaAsientoManual("2026-08-20")?.getDate(), 20);
+  assert.equal(crearFechaAsientoManual("2026-02-29"), null);
+  assert.equal(crearFechaAsientoManual("20/08/2026"), null);
+  assert.equal(normalizarLineasAsientoManual({}), null);
+  assert.equal(normalizarLineasAsientoManual([null]), null);
+  assert.equal(
+    normalizarLineasAsientoManual([{ cuentaId: "101", glosa: "Caja", debe: Number.NaN, haber: 0 }]),
+    null
+  );
+  assert.equal(
+    normalizarLineasAsientoManual([{ cuentaId: "101", glosa: "Caja", debe: -1, haber: 0 }]),
+    null
+  );
+  assert.deepEqual(
+    normalizarLineasAsientoManual([
+      { cuentaId: "101", glosa: "Caja", debe: 10.126, haber: 0 },
+      { cuentaId: "701", glosa: "Venta", debe: 0, haber: 10.126 },
+    ]),
+    [
+      { cuentaId: "101", glosa: "Caja", debe: 10.13, haber: 0 },
+      { cuentaId: "701", glosa: "Venta", debe: 0, haber: 10.13 },
+    ]
+  );
+});
 test("recepciones validan comprobante, condición de pago y estructura de líneas", () => {
   assert.equal(esTipoComprobanteRecepcionValido("01"), true);
   assert.equal(esTipoComprobanteRecepcionValido("99"), false);
