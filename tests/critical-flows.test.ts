@@ -23,6 +23,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { esTipoEntidadAdjunto } from "@/lib/adjuntos";
+import { empresaSolicitadaPermitida } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
@@ -34,6 +35,21 @@ import {
   registrarIntentoFallidoLogin,
   verificarPasswordUniforme,
 } from "@/lib/auth";
+
+test("la compañía activa ignora cookies manipuladas por usuarios no administradores", () => {
+  assert.equal(
+    empresaSolicitadaPermitida({ rol: "VENTAS", empresaId: "empresa-asignada" }, "empresa-ajena"),
+    "empresa-asignada"
+  );
+  assert.equal(
+    empresaSolicitadaPermitida({ rol: "ADMIN", empresaId: "empresa-principal" }, "empresa-activa"),
+    "empresa-activa"
+  );
+  assert.equal(
+    empresaSolicitadaPermitida({ rol: "ADMIN", empresaId: "empresa-principal" }, undefined),
+    "empresa-principal"
+  );
+});
 
 function estaDentro(ruta: string, padre: string): boolean {
   const relativa = relative(padre, ruta);
