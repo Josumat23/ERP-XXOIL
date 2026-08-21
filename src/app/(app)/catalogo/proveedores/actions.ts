@@ -7,7 +7,7 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
-import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -114,12 +114,16 @@ export async function actualizarProveedor(
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
 
+  const empresaId = await obtenerEmpresaActivaId();
   try {
-    await prisma.$transaction(async (tx) => {
-      const antes = await tx.proveedor.findUniqueOrThrow({ where: { id } });
+    const actualizado = await prisma.$transaction(async (tx) => {
+      const antes = await tx.proveedor.findUnique({ where: { id } });
+      if (!perteneceAEmpresaActiva(antes, empresaId)) return false;
       const despues = await tx.proveedor.update({ where: { id }, data: resultado.datos });
       await registrarAuditoriaMaestro(tx, { empresaId: despues.empresaId, entidad: "Proveedor", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+      return true;
     });
+    if (!actualizado) return { error: "El proveedor no pertenece a la compañía activa." };
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un proveedor con el RUC ${resultado.datos.ruc}.` };
@@ -135,8 +139,10 @@ export async function alternarActivoProveedor(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.proveedor.findUniqueOrThrow({ where: { id } });
+    const antes = await tx.proveedor.findUnique({ where: { id } });
+    if (!perteneceAEmpresaActiva(antes, empresaId)) return;
     const despues = await tx.proveedor.update({ where: { id }, data: { activo } });
     await registrarAuditoriaMaestro(tx, { empresaId: despues.empresaId, entidad: "Proveedor", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });

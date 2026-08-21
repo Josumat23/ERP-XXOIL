@@ -23,7 +23,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { esTipoEntidadAdjunto } from "@/lib/adjuntos";
-import { empresaSolicitadaPermitida } from "@/lib/empresas";
+import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
@@ -35,6 +35,12 @@ import {
   registrarIntentoFallidoLogin,
   verificarPasswordUniforme,
 } from "@/lib/auth";
+
+test("un registro maestro solo pertenece a su compañía activa", () => {
+  assert.equal(perteneceAEmpresaActiva({ empresaId: "empresa-1" }, "empresa-1"), true);
+  assert.equal(perteneceAEmpresaActiva({ empresaId: "empresa-2" }, "empresa-1"), false);
+  assert.equal(perteneceAEmpresaActiva(null, "empresa-1"), false);
+});
 
 test("la compañía activa ignora cookies manipuladas por usuarios no administradores", () => {
   assert.equal(

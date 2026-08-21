@@ -7,7 +7,7 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoCliente } from "@/lib/correlativos";
-import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
@@ -135,9 +135,11 @@ export async function actualizarCliente(
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
 
+  const empresaId = await obtenerEmpresaActivaId();
   try {
-    await prisma.$transaction(async (tx) => {
-      const antes = await tx.cliente.findUniqueOrThrow({ where: { id } });
+    const actualizado = await prisma.$transaction(async (tx) => {
+      const antes = await tx.cliente.findUnique({ where: { id } });
+      if (!perteneceAEmpresaActiva(antes, empresaId)) return false;
       const despues = await tx.cliente.update({ where: { id }, data: resultado.datos });
       await registrarAuditoriaMaestro(tx, {
         empresaId: despues.empresaId,
@@ -148,7 +150,9 @@ export async function actualizarCliente(
         despues,
         usuario: auth.usuario,
       });
+      return true;
     });
+    if (!actualizado) return { error: "El cliente no pertenece a la compañía activa." };
   } catch (e) {
     if (esErrorDuplicado(e)) {
       return { error: `Ya existe un cliente con el documento ${resultado.datos.ruc}.` };
@@ -164,8 +168,10 @@ export async function alternarActivoCliente(id: string, activo: boolean) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.cliente.findUniqueOrThrow({ where: { id } });
+    const antes = await tx.cliente.findUnique({ where: { id } });
+    if (!perteneceAEmpresaActiva(antes, empresaId)) return;
     const despues = await tx.cliente.update({ where: { id }, data: { activo } });
     await registrarAuditoriaMaestro(tx, {
       empresaId: despues.empresaId,

@@ -8,7 +8,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PanelDirecciones from "@/components/PanelDirecciones";
 import PanelContactos from "@/components/PanelContactos";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
-import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
 import ClienteFormulario from "../ClienteFormulario";
 import { actualizarCliente } from "../actions";
 
@@ -28,9 +28,9 @@ export default async function EditarClientePage({
     prisma.cliente.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
     prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.factura.findMany({ where: { clienteId: id, estado: "PENDIENTE" } }),
+    prisma.factura.findMany({ where: { clienteId: id, empresaId, estado: "PENDIENTE" } }),
   ]);
-  if (!cliente) notFound();
+  if (!perteneceAEmpresaActiva(cliente, empresaId)) notFound();
 
   const deudaActual = facturasPendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
   const limite = cliente.limiteCredito.toNumber();
