@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { esPeriodoMensualValido } from "@/lib/periodos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -31,8 +32,11 @@ export default async function CentrosCostoPage({
 
   const hoy = new Date();
   const { anio: anioParam, mes: mesParam } = await searchParams;
-  const anio = Number(anioParam) || hoy.getFullYear();
-  const mes = Number(mesParam) || hoy.getMonth() + 1;
+  const anioIngresado = Number(anioParam);
+  const mesIngresado = Number(mesParam);
+  const periodoValido = esPeriodoMensualValido(anioIngresado, mesIngresado);
+  const anio = periodoValido ? anioIngresado : hoy.getFullYear();
+  const mes = periodoValido ? mesIngresado : hoy.getMonth() + 1;
 
   const centros = await prisma.centroCosto.findMany({
     include: { almacen: true },
