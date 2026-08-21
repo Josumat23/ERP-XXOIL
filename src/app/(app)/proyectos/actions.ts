@@ -195,12 +195,20 @@ export async function crearActividad(
   return {};
 }
 
-export async function eliminarActividad(proyectoId: string, id: string) {
+export async function eliminarActividad(id: string) {
   const auth = await requerirRol(["GERENCIA"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "proyectos", "editar"))) return;
 
+  let proyectoId: string | null = null;
   await prisma.$transaction(async (tx) => {
+    const actividad = await tx.actividadProyecto.findUnique({
+      where: { id },
+      select: { edt: { select: { proyectoId: true } } },
+    });
+    if (!actividad) throw new Error("La actividad no existe.");
+    proyectoId = actividad.edt.proyectoId;
+
     const dependientes = await tx.precedenciaActividad.count({ where: { actividadPredecesoraId: id } });
     if (dependientes > 0) {
       throw new Error("No se puede eliminar: otras actividades dependen de esta como predecesora.");
@@ -208,8 +216,6 @@ export async function eliminarActividad(proyectoId: string, id: string) {
     await tx.precedenciaActividad.deleteMany({ where: { actividadSucesoraId: id } });
     await tx.actividadProyecto.delete({ where: { id } });
     await recalcularRutaCritica(tx, proyectoId);
-  }).catch(() => {
-    // Best-effort: si falla la validación, la actividad simplemente no se borra.
   });
 
   revalidatePath(`/proyectos/${proyectoId}`);
@@ -271,12 +277,27 @@ export async function crearPrecedencia(
   return {};
 }
 
-export async function eliminarPrecedencia(proyectoId: string, id: string) {
+export async function eliminarPrecedencia(id: string) {
   const auth = await requerirRol(["GERENCIA"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "proyectos", "editar"))) return;
 
+  let proyectoId: string | null = null;
   await prisma.$transaction(async (tx) => {
+    const precedencia = await tx.precedenciaActividad.findUnique({
+      where: { id },
+      select: {
+        predecesora: { select: { edt: { select: { proyectoId: true } } } },
+        sucesora: { select: { edt: { select: { proyectoId: true } } } },
+      },
+    });
+    if (!precedencia) throw new Error("La precedencia no existe.");
+    const proyectoPredecesora = precedencia.predecesora.edt.proyectoId;
+    if (precedencia.sucesora.edt.proyectoId !== proyectoPredecesora) {
+      throw new Error("La precedencia enlaza actividades de proyectos distintos.");
+    }
+    proyectoId = proyectoPredecesora;
+
     await tx.precedenciaActividad.delete({ where: { id } });
     await recalcularRutaCritica(tx, proyectoId);
   });

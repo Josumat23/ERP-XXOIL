@@ -143,7 +143,7 @@ export default async function DetalleProyectoPage({ params }: { params: Promise<
                     <form
                       action={async () => {
                         "use server";
-                        await eliminarActividad(id, a.id);
+                        await eliminarActividad(a.id);
                       }}
                     >
                       <button type="submit" className="text-xs text-neutral-400 hover:text-red-500">
@@ -285,7 +285,7 @@ export default async function DetalleProyectoPage({ params }: { params: Promise<
                           <form
                             action={async () => {
                               "use server";
-                              await eliminarPrecedencia(id, p.id);
+                              await eliminarPrecedencia(p.id);
                             }}
                           >
                             <button type="submit" className="text-xs text-neutral-400 hover:text-red-500">
