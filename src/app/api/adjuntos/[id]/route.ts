@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { readFile } from "fs/promises";
-import path from "path";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
-import { DIRECTORIO_ADJUNTOS, existeEntidadAdjunto, puedeLeerAdjunto } from "@/lib/adjuntos";
+import { existeEntidadAdjunto, puedeLeerAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 
 export async function GET(
   _req: Request,
@@ -24,8 +23,13 @@ export async function GET(
     return NextResponse.json({ error: "Adjunto no encontrado." }, { status: 404 });
   }
 
+  const rutaArchivo = resolverRutaAdjunto(adjunto.nombreArchivo);
+  if (!rutaArchivo) {
+    return NextResponse.json({ error: "Adjunto no encontrado." }, { status: 404 });
+  }
+
   try {
-    const buffer = await readFile(path.join(DIRECTORIO_ADJUNTOS, adjunto.nombreArchivo));
+    const buffer = await readFile(rutaArchivo);
     return new NextResponse(new Uint8Array(buffer), {
       headers: {
         "Content-Type": adjunto.mimeType,

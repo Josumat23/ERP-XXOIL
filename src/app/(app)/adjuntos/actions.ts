@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 import { mkdir, writeFile, unlink } from "fs/promises";
-import path from "path";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
@@ -13,6 +12,7 @@ import {
   TAMANIO_MAXIMO_BYTES,
   puedeEditarAdjunto,
   existeEntidadAdjunto,
+  resolverRutaAdjunto,
 } from "@/lib/adjuntos";
 
 export type EstadoFormulario = { error?: string };
@@ -51,7 +51,8 @@ export async function subirAdjunto(
   await mkdir(DIRECTORIO_ADJUNTOS, { recursive: true });
   const nombreArchivo = `${randomUUID()}-${archivo.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
   const buffer = Buffer.from(await archivo.arrayBuffer());
-  const rutaArchivo = path.join(DIRECTORIO_ADJUNTOS, nombreArchivo);
+  const rutaArchivo = resolverRutaAdjunto(nombreArchivo);
+  if (!rutaArchivo) return { error: "No se pudo construir una ruta segura para el adjunto." };
   await writeFile(rutaArchivo, buffer);
 
   try {
@@ -92,8 +93,9 @@ export async function eliminarAdjunto(id: string, rutaRevalidar: string) {
   if (!(await existeEntidadAdjunto(adjunto.entidadTipo, adjunto.entidadId, empresaId))) return;
 
   await prisma.adjunto.delete({ where: { id } });
+  const rutaArchivo = resolverRutaAdjunto(adjunto.nombreArchivo);
   try {
-    await unlink(path.join(DIRECTORIO_ADJUNTOS, adjunto.nombreArchivo));
+    if (rutaArchivo) await unlink(rutaArchivo);
   } catch {
     // El archivo físico ya no existe en disco: no bloquea el borrado del registro.
   }
