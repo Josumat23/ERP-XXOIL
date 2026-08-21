@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar, type ClaveModulo } from "@/lib/permisos";
+import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
 import type { $Enums, Usuario } from "@/generated/prisma/client";
 
 export type EstadoFormulario = { error?: string };
@@ -29,6 +30,29 @@ async function puedeEditarDirecciones(usuario: Usuario, entidadTipo: string): Pr
   const politica = POLITICA_DIRECCION[entidadTipo];
   return usuario.rol === politica.rol && puedeRealizar(usuario, politica.modulo, "editar");
 }
+async function existeEntidadDireccionAutorizada(
+  entidadTipo: TipoEntidadDireccion,
+  entidadId: string,
+  empresaId: string
+): Promise<boolean> {
+  if (entidadTipo === "Cliente") {
+    const cliente = await prisma.cliente.findUnique({
+      where: { id: entidadId },
+      select: { empresaId: true },
+    });
+    return perteneceAEmpresaActiva(cliente, empresaId);
+  }
+  if (entidadTipo === "Proveedor") {
+    const proveedor = await prisma.proveedor.findUnique({
+      where: { id: entidadId },
+      select: { empresaId: true },
+    });
+    return perteneceAEmpresaActiva(proveedor, empresaId);
+  }
+  return Boolean(
+    await prisma.empleado.findUnique({ where: { id: entidadId }, select: { id: true } })
+  );
+}
 
 export async function agregarDireccion(
   entidadTipo: string,
@@ -41,6 +65,10 @@ export async function agregarDireccion(
   if (!usuario) return { error: "Sesión expirada. Vuelva a iniciar sesión." };
   if (!(await puedeEditarDirecciones(usuario, entidadTipo)) || !esTipoEntidadDireccion(entidadTipo)) {
     return { error: "No tiene permiso para editar direcciones de esta entidad." };
+  }
+  const empresaId = await obtenerEmpresaActivaId();
+  if (!(await existeEntidadDireccionAutorizada(entidadTipo, entidadId, empresaId))) {
+    return { error: "La entidad no existe en la compañía activa." };
   }
 
   const tipo = String(formData.get("tipo") ?? "OTRA") as $Enums.TipoDireccion;
@@ -93,7 +121,23 @@ export async function eliminarDireccion(id: string, rutaRevalidar: string) {
   const usuario = await obtenerUsuario();
   if (!usuario) return;
   const direccion = await prisma.direccion.findUnique({ where: { id } });
-  if (!direccion || !(await puedeEditarDirecciones(usuario, direccion.entidadTipo))) return;
+  if (
+    !direccion ||
+    !esTipoEntidadDireccion(direccion.entidadTipo) ||
+    !(await puedeEditarDirecciones(usuario, direccion.entidadTipo))
+  ) {
+    return;
+  }
+  const empresaId = await obtenerEmpresaActivaId();
+  if (
+    !(await existeEntidadDireccionAutorizada(
+      direccion.entidadTipo,
+      direccion.entidadId,
+      empresaId
+    ))
+  ) {
+    return;
+  }
   await prisma.direccion.delete({ where: { id: direccion.id } });
   revalidatePath(rutaRevalidar);
 }
