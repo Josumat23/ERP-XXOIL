@@ -30,6 +30,7 @@ import {
   normalizarLineasAsientoManual,
 } from "@/lib/asientosManuales";
 import { esValorEnum } from "@/lib/enums";
+import { normalizarLineasVenta } from "@/lib/lineasVenta";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -50,6 +51,19 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("pedidos ignoran filas vacías y rechazan estructuras JSON manipuladas", () => {
+  assert.equal(normalizarLineasVenta({}), null);
+  assert.deepEqual(normalizarLineasVenta([null, "línea", { presentacionId: "", cantidad: 0, precioUnitario: 0 }]), []);
+  assert.deepEqual(
+    normalizarLineasVenta([
+      { presentacionId: "presentacion-1", cantidad: 2, precioUnitario: 15.5 },
+      { presentacionId: "presentacion-2", cantidad: 1.5, precioUnitario: 10 },
+      { presentacionId: "presentacion-3", cantidad: 1, precioUnitario: -1 },
+      { presentacionId: "presentacion-4", cantidad: 1, precioUnitario: Number.NaN },
+    ]),
+    [{ presentacionId: "presentacion-1", cantidad: 2, precioUnitario: 15.5 }]
+  );
+});
 test("asientos manuales aceptan solo cuentas activas de la compañía contable", async () => {
   const sufijo = Date.now().toString();
   const planPrincipal = await prisma.planCuentas.create({
