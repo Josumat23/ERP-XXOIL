@@ -24,6 +24,8 @@ import { puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { escaparCeldaCsv } from "@/lib/csv";
+import { esValorEnum } from "@/lib/enums";
+import { TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
@@ -755,6 +757,15 @@ test("secretos de configuración solo se reemplazan con un valor nuevo", () => {
   assert.equal(resolverSecretoFormulario("   ", "secreto-existente"), "secreto-existente");
   assert.equal(resolverSecretoFormulario(" nuevo ", "secreto-existente"), "nuevo");
   assert.equal(resolverSecretoFormulario("", null), null);
+});
+
+test("enums runtime rechazan valores manipulados fuera de Prisma", () => {
+  const tiposDireccion = Object.values(TipoDireccion);
+  assert.equal(esValorEnum(tiposDireccion, "FACTURACION"), true);
+  assert.equal(esValorEnum(tiposDireccion, "ENVIO"), true);
+  assert.equal(esValorEnum(tiposDireccion, "OTRA"), true);
+  assert.equal(esValorEnum(tiposDireccion, "DIRECCION_INVENTADA"), false);
+  assert.equal(esValorEnum(tiposDireccion, ""), false);
 });
 
 test("PLE acepta únicamente años y meses enteros dentro del rango operativo", () => {
