@@ -30,7 +30,7 @@ import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolv
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
-import { calcularRetencion5taMensual, generarPlanillaMensual } from "@/lib/planilla";
+import { calcularRetencion5taMensual, esPorcentajePlanillaValido, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
 import {
   calcularIntentoFallidoLogin,
@@ -39,6 +39,16 @@ import {
   registrarIntentoFallidoLogin,
   verificarPasswordUniforme,
 } from "@/lib/auth";
+
+test("tasas de planilla aceptan únicamente porcentajes finitos entre 0 y 100", () => {
+  assert.equal(esPorcentajePlanillaValido(0), true);
+  assert.equal(esPorcentajePlanillaValido(13), true);
+  assert.equal(esPorcentajePlanillaValido(100), true);
+  assert.equal(esPorcentajePlanillaValido(-0.01), false);
+  assert.equal(esPorcentajePlanillaValido(100.01), false);
+  assert.equal(esPorcentajePlanillaValido(Number.NaN), false);
+  assert.equal(esPorcentajePlanillaValido(Number.POSITIVE_INFINITY), false);
+});
 
 test("un registro maestro solo pertenece a su compañía activa", () => {
   assert.equal(perteneceAEmpresaActiva({ empresaId: "empresa-1" }, "empresa-1"), true);

@@ -6,6 +6,7 @@ import { Afp, TipoComisionAfp } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { esValorEnum } from "@/lib/enums";
 import { puedeRealizar } from "@/lib/permisos";
+import { esPorcentajePlanillaValido } from "@/lib/planilla";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -30,6 +31,12 @@ export async function crearParametroPlanilla(
 
   if (!Number.isFinite(rmv) || rmv <= 0) return { error: "La RMV debe ser un número válido." };
   if (!Number.isFinite(uit) || uit <= 0) return { error: "La UIT debe ser un número válido." };
+  if (!esPorcentajePlanillaValido(tasaEsSalud)) {
+    return { error: "La tasa de EsSalud debe estar entre 0 y 100%." };
+  }
+  if (!esPorcentajePlanillaValido(tasaOnp)) {
+    return { error: "La tasa de ONP debe estar entre 0 y 100%." };
+  }
   if (!vigenteDesde || Number.isNaN(vigenteDesde.getTime())) {
     return { error: "La fecha de vigencia es obligatoria." };
   }
@@ -74,11 +81,14 @@ export async function crearTasaAfp(
   if (!esValorEnum(Object.values(TipoComisionAfp), tipoComision)) {
     return { error: "Seleccione el tipo de comisión." };
   }
-  if (!Number.isFinite(tasaComision) || tasaComision < 0) {
-    return { error: "La comisión debe ser un número válido." };
+  if (!esPorcentajePlanillaValido(tasaAporteObligatorio)) {
+    return { error: "El aporte obligatorio debe estar entre 0 y 100%." };
   }
-  if (!Number.isFinite(primaSeguro) || primaSeguro < 0) {
-    return { error: "La prima de seguro debe ser un número válido." };
+  if (!esPorcentajePlanillaValido(tasaComision)) {
+    return { error: "La comisión debe estar entre 0 y 100%." };
+  }
+  if (!esPorcentajePlanillaValido(primaSeguro)) {
+    return { error: "La prima de seguro debe estar entre 0 y 100%." };
   }
   if (!vigenteDesde || Number.isNaN(vigenteDesde.getTime())) {
     return { error: "La fecha de vigencia es obligatoria." };
