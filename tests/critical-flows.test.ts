@@ -39,7 +39,7 @@ import { normalizarDetallesFormula } from "@/lib/detallesFormula";
 import { normalizarInsumosEnvasado } from "@/lib/insumosEnvasado";
 import { normalizarRepuestosMantenimiento } from "@/lib/repuestosMantenimiento";
 import { normalizarLecturaContador } from "@/lib/lecturasContador";
-import { normalizarLineasOrdenCompra } from "@/lib/lineasOrdenCompra";
+import { esMonedaOrdenCompraValida, normalizarLineasOrdenCompra } from "@/lib/lineasOrdenCompra";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -69,6 +69,14 @@ test("la creación interna de órdenes no queda expuesta como Server Action", as
 
   assert.doesNotMatch(acciones, /export async function crearOrdenCompraDesdeDatos/);
   assert.match(servicio, /import ["']server-only["'];/);
+});
+
+test("órdenes de compra rechazan monedas manipuladas", () => {
+  assert.equal(esMonedaOrdenCompraValida("PEN"), true);
+  assert.equal(esMonedaOrdenCompraValida("USD"), true);
+  assert.equal(esMonedaOrdenCompraValida("EUR"), false);
+  assert.equal(esMonedaOrdenCompraValida(""), false);
+  assert.equal(esMonedaOrdenCompraValida(undefined), false);
 });
 
 test("órdenes de compra aceptan solo líneas con cantidades y costos válidos", () => {

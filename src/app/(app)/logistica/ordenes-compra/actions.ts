@@ -16,7 +16,11 @@ import {
   sonDiasCreditoRecepcionValidos,
   type LineaRecepcionCompra,
 } from "@/lib/recepcionesCompra";
-import { normalizarLineasOrdenCompra, type LineaOrdenCompraNormalizada } from "@/lib/lineasOrdenCompra";
+import {
+  esMonedaOrdenCompraValida,
+  normalizarLineasOrdenCompra,
+  type LineaOrdenCompraNormalizada,
+} from "@/lib/lineasOrdenCompra";
 import { crearOrdenCompraDesdeDatos } from "@/lib/ordenesCompra";
 
 export type EstadoFormulario = { error?: string };
@@ -35,7 +39,10 @@ export async function crearOrdenCompra(
   const proveedorId = String(formData.get("proveedorId") ?? "");
   const almacenId = String(formData.get("almacenId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
-  const moneda = String(formData.get("moneda") ?? "PEN") === "USD" ? "USD" : "PEN";
+  const moneda = String(formData.get("moneda") ?? "PEN");
+  if (!esMonedaOrdenCompraValida(moneda)) {
+    return { error: "Seleccione una moneda válida para la orden." };
+  }
   const tipoCambio = moneda === "USD" ? Number(formData.get("tipoCambio")) : 1;
   const proyectoId = String(formData.get("proyectoId") ?? "") || null;
   const edtId = String(formData.get("edtId") ?? "") || null;
