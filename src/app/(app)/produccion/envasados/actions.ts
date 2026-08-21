@@ -8,10 +8,10 @@ import { puedeRealizar } from "@/lib/permisos";
 import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoEnvasado } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { normalizarInsumosEnvasado, type InsumoEnvasadoNormalizado } from "@/lib/insumosEnvasado";
 
 export type EstadoFormulario = { error?: string };
 
-type LineaInsumo = { insumoId: string; cantidad: number };
 
 // Envasado: consume granel aprobado + envases/etiquetas y produce stock
 // de la presentación. Todos los movimientos quedan en el kardex con el
@@ -31,9 +31,9 @@ export async function crearEnvasado(
   const unidades = Number(formData.get("unidades"));
   const horasManoObra = Number(formData.get("horasManoObra") ?? 0);
 
-  let insumos: LineaInsumo[];
+  let insumosRaw: unknown;
   try {
-    insumos = JSON.parse(String(formData.get("insumos") ?? "[]"));
+    insumosRaw = JSON.parse(String(formData.get("insumos") ?? "[]"));
   } catch {
     return { error: "El detalle de envases/etiquetas es inválido." };
   }
@@ -46,7 +46,10 @@ export async function crearEnvasado(
   if (!Number.isFinite(horasManoObra) || horasManoObra < 0) {
     return { error: "Las horas de mano de obra deben ser mayores o iguales a 0." };
   }
-  insumos = insumos.filter((i) => i.insumoId && Number.isFinite(i.cantidad) && i.cantidad > 0);
+  const insumos: InsumoEnvasadoNormalizado[] | null = normalizarInsumosEnvasado(insumosRaw);
+  if (insumos === null) {
+    return { error: "El detalle de envases/etiquetas es inválido." };
+  }
 
   const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
   const costoManoObra = horasManoObra * tarifaHoraManoObra.toNumber();
