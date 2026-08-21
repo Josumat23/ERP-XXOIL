@@ -34,6 +34,7 @@ import { normalizarLineasVenta } from "@/lib/lineasVenta";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
+import { normalizarDetallesFormula } from "@/lib/detallesFormula";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -54,6 +55,18 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 
+test("fórmulas aceptan solo insumos y cantidades productivas válidas", () => {
+  assert.equal(normalizarDetallesFormula({}), null);
+  assert.deepEqual(normalizarDetallesFormula([null, "detalle", { insumoId: "1", cantidad: "2" }]), []);
+  assert.deepEqual(
+    normalizarDetallesFormula([
+      { insumoId: "insumo-1", cantidad: 2.5 },
+      { insumoId: "insumo-2", cantidad: 0 },
+      { insumoId: "insumo-3", cantidad: Number.POSITIVE_INFINITY },
+    ]),
+    [{ insumoId: "insumo-1", cantidad: 2.5 }]
+  );
+});
 test("conteos aceptan solo ítems y cantidades físicas válidas", () => {
   assert.equal(normalizarLineasConteo({}), null);
   assert.deepEqual(normalizarLineasConteo([null, "línea", { tipoItem: "OTRO", itemId: "1", cantidadContada: 2 }]), []);
