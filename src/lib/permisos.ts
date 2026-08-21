@@ -3,6 +3,16 @@ import type { Usuario } from "@/generated/prisma/client";
 import type { MODULOS } from "@/app/(app)/configuracion/grupos-seguridad/modulos";
 
 export type ClaveModulo = (typeof MODULOS)[number]["clave"];
+export async function existeGrupoSeguridadAsignable(id: string | null): Promise<boolean> {
+  if (id === null) return true;
+  if (!id || id.length > 64) return false;
+  return Boolean(
+    await prisma.grupoSeguridad.findFirst({
+      where: { id, activo: true, esPredefinido: false },
+      select: { id: true },
+    })
+  );
+}
 
 // El rol (requerirRol) sigue siendo la puerta principal de cada pantalla.
 // Un grupo de seguridad personalizado asignado al usuario solo puede

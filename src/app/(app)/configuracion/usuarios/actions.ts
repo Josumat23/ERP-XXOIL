@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol, hashPassword } from "@/lib/auth";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { existeGrupoSeguridadAsignable } from "@/lib/permisos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -29,6 +30,9 @@ export async function crearUsuario(
   }
   if (password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres." };
   if (!ROLES_VALIDOS.includes(rol)) return { error: "Seleccione el rol." };
+  if (!(await existeGrupoSeguridadAsignable(grupoSeguridadId))) {
+    return { error: "Seleccione un grupo de seguridad activo y válido." };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -74,6 +78,7 @@ export async function restablecerPassword(
 export async function asignarGrupoUsuario(id: string, grupoSeguridadId: string | null) {
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return;
+  if (!(await existeGrupoSeguridadAsignable(grupoSeguridadId))) return;
 
   await prisma.$transaction(async (tx) => {
     const antes = await tx.usuario.findUniqueOrThrow({ where: { id } });

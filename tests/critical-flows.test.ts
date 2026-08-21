@@ -20,7 +20,7 @@ import {
   TAMANIO_MAXIMO_CERTIFICADO_SUNAT,
   validarArchivoCertificadoSunat,
 } from "@/lib/certificadoSunat";
-import { puedeRealizar } from "@/lib/permisos";
+import { existeGrupoSeguridadAsignable, puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { escaparCeldaCsv } from "@/lib/csv";
@@ -747,6 +747,16 @@ test("permisos de grupo restringen la lectura financiera sin limitar al administ
   assert.equal(await puedeRealizar({ ...gerencia, grupoSeguridadId: grupo.id }, "finanzas", "ver"), false);
   assert.equal(await puedeRealizar({ ...gerencia, grupoSeguridadId: grupo.id }, "rrhh", "crear"), false);
   assert.equal(await puedeRealizar(administrador, "finanzas", "ver"), true);
+
+  const predefinido = await prisma.grupoSeguridad.findFirstOrThrow({
+    where: { esPredefinido: true },
+  });
+  assert.equal(await existeGrupoSeguridadAsignable(null), true);
+  assert.equal(await existeGrupoSeguridadAsignable(grupo.id), true);
+  assert.equal(await existeGrupoSeguridadAsignable(predefinido.id), false);
+  assert.equal(await existeGrupoSeguridadAsignable("grupo-inexistente"), false);
+  await prisma.grupoSeguridad.update({ where: { id: grupo.id }, data: { activo: false } });
+  assert.equal(await existeGrupoSeguridadAsignable(grupo.id), false);
 });
 test("aprobaciones separan al solicitante de quien resuelve", () => {
   assert.equal(puedeResolverSolicitud("usuario-solicitante", "usuario-gerencia"), true);
