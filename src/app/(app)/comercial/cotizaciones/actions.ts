@@ -6,10 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteNumeroCotizacion, siguienteNumeroPedido } from "@/lib/correlativos";
+import { normalizarLineasVenta, type LineaVentaNormalizada } from "@/lib/lineasVenta";
 
 export type EstadoFormulario = { error?: string };
-
-type LineaCotizacion = { presentacionId: string; cantidad: number; precioUnitario: number };
 
 export async function crearCotizacion(
   _prevState: EstadoFormulario,
@@ -28,10 +27,14 @@ export async function crearCotizacion(
   const probabilidadRaw = formData.get("probabilidad");
   const probabilidad = probabilidadRaw !== null && probabilidadRaw !== "" ? Number(probabilidadRaw) : 50;
 
-  let lineas: LineaCotizacion[];
+  let lineasRaw: unknown;
   try {
-    lineas = JSON.parse(String(formData.get("lineas") ?? "[]"));
+    lineasRaw = JSON.parse(String(formData.get("lineas") ?? "[]"));
   } catch {
+    return { error: "El detalle de la cotización es inválido." };
+  }
+  const lineas: LineaVentaNormalizada[] | null = normalizarLineasVenta(lineasRaw);
+  if (lineas === null) {
     return { error: "El detalle de la cotización es inválido." };
   }
 
@@ -41,14 +44,6 @@ export async function crearCotizacion(
   if (!Number.isInteger(probabilidad) || probabilidad < 0 || probabilidad > 100) {
     return { error: "La probabilidad debe ser un número entero entre 0 y 100." };
   }
-  lineas = lineas.filter(
-    (l) =>
-      l.presentacionId &&
-      Number.isInteger(l.cantidad) &&
-      l.cantidad > 0 &&
-      Number.isFinite(l.precioUnitario) &&
-      l.precioUnitario >= 0
-  );
   if (lineas.length === 0) {
     return { error: "Agregue al menos una línea con cantidad y precio válidos." };
   }
