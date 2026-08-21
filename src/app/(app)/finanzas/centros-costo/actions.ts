@@ -7,7 +7,11 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { CLAVES_RECLASIFICABLES, postearReclasificacionCosto, type ClaveControl } from "@/lib/contabilidad";
-import { normalizarLineasReglaAsignacion } from "@/lib/reglasAsignacionCosto";
+import {
+  esClaveControlValida,
+  normalizarDestinoControlCosto,
+  normalizarLineasReglaAsignacion,
+} from "@/lib/reglasAsignacionCosto";
 
 export type EstadoFormulario = { error?: string };
 
@@ -196,6 +200,7 @@ export async function guardarAsignacionControl(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([]);
   if ("error" in auth) return auth;
+  if (!esClaveControlValida(clave)) return { error: "La clave contable es inválida." };
 
   const valor = String(formData.get("valor") ?? "");
   if (!valor) {
@@ -204,11 +209,25 @@ export async function guardarAsignacionControl(
     return {};
   }
 
-  const [tipo, id] = valor.split(":");
+  const destino = normalizarDestinoControlCosto(valor);
+  if (!destino) return { error: "Seleccione una asignación de costo válida." };
+
+  const destinoActivo =
+    destino.tipo === "regla"
+      ? await prisma.reglaAsignacionCosto.findFirst({
+          where: { id: destino.id, activo: true },
+          select: { id: true },
+        })
+      : await prisma.centroCosto.findFirst({
+          where: { id: destino.id, activo: true },
+          select: { id: true },
+        });
+  if (!destinoActivo) return { error: "La asignación seleccionada ya no está activa." };
+
   const data =
-    tipo === "regla"
-      ? { centroCostoId: null, reglaId: id }
-      : { centroCostoId: id, reglaId: null };
+    destino.tipo === "regla"
+      ? { centroCostoId: null, reglaId: destino.id }
+      : { centroCostoId: destino.id, reglaId: null };
 
   await prisma.centroCostoControl.upsert({
     where: { empresaId_clave: { empresaId: "1", clave } },
