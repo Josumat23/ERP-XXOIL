@@ -80,7 +80,7 @@ export async function crearOrdenCompraDesdeDatos(
             cantidad: l.cantidad,
             costoUnitario: l.costoUnitario,
             subtotal: l.cantidad * l.costoUnitario,
-            fechaEntregaEsperada: l.fechaEntregaEsperada ? new Date(l.fechaEntregaEsperada) : null,
+            fechaEntregaEsperada: l.fechaEntregaEsperada ?? null,
           })),
         },
       },

@@ -68,7 +68,20 @@ test("órdenes de compra aceptan solo líneas con cantidades y costos válidos",
       { insumoId: "insumo-2", cantidad: 0, costoUnitario: 5 },
       { insumoId: "insumo-3", cantidad: 1, costoUnitario: Number.NaN },
     ]),
-    [{ insumoId: "insumo-1", cantidad: 2, costoUnitario: 10.5, fechaEntregaEsperada: "2026-09-01" }]
+    [
+      {
+        insumoId: "insumo-1",
+        cantidad: 2,
+        costoUnitario: 10.5,
+        fechaEntregaEsperada: new Date(2026, 8, 1),
+      },
+    ]
+  );
+  assert.equal(
+    normalizarLineasOrdenCompra([
+      { insumoId: "insumo-1", cantidad: 2, costoUnitario: 10.5, fechaEntregaEsperada: "2026-09-31" },
+    ]),
+    null
   );
 });
 test("lecturas de contador aceptan solo valores finitos no negativos", () => {

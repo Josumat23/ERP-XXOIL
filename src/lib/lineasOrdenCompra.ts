@@ -1,8 +1,10 @@
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
+
 export type LineaOrdenCompraNormalizada = {
   insumoId: string;
   cantidad: number;
   costoUnitario: number;
-  fechaEntregaEsperada?: string;
+  fechaEntregaEsperada?: Date;
 };
 
 export function normalizarLineasOrdenCompra(
@@ -34,13 +36,16 @@ export function normalizarLineasOrdenCompra(
       Number.isFinite(candidata.costoUnitario) &&
       candidata.costoUnitario >= 0
     ) {
+      const fechaEntregaEsperada = candidata.fechaEntregaEsperada
+        ? crearFechaCalendarioLocal(candidata.fechaEntregaEsperada)
+        : null;
+      if (candidata.fechaEntregaEsperada && !fechaEntregaEsperada) return null;
+
       lineas.push({
         insumoId: candidata.insumoId,
         cantidad: candidata.cantidad,
         costoUnitario: candidata.costoUnitario,
-        ...(candidata.fechaEntregaEsperada
-          ? { fechaEntregaEsperada: candidata.fechaEntregaEsperada }
-          : {}),
+        ...(fechaEntregaEsperada ? { fechaEntregaEsperada } : {}),
       });
     }
   }
