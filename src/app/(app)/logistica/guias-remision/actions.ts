@@ -7,7 +7,7 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { avanzarSerie } from "@/lib/series";
-import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
+import { enviarComprobanteGuiaInterno } from "@/lib/guiasRemision";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 
 export type EstadoFormulario = { error?: string };
@@ -16,64 +16,15 @@ type LineaGuia = { presentacionId: string; cantidad: number };
 
 const MODALIDADES_VALIDAS: $Enums.ModalidadTransporte[] = ["PUBLICO", "PRIVADO"];
 
-// Arma los datos SUNAT de una guía ya creada y la envía al OSE configurado
-// (best-effort: nunca lanza) — antes esta función no existía y la guía
-// nunca se enviaba a ningún lado.
+// El reenvío manual es una Server Action y debe autorizarse en este límite.
 export async function enviarComprobanteGuia(guiaId: string): Promise<void> {
-  const guia = await prisma.guiaRemision.findUnique({
-    where: { id: guiaId },
-    include: {
-      cliente: true,
-      ubigeoPartida: true,
-      ubigeoLlegada: true,
-      detalles: { include: { presentacion: true } },
-    },
-  });
-  if (!guia) return;
+  const auth = await requerirRol(["VENTAS", "ALMACEN"]);
+  if ("error" in auth) throw new Error(auth.error);
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    throw new Error("Su grupo de seguridad no permite editar registros en Materiales.");
+  }
 
-  const [serie, numeroStr] = guia.numero.split("-");
-  const numero = parseInt(numeroStr ?? "", 10);
-
-  await enviarComprobanteElectronico({
-    tipoDocumento: "GUIA_REMISION",
-    documentoId: guia.id,
-    numeroDocumento: guia.numero,
-    datos: {
-      tipoDocumento: "GUIA_REMISION",
-      serie: serie || guia.numero,
-      numero: Number.isFinite(numero) ? numero : 0,
-      clienteRuc: guia.cliente.ruc ?? "",
-      clienteDenominacion: guia.cliente.razonSocial,
-      clienteDireccion: guia.cliente.direccion,
-      fechaEmision: guia.creadoEn,
-      moneda: "PEN",
-      totalGravada: 0,
-      totalIgv: 0,
-      total: 0,
-      items: guia.detalles.map((d) => ({
-        descripcion: d.presentacion.nombre,
-        unidadMedida: d.presentacion.unidadMedidaSunat,
-        cantidad: d.cantidad,
-        valorUnitario: 0,
-      })),
-      guia: {
-        destinatarioRuc: guia.cliente.ruc ?? "",
-        destinatarioDenominacion: guia.cliente.razonSocial,
-        fechaTraslado: guia.fechaTraslado,
-        pesoBrutoTotal: guia.pesoBrutoTotal.toNumber(),
-        modalidadTransporte: guia.modalidadTransporte,
-        puntoPartidaDireccion: guia.puntoPartida,
-        puntoPartidaUbigeo: guia.ubigeoPartida?.codigo ?? "",
-        puntoLlegadaDireccion: guia.puntoLlegada,
-        puntoLlegadaUbigeo: guia.ubigeoLlegada?.codigo ?? "",
-        motivoTraslado: guia.motivoTraslado,
-        transportistaRuc: guia.transportistaRuc,
-        transportistaDenominacion: guia.transportista,
-        placaVehiculo: guia.placaVehiculo,
-        dniConductor: guia.dniConductor,
-      },
-    },
-  });
+  await enviarComprobanteGuiaInterno(guiaId);
 }
 
 // La guía de remisión documenta el traslado (formato SUNAT). No mueve stock:
@@ -263,7 +214,7 @@ export async function crearGuiaRemision(
     throw e;
   }
 
-  await enviarComprobanteGuia(guiaId);
+  await enviarComprobanteGuiaInterno(guiaId);
 
   revalidatePath("/logistica/guias-remision");
   redirect(`/logistica/guias-remision/${guiaId}`);

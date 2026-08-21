@@ -20,6 +20,9 @@ export default async function DetalleGuiaPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  const puedeReenviar =
+    ["ADMIN", "VENTAS", "ALMACEN"].includes(usuario.rol) &&
+    (await puedeRealizar(usuario, "materiales", "editar"));
 
   const { id } = await params;
 
@@ -106,7 +109,7 @@ export default async function DetalleGuiaPage({
           {comprobante?.sunatDescripcion && (
             <span className="text-xs text-neutral-500">{comprobante.sunatDescripcion}</span>
           )}
-          {comprobante?.estado !== "ACEPTADO" && comprobante?.estado !== "OBSERVADO" && (
+          {puedeReenviar && comprobante?.estado !== "ACEPTADO" && comprobante?.estado !== "OBSERVADO" && (
             <form
               action={async () => {
                 "use server";
