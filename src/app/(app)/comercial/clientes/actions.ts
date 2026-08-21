@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Prisma, type $Enums } from "@/generated/prisma/client";
+import { CanalCliente, CondicionPago, Prisma, TipoDocumentoFiscal } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoCliente } from "@/lib/correlativos";
@@ -19,13 +19,16 @@ function esErrorDuplicado(e: unknown): boolean {
 function leerDatos(formData: FormData) {
   const razonSocial = String(formData.get("razonSocial") ?? "").trim();
   const nombreComercial = String(formData.get("nombreComercial") ?? "").trim() || null;
-  const tipoDocumentoFiscal = String(
-    formData.get("tipoDocumentoFiscal") ?? "RUC"
-  ) as $Enums.TipoDocumentoFiscal;
+  const tipoDocumentoFiscalRaw = String(formData.get("tipoDocumentoFiscal") ?? "RUC");
+  const tipoDocumentoFiscal = Object.values(TipoDocumentoFiscal).find(
+    (tipo) => tipo === tipoDocumentoFiscalRaw
+  );
   const ruc = String(formData.get("ruc") ?? "").trim() || null;
   const pais = String(formData.get("pais") ?? "Peru").trim() || "Peru";
   const canalRaw = String(formData.get("canal") ?? "").trim();
-  const canal = canalRaw ? (canalRaw as $Enums.CanalCliente) : null;
+  const canal = canalRaw
+    ? Object.values(CanalCliente).find((valor) => valor === canalRaw)
+    : null;
   const departamento = String(formData.get("departamento") ?? "").trim() || null;
   const provincia = String(formData.get("provincia") ?? "").trim() || null;
   const distrito = String(formData.get("distrito") ?? "").trim() || null;
@@ -37,12 +40,19 @@ function leerDatos(formData: FormData) {
   const zonaId = String(formData.get("zonaId") ?? "") || null;
   const vendedorId = String(formData.get("vendedorId") ?? "") || null;
   const limiteCredito = Number(formData.get("limiteCredito") ?? 0);
-  const condicionPagoDefecto = String(
-    formData.get("condicionPagoDefecto") ?? "CONTADO"
-  ) as $Enums.CondicionPago;
+  const condicionPagoDefectoRaw = String(formData.get("condicionPagoDefecto") ?? "CONTADO");
+  const condicionPagoDefecto = Object.values(CondicionPago).find(
+    (condicion) => condicion === condicionPagoDefectoRaw
+  );
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   if (!razonSocial) return { error: "La razón social es obligatoria." } as const;
+  if (!tipoDocumentoFiscal) {
+    return { error: "Seleccione un tipo de documento fiscal válido." } as const;
+  }
+  if (canalRaw && !canal) {
+    return { error: "Seleccione un canal de cliente válido." } as const;
+  }
   // El formato DNI/RUC de 8 u 11 dígitos solo aplica a documentos peruanos —
   // un cliente extranjero (RUT, NIT, RFC, EIN, VAT, etc.) tiene su propio
   // formato, así que no se valida con una regla fija.
@@ -52,7 +62,7 @@ function leerDatos(formData: FormData) {
   if (!Number.isFinite(limiteCredito) || limiteCredito < 0) {
     return { error: "El límite de crédito debe ser un número válido (0 = sin límite)." } as const;
   }
-  if (!["CONTADO", "DIAS_15", "DIAS_30"].includes(condicionPagoDefecto)) {
+  if (!condicionPagoDefecto) {
     return { error: "Seleccione la condición de pago habitual." } as const;
   }
 
