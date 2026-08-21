@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatFecha } from "@/lib/format";
 import { costoRealProyecto } from "@/lib/proyectos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
+import BotonEliminarConfirmacion from "@/components/BotonEliminarConfirmacion";
 import EdtFormulario from "../EdtFormulario";
 import ActividadFormulario from "../ActividadFormulario";
 import PrecedenciaFormulario from "../PrecedenciaFormulario";
@@ -146,9 +147,7 @@ export default async function DetalleProyectoPage({ params }: { params: Promise<
                         await eliminarActividad(a.id);
                       }}
                     >
-                      <button type="submit" className="text-xs text-neutral-400 hover:text-red-500">
-                        Eliminar
-                      </button>
+                      <BotonEliminarConfirmacion descripcion={`la actividad ${a.codigo} — ${a.nombre}`} />
                     </form>
                   </td>
                 </tr>
@@ -288,9 +287,9 @@ export default async function DetalleProyectoPage({ params }: { params: Promise<
                               await eliminarPrecedencia(p.id);
                             }}
                           >
-                            <button type="submit" className="text-xs text-neutral-400 hover:text-red-500">
-                              Eliminar
-                            </button>
+                            <BotonEliminarConfirmacion
+                              descripcion={`la precedencia ${p.predecesora.nombre} → ${p.sucesora.nombre}`}
+                            />
                           </form>
                         </td>
                       </tr>
