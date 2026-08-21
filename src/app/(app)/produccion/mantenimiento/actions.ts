@@ -104,6 +104,9 @@ export async function crearOrdenMantenimiento(
 export async function iniciarOrdenMantenimiento(id: string) {
   const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Producción." };
+  }
 
   const existe = await prisma.ordenMantenimiento.findUnique({ where: { id }, select: { id: true } });
   if (!existe) return { error: "La orden no existe." };
@@ -280,6 +283,9 @@ export async function completarOrdenMantenimiento(
 export async function cancelarOrdenMantenimiento(id: string) {
   const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
   if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Producción." };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
