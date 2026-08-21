@@ -22,7 +22,7 @@ import {
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerOrigenesServerActions } from "@/lib/origenesServerActions";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
-import { esTipoEntidadAdjunto } from "@/lib/adjuntos";
+import { esTipoEntidadAdjunto, existeEntidadAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
@@ -760,6 +760,14 @@ test("adjuntos aceptan únicamente tipos de entidad registrados", () => {
   assert.equal(esTipoEntidadAdjunto("Empleado"), true);
   assert.equal(esTipoEntidadAdjunto("EntidadInventada"), false);
   assert.equal(esTipoEntidadAdjunto(""), false);
+});
+test("adjuntos de clientes respetan la compañía activa", async () => {
+  const cliente = await prisma.cliente.findFirstOrThrow({
+    select: { id: true, empresaId: true },
+  });
+  assert.equal(await existeEntidadAdjunto("Cliente", cliente.id, cliente.empresaId), true);
+  assert.equal(await existeEntidadAdjunto("Cliente", cliente.id, "empresa-ajena"), false);
+  assert.equal(await existeEntidadAdjunto("Cliente", cliente.id), false);
 });
 
 test("una fase EDT solo puede imputarse a su propio proyecto", () => {

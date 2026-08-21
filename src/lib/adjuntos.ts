@@ -22,7 +22,8 @@ export function esTipoEntidadAdjunto(valor: string): valor is TipoEntidadAdjunto
 
 export async function existeEntidadAdjunto(
   entidadTipo: string,
-  entidadId: string
+  entidadId: string,
+  empresaId?: string
 ): Promise<boolean> {
   if (!esTipoEntidadAdjunto(entidadTipo) || !entidadId || entidadId.length > 64) return false;
 
@@ -30,9 +31,21 @@ export async function existeEntidadAdjunto(
     case "Insumo":
       return Boolean(await prisma.insumo.findUnique({ where: { id: entidadId }, select: { id: true } }));
     case "Cliente":
-      return Boolean(await prisma.cliente.findUnique({ where: { id: entidadId }, select: { id: true } }));
+      if (!empresaId) return false;
+      return Boolean(
+        await prisma.cliente.findFirst({
+          where: { id: entidadId, empresaId },
+          select: { id: true },
+        })
+      );
     case "Proveedor":
-      return Boolean(await prisma.proveedor.findUnique({ where: { id: entidadId }, select: { id: true } }));
+      if (!empresaId) return false;
+      return Boolean(
+        await prisma.proveedor.findFirst({
+          where: { id: entidadId, empresaId },
+          select: { id: true },
+        })
+      );
     case "OrdenCompra":
       return Boolean(await prisma.ordenCompra.findUnique({ where: { id: entidadId }, select: { id: true } }));
     case "Empleado":

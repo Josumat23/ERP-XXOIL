@@ -6,6 +6,7 @@ import path from "path";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import {
   DIRECTORIO_ADJUNTOS,
   TIPOS_MIME_PERMITIDOS,
@@ -28,8 +29,9 @@ export async function subirAdjunto(
   if (!(await puedeEditarAdjunto(usuario, entidadTipo))) {
     return { error: "No tiene permiso para adjuntar archivos en este módulo." };
   }
-  if (!(await existeEntidadAdjunto(entidadTipo, entidadId))) {
-    return { error: "La entidad donde intenta adjuntar el archivo ya no existe." };
+  const empresaId = await obtenerEmpresaActivaId();
+  if (!(await existeEntidadAdjunto(entidadTipo, entidadId, empresaId))) {
+    return { error: "La entidad donde intenta adjuntar el archivo no existe en la compañía activa." };
   }
 
   const archivo = formData.get("archivo");
@@ -86,6 +88,8 @@ export async function eliminarAdjunto(id: string, rutaRevalidar: string) {
   if (!adjunto) return;
   if (!(await puedeEditarAdjunto(usuario, adjunto.entidadTipo))) return;
   if (usuario.rol !== "ADMIN" && adjunto.usuarioId !== usuario.id) return;
+  const empresaId = await obtenerEmpresaActivaId();
+  if (!(await existeEntidadAdjunto(adjunto.entidadTipo, adjunto.entidadId, empresaId))) return;
 
   await prisma.adjunto.delete({ where: { id } });
   try {
