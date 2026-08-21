@@ -3,7 +3,8 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
-import { DIRECTORIO_ADJUNTOS, puedeLeerAdjunto } from "@/lib/adjuntos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { DIRECTORIO_ADJUNTOS, existeEntidadAdjunto, puedeLeerAdjunto } from "@/lib/adjuntos";
 
 export async function GET(
   _req: Request,
@@ -17,6 +18,10 @@ export async function GET(
   if (!adjunto) return NextResponse.json({ error: "Adjunto no encontrado." }, { status: 404 });
   if (!puedeLeerAdjunto(usuario, adjunto.entidadTipo)) {
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
+  }
+  const empresaId = await obtenerEmpresaActivaId();
+  if (!(await existeEntidadAdjunto(adjunto.entidadTipo, adjunto.entidadId, empresaId))) {
+    return NextResponse.json({ error: "Adjunto no encontrado." }, { status: 404 });
   }
 
   try {
