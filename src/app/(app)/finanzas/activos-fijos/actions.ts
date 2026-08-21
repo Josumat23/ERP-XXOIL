@@ -10,6 +10,7 @@ import { siguienteCodigoActivoFijo } from "@/lib/correlativos";
 import { postearVentaActivoFijo } from "@/lib/contabilidad";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { ejecutarDepreciacionDelMes } from "@/lib/depreciacion";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -53,9 +54,9 @@ export async function crearActivoFijo(
 
   if (!nombre) return { error: "El nombre es obligatorio." };
   if (!CATEGORIAS_VALIDAS.includes(categoria)) return { error: "Seleccione una categoría válida." };
-  const fechaAdquisicion = fechaAdquisicionRaw ? new Date(fechaAdquisicionRaw) : null;
-  if (!fechaAdquisicion || Number.isNaN(fechaAdquisicion.getTime())) {
-    return { error: "La fecha de adquisición es obligatoria." };
+  const fechaAdquisicion = crearFechaCalendarioLocal(fechaAdquisicionRaw);
+  if (!fechaAdquisicion) {
+    return { error: "Ingrese una fecha de adquisición válida." };
   }
   if (!Number.isFinite(costoAdquisicion) || costoAdquisicion <= 0) {
     return { error: "El costo de adquisición debe ser mayor a 0." };
