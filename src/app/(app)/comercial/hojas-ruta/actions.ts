@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteNumeroHojaRuta } from "@/lib/correlativos";
 import { normalizarVisitasRuta, type VisitaRutaNormalizada } from "@/lib/visitasRuta";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -37,6 +38,8 @@ export async function crearHojaRuta(
 
   if (!vendedorId) return { error: "Seleccione el vendedor." };
   if (!fecha) return { error: "Indique la fecha de la ruta." };
+  const fechaRuta = crearFechaCalendarioLocal(fecha);
+  if (!fechaRuta) return { error: "La fecha de la ruta es inválida." };
   if (visitas.length === 0) return { error: "Agregue al menos un cliente a visitar." };
 
   let hojaId = "";
@@ -46,8 +49,7 @@ export async function crearHojaRuta(
       data: {
         numero,
         vendedorId,
-        // "T00:00:00" fuerza interpretación en hora local (evita el corrimiento de un día)
-        fecha: new Date(`${fecha}T00:00:00`),
+        fecha: fechaRuta,
         notas,
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
