@@ -13,7 +13,7 @@ import {
 import { calcularUnidadesAProducir, esPeriodoProyeccionValido } from "@/lib/proyecciones";
 import { validarLineasSimulacion } from "@/lib/simuladorPrecios";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
-import { generarArchivoPLE, sanitizarCampoPLE } from "@/lib/ple";
+import { esPeriodoPLEValido, generarArchivoPLE, sanitizarCampoPLE } from "@/lib/ple";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 import {
@@ -755,6 +755,16 @@ test("secretos de configuración solo se reemplazan con un valor nuevo", () => {
   assert.equal(resolverSecretoFormulario("   ", "secreto-existente"), "secreto-existente");
   assert.equal(resolverSecretoFormulario(" nuevo ", "secreto-existente"), "nuevo");
   assert.equal(resolverSecretoFormulario("", null), null);
+});
+
+test("PLE acepta únicamente años y meses enteros dentro del rango operativo", () => {
+  assert.equal(esPeriodoPLEValido(2026, 1), true);
+  assert.equal(esPeriodoPLEValido(2100, 12), true);
+  assert.equal(esPeriodoPLEValido(1999, 1), false);
+  assert.equal(esPeriodoPLEValido(2101, 1), false);
+  assert.equal(esPeriodoPLEValido(2026.5, 1), false);
+  assert.equal(esPeriodoPLEValido(2026, 0), false);
+  assert.equal(esPeriodoPLEValido(2026, 13), false);
 });
 
 test("PLE neutraliza separadores y saltos dentro de campos maestros", () => {

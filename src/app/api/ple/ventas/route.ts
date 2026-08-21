@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
-import { codigoTipoDocumento, generarArchivoPLE, generarLineaVenta, periodoAAAAMM, separarSerieNumero } from "@/lib/ple";
+import { codigoTipoDocumento, esPeriodoPLEValido, generarArchivoPLE, generarLineaVenta, periodoAAAAMM, separarSerieNumero } from "@/lib/ple";
 
 export async function GET(req: NextRequest) {
   const usuario = await obtenerUsuario();
@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
 
   const anio = Number(req.nextUrl.searchParams.get("anio"));
   const mes = Number(req.nextUrl.searchParams.get("mes"));
-  if (!anio || !mes || mes < 1 || mes > 12) {
+  if (!esPeriodoPLEValido(anio, mes)) {
     return NextResponse.json({ error: "Periodo inválido." }, { status: 400 });
   }
 

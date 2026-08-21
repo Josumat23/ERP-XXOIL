@@ -27,6 +27,17 @@ function fecha(d: Date | null | undefined): string {
   return `${dd}/${mm}/${d.getFullYear()}`;
 }
 
+export function esPeriodoPLEValido(anio: number, mes: number): boolean {
+  return (
+    Number.isInteger(anio) &&
+    anio >= 2000 &&
+    anio <= 2100 &&
+    Number.isInteger(mes) &&
+    mes >= 1 &&
+    mes <= 12
+  );
+}
+
 export function periodoAAAAMM(anio: number, mes: number): string {
   return `${anio}${String(mes).padStart(2, "0")}00`;
 }
