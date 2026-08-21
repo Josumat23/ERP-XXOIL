@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
+import { esClaveControlValida } from "@/lib/reglasAsignacionCosto";
 
 export type EstadoFormulario = { error?: string };
 
@@ -74,7 +75,20 @@ export async function asignarControlContable(
   const clave = String(formData.get("clave") ?? "");
   const cuentaId = String(formData.get("cuentaId") ?? "");
 
-  if (!clave || !cuentaId) return { error: "Seleccione la clave y la cuenta." };
+  if (!esClaveControlValida(clave)) return { error: "Seleccione una clave contable válida." };
+  if (!cuentaId) return { error: "Seleccione la cuenta contable." };
+
+  const cuentaAsignable = await prisma.cuentaContable.findFirst({
+    where: {
+      id: cuentaId,
+      activo: true,
+      planCuentas: { empresaId: "1", esMaestro: true },
+    },
+    select: { id: true },
+  });
+  if (!cuentaAsignable) {
+    return { error: "Seleccione una cuenta activa del plan contable maestro." };
+  }
 
   await prisma.controlContable.upsert({
     where: { empresaId_clave: { empresaId: "1", clave } },
