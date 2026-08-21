@@ -8,6 +8,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { avanzarSerie } from "@/lib/series";
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -90,7 +91,8 @@ export async function crearGuiaRemision(
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
   const facturaId = String(formData.get("facturaId") ?? "") || null;
   const clienteId = String(formData.get("clienteId") ?? "");
-  const fechaTraslado = String(formData.get("fechaTraslado") ?? "");
+  const fechaTrasladoRaw = String(formData.get("fechaTraslado") ?? "");
+  const fechaTraslado = crearFechaCalendarioLocal(fechaTrasladoRaw);
   const puntoPartida = String(formData.get("puntoPartida") ?? "").trim();
   const puntoLlegada = String(formData.get("puntoLlegada") ?? "").trim();
   const ubigeoPartidaId = String(formData.get("ubigeoPartidaId") ?? "") || null;
@@ -118,7 +120,7 @@ export async function crearGuiaRemision(
 
   if (!numero) return { error: "Ingrese el número de la guía (serie SUNAT)." };
   if (!clienteId) return { error: "Seleccione el cliente." };
-  if (!fechaTraslado) return { error: "Indique la fecha de traslado." };
+  if (!fechaTraslado) return { error: "Indique una fecha de traslado válida." };
   if (!puntoPartida || !puntoLlegada) {
     return { error: "El punto de partida y el punto de llegada son obligatorios." };
   }
@@ -229,8 +231,7 @@ export async function crearGuiaRemision(
           numero,
           facturaId,
           clienteId,
-          // "T00:00:00" fuerza interpretación en hora local (evita el corrimiento de un día)
-          fechaTraslado: new Date(`${fechaTraslado}T00:00:00`),
+          fechaTraslado,
           puntoPartida,
           puntoLlegada,
           ubigeoPartidaId,
