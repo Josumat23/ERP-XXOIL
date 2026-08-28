@@ -20,6 +20,22 @@ export function esTipoEntidadAdjunto(valor: string): valor is TipoEntidadAdjunto
   return TIPOS_ENTIDAD_ADJUNTO.some((tipo) => tipo === valor);
 }
 
+export function rutaEntidadAdjunto(
+  entidadTipo: TipoEntidadAdjunto,
+  entidadId: string
+): string {
+  const basePorTipo: Record<TipoEntidadAdjunto, string> = {
+    Insumo: "/catalogo/insumos",
+    Cliente: "/comercial/clientes",
+    Proveedor: "/catalogo/proveedores",
+    OrdenCompra: "/logistica/ordenes-compra",
+    Empleado: "/rrhh/empleados",
+    Equipo: "/produccion/equipos",
+    ActivoFijo: "/finanzas/activos-fijos",
+  };
+  return `${basePorTipo[entidadTipo]}/${entidadId}`;
+}
+
 export async function existeEntidadAdjunto(
   entidadTipo: string,
   entidadId: string,

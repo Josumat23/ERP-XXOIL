@@ -13,6 +13,8 @@ import {
   puedeEditarAdjunto,
   existeEntidadAdjunto,
   resolverRutaAdjunto,
+  esTipoEntidadAdjunto,
+  rutaEntidadAdjunto,
 } from "@/lib/adjuntos";
 
 export type EstadoFormulario = { error?: string };
@@ -20,13 +22,14 @@ export type EstadoFormulario = { error?: string };
 export async function subirAdjunto(
   entidadTipo: string,
   entidadId: string,
-  rutaRevalidar: string,
+  _rutaRevalidar: string,
   _prevState: EstadoFormulario,
   formData: FormData
 ): Promise<EstadoFormulario> {
+  void _rutaRevalidar;
   const usuario = await obtenerUsuario();
   if (!usuario) return { error: "Sesión expirada. Vuelva a iniciar sesión." };
-  if (!(await puedeEditarAdjunto(usuario, entidadTipo))) {
+  if (!esTipoEntidadAdjunto(entidadTipo) || !(await puedeEditarAdjunto(usuario, entidadTipo))) {
     return { error: "No tiene permiso para adjuntar archivos en este módulo." };
   }
   const empresaId = await obtenerEmpresaActivaId();
@@ -77,16 +80,18 @@ export async function subirAdjunto(
     return { error: "No se pudo registrar el adjunto. El archivo cargado fue descartado." };
   }
 
-  revalidatePath(rutaRevalidar);
+  revalidatePath(rutaEntidadAdjunto(entidadTipo, entidadId));
   return {};
 }
 
-export async function eliminarAdjunto(id: string, rutaRevalidar: string) {
+export async function eliminarAdjunto(id: string, _rutaRevalidar: string) {
+  void _rutaRevalidar;
   const usuario = await obtenerUsuario();
   if (!usuario) return;
 
   const adjunto = await prisma.adjunto.findUnique({ where: { id } });
   if (!adjunto) return;
+  if (!esTipoEntidadAdjunto(adjunto.entidadTipo)) return;
   if (!(await puedeEditarAdjunto(usuario, adjunto.entidadTipo))) return;
   if (usuario.rol !== "ADMIN" && adjunto.usuarioId !== usuario.id) return;
   const empresaId = await obtenerEmpresaActivaId();
@@ -100,5 +105,5 @@ export async function eliminarAdjunto(id: string, rutaRevalidar: string) {
     // El archivo físico ya no existe en disco: no bloquea el borrado del registro.
   }
 
-  revalidatePath(rutaRevalidar);
+  revalidatePath(rutaEntidadAdjunto(adjunto.entidadTipo, adjunto.entidadId));
 }

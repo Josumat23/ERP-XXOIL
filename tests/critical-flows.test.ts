@@ -47,7 +47,7 @@ import {
   normalizarLineasReglaAsignacion,
 } from "@/lib/reglasAsignacionCosto";
 import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
-import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto } from "@/lib/adjuntos";
+import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto, rutaEntidadAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
@@ -1141,6 +1141,15 @@ test("adjuntos aceptan únicamente tipos de entidad registrados", () => {
   assert.equal(esTipoEntidadAdjunto("Empleado"), true);
   assert.equal(esTipoEntidadAdjunto("EntidadInventada"), false);
   assert.equal(esTipoEntidadAdjunto(""), false);
+});
+test("adjuntos derivan su ruta desde cada tipo de entidad registrado", () => {
+  assert.equal(rutaEntidadAdjunto("Insumo", "i1"), "/catalogo/insumos/i1");
+  assert.equal(rutaEntidadAdjunto("Cliente", "c1"), "/comercial/clientes/c1");
+  assert.equal(rutaEntidadAdjunto("Proveedor", "p1"), "/catalogo/proveedores/p1");
+  assert.equal(rutaEntidadAdjunto("OrdenCompra", "oc1"), "/logistica/ordenes-compra/oc1");
+  assert.equal(rutaEntidadAdjunto("Empleado", "e1"), "/rrhh/empleados/e1");
+  assert.equal(rutaEntidadAdjunto("Equipo", "eq1"), "/produccion/equipos/eq1");
+  assert.equal(rutaEntidadAdjunto("ActivoFijo", "a1"), "/finanzas/activos-fijos/a1");
 });
 test("adjuntos de clientes respetan la compañía activa", async () => {
   const cliente = await prisma.cliente.findFirstOrThrow({
