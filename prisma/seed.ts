@@ -439,7 +439,9 @@ async function main() {
     { codigo: "6353", nombre: "Mantenimiento y reparación de maquinaria y equipo", tipo: "GASTO" },
     { codigo: "3361", nombre: "Maquinarias y equipos de explotación (costo bruto)", tipo: "ACTIVO" },
     { codigo: "7564", nombre: "Enajenación de activos inmovilizados — ingreso", tipo: "INGRESO" },
-    { codigo: "6552", nombre: "Costo neto de enajenación de activos inmovilizados", tipo: "GASTO" },
+{ codigo: "6552", nombre: "Costo neto de enajenación de activos inmovilizados", tipo: "GASTO" },
+    { codigo: "6761", nombre: "Pérdida por diferencia de cambio", tipo: "GASTO" },
+    { codigo: "7761", nombre: "Ganancia por diferencia de cambio", tipo: "INGRESO" },
   ];
   const cuentaPorCodigo = new Map<string, string>();
   for (const c of cuentasSemilla) {
@@ -474,7 +476,9 @@ async function main() {
     ["ACTIVO_FIJO_BRUTO", "3361"],
     ["INGRESO_VENTA_ACTIVO", "7564"],
     ["PERDIDA_VENTA_ACTIVO", "6552"],
-    ["GASTO_ORDEN_INTERNA", "6311"],
+["GASTO_ORDEN_INTERNA", "6311"],
+    ["GANANCIA_DIFERENCIA_CAMBIO", "7761"],
+    ["PERDIDA_DIFERENCIA_CAMBIO", "6761"],
   ];
   for (const [clave, codigo] of controlesSemilla) {
     const cuentaId = cuentaPorCodigo.get(codigo)!;

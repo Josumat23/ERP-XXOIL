@@ -79,7 +79,7 @@ export default async function DetalleFacturaPage({
   );
 
   const vencida = factura.estado === "PENDIENTE" && factura.fechaVencimiento < new Date();
-  const puedeAplicarMora = vencida && (config?.tasaRecargoMora.toNumber() ?? 0) > 0;
+  const puedeAplicarMora = factura.moneda === "PEN" && vencida && (config?.tasaRecargoMora.toNumber() ?? 0) > 0;
 
   const totalNC = factura.notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
   const puedeOperar = factura.estado !== "ANULADA";
@@ -104,7 +104,7 @@ export default async function DetalleFacturaPage({
     maxAcreditable: d.cantidad - (yaAcreditadoPorLinea.get(d.id) ?? 0),
   }));
   const hayLineasAcreditables = lineasAcreditables.some((l) => l.maxAcreditable > 0);
-  const seriesNC = puedeOperar && hayLineasAcreditables ? await seriesActivas("NOTA_CREDITO") : [];
+  const seriesNC = puedeOperar && factura.moneda === "PEN" && hayLineasAcreditables ? await seriesActivas("NOTA_CREDITO") : [];
 
   // Devoluciones: cuánto de cada línea ya se devolvió, para saber cuánto falta.
   const liberacionesPorDevolucion = await prisma.asignacionLoteVenta.findMany({
@@ -211,20 +211,29 @@ export default async function DetalleFacturaPage({
         )}
       </div>
 
+      <div className="mt-4 rounded-md border border-black/10 bg-neutral-50 px-3 py-2 text-sm dark:border-white/10 dark:bg-neutral-900">
+        Moneda del documento: <strong>{factura.moneda}</strong> · Tipo de cambio de emisión: <strong>{factura.tipoCambio.toString()}</strong> · Total funcional: <strong>{formatMoneda(factura.totalFuncional, factura.monedaFuncional)}</strong>
+      </div>
+      {factura.moneda !== "PEN" && (
+        <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
+          Cobranza USD habilitada con diferencia de cambio. Nota de crédito, anulación y mora permanecen bloqueadas hasta completar sus reversos funcionales.
+        </p>
+      )}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
         <Dato
           etiqueta="Valor de venta"
           valor={formatMoneda(
-            factura.subtotal.toNumber() > 0 ? factura.subtotal : factura.total
+            factura.subtotal.toNumber() > 0 ? factura.subtotal : factura.total,
+            factura.moneda
           )}
         />
         <Dato
           etiqueta={`IGV (${factura.tasaIgv.toNumber()}%)`}
-          valor={formatMoneda(factura.igv)}
+          valor={formatMoneda(factura.igv, factura.moneda)}
         />
-        <Dato etiqueta="Total" valor={formatMoneda(factura.total)} />
-        <Dato etiqueta="Notas de crédito" valor={formatMoneda(totalNC)} />
-        <Dato etiqueta="Saldo por cobrar" valor={formatMoneda(factura.saldo)} />
+        <Dato etiqueta="Total" valor={formatMoneda(factura.total, factura.moneda)} />
+        <Dato etiqueta="Notas de crédito" valor={formatMoneda(totalNC, factura.moneda)} />
+        <Dato etiqueta="Saldo por cobrar" valor={formatMoneda(factura.saldo, factura.moneda)} />
       </div>
 
       <section className="mt-8">
@@ -247,8 +256,8 @@ export default async function DetalleFacturaPage({
                   {d.presentacion.producto.nombre} — {d.presentacion.nombre}
                 </td>
                 <td className="text-right">{d.cantidad}</td>
-                <td className="text-right">{formatMoneda(d.precioUnitario)}</td>
-                <td className="text-right">{formatMoneda(d.subtotal)}</td>
+                <td className="text-right">{formatMoneda(d.precioUnitario, factura.moneda)}</td>
+                <td className="text-right">{formatMoneda(d.subtotal, factura.moneda)}</td>
               </tr>
             ))}
             <tr>
@@ -256,20 +265,20 @@ export default async function DetalleFacturaPage({
                 Valor de venta
               </td>
               <td className="text-right">
-                {formatMoneda(factura.subtotal.toNumber() > 0 ? factura.subtotal : factura.total)}
+                {formatMoneda(factura.subtotal.toNumber() > 0 ? factura.subtotal : factura.total, factura.moneda)}
               </td>
             </tr>
             <tr>
               <td colSpan={3} className="text-right text-neutral-500">
                 IGV ({factura.tasaIgv.toNumber()}%)
               </td>
-              <td className="text-right">{formatMoneda(factura.igv)}</td>
+              <td className="text-right">{formatMoneda(factura.igv, factura.moneda)}</td>
             </tr>
             <tr>
               <td colSpan={3} className="text-right font-semibold">
                 Total
               </td>
-              <td className="text-right font-semibold">{formatMoneda(factura.total)}</td>
+              <td className="text-right font-semibold">{formatMoneda(factura.total, factura.moneda)}</td>
             </tr>
           </tbody>
         </table>
@@ -332,7 +341,13 @@ export default async function DetalleFacturaPage({
                   <td>{ETIQUETA_MEDIO_PAGO[c.medioPago]}</td>
                   <td className="text-sm text-neutral-500">{c.referencia ?? "—"}</td>
                   <td className="text-sm">{c.usuarioNombre}</td>
-                  <td className="text-right">{formatMoneda(c.monto)}</td>
+                  <td className="text-right">
+                    {formatMoneda(c.monto, c.moneda)}
+                    <span className="block text-xs text-neutral-400">
+                      {formatMoneda(c.montoFuncional, factura.monedaFuncional)} · TC {c.tipoCambio.toString()}
+                      {c.diferenciaCambio.toNumber() !== 0 ? ` · Dif. ${formatMoneda(c.diferenciaCambio, factura.monedaFuncional)}` : ""}
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -340,7 +355,12 @@ export default async function DetalleFacturaPage({
         )}
         {puedeOperar && factura.saldo.toNumber() > 0 && (
           <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 mt-3">
-            <CobroFormulario facturaId={factura.id} saldo={factura.saldo.toNumber()} />
+            <CobroFormulario
+              facturaId={factura.id}
+              saldo={factura.saldo.toNumber()}
+              moneda={factura.moneda}
+              tipoCambioFactura={factura.tipoCambio.toNumber()}
+            />
           </div>
         )}
         {factura.cobros.length === 0 && (!puedeOperar || factura.saldo.toNumber() === 0) && (
@@ -447,7 +467,7 @@ export default async function DetalleFacturaPage({
             </tbody>
           </table>
         )}
-        {puedeOperar && hayLineasAcreditables && (
+        {puedeOperar && factura.moneda === "PEN" && hayLineasAcreditables && (
           <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 mt-3">
             <NotaCreditoFormulario
               facturaId={factura.id}
@@ -534,7 +554,7 @@ export default async function DetalleFacturaPage({
         </table>
       </section>
 
-      {puedeOperar && sinCobrosNiNC && (
+      {puedeOperar && factura.moneda === "PEN" && sinCobrosNiNC && (
         <section className="mt-8 border border-red-200 dark:border-red-900 rounded-lg p-4">
           <h2 className="font-medium text-red-700 dark:text-red-400 mb-3">Zona de anulación</h2>
           <AnularFacturaFormulario facturaId={factura.id} />

@@ -25,6 +25,7 @@ export async function aplicarRecargoAFactura(
     include: { recargosMora: { orderBy: { fecha: "desc" }, take: 1 } },
   });
   if (!factura) return { ok: false, error: "La factura no existe." };
+  if (factura.moneda !== "PEN") return { ok: false, error: "Los recargos USD requieren valoración funcional multimoneda." };
   if (factura.estado !== "PENDIENTE") return { ok: false, error: "Solo aplica a facturas pendientes." };
 
   const hoy = new Date();

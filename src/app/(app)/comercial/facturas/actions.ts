@@ -17,6 +17,7 @@ import {
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
 import { CODIGO_TIPO_NOTA_CREDITO } from "@/lib/catalogosSunat";
+import { calcularAplicacionCobro, validarTipoCambio } from "@/lib/multimoneda";
 
 export type EstadoFormulario = { error?: string };
 
@@ -147,6 +148,7 @@ export async function registrarCobro(
   }
 
   const monto = Number(formData.get("monto"));
+  const tipoCambioIngresado = Number(formData.get("tipoCambio") ?? 1);
   const medioPago = String(formData.get("medioPago") ?? "") as $Enums.MedioPago;
   const referencia = String(formData.get("referencia") ?? "").trim() || null;
 
@@ -165,13 +167,27 @@ export async function registrarCobro(
 
       const saldo = factura.saldo.toNumber();
       if (monto > saldo + 1e-9) {
-        throw new Error(`El monto supera el saldo pendiente (${saldo.toFixed(2)}).`);
+        throw new Error(`El monto supera el saldo pendiente (${saldo.toFixed(2)} ${factura.moneda}).`);
       }
+      const tipoCambio = factura.moneda === "PEN" ? 1 : tipoCambioIngresado;
+      if (!validarTipoCambio(factura.moneda, tipoCambio)) {
+        throw new Error("Ingrese un tipo de cambio de cobranza válido.");
+      }
+      const aplicacion = calcularAplicacionCobro({
+        moneda: factura.moneda,
+        montoDocumento: monto,
+        saldoDocumento: saldo,
+        saldoFuncional: factura.saldoFuncional.toNumber(),
+        tipoCambioCobro: tipoCambio,
+      });
 
-      const nuevoSaldo = saldo - monto;
       const reclamo = await tx.factura.updateMany({
-        where: { id: facturaId, estado: factura.estado, saldo: factura.saldo },
-        data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
+        where: { id: facturaId, estado: factura.estado, saldo: factura.saldo, saldoFuncional: factura.saldoFuncional },
+        data: {
+          saldo: aplicacion.nuevoSaldoDocumento,
+          saldoFuncional: aplicacion.nuevoSaldoFuncional,
+          estado: aplicacion.nuevoSaldoDocumento <= 1e-9 ? "PAGADA" : "PENDIENTE",
+        },
       });
       if (reclamo.count !== 1) {
         throw new Error("La factura cambió mientras se registraba el cobro. Revise el saldo e intente nuevamente.");
@@ -179,8 +195,14 @@ export async function registrarCobro(
 
       await tx.cobro.create({
         data: {
+          empresaId: factura.empresaId,
           facturaId,
           monto,
+          moneda: factura.moneda,
+          tipoCambio,
+          montoFuncional: aplicacion.montoFuncional,
+          cxcFuncionalAplicada: aplicacion.cxcFuncionalAplicada,
+          diferenciaCambio: aplicacion.diferenciaCambio,
           medioPago,
           referencia,
           usuarioId: auth.usuario.id,
@@ -192,8 +214,12 @@ export async function registrarCobro(
       await tx.movimientoCaja.create({
         data: {
           tipo: "INGRESO",
+          empresaId: factura.empresaId,
           concepto: `Cobro factura ${factura.numero}`,
-          monto,
+          monto: aplicacion.montoFuncional,
+          moneda: factura.moneda,
+          tipoCambio,
+          montoOriginal: monto,
           medioPago,
           referencia: factura.numero,
           usuarioId: auth.usuario.id,
@@ -203,7 +229,12 @@ export async function registrarCobro(
 
       await postearCobro(
         tx,
-        { numeroFactura: factura.numero, monto },
+        {
+          numeroFactura: factura.numero,
+          montoCaja: aplicacion.montoFuncional,
+          montoCxc: aplicacion.cxcFuncionalAplicada,
+          diferenciaCambio: aplicacion.diferenciaCambio,
+        },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
       );
     });
@@ -311,6 +342,7 @@ export async function crearNotaCredito(
       });
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
+      if (factura.moneda !== "PEN") throw new Error("Las notas de crédito USD requieren la fase de reversión contable multimoneda.");
 
       const detallesPorId = new Map(factura.pedido.detalles.map((d) => [d.id, d]));
       const notasPrevias = await tx.notaCreditoDetalle.findMany({
@@ -459,6 +491,7 @@ export async function anularFactura(
       });
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura ya está anulada.");
+      if (factura.moneda !== "PEN") throw new Error("La anulación USD requiere la fase de reversión contable multimoneda.");
       if (factura.cobros.length > 0) {
         throw new Error("No se puede anular una factura con cobros registrados.");
       }

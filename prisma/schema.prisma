@@ -1016,27 +1016,33 @@ enum EstadoFactura {
 
 // La factura se emite en el portal SUNAT; aquí solo se registra su número.
 model Factura {
-  id               String        @id @default(cuid())
-  empresaId        String        @default("1")
-  numero           String        @unique // número SUNAT, ej. F001-00000123
-  pedidoId         String        @unique
-  clienteId        String
-  vendedorId       String
-  moneda           String        @default("PEN")
-  condicionPago    CondicionPago
-  fechaEmision     DateTime      @default(now())
-  fechaVencimiento DateTime
-  subtotal         Decimal       @default(0) // valor de venta (base imponible)
-  tasaIgv          Decimal       @default(0) // % vigente al emitir (congelado)
-  igv              Decimal       @default(0)
-  total            Decimal // subtotal + IGV
-  saldo            Decimal
-  estado           EstadoFactura @default(PENDIENTE)
-  motivoAnulacion  String?
-  anuladaEn        DateTime?
-  anuladaPor       String?
-  usuarioId        String
-  usuarioNombre    String
+  id                String        @id @default(cuid())
+  empresaId         String        @default("1")
+  numero            String        @unique // número SUNAT, ej. F001-00000123
+  pedidoId          String        @unique
+  clienteId         String
+  vendedorId        String
+  moneda            String        @default("PEN")
+  tipoCambio        Decimal       @default(1)
+  monedaFuncional   String        @default("PEN")
+  condicionPago     CondicionPago
+  fechaEmision      DateTime      @default(now())
+  fechaVencimiento  DateTime
+  subtotal          Decimal       @default(0) // valor de venta (base imponible)
+  tasaIgv           Decimal       @default(0) // % vigente al emitir (congelado)
+  igv               Decimal       @default(0)
+  total             Decimal // subtotal + IGV, en moneda del documento
+  saldo             Decimal
+  subtotalFuncional Decimal       @default(0)
+  igvFuncional      Decimal       @default(0)
+  totalFuncional    Decimal       @default(0)
+  saldoFuncional    Decimal       @default(0)
+  estado            EstadoFactura @default(PENDIENTE)
+  motivoAnulacion   String?
+  anuladaEn         DateTime?
+  anuladaPor        String?
+  usuarioId         String
+  usuarioNombre     String
 
   pedido         Pedido           @relation(fields: [pedidoId], references: [id])
   cliente        Cliente          @relation(fields: [clienteId], references: [id])
@@ -1148,15 +1154,20 @@ enum MedioPago {
 }
 
 model Cobro {
-  id            String    @id @default(cuid())
-  empresaId     String    @default("1")
-  facturaId     String
-  fecha         DateTime  @default(now())
-  monto         Decimal
-  medioPago     MedioPago
-  referencia    String?
-  usuarioId     String
-  usuarioNombre String
+  id                   String    @id @default(cuid())
+  empresaId            String    @default("1")
+  facturaId            String
+  fecha                DateTime  @default(now())
+  monto                Decimal
+  moneda               String    @default("PEN")
+  tipoCambio           Decimal   @default(1)
+  montoFuncional       Decimal   @default(0)
+  cxcFuncionalAplicada Decimal   @default(0)
+  diferenciaCambio     Decimal   @default(0)
+  medioPago            MedioPago
+  referencia           String?
+  usuarioId            String
+  usuarioNombre        String
 
   factura Factura @relation(fields: [facturaId], references: [id])
 
@@ -1598,6 +1609,9 @@ model MovimientoCaja {
   tipo          TipoMovimientoCaja
   concepto      String
   monto         Decimal
+  moneda        String             @default("PEN")
+  tipoCambio    Decimal            @default(1)
+  montoOriginal Decimal?
   medioPago     MedioPago
   referencia    String? // nro de factura, OC, comisión, etc.
   usuarioId     String

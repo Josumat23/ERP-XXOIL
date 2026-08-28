@@ -35,7 +35,9 @@ export type ClaveControl =
   | "RETENCION_5TA_POR_PAGAR"
   | "SUELDOS_POR_PAGAR"
   | "CTS_POR_PAGAR"
-  | "GASTO_ORDEN_INTERNA";
+  | "GASTO_ORDEN_INTERNA"
+  | "GANANCIA_DIFERENCIA_CAMBIO"
+  | "PERDIDA_DIFERENCIA_CAMBIO";
 
 export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   CUENTAS_POR_COBRAR: "Cuentas por cobrar comerciales",
@@ -60,6 +62,8 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   SUELDOS_POR_PAGAR: "Sueldos por pagar (neto)",
   CTS_POR_PAGAR: "CTS por depositar",
   GASTO_ORDEN_INTERNA: "Gasto de orden interna (campaña, evento, proyecto puntual)",
+  GANANCIA_DIFERENCIA_CAMBIO: "Ganancia por diferencia de cambio",
+  PERDIDA_DIFERENCIA_CAMBIO: "Pérdida por diferencia de cambio",
 };
 
 type LineaAsiento = {
@@ -348,17 +352,32 @@ export async function postearVenta(
 // Cobro: Caja y bancos (debe) / CxC (haber)
 export async function postearCobro(
   tx: Tx,
-  datos: { numeroFactura: string; monto: number; fecha?: Date },
+  datos: {
+    numeroFactura: string;
+    monto?: number;
+    montoCaja?: number;
+    montoCxc?: number;
+    diferenciaCambio?: number;
+    fecha?: Date;
+  },
   audit: Auditoria
 ) {
+  const montoCaja = datos.montoCaja ?? datos.monto ?? 0;
+  const montoCxc = datos.montoCxc ?? datos.monto ?? 0;
+  const diferenciaCambio = datos.diferenciaCambio ?? 0;
   await postearAsiento(tx, {
     origen: "COBRO",
     glosa: `Cobranza factura ${datos.numeroFactura}`,
     referencia: datos.numeroFactura,
     fecha: datos.fecha,
     lineas: [
-      { clave: "CAJA_BANCOS", debe: datos.monto },
-      { clave: "CUENTAS_POR_COBRAR", haber: datos.monto },
+      { clave: "CAJA_BANCOS", debe: montoCaja },
+      { clave: "CUENTAS_POR_COBRAR", haber: montoCxc },
+      ...(diferenciaCambio > 0
+        ? [{ clave: "GANANCIA_DIFERENCIA_CAMBIO" as const, haber: diferenciaCambio }]
+        : diferenciaCambio < 0
+          ? [{ clave: "PERDIDA_DIFERENCIA_CAMBIO" as const, debe: -diferenciaCambio }]
+          : []),
     ],
     ...audit,
   });
