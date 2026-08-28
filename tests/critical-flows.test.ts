@@ -34,6 +34,7 @@ import {
 import { esValorEnum } from "@/lib/enums";
 import { normalizarLineasSolicitudPedido, normalizarLineasVenta } from "@/lib/lineasVenta";
 import { calcularTotalesPedido, resolverCondicionPrecioPedido } from "@/lib/preciosPedido";
+import { calcularAplicacionCobro, calcularImportesFuncionales } from "@/lib/multimoneda";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
@@ -577,6 +578,62 @@ test("kardex mantiene saldo por almacén y total agregado de forma atómica", as
   assert.equal(actualizada.stock.toNumber(), 17);
   assert.equal(saldo.cantidad.toNumber(), 17);
   assert.equal(movimientos.length, 2, "La salida rechazada no debe dejar movimiento.");
+});
+
+test("multimoneda convierte factura y reconoce diferencias de cambio parciales y finales", () => {
+  assert.deepEqual(
+    calcularImportesFuncionales({ moneda: "USD", tipoCambio: 3.7, subtotal: 100, igv: 18, total: 118 }),
+    { monedaFuncional: "PEN", subtotalFuncional: 370, igvFuncional: 66.6, totalFuncional: 436.6 }
+  );
+  const primerCobro = calcularAplicacionCobro({
+    moneda: "USD",
+    montoDocumento: 59,
+    saldoDocumento: 118,
+    saldoFuncional: 436.6,
+    tipoCambioCobro: 3.8,
+  });
+  assert.deepEqual(primerCobro, {
+    montoFuncional: 224.2,
+    cxcFuncionalAplicada: 218.3,
+    diferenciaCambio: 5.9,
+    nuevoSaldoDocumento: 59,
+    nuevoSaldoFuncional: 218.3,
+  });
+  assert.deepEqual(
+    calcularAplicacionCobro({
+      moneda: "USD",
+      montoDocumento: 59,
+      saldoDocumento: primerCobro.nuevoSaldoDocumento,
+      saldoFuncional: primerCobro.nuevoSaldoFuncional,
+      tipoCambioCobro: 3.6,
+    }),
+    {
+      montoFuncional: 212.4,
+      cxcFuncionalAplicada: 218.3,
+      diferenciaCambio: -5.9,
+      nuevoSaldoDocumento: 0,
+      nuevoSaldoFuncional: 0,
+    }
+  );
+});
+
+test("cobros multimoneda contabilizan ganancias y pérdidas cambiarias balanceadas", async () => {
+  const sufijo = Date.now().toString();
+  const audit = await auditoria();
+  const referenciaGanancia = `FX-G-${sufijo}`;
+  const referenciaPerdida = `FX-P-${sufijo}`;
+  await prisma.$transaction(async (tx) => {
+    await postearCobro(tx, { numeroFactura: referenciaGanancia, montoCaja: 224.2, montoCxc: 218.3, diferenciaCambio: 5.9 }, audit);
+    await postearCobro(tx, { numeroFactura: referenciaPerdida, montoCaja: 212.4, montoCxc: 218.3, diferenciaCambio: -5.9 }, audit);
+  });
+  const [ganancia] = await asientosPorReferencia(referenciaGanancia);
+  const [perdida] = await asientosPorReferencia(referenciaPerdida);
+  assert.ok(ganancia);
+  assert.ok(perdida);
+  comprobarCuadre(ganancia);
+  comprobarCuadre(perdida);
+  assert.deepEqual(ganancia.detalles.map((d) => [d.debe.toNumber(), d.haber.toNumber()]), [[224.2, 0], [0, 218.3], [0, 5.9]]);
+  assert.deepEqual(perdida.detalles.map((d) => [d.debe.toNumber(), d.haber.toNumber()]), [[212.4, 0], [0, 218.3], [5.9, 0]]);
 });
 
 test("venta y cobro generan asientos balanceados y trazables", async () => {

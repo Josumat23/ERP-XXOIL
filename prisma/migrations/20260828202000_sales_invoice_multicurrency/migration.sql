@@ -1,0 +1,17 @@
+ALTER TABLE "facturas" ADD COLUMN "tipoCambio" DECIMAL NOT NULL DEFAULT 1;
+ALTER TABLE "facturas" ADD COLUMN "monedaFuncional" TEXT NOT NULL DEFAULT 'PEN';
+ALTER TABLE "facturas" ADD COLUMN "subtotalFuncional" DECIMAL NOT NULL DEFAULT 0;
+ALTER TABLE "facturas" ADD COLUMN "igvFuncional" DECIMAL NOT NULL DEFAULT 0;
+ALTER TABLE "facturas" ADD COLUMN "totalFuncional" DECIMAL NOT NULL DEFAULT 0;
+ALTER TABLE "facturas" ADD COLUMN "saldoFuncional" DECIMAL NOT NULL DEFAULT 0;
+UPDATE "facturas" SET "tipoCambio"=1,"monedaFuncional"='PEN',"subtotalFuncional"="subtotal","igvFuncional"="igv","totalFuncional"="total","saldoFuncional"="saldo";
+ALTER TABLE "cobros" ADD COLUMN "moneda" TEXT NOT NULL DEFAULT 'PEN';
+ALTER TABLE "cobros" ADD COLUMN "tipoCambio" DECIMAL NOT NULL DEFAULT 1;
+ALTER TABLE "cobros" ADD COLUMN "montoFuncional" DECIMAL NOT NULL DEFAULT 0;
+ALTER TABLE "cobros" ADD COLUMN "cxcFuncionalAplicada" DECIMAL NOT NULL DEFAULT 0;
+ALTER TABLE "cobros" ADD COLUMN "diferenciaCambio" DECIMAL NOT NULL DEFAULT 0;
+UPDATE "cobros" SET "moneda"='PEN',"tipoCambio"=1,"montoFuncional"="monto","cxcFuncionalAplicada"="monto","diferenciaCambio"=0;
+ALTER TABLE "movimientos_caja" ADD COLUMN "moneda" TEXT NOT NULL DEFAULT 'PEN';
+ALTER TABLE "movimientos_caja" ADD COLUMN "tipoCambio" DECIMAL NOT NULL DEFAULT 1;
+ALTER TABLE "movimientos_caja" ADD COLUMN "montoOriginal" DECIMAL;
+UPDATE "movimientos_caja" SET "moneda"='PEN',"tipoCambio"=1,"montoOriginal"="monto";

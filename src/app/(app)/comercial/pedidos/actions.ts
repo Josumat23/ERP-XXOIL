@@ -23,6 +23,7 @@ import {
 import { calcularTotalesPedido, resolverCondicionPrecioPedido } from "@/lib/preciosPedido";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { esValorEnum } from "@/lib/enums";
+import { calcularImportesFuncionales } from "@/lib/multimoneda";
 
 export type EstadoFormulario = { error?: string };
 
@@ -300,9 +301,6 @@ export async function facturarPedido(
       if (pedido.estado !== "PENDIENTE") {
         throw new Error("Solo se puede facturar un pedido pendiente.");
       }
-      if (pedido.moneda !== "PEN") {
-        throw new Error("La facturación multimoneda requiere completar primero la integración contable en moneda funcional.");
-      }
       if (condicionPago !== pedido.condicionPago) {
         throw new Error("La condición de pago debe coincidir con la aprobada en el pedido.");
       }
@@ -314,6 +312,16 @@ export async function facturarPedido(
       const subtotal = pedido.total.toNumber();
       const igv = pedido.igv.toNumber();
       const totalConIgv = pedido.totalConIgv.toNumber();
+      const empresa = await tx.empresa.findUnique({ where: { id: pedido.empresaId } });
+      const tipoCambio = pedido.tipoCambio.toNumber();
+      const importesFuncionales = calcularImportesFuncionales({
+        moneda: pedido.moneda,
+        tipoCambio,
+        monedaFuncional: empresa?.monedaFuncional ?? "PEN",
+        subtotal,
+        igv,
+        total: totalConIgv,
+      });
 
       // Control de límite de crédito (0 = sin límite). Solo aplica a ventas
       // al crédito: la deuda vigente más esta factura (IGV incluido) no puede
@@ -335,18 +343,18 @@ export async function facturarPedido(
         const pendientes = await tx.factura.findMany({
           where: { clienteId: pedido.clienteId, estado: "PENDIENTE" },
         });
-        const deudaActual = pendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
-        const evaluacion = evaluarCredito(deudaActual, totalConIgv, limite);
+        const deudaActual = pendientes.reduce((acc, f) => acc + f.saldoFuncional.toNumber(), 0);
+        const evaluacion = evaluarCredito(deudaActual, importesFuncionales.totalFuncional, limite);
         if (evaluacion.excede) {
           const mismaEvaluacion =
             pedido.condicionPagoCredito === condicionPago &&
             pedido.deudaCreditoEvaluada?.toNumber() === deudaActual &&
-            pedido.montoCreditoEvaluado?.toNumber() === totalConIgv &&
+            pedido.montoCreditoEvaluado?.toNumber() === importesFuncionales.totalFuncional &&
             pedido.limiteCreditoEvaluado?.toNumber() === limite;
           const aprobada = esAprobacionCreditoVigente(pedido, {
             condicionPago,
             deudaActual,
-            montoFactura: totalConIgv,
+            montoFactura: importesFuncionales.totalFuncional,
             limite,
           });
           if (!aprobada) {
@@ -361,7 +369,7 @@ export async function facturarPedido(
                   estadoAprobacionCredito: "PENDIENTE",
                   condicionPagoCredito: condicionPago,
                   deudaCreditoEvaluada: deudaActual,
-                  montoCreditoEvaluado: totalConIgv,
+                  montoCreditoEvaluado: importesFuncionales.totalFuncional,
                   limiteCreditoEvaluado: limite,
                   creditoSolicitadoEn: new Date(),
                   creditoResueltoEn: null,
@@ -396,6 +404,8 @@ export async function facturarPedido(
           clienteId: pedido.clienteId,
           vendedorId: pedido.vendedorId,
           moneda: pedido.moneda,
+          tipoCambio,
+          monedaFuncional: importesFuncionales.monedaFuncional,
           condicionPago,
           fechaEmision,
           fechaVencimiento,
@@ -404,6 +414,10 @@ export async function facturarPedido(
           igv,
           total: totalConIgv,
           saldo: totalConIgv,
+          subtotalFuncional: importesFuncionales.subtotalFuncional,
+          igvFuncional: importesFuncionales.igvFuncional,
+          totalFuncional: importesFuncionales.totalFuncional,
+          saldoFuncional: importesFuncionales.totalFuncional,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
         },
@@ -453,7 +467,7 @@ export async function facturarPedido(
           facturaId: factura.id,
           tipo: "GENERADA",
           tasa,
-          monto: (subtotal * tasa) / 100,
+          monto: (importesFuncionales.subtotalFuncional * tasa) / 100,
         },
       });
 
@@ -466,9 +480,9 @@ export async function facturarPedido(
         {
           numeroFactura: numero,
           cliente: pedido.cliente.razonSocial,
-          subtotal,
-          igv,
-          total: totalConIgv,
+          subtotal: importesFuncionales.subtotalFuncional,
+          igv: importesFuncionales.igvFuncional,
+          total: importesFuncionales.totalFuncional,
           costoVentas,
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }

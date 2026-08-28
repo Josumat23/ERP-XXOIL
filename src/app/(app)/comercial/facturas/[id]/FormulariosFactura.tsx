@@ -21,7 +21,17 @@ type LineaAcreditable = {
   maxAcreditable: number;
 };
 
-export function CobroFormulario({ facturaId, saldo }: { facturaId: string; saldo: number }) {
+export function CobroFormulario({
+  facturaId,
+  saldo,
+  moneda,
+  tipoCambioFactura,
+}: {
+  facturaId: string;
+  saldo: number;
+  moneda: string;
+  tipoCambioFactura: number;
+}) {
   const accion = registrarCobro.bind(null, facturaId);
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
 
@@ -31,7 +41,7 @@ export function CobroFormulario({ facturaId, saldo }: { facturaId: string; saldo
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
-            Monto (saldo: S/ {saldo.toFixed(2)})
+            Monto (saldo: {moneda} {saldo.toFixed(2)})
           </span>
           <input
             name="monto"
@@ -43,6 +53,21 @@ export function CobroFormulario({ facturaId, saldo }: { facturaId: string; saldo
             className="campo-input w-40"
           />
         </label>
+        {moneda !== "PEN" && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Tipo de cambio de cobranza</span>
+            <input
+              name="tipoCambio"
+              type="number"
+              min="0.0001"
+              step="0.0001"
+              defaultValue={tipoCambioFactura}
+              required
+              className="campo-input w-40"
+            />
+          </label>
+        )}
+        {moneda === "PEN" && <input type="hidden" name="tipoCambio" value="1" />}
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Medio de pago</span>
           <select name="medioPago" required defaultValue="" className="campo-input w-44">

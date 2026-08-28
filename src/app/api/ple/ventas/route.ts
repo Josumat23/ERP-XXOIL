@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
         igv: f.igv.toNumber(),
         total: f.total.toNumber(),
         moneda: f.moneda,
-        tipoCambio: null,
+        tipoCambio: f.tipoCambio.toNumber(),
       });
     }),
     ...notasCredito.map((nc) => {
@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
         igv: igvNc,
         total: montoNc,
         moneda: nc.factura.moneda,
-        tipoCambio: null,
+        tipoCambio: nc.factura.tipoCambio.toNumber(),
         refFechaEmision: nc.factura.fechaEmision,
         refTipoComprobante: "01",
         refSerie: original.serie,
