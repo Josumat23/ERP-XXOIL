@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { Prisma, type $Enums } from "@/generated/prisma/client";
+import { CondicionPago, Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
@@ -17,6 +17,8 @@ import { enviarComprobanteFactura } from "@/app/(app)/comercial/facturas/actions
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 import { normalizarLineasVenta, type LineaVentaNormalizada } from "@/lib/lineasVenta";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { esValorEnum } from "@/lib/enums";
 
 export type EstadoFormulario = { error?: string };
 
@@ -32,6 +34,17 @@ export async function crearPedido(
 
   const clienteId = String(formData.get("clienteId") ?? "");
   const vendedorId = String(formData.get("vendedorId") ?? "");
+  const almacenId = String(formData.get("almacenId") ?? "");
+  const moneda = String(formData.get("moneda") ?? "PEN");
+  const tipoCambioRaw = Number(formData.get("tipoCambio") ?? 1);
+  const tipoCambio = moneda === "PEN" ? 1 : tipoCambioRaw;
+  const condicionPago = String(formData.get("condicionPago") ?? "CONTADO");
+  const fechaEntregaSolicitada = crearFechaCalendarioLocal(
+    String(formData.get("fechaEntregaSolicitada") ?? "")
+  );
+  const direccionEntrega = String(formData.get("direccionEntrega") ?? "").trim();
+  const ordenCompraCliente = String(formData.get("ordenCompraCliente") ?? "").trim() || null;
+  const referenciaCliente = String(formData.get("referenciaCliente") ?? "").trim() || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   let lineasRaw: unknown;
@@ -47,9 +60,40 @@ export async function crearPedido(
 
   if (!clienteId) return { error: "Seleccione el cliente." };
   if (!vendedorId) return { error: "Seleccione el vendedor." };
+  if (!almacenId) return { error: "Seleccione el centro de despacho." };
+  if (moneda !== "PEN" && moneda !== "USD") return { error: "Seleccione una moneda válida." };
+  if (!Number.isFinite(tipoCambio) || tipoCambio <= 0) {
+    return { error: "El tipo de cambio debe ser mayor a 0." };
+  }
+  if (!esValorEnum(Object.values(CondicionPago), condicionPago)) {
+    return { error: "Seleccione una condición de pago válida." };
+  }
+  if (!fechaEntregaSolicitada) return { error: "Ingrese una fecha de entrega válida." };
+  const hoy = new Date();
+  hoy.setHours(0, 0, 0, 0);
+  if (fechaEntregaSolicitada < hoy) {
+    return { error: "La fecha solicitada de entrega no puede estar en el pasado." };
+  }
+  if (!direccionEntrega) return { error: "Ingrese la dirección de entrega." };
+  if (direccionEntrega.length > 500) return { error: "La dirección de entrega es demasiado extensa." };
+  if (ordenCompraCliente && ordenCompraCliente.length > 100) {
+    return { error: "La orden de compra del cliente no puede superar 100 caracteres." };
+  }
+  if (referenciaCliente && referenciaCliente.length > 100) {
+    return { error: "La referencia del cliente no puede superar 100 caracteres." };
+  }
 
-  const cliente = await prisma.cliente.findUnique({ where: { id: clienteId } });
-  if (!cliente) return { error: "El cliente no existe." };
+  const [cliente, vendedor, almacen] = await Promise.all([
+    prisma.cliente.findFirst({ where: { id: clienteId, activo: true } }),
+    prisma.vendedor.findFirst({ where: { id: vendedorId, activo: true } }),
+    prisma.almacen.findFirst({ where: { id: almacenId, activo: true } }),
+  ]);
+  if (!cliente) return { error: "El cliente no existe o está inactivo." };
+  if (!vendedor) return { error: "El vendedor no existe o está inactivo." };
+  if (!almacen) return { error: "El centro de despacho no existe o está inactivo." };
+  if (cliente.empresaId !== vendedor.empresaId || cliente.empresaId !== almacen.empresaId) {
+    return { error: "Cliente, vendedor y centro de despacho deben pertenecer a la misma compañía." };
+  }
   if (cliente.bloqueadoCobranza) {
     return {
       error: `${cliente.razonSocial} está bloqueado por cobranza (facturas vencidas sin regularizar). Levante el bloqueo en Finanzas → Gestión de cobranza antes de crear un pedido nuevo.`,
@@ -103,6 +147,14 @@ export async function crearPedido(
           numero,
           clienteId,
           vendedorId,
+          almacenId,
+          moneda,
+          tipoCambio,
+          condicionPago,
+          fechaEntregaSolicitada,
+          direccionEntrega,
+          ordenCompraCliente,
+          referenciaCliente,
           total,
           notas,
           usuarioId: auth.usuario.id,
@@ -193,6 +245,12 @@ export async function facturarPedido(
       if (!pedido) throw new Error("El pedido no existe.");
       if (pedido.estado !== "PENDIENTE") {
         throw new Error("Solo se puede facturar un pedido pendiente.");
+      }
+      if (pedido.moneda !== "PEN") {
+        throw new Error("La facturación multimoneda requiere completar primero la integración contable en moneda funcional.");
+      }
+      if (condicionPago !== pedido.condicionPago) {
+        throw new Error("La condición de pago debe coincidir con la aprobada en el pedido.");
       }
 
       // IGV: los precios del pedido son valor de venta (sin IGV); la tasa

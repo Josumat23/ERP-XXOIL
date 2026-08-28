@@ -740,6 +740,14 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
       numero: "PED-RECALL-" + sufijo,
       clienteId: cliente.id,
       vendedorId: vendedor.id,
+      almacenId: almacen.id,
+      fechaEntregaSolicitada: new Date("2099-12-31T00:00:00.000Z"),
+      moneda: "USD",
+      tipoCambio: 3.75,
+      condicionPago: "DIAS_30",
+      direccionEntrega: "Av. Industrial 123, Lima",
+      ordenCompraCliente: "OC-45000125",
+      referenciaCliente: "Parada de planta",
       total: 140,
       ...audit,
       detalles: {
@@ -750,6 +758,14 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   });
   const detalleId = pedido.detalles[0]?.id;
   assert.ok(detalleId);
+  assert.equal(pedido.almacenId, almacen.id);
+  assert.equal(pedido.fechaEntregaSolicitada?.toISOString(), "2099-12-31T00:00:00.000Z");
+  assert.equal(pedido.moneda, "USD");
+  assert.equal(pedido.tipoCambio.toNumber(), 3.75);
+  assert.equal(pedido.condicionPago, "DIAS_30");
+  assert.equal(pedido.direccionEntrega, "Av. Industrial 123, Lima");
+  assert.equal(pedido.ordenCompraCliente, "OC-45000125");
+  assert.equal(pedido.referenciaCliente, "Parada de planta");
 
   await prisma.$transaction((tx) =>
     asignarLoteVenta(tx, { pedidoDetalleId: detalleId, presentacionId: presentacion.id, cantidad: 7 })
