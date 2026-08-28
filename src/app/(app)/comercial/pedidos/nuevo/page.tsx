@@ -11,9 +11,10 @@ export default async function NuevoPedidoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
-  const [clientes, vendedores, presentaciones, pedidos, descuentosCanal, atpPorProducto] = await Promise.all([
+  const [clientes, vendedores, almacenes, presentaciones, pedidos, descuentosCanal, atpPorProducto] = await Promise.all([
     prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.almacen.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
     prisma.presentacion.findMany({
       where: { activo: true },
       include: { producto: true, escalonesPrecio: { orderBy: { cantidadMinima: "asc" } } },
@@ -26,6 +27,8 @@ export default async function NuevoPedidoPage() {
   const descuentoPorCanal = Object.fromEntries(
     descuentosCanal.map((d) => [d.canal, d.descuentoPct.toNumber()])
   );
+  const hoy = new Date();
+  const fechaMinima = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(hoy.getDate()).padStart(2, "0")}`;
 
   return (
     <div>
@@ -50,11 +53,17 @@ export default async function NuevoPedidoPage() {
         <PedidoFormulario
           clientes={clientes.map((c) => ({
             id: c.id,
+            codigo: c.codigo,
             etiqueta: c.razonSocial,
+            ruc: c.ruc,
             vendedorId: c.vendedorId,
             canal: c.canal,
+            direccion: c.direccion,
+            condicionPago: c.condicionPagoDefecto,
           }))}
           vendedores={vendedores.map((v) => ({ id: v.id, etiqueta: v.nombre }))}
+          almacenes={almacenes.map((a) => ({ id: a.id, etiqueta: `${a.codigo} — ${a.nombre}` }))}
+          fechaMinima={fechaMinima}
           descuentoPorCanal={descuentoPorCanal}
           presentaciones={presentaciones.map((p) => {
             const atp = atpPorProducto.get(p.productoId);

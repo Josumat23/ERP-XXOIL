@@ -941,8 +941,16 @@ model Pedido {
   numero                  String           @unique // PED-00001
   clienteId               String
   vendedorId              String
+  almacenId               String?
   fecha                   DateTime         @default(now())
+  fechaEntregaSolicitada  DateTime?
   estado                  EstadoPedido     @default(PENDIENTE)
+  moneda                  String           @default("PEN")
+  tipoCambio              Decimal          @default(1)
+  condicionPago           CondicionPago    @default(CONTADO)
+  direccionEntrega        String?
+  ordenCompraCliente      String?
+  referenciaCliente       String?
   total                   Decimal
   notas                   String?
   usuarioId               String
@@ -959,6 +967,7 @@ model Pedido {
 
   cliente          Cliente         @relation(fields: [clienteId], references: [id])
   vendedor         Vendedor        @relation(fields: [vendedorId], references: [id])
+  almacen          Almacen?        @relation(fields: [almacenId], references: [id])
   detalles         PedidoDetalle[]
   factura          Factura?
   cotizacionOrigen Cotizacion?
@@ -1686,6 +1695,7 @@ model Almacen {
   ordenesCompra        OrdenCompra[]
   centrosCosto         CentroCosto[]
   empleados            Empleado[]
+  pedidos              Pedido[]
 
   @@unique([empresaId, codigo])
   @@map("almacenes")

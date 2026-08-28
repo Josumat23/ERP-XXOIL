@@ -5,7 +5,17 @@ import { useActionState } from "react";
 import { crearPedido, type EstadoFormulario } from "./actions";
 
 type Opcion = { id: string; etiqueta: string };
-type ClienteOpcion = { id: string; etiqueta: string; vendedorId: string | null; canal: string | null };
+type CondicionPago = "CONTADO" | "DIAS_15" | "DIAS_30";
+type ClienteOpcion = {
+  id: string;
+  codigo: string;
+  etiqueta: string;
+  ruc: string | null;
+  vendedorId: string | null;
+  canal: string | null;
+  direccion: string | null;
+  condicionPago: CondicionPago;
+};
 type EscalonPrecio = { cantidadMinima: number; precio: number };
 type PresentacionOpcion = {
   id: string;
@@ -38,14 +48,18 @@ type Linea = { presentacionId: string; cantidad: string; precioUnitario: string 
 type Props = {
   clientes: ClienteOpcion[];
   vendedores: Opcion[];
+  almacenes: Opcion[];
   presentaciones: PresentacionOpcion[];
+  fechaMinima: string;
   descuentoPorCanal: Record<string, number>;
 };
 
 export default function PedidoFormulario({
   clientes,
   vendedores,
+  almacenes,
   presentaciones,
+  fechaMinima,
   descuentoPorCanal,
 }: Props) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
@@ -53,6 +67,9 @@ export default function PedidoFormulario({
     {}
   );
   const [vendedorId, setVendedorId] = useState("");
+  const [direccionEntrega, setDireccionEntrega] = useState("");
+  const [condicionPago, setCondicionPago] = useState<CondicionPago>("CONTADO");
+  const [moneda, setMoneda] = useState("PEN");
   const [descuentoPct, setDescuentoPct] = useState(0);
   const [lineas, setLineas] = useState<Linea[]>([
     { presentacionId: "", cantidad: "", precioUnitario: "" },
@@ -84,53 +101,95 @@ export default function PedidoFormulario({
         </p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">Cliente</span>
-          <select
-            name="clienteId"
-            required
-            defaultValue=""
-            onChange={(e) => {
-              const cliente = clientes.find((c) => c.id === e.target.value);
-              if (cliente?.vendedorId) setVendedorId(cliente.vendedorId);
-              setDescuentoPct(cliente?.canal ? descuentoPorCanal[cliente.canal] ?? 0 : 0);
-            }}
-            className="campo-input"
-          >
-            <option value="" disabled>
-              Seleccione
-            </option>
-            {clientes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.etiqueta}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">
-            Vendedor (se preselecciona el asignado al cliente)
-          </span>
-          <select
-            name="vendedorId"
-            required
-            value={vendedorId}
-            onChange={(e) => setVendedorId(e.target.value)}
-            className="campo-input"
-          >
-            <option value="" disabled>
-              Seleccione
-            </option>
-            {vendedores.map((v) => (
-              <option key={v.id} value={v.id}>
-                {v.etiqueta}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
+      <section className="rounded-lg border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-neutral-950">
+        <div className="mb-4 flex items-center justify-between gap-3 border-b border-black/10 pb-3 dark:border-white/10">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">Cabecera del documento</p>
+            <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">Socio de negocio y cumplimiento</h2>
+          </div>
+          <span className="insignia bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400">Borrador</span>
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          <label className="flex flex-col gap-1 text-sm lg:col-span-2">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Cliente / socio de negocio</span>
+            <select
+              name="clienteId"
+              required
+              defaultValue=""
+              onChange={(e) => {
+                const cliente = clientes.find((c) => c.id === e.target.value);
+                setVendedorId(cliente?.vendedorId ?? "");
+                setDireccionEntrega(cliente?.direccion ?? "");
+                setCondicionPago(cliente?.condicionPago ?? "CONTADO");
+                setDescuentoPct(cliente?.canal ? descuentoPorCanal[cliente.canal] ?? 0 : 0);
+              }}
+              className="campo-input"
+            >
+              <option value="" disabled>Seleccione cliente</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.codigo} — {c.etiqueta}{c.ruc ? ` · RUC ${c.ruc}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Ejecutivo de ventas</span>
+            <select name="vendedorId" required value={vendedorId} onChange={(e) => setVendedorId(e.target.value)} className="campo-input">
+              <option value="" disabled>Seleccione</option>
+              {vendedores.map((v) => <option key={v.id} value={v.id}>{v.etiqueta}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Centro de despacho</span>
+            <select name="almacenId" required defaultValue="" className="campo-input">
+              <option value="" disabled>Seleccione almacén/planta</option>
+              {almacenes.map((a) => <option key={a.id} value={a.id}>{a.etiqueta}</option>)}
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Fecha solicitada de entrega</span>
+            <input name="fechaEntregaSolicitada" type="date" min={fechaMinima} defaultValue={fechaMinima} required className="campo-input" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Condición de pago</span>
+            <select name="condicionPago" value={condicionPago} onChange={(e) => setCondicionPago(e.target.value as CondicionPago)} className="campo-input">
+              <option value="CONTADO">Contado</option>
+              <option value="DIAS_15">Crédito 15 días</option>
+              <option value="DIAS_30">Crédito 30 días</option>
+            </select>
+          </label>
+        </div>
+      </section>
 
+      <section className="rounded-lg border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-neutral-950">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">Términos comerciales y referencia</p>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Moneda</span>
+            <select name="moneda" value={moneda} onChange={(e) => setMoneda(e.target.value)} className="campo-input">
+              <option value="PEN">PEN — Sol peruano</option>
+              <option value="USD">USD — Dólar estadounidense</option>
+            </select>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Tipo de cambio</span>
+            <input name="tipoCambio" type="number" min="0.0001" step="0.0001" defaultValue="1" disabled={moneda === "PEN"} required={moneda === "USD"} className="campo-input" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">OC del cliente</span>
+            <input name="ordenCompraCliente" maxLength={100} placeholder="Ej. OC-45000125" className="campo-input" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Referencia del cliente</span>
+            <input name="referenciaCliente" maxLength={100} placeholder="Contrato, proyecto o atención" className="campo-input" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm sm:col-span-2 lg:col-span-4">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Dirección de entrega</span>
+            <textarea name="direccionEntrega" value={direccionEntrega} onChange={(e) => setDireccionEntrega(e.target.value)} maxLength={500} rows={2} required className="campo-input" placeholder="Dirección, distrito, provincia y referencia logística" />
+          </label>
+        </div>
+      </section>
       {descuentoPct > 0 && (
         <p className="text-xs text-amber-700 dark:text-amber-400">
           Descuento por canal aplicado a los precios sugeridos: {descuentoPct}%

@@ -33,6 +33,7 @@ export default async function DetallePedidoPage({
       include: {
         cliente: true,
         vendedor: true,
+        almacen: true,
         factura: true,
         detalles: { include: { presentacion: { include: { producto: true } } } },
       },
@@ -84,6 +85,42 @@ export default async function DetallePedidoPage({
       </p>
       {pedido.notas && <p className="text-sm text-neutral-500 mt-1">Notas: {pedido.notas}</p>}
 
+      <section className="mt-6 rounded-lg border border-black/10 bg-white p-4 dark:border-white/10 dark:bg-neutral-950">
+        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-400">
+          Condiciones comerciales y logísticas
+        </p>
+        <dl className="grid grid-cols-1 gap-4 text-sm sm:grid-cols-2 lg:grid-cols-3">
+          <div>
+            <dt className="text-neutral-500">Centro de despacho</dt>
+            <dd className="font-medium">{pedido.almacen ? `${pedido.almacen.codigo} — ${pedido.almacen.nombre}` : "Sin asignar (pedido histórico)"}</dd>
+          </div>
+          <div>
+            <dt className="text-neutral-500">Entrega solicitada</dt>
+            <dd className="font-medium">{pedido.fechaEntregaSolicitada ? new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(pedido.fechaEntregaSolicitada) : "Sin fecha (pedido histórico)"}</dd>
+          </div>
+          <div>
+            <dt className="text-neutral-500">Condición de pago</dt>
+            <dd className="font-medium">{pedido.condicionPago === "CONTADO" ? "Contado" : pedido.condicionPago === "DIAS_15" ? "Crédito 15 días" : "Crédito 30 días"}</dd>
+          </div>
+          <div>
+            <dt className="text-neutral-500">Moneda / tipo de cambio</dt>
+            <dd className="font-medium">{pedido.moneda} / {pedido.tipoCambio.toString()}</dd>
+          </div>
+          <div>
+            <dt className="text-neutral-500">OC del cliente</dt>
+            <dd className="font-medium">{pedido.ordenCompraCliente ?? "—"}</dd>
+          </div>
+          <div>
+            <dt className="text-neutral-500">Referencia</dt>
+            <dd className="font-medium">{pedido.referenciaCliente ?? "—"}</dd>
+          </div>
+          <div className="sm:col-span-2 lg:col-span-3">
+            <dt className="text-neutral-500">Dirección de entrega</dt>
+            <dd className="font-medium">{pedido.direccionEntrega ?? "Sin dirección (pedido histórico)"}</dd>
+          </div>
+        </dl>
+      </section>
+
       <table className="tabla mt-6">
         <thead>
           <tr>
@@ -103,15 +140,15 @@ export default async function DetallePedidoPage({
                 </span>
               </td>
               <td className="text-right">{d.cantidad}</td>
-              <td className="text-right">{formatMoneda(d.precioUnitario)}</td>
-              <td className="text-right">{formatMoneda(d.subtotal)}</td>
+              <td className="text-right">{formatMoneda(d.precioUnitario, pedido.moneda)}</td>
+              <td className="text-right">{formatMoneda(d.subtotal, pedido.moneda)}</td>
             </tr>
           ))}
           <tr>
             <td colSpan={3} className="text-right font-semibold">
               Total (valor de venta, sin IGV)
             </td>
-            <td className="text-right font-semibold">{formatMoneda(pedido.total)}</td>
+            <td className="text-right font-semibold">{formatMoneda(pedido.total, pedido.moneda)}</td>
           </tr>
         </tbody>
       </table>
@@ -161,7 +198,7 @@ export default async function DetallePedidoPage({
             </h2>
             <FacturarFormulario
               pedidoId={pedido.id}
-              condicionDefecto={pedido.cliente.condicionPagoDefecto}
+              condicionDefecto={pedido.condicionPago}
               series={series.map((s) => ({
                 id: s.id,
                 serie: s.serie,

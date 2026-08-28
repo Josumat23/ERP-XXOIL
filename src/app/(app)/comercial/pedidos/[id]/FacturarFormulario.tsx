@@ -27,17 +27,13 @@ export default function FacturarFormulario({
       )}
       <div className="flex flex-wrap items-end gap-3">
         <SelectorSerieNumero series={series} etiquetaNumero="N° factura SUNAT" />
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">Condición de pago</span>
-          <select name="condicionPago" required defaultValue={condicionDefecto} className="campo-input w-44">
-            <option value="" disabled>
-              Seleccione
-            </option>
-            <option value="CONTADO">Contado</option>
-            <option value="DIAS_15">Crédito 15 días</option>
-            <option value="DIAS_30">Crédito 30 días</option>
-          </select>
-        </label>
+        <div className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">Condición de pago del pedido</span>
+          <span className="campo-input w-44 bg-neutral-50 dark:bg-neutral-900">
+            {condicionDefecto === "CONTADO" ? "Contado" : condicionDefecto === "DIAS_15" ? "Crédito 15 días" : "Crédito 30 días"}
+          </span>
+          <input type="hidden" name="condicionPago" value={condicionDefecto} />
+        </div>
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Facturando..." : "Registrar factura"}
         </button>
