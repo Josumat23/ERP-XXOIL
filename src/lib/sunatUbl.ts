@@ -119,12 +119,12 @@ function bloqueFirma(rucEmisor: string, razonSocialEmisor: string): string {
   </cac:Signature>`;
 }
 
-function bloqueTaxTotal(totalGravada: number, totalIgv: number): string {
+function bloqueTaxTotal(totalGravada: number, totalIgv: number, moneda: string): string {
   return `<cac:TaxTotal>
-    <cbc:TaxAmount currencyID="PEN">${formatearMonto(totalIgv)}</cbc:TaxAmount>
+    <cbc:TaxAmount currencyID="${escaparXml(moneda)}">${formatearMonto(totalIgv)}</cbc:TaxAmount>
     <cac:TaxSubtotal>
-      <cbc:TaxableAmount currencyID="PEN">${formatearMonto(totalGravada)}</cbc:TaxableAmount>
-      <cbc:TaxAmount currencyID="PEN">${formatearMonto(totalIgv)}</cbc:TaxAmount>
+      <cbc:TaxableAmount currencyID="${escaparXml(moneda)}">${formatearMonto(totalGravada)}</cbc:TaxableAmount>
+      <cbc:TaxAmount currencyID="${escaparXml(moneda)}">${formatearMonto(totalIgv)}</cbc:TaxAmount>
       <cac:TaxCategory>
         <cac:TaxScheme>
           <cbc:ID>1000</cbc:ID>
@@ -141,7 +141,8 @@ function bloqueTaxTotal(totalGravada: number, totalIgv: number): string {
 function bloqueLineaFactura(
   idx: number,
   item: DatosComprobante["items"][number],
-  tasaIgv: number
+  tasaIgv: number,
+  moneda: string
 ): string {
   const factorIgv = tasaIgv / 100;
   const igvLinea = item.valorUnitario * item.cantidad * factorIgv;
@@ -149,18 +150,18 @@ function bloqueLineaFactura(
   return `<cac:InvoiceLine>
     <cbc:ID>${idx + 1}</cbc:ID>
     <cbc:InvoicedQuantity unitCode="${escaparXml(item.unidadMedida)}">${item.cantidad}</cbc:InvoicedQuantity>
-    <cbc:LineExtensionAmount currencyID="PEN">${formatearMonto(item.valorUnitario * item.cantidad)}</cbc:LineExtensionAmount>
+    <cbc:LineExtensionAmount currencyID="${escaparXml(moneda)}">${formatearMonto(item.valorUnitario * item.cantidad)}</cbc:LineExtensionAmount>
     <cac:PricingReference>
       <cac:AlternativeConditionPrice>
-        <cbc:PriceAmount currencyID="PEN">${formatearMonto(item.valorUnitario * (1 + factorIgv))}</cbc:PriceAmount>
+        <cbc:PriceAmount currencyID="${escaparXml(moneda)}">${formatearMonto(item.valorUnitario * (1 + factorIgv))}</cbc:PriceAmount>
         <cbc:PriceTypeCode>01</cbc:PriceTypeCode>
       </cac:AlternativeConditionPrice>
     </cac:PricingReference>
     <cac:TaxTotal>
-      <cbc:TaxAmount currencyID="PEN">${formatearMonto(igvLinea)}</cbc:TaxAmount>
+      <cbc:TaxAmount currencyID="${escaparXml(moneda)}">${formatearMonto(igvLinea)}</cbc:TaxAmount>
       <cac:TaxSubtotal>
-        <cbc:TaxableAmount currencyID="PEN">${formatearMonto(item.valorUnitario * item.cantidad)}</cbc:TaxableAmount>
-        <cbc:TaxAmount currencyID="PEN">${formatearMonto(igvLinea)}</cbc:TaxAmount>
+        <cbc:TaxableAmount currencyID="${escaparXml(moneda)}">${formatearMonto(item.valorUnitario * item.cantidad)}</cbc:TaxableAmount>
+        <cbc:TaxAmount currencyID="${escaparXml(moneda)}">${formatearMonto(igvLinea)}</cbc:TaxAmount>
         <cac:TaxCategory>
           <cbc:Percent>${tasaIgv}</cbc:Percent>
           <cbc:TaxExemptionReasonCode>10</cbc:TaxExemptionReasonCode>
@@ -176,7 +177,7 @@ function bloqueLineaFactura(
       <cbc:Description>${escaparXml(item.descripcion)}</cbc:Description>
     </cac:Item>
     <cac:Price>
-      <cbc:PriceAmount currencyID="PEN">${formatearMonto(item.valorUnitario)}</cbc:PriceAmount>
+      <cbc:PriceAmount currencyID="${escaparXml(moneda)}">${formatearMonto(item.valorUnitario)}</cbc:PriceAmount>
     </cac:Price>
   </cac:InvoiceLine>
   <!-- totalLinea (informativo, no forma parte del XML): ${formatearMonto(totalLinea)} -->`;
@@ -188,7 +189,7 @@ export function construirFacturaUBL(datos: DatosComprobante, emisor: DatosEmisor
     throw new Error("Falta una tasa de IGV válida para construir la factura UBL.");
   }
   const items = datos.items
-    .map((item, idx) => bloqueLineaFactura(idx, item, tasaIgv))
+    .map((item, idx) => bloqueLineaFactura(idx, item, tasaIgv, datos.moneda))
     .join("\n  ");
 
   return `<?xml version="1.0" encoding="UTF-8"?>
@@ -207,11 +208,11 @@ export function construirFacturaUBL(datos: DatosComprobante, emisor: DatosEmisor
   ${bloqueFirma(emisor.ruc, emisor.razonSocial)}
   ${bloqueParteSupplier(emisor)}
   ${bloqueParteCustomer(datos.clienteRuc, datos.clienteDenominacion, datos.clienteDireccion)}
-  ${bloqueTaxTotal(datos.totalGravada, datos.totalIgv)}
+  ${bloqueTaxTotal(datos.totalGravada, datos.totalIgv, datos.moneda)}
   <cac:LegalMonetaryTotal>
-    <cbc:LineExtensionAmount currencyID="PEN">${formatearMonto(datos.totalGravada)}</cbc:LineExtensionAmount>
-    <cbc:TaxInclusiveAmount currencyID="PEN">${formatearMonto(datos.total)}</cbc:TaxInclusiveAmount>
-    <cbc:PayableAmount currencyID="PEN">${formatearMonto(datos.total)}</cbc:PayableAmount>
+    <cbc:LineExtensionAmount currencyID="${escaparXml(datos.moneda)}">${formatearMonto(datos.totalGravada)}</cbc:LineExtensionAmount>
+    <cbc:TaxInclusiveAmount currencyID="${escaparXml(datos.moneda)}">${formatearMonto(datos.total)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="${escaparXml(datos.moneda)}">${formatearMonto(datos.total)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
   ${items}
 </Invoice>`;
@@ -224,7 +225,7 @@ export function construirNotaCreditoUBL(datos: DatosComprobante, emisor: DatosEm
   }
   const items = datos.items
     .map((item, idx) =>
-      bloqueLineaFactura(idx, item, tasaIgv).replace(/InvoiceLine/g, "CreditNoteLine")
+      bloqueLineaFactura(idx, item, tasaIgv, datos.moneda).replace(/InvoiceLine/g, "CreditNoteLine")
     )
     .join("\n  ");
 
@@ -254,11 +255,11 @@ export function construirNotaCreditoUBL(datos: DatosComprobante, emisor: DatosEm
   ${bloqueFirma(emisor.ruc, emisor.razonSocial)}
   ${bloqueParteSupplier(emisor)}
   ${bloqueParteCustomer(datos.clienteRuc, datos.clienteDenominacion, datos.clienteDireccion)}
-  ${bloqueTaxTotal(datos.totalGravada, datos.totalIgv)}
+  ${bloqueTaxTotal(datos.totalGravada, datos.totalIgv, datos.moneda)}
   <cac:LegalMonetaryTotal>
-    <cbc:LineExtensionAmount currencyID="PEN">${formatearMonto(datos.totalGravada)}</cbc:LineExtensionAmount>
-    <cbc:TaxInclusiveAmount currencyID="PEN">${formatearMonto(datos.total)}</cbc:TaxInclusiveAmount>
-    <cbc:PayableAmount currencyID="PEN">${formatearMonto(datos.total)}</cbc:PayableAmount>
+    <cbc:LineExtensionAmount currencyID="${escaparXml(datos.moneda)}">${formatearMonto(datos.totalGravada)}</cbc:LineExtensionAmount>
+    <cbc:TaxInclusiveAmount currencyID="${escaparXml(datos.moneda)}">${formatearMonto(datos.total)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="${escaparXml(datos.moneda)}">${formatearMonto(datos.total)}</cbc:PayableAmount>
   </cac:LegalMonetaryTotal>
   ${items}
 </CreditNote>`;

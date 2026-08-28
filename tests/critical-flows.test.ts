@@ -1116,6 +1116,10 @@ test("UBL usa la tasa congelada y rechaza una tasa ausente", () => {
   const xml = construirFacturaUBL(datos, emisor);
   assert.match(xml, /<cbc:Percent>10<\/cbc:Percent>/);
   assert.doesNotMatch(xml, /<cbc:Percent>18<\/cbc:Percent>/);
+  const xmlUsd = construirFacturaUBL({ ...datos, moneda: "USD" }, emisor);
+  assert.match(xmlUsd, /<cbc:DocumentCurrencyCode>USD<\/cbc:DocumentCurrencyCode>/);
+  assert.match(xmlUsd, /currencyID="USD"/);
+  assert.doesNotMatch(xmlUsd, /currencyID="PEN"/);
   assert.throws(
     () => construirFacturaUBL({ ...datos, tasaIgv: undefined }, emisor),
     /Falta una tasa de IGV válida/
