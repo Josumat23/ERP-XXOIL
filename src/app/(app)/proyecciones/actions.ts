@@ -132,6 +132,12 @@ export async function actualizarDetalleProyeccion(
 ) {
   const auth = await requerirRol([...ROLES_PROYECCIONES]);
   if ("error" in auth) return;
+  if (
+    !Number.isFinite(ajusteCualitativoPct) ||
+    (indiceEstacionalidadManual !== undefined && !Number.isFinite(indiceEstacionalidadManual))
+  ) {
+    return;
+  }
 
   const detalle = await prisma.proyeccionDetalle.update({
     where: { id: detalleId },
