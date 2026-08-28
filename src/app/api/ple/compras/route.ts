@@ -70,6 +70,8 @@ export async function GET(req: NextRequest) {
     headers: {
       "Content-Type": "text/plain; charset=iso-8859-1",
       "Content-Disposition": `attachment; filename="${nombreArchivo}"`,
+      "X-Content-Type-Options": "nosniff",
+      "Cache-Control": "private, no-store",
     },
   });
 }
