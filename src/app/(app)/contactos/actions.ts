@@ -9,7 +9,7 @@ import type { $Enums, Usuario } from "@/generated/prisma/client";
 
 export type EstadoFormulario = { error?: string };
 
-type TipoEntidadContacto = "Cliente" | "Proveedor";
+type TipoEntidadContacto = "Cliente" | "Proveedor" | "Empleado";
 
 const POLITICA_CONTACTO: Record<
   TipoEntidadContacto,
@@ -17,10 +17,11 @@ const POLITICA_CONTACTO: Record<
 > = {
   Cliente: { rol: "VENTAS", modulo: "ventas" },
   Proveedor: { rol: "ALMACEN", modulo: "materiales" },
+  Empleado: { rol: "GERENCIA", modulo: "rrhh" },
 };
 
 function esTipoEntidadContacto(valor: string): valor is TipoEntidadContacto {
-  return valor === "Cliente" || valor === "Proveedor";
+  return valor === "Cliente" || valor === "Proveedor" || valor === "Empleado";
 }
 
 async function puedeEditarContactos(usuario: Usuario, entidadTipo: string): Promise<boolean> {
@@ -34,16 +35,20 @@ async function existeEntidadContactoAutorizada(
   entidadId: string,
   empresaId: string
 ): Promise<boolean> {
-  const entidad =
-    entidadTipo === "Cliente"
-      ? await prisma.cliente.findUnique({
-          where: { id: entidadId },
-          select: { empresaId: true },
-        })
-      : await prisma.proveedor.findUnique({
-          where: { id: entidadId },
-          select: { empresaId: true },
-        });
+  if (entidadTipo === "Empleado") {
+    return Boolean(
+      await prisma.empleado.findUnique({ where: { id: entidadId }, select: { id: true } })
+    );
+  }
+  const entidad = entidadTipo === "Cliente"
+    ? await prisma.cliente.findUnique({
+        where: { id: entidadId },
+        select: { empresaId: true },
+      })
+    : await prisma.proveedor.findUnique({
+        where: { id: entidadId },
+        select: { empresaId: true },
+      });
   return perteneceAEmpresaActiva(entidad, empresaId);
 }
 
@@ -75,8 +80,10 @@ export async function agregarContacto(
   await prisma.$transaction(async (tx) => {
     if (entidadTipo === "Cliente") {
       await tx.cliente.update({ where: { id: entidadId }, data: { id: entidadId } });
-    } else {
+    } else if (entidadTipo === "Proveedor") {
       await tx.proveedor.update({ where: { id: entidadId }, data: { id: entidadId } });
+    } else {
+      await tx.empleado.update({ where: { id: entidadId }, data: { id: entidadId } });
     }
     if (esPrincipal) {
       await tx.contacto.updateMany({
