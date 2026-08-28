@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { feriadosPeru } from "@/lib/calendarioProduccion";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { esAnioOperativoValido } from "@/lib/periodos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
@@ -193,6 +194,7 @@ export async function cargarFeriadosPeru(almacenId: string, anio: number) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "configuracion", "editar"))) return;
+  if (!esAnioOperativoValido(anio)) return;
 
   const feriados = feriadosPeru(anio);
   await prisma.$transaction(async (tx) => {
