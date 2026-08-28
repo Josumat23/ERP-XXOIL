@@ -1168,6 +1168,18 @@ test("descargas de adjuntos impiden detectar contenido y almacenar respuestas pr
   assert.match(ruta, /"X-Content-Type-Options": "nosniff"/);
   assert.match(ruta, /"Cache-Control": "private, no-store"/);
 });
+test("exportaciones financieras y de planilla no se almacenan en cachés compartidas", async () => {
+  const rutas = [
+    "src/app/api/ple/ventas/route.ts",
+    "src/app/api/ple/compras/route.ts",
+    "src/app/api/planilla/[id]/archivo-pago/route.ts",
+  ];
+  for (const archivo of rutas) {
+    const ruta = await readFile(resolve(process.cwd(), archivo), "utf8");
+    assert.match(ruta, /"X-Content-Type-Options": "nosniff"/);
+    assert.match(ruta, /"Cache-Control": "private, no-store"/);
+  }
+});
 
 test("una fase EDT solo puede imputarse a su propio proyecto", () => {
   assert.equal(edtPerteneceAProyecto({ proyectoId: "proyecto-a" }, "proyecto-a"), true);
