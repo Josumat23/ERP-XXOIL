@@ -951,7 +951,12 @@ model Pedido {
   direccionEntrega        String?
   ordenCompraCliente      String?
   referenciaCliente       String?
+  subtotalBruto           Decimal          @default(0)
+  descuentoTotal          Decimal          @default(0)
   total                   Decimal
+  tasaIgv                 Decimal          @default(0)
+  igv                     Decimal          @default(0)
+  totalConIgv             Decimal          @default(0)
   notas                   String?
   usuarioId               String
   usuarioNombre           String
@@ -976,13 +981,18 @@ model Pedido {
 }
 
 model PedidoDetalle {
-  id             String  @id @default(cuid())
-  pedidoId       String
-  presentacionId String
-  cantidad       Int
-  precioUnitario Decimal
-  subtotal       Decimal
-  costoUnitario  Decimal @default(0) // snapshot del costo promedio al facturar (para costo de ventas)
+  id                   String  @id @default(cuid())
+  pedidoId             String
+  presentacionId       String
+  cantidad             Int
+  precioLista          Decimal @default(0)
+  origenPrecio         String  @default("LEGACY")
+  cantidadMinimaPrecio Int?
+  descuentoPct         Decimal @default(0)
+  descuentoMonto       Decimal @default(0)
+  precioUnitario       Decimal
+  subtotal             Decimal
+  costoUnitario        Decimal @default(0) // snapshot del costo promedio al facturar (para costo de ventas)
 
   pedido              Pedido                @relation(fields: [pedidoId], references: [id])
   presentacion        Presentacion          @relation(fields: [presentacionId], references: [id])

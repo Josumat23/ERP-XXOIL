@@ -126,7 +126,9 @@ export default async function DetallePedidoPage({
           <tr>
             <th>Presentación</th>
             <th className="text-right">Cantidad</th>
-            <th className="text-right">Precio unit.</th>
+            <th className="text-right">Precio lista</th>
+            <th className="text-right">Descuento</th>
+            <th className="text-right">Precio neto</th>
             <th className="text-right">Subtotal</th>
           </tr>
         </thead>
@@ -140,15 +142,39 @@ export default async function DetallePedidoPage({
                 </span>
               </td>
               <td className="text-right">{d.cantidad}</td>
+              <td className="text-right">
+                {formatMoneda(d.precioLista, pedido.moneda)}
+                <span className="block text-xs text-neutral-400">
+                  {d.origenPrecio === "ESCALON" ? `Escalón desde ${d.cantidadMinimaPrecio}` : d.origenPrecio === "BASE" ? "Base" : "Histórico"}
+                </span>
+              </td>
+              <td className="text-right">
+                {d.descuentoPct.toNumber()}%
+                <span className="block text-xs text-neutral-400">-{formatMoneda(d.descuentoMonto, pedido.moneda)}</span>
+              </td>
               <td className="text-right">{formatMoneda(d.precioUnitario, pedido.moneda)}</td>
               <td className="text-right">{formatMoneda(d.subtotal, pedido.moneda)}</td>
             </tr>
           ))}
           <tr>
-            <td colSpan={3} className="text-right font-semibold">
-              Total (valor de venta, sin IGV)
-            </td>
-            <td className="text-right font-semibold">{formatMoneda(pedido.total, pedido.moneda)}</td>
+            <td colSpan={5} className="text-right">Subtotal bruto</td>
+            <td className="text-right">{formatMoneda(pedido.subtotalBruto, pedido.moneda)}</td>
+          </tr>
+          <tr>
+            <td colSpan={5} className="text-right">Descuentos</td>
+            <td className="text-right">-{formatMoneda(pedido.descuentoTotal, pedido.moneda)}</td>
+          </tr>
+          <tr>
+            <td colSpan={5} className="text-right font-medium">Base imponible</td>
+            <td className="text-right font-medium">{formatMoneda(pedido.total, pedido.moneda)}</td>
+          </tr>
+          <tr>
+            <td colSpan={5} className="text-right">IGV ({pedido.tasaIgv.toNumber()}%)</td>
+            <td className="text-right">{formatMoneda(pedido.igv, pedido.moneda)}</td>
+          </tr>
+          <tr>
+            <td colSpan={5} className="text-right font-semibold">Total del documento</td>
+            <td className="text-right font-semibold">{formatMoneda(pedido.totalConIgv, pedido.moneda)}</td>
           </tr>
         </tbody>
       </table>

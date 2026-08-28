@@ -21,6 +21,7 @@ type PresentacionOpcion = {
   id: string;
   etiqueta: string;
   precio: number;
+  moneda: string;
   stock: number;
   // Unidades equivalentes que Producción tiene en camino para el mismo
   // producto (granel aprobado sin envasar + lotes en proceso/calidad), más
@@ -51,6 +52,7 @@ type Props = {
   almacenes: Opcion[];
   presentaciones: PresentacionOpcion[];
   fechaMinima: string;
+  tasaIgv: number;
   descuentoPorCanal: Record<string, number>;
 };
 
@@ -60,6 +62,7 @@ export default function PedidoFormulario({
   almacenes,
   presentaciones,
   fechaMinima,
+  tasaIgv,
   descuentoPorCanal,
 }: Props) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
@@ -79,7 +82,6 @@ export default function PedidoFormulario({
     lineas.map((l) => ({
       presentacionId: l.presentacionId,
       cantidad: Number(l.cantidad),
-      precioUnitario: Number(l.precioUnitario),
     }))
   );
 
@@ -88,6 +90,8 @@ export default function PedidoFormulario({
     const p = Number(l.precioUnitario);
     return acc + (Number.isFinite(c) && Number.isFinite(p) ? c * p : 0);
   }, 0);
+  const igvEstimado = Math.round(total * tasaIgv) / 100;
+  const totalConIgvEstimado = total + igvEstimado;
 
   function actualizarLinea(idx: number, cambios: Partial<Linea>) {
     setLineas((prev) => prev.map((l, i) => (i === idx ? { ...l, ...cambios } : l)));
@@ -167,7 +171,15 @@ export default function PedidoFormulario({
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium text-neutral-700 dark:text-neutral-300">Moneda</span>
-            <select name="moneda" value={moneda} onChange={(e) => setMoneda(e.target.value)} className="campo-input">
+            <select
+              name="moneda"
+              value={moneda}
+              onChange={(e) => {
+                setMoneda(e.target.value);
+                setLineas([{ presentacionId: "", cantidad: "", precioUnitario: "" }]);
+              }}
+              className="campo-input"
+            >
               <option value="PEN">PEN — Sol peruano</option>
               <option value="USD">USD — Dólar estadounidense</option>
             </select>
@@ -231,8 +243,8 @@ export default function PedidoFormulario({
                   Seleccione presentación
                 </option>
                 {presentaciones.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.etiqueta} (disponible: {p.stock}
+                  <option key={p.id} value={p.id} disabled={p.moneda !== moneda}>
+                    {p.etiqueta} · {p.moneda} (disponible: {p.stock}
                     {p.atpProduccion > 0 ? `, +${p.atpProduccion} en producción` : ""})
                   </option>
                 ))}
@@ -256,20 +268,19 @@ export default function PedidoFormulario({
                 }}
                 className="campo-input w-full sm:w-24"
               />
-              <input
-                aria-label={`Precio unitario de la línea ${idx + 1}`}
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Precio S/"
-                value={linea.precioUnitario}
-                onChange={(e) => actualizarLinea(idx, { precioUnitario: e.target.value })}
-                className="campo-input w-full sm:w-28"
-              />
+              <span
+                aria-label={`Precio unitario neto de la línea ${idx + 1}`}
+                className="campo-input w-full bg-neutral-50 text-right font-mono dark:bg-neutral-900 sm:w-28"
+              >
+                {Number(linea.precioUnitario || 0).toLocaleString("es-PE", {
+                  style: "currency",
+                  currency: moneda,
+                })}
+              </span>
               <span className="w-full sm:w-28 text-right text-sm text-neutral-500">
                 {(Number(linea.cantidad) * Number(linea.precioUnitario) || 0).toLocaleString(
                   "es-PE",
-                  { style: "currency", currency: "PEN" }
+                  { style: "currency", currency: moneda }
                 )}
               </span>
               <button
@@ -316,12 +327,14 @@ export default function PedidoFormulario({
       </label>
 
       <div className="flex items-center justify-between border-t border-black/10 dark:border-white/10 pt-4">
-        <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
-          Total: {total.toLocaleString("es-PE", { style: "currency", currency: "PEN" })}{" "}
-          <span className="text-xs font-normal text-neutral-500">
-            (valor de venta; el IGV se agrega al facturar)
-          </span>
-        </p>
+        <div className="text-sm text-neutral-700 dark:text-neutral-300">
+          <p>Base imponible: {total.toLocaleString("es-PE", { style: "currency", currency: moneda })}</p>
+          <p>IGV ({tasaIgv}%): {igvEstimado.toLocaleString("es-PE", { style: "currency", currency: moneda })}</p>
+          <p className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            Total: {totalConIgvEstimado.toLocaleString("es-PE", { style: "currency", currency: moneda })}
+          </p>
+          <p className="text-xs text-neutral-500">El servidor recalcula y congela precio, escalón, descuento e impuesto al crear.</p>
+        </div>
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Crear pedido"}
         </button>

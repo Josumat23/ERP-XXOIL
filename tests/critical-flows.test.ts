@@ -32,7 +32,8 @@ import {
   normalizarLineasAsientoManual,
 } from "@/lib/asientosManuales";
 import { esValorEnum } from "@/lib/enums";
-import { normalizarLineasVenta } from "@/lib/lineasVenta";
+import { normalizarLineasSolicitudPedido, normalizarLineasVenta } from "@/lib/lineasVenta";
+import { calcularTotalesPedido, resolverCondicionPrecioPedido } from "@/lib/preciosPedido";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
@@ -269,6 +270,51 @@ test("pedidos ignoran filas vacías y rechazan estructuras JSON manipuladas", ()
     [{ presentacionId: "presentacion-1", cantidad: 2, precioUnitario: 15.5 }]
   );
 });
+test("pedidos no aceptan precios enviados por el navegador", () => {
+  assert.equal(normalizarLineasSolicitudPedido({}), null);
+  assert.deepEqual(
+    normalizarLineasSolicitudPedido([
+      { presentacionId: "presentacion-1", cantidad: 20, precioUnitario: 0.01 },
+      { presentacionId: "presentacion-2", cantidad: 1.5, precioUnitario: 100 },
+    ]),
+    [{ presentacionId: "presentacion-1", cantidad: 20 }]
+  );
+});
+
+test("motor de precios congela escalón, descuento e IGV con redondeo monetario", () => {
+  const condicion = resolverCondicionPrecioPedido({
+    precioBase: 100,
+    escalones: [
+      { cantidadMinima: 10, precio: 90 },
+      { cantidadMinima: 20, precio: 80 },
+    ],
+    cantidad: 20,
+    descuentoCanalPct: 5,
+  });
+  assert.deepEqual(condicion, {
+    precioLista: 80,
+    origenPrecio: "ESCALON",
+    cantidadMinimaPrecio: 20,
+    descuentoPct: 5,
+    descuentoMonto: 80,
+    precioUnitario: 76,
+    subtotalBruto: 1600,
+    subtotal: 1520,
+  });
+  assert.deepEqual(calcularTotalesPedido([condicion], 18), {
+    subtotalBruto: 1600,
+    descuentoTotal: 80,
+    total: 1520,
+    tasaIgv: 18,
+    igv: 273.6,
+    totalConIgv: 1793.6,
+  });
+  assert.throws(
+    () => resolverCondicionPrecioPedido({ precioBase: 100, escalones: [], cantidad: 1, descuentoCanalPct: 101 }),
+    /entre 0 y 100/
+  );
+});
+
 test("asientos manuales aceptan solo cuentas activas de la compañía contable", async () => {
   const sufijo = Date.now().toString();
   const planPrincipal = await prisma.planCuentas.create({
