@@ -6,8 +6,11 @@ import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { calcularCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import {
+  postearAnulacionFactura,
   postearCobro,
+  postearNotaCredito,
   postearPagoProveedor,
+  postearRecargoMora,
   postearRecepcionCompra,
   postearVenta,
 } from "@/lib/contabilidad";
@@ -636,6 +639,52 @@ test("cobros multimoneda contabilizan ganancias y pérdidas cambiarias balancead
   assert.deepEqual(perdida.detalles.map((d) => [d.debe.toNumber(), d.haber.toNumber()]), [[212.4, 0], [0, 218.3], [5.9, 0]]);
 });
 
+test("reversas y mora USD contabilizan únicamente importes funcionales balanceados", async () => {
+  const sufijo = Date.now().toString();
+  const audit = await auditoria();
+  const facturaNC = `USD-NC-${sufijo}`;
+  const numeroNC = `NC-${sufijo}`;
+  const facturaAnulada = `USD-ANU-${sufijo}`;
+  const facturaMora = `USD-MORA-${sufijo}`;
+  await prisma.$transaction(async (tx) => {
+    await postearNotaCredito(
+      tx,
+      {
+        numeroNC,
+        numeroFactura: facturaNC,
+        montoBase: 370,
+        montoIgv: 66.6,
+        montoTotal: 436.6,
+      },
+      audit
+    );
+    await postearAnulacionFactura(
+      tx,
+      {
+        numeroFactura: facturaAnulada,
+        subtotal: 370,
+        igv: 66.6,
+        total: 436.6,
+        costoVentas: 250,
+        motivo: "Prueba USD",
+      },
+      audit
+    );
+    await postearRecargoMora(tx, { numeroFactura: facturaMora, montoFuncional: 12.34 }, audit);
+  });
+
+  const [nota] = await asientosPorReferencia(numeroNC);
+  const anulaciones = await asientosPorReferencia(facturaAnulada);
+  const [mora] = await asientosPorReferencia(facturaMora);
+  assert.ok(nota);
+  assert.equal(anulaciones.length, 2);
+  assert.ok(mora);
+  [nota, ...anulaciones, mora].forEach(comprobarCuadre);
+  assert.deepEqual(nota.detalles.map((d) => [d.debe.toNumber(), d.haber.toNumber()]), [[370, 0], [66.6, 0], [0, 436.6]]);
+  assert.deepEqual(new Set(anulaciones.map((a) => a.origen)), new Set(["ANULACION_VENTA"]));
+  assert.equal(mora.origen, "RECARGO_MORA");
+  assert.deepEqual(mora.detalles.map((d) => [d.debe.toNumber(), d.haber.toNumber()]), [[12.34, 0], [0, 12.34]]);
+});
 test("venta y cobro generan asientos balanceados y trazables", async () => {
   const referencia = "FTEST-" + Date.now();
   const audit = await auditoria();

@@ -1070,6 +1070,9 @@ model RecargoMora {
   diasCalculados Int
   tasaAplicada   Decimal // % mensual vigente al momento de aplicar
   monto          Decimal
+  moneda         String   @default("PEN")
+  tipoCambio     Decimal  @default(1)
+  montoFuncional Decimal  @default(0)
   usuarioId      String
   usuarioNombre  String
 
@@ -1192,16 +1195,19 @@ enum TipoNotaCredito {
 }
 
 model NotaCredito {
-  id            String          @id @default(cuid())
-  empresaId     String          @default("1")
-  numero        String          @unique // número SUNAT de la NC
-  facturaId     String
-  fecha         DateTime        @default(now())
-  monto         Decimal
-  motivo        String
-  tipoNota      TipoNotaCredito @default(OTROS_CONCEPTOS)
-  usuarioId     String
-  usuarioNombre String
+  id             String          @id @default(cuid())
+  empresaId      String          @default("1")
+  numero         String          @unique // número SUNAT de la NC
+  facturaId      String
+  fecha          DateTime        @default(now())
+  monto          Decimal
+  moneda         String          @default("PEN")
+  tipoCambio     Decimal         @default(1)
+  montoFuncional Decimal         @default(0)
+  motivo         String
+  tipoNota       TipoNotaCredito @default(OTROS_CONCEPTOS)
+  usuarioId      String
+  usuarioNombre  String
 
   factura  Factura              @relation(fields: [facturaId], references: [id])
   detalles NotaCreditoDetalle[]
@@ -1933,6 +1939,7 @@ enum OrigenAsiento {
   COBRO
   NOTA_CREDITO
   ANULACION_VENTA
+  RECARGO_MORA
   COMPRA
   PAGO_PROVEEDOR
   DEPRECIACION
