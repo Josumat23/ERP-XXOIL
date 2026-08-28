@@ -16,7 +16,11 @@ import { postearVenta } from "@/lib/contabilidad";
 import { enviarComprobanteFactura } from "@/app/(app)/comercial/facturas/actions";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
-import { normalizarLineasVenta, type LineaVentaNormalizada } from "@/lib/lineasVenta";
+import {
+  normalizarLineasSolicitudPedido,
+  type LineaSolicitudPedido,
+} from "@/lib/lineasVenta";
+import { calcularTotalesPedido, resolverCondicionPrecioPedido } from "@/lib/preciosPedido";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { esValorEnum } from "@/lib/enums";
 
@@ -53,7 +57,7 @@ export async function crearPedido(
   } catch {
     return { error: "El detalle del pedido es inválido." };
   }
-  const lineas: LineaVentaNormalizada[] | null = normalizarLineasVenta(lineasRaw);
+  const lineas: LineaSolicitudPedido[] | null = normalizarLineasSolicitudPedido(lineasRaw);
   if (lineas === null) {
     return { error: "El detalle del pedido es inválido." };
   }
@@ -100,12 +104,26 @@ export async function crearPedido(
     };
   }
   if (lineas.length === 0) {
-    return { error: "Agregue al menos una línea con cantidad y precio válidos." };
+    return { error: "Agregue al menos una línea con una cantidad válida." };
+  }
+  if (new Set(lineas.map((linea) => linea.presentacionId)).size !== lineas.length) {
+    return { error: "Cada presentación debe aparecer una sola vez en el pedido." };
   }
 
   let pedidoId = "";
   try {
     await prisma.$transaction(async (tx) => {
+      const configuracion =
+        (await tx.configuracionEmpresa.findUnique({ where: { id: "1" } })) ??
+        (await tx.configuracionEmpresa.create({ data: { id: "1" } }));
+      const descuentoCanal = cliente.canal
+        ? await tx.descuentoCanal.findUnique({ where: { canal: cliente.canal } })
+        : null;
+      const descuentoCanalPct = descuentoCanal?.descuentoPct.toNumber() ?? 0;
+      const lineasConPrecio: Array<
+        LineaSolicitudPedido & ReturnType<typeof resolverCondicionPrecioPedido>
+      > = [];
+
       // Reserva de stock: un pedido pendiente compromete stock disponible
       // para que dos vendedores no ofrezcan lo mismo dos veces antes de
       // facturar. Se libera al anular o al facturar (kardex real).
@@ -115,7 +133,29 @@ export async function crearPedido(
         const presentacion = await tx.presentacion.update({
           where: { id: l.presentacionId },
           data: { stockReservado: { increment: 0 } },
+          include: { escalonesPrecio: true },
         });
+        if (!presentacion.activo) {
+          throw new Error(`La presentación "${presentacion.nombre}" está inactiva.`);
+        }
+        if (presentacion.empresaId !== cliente.empresaId) {
+          throw new Error(`La presentación "${presentacion.nombre}" pertenece a otra compañía.`);
+        }
+        if (presentacion.moneda !== moneda) {
+          throw new Error(
+            `La presentación "${presentacion.nombre}" está valorizada en ${presentacion.moneda}; no puede incluirse en un pedido ${moneda}.`
+          );
+        }
+        const condicionPrecio = resolverCondicionPrecioPedido({
+          precioBase: presentacion.precio.toNumber(),
+          escalones: presentacion.escalonesPrecio.map((escalon) => ({
+            cantidadMinima: escalon.cantidadMinima,
+            precio: escalon.precio.toNumber(),
+          })),
+          cantidad: l.cantidad,
+          descuentoCanalPct,
+        });
+        lineasConPrecio.push({ ...l, ...condicionPrecio });
         const disponible = presentacion.stock.toNumber() - presentacion.stockReservado.toNumber();
         if (l.cantidad > disponible) {
           // ATP informativo: no cambia el bloqueo (solo se reserva stock real),
@@ -141,10 +181,14 @@ export async function crearPedido(
       }
 
       const numero = await siguienteNumeroPedido(tx);
-      const total = lineas.reduce((acc, l) => acc + l.cantidad * l.precioUnitario, 0);
+      const totales = calcularTotalesPedido(
+        lineasConPrecio,
+        configuracion.tasaIgv.toNumber()
+      );
       const pedido = await tx.pedido.create({
         data: {
           numero,
+          empresaId: cliente.empresaId,
           clienteId,
           vendedorId,
           almacenId,
@@ -155,16 +199,26 @@ export async function crearPedido(
           direccionEntrega,
           ordenCompraCliente,
           referenciaCliente,
-          total,
+          subtotalBruto: totales.subtotalBruto,
+          descuentoTotal: totales.descuentoTotal,
+          total: totales.total,
+          tasaIgv: totales.tasaIgv,
+          igv: totales.igv,
+          totalConIgv: totales.totalConIgv,
           notas,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
           detalles: {
-            create: lineas.map((l) => ({
-              presentacionId: l.presentacionId,
-              cantidad: l.cantidad,
-              precioUnitario: l.precioUnitario,
-              subtotal: l.cantidad * l.precioUnitario,
+            create: lineasConPrecio.map((linea) => ({
+              presentacionId: linea.presentacionId,
+              cantidad: linea.cantidad,
+              precioLista: linea.precioLista,
+              origenPrecio: linea.origenPrecio,
+              cantidadMinimaPrecio: linea.cantidadMinimaPrecio,
+              descuentoPct: linea.descuentoPct,
+              descuentoMonto: linea.descuentoMonto,
+              precioUnitario: linea.precioUnitario,
+              subtotal: linea.subtotal,
             })),
           },
         },
@@ -253,15 +307,13 @@ export async function facturarPedido(
         throw new Error("La condición de pago debe coincidir con la aprobada en el pedido.");
       }
 
-      // IGV: los precios del pedido son valor de venta (sin IGV); la tasa
-      // vigente de la configuración de empresa se congela en la factura.
-      const config =
-        (await tx.configuracionEmpresa.findUnique({ where: { id: "1" } })) ??
-        (await tx.configuracionEmpresa.create({ data: { id: "1" } }));
-      const tasaIgv = config.tasaIgv.toNumber();
+      // Las condiciones e impuestos se congelaron al aprobar el pedido. La
+      // factura copia esos importes para que cambios posteriores de catálogo
+      // o configuración fiscal no alteren el documento comercial acordado.
+      const tasaIgv = pedido.tasaIgv.toNumber();
       const subtotal = pedido.total.toNumber();
-      const igv = Math.round(subtotal * tasaIgv) / 100;
-      const totalConIgv = subtotal + igv;
+      const igv = pedido.igv.toNumber();
+      const totalConIgv = pedido.totalConIgv.toNumber();
 
       // Control de límite de crédito (0 = sin límite). Solo aplica a ventas
       // al crédito: la deuda vigente más esta factura (IGV incluido) no puede
@@ -339,9 +391,11 @@ export async function facturarPedido(
       const factura = await tx.factura.create({
         data: {
           numero,
+          empresaId: pedido.empresaId,
           pedidoId: pedido.id,
           clienteId: pedido.clienteId,
           vendedorId: pedido.vendedorId,
+          moneda: pedido.moneda,
           condicionPago,
           fechaEmision,
           fechaVencimiento,
