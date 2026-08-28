@@ -25,6 +25,12 @@ function esTipoEntidadDireccion(valor: string): valor is TipoEntidadDireccion {
   return valor === "Cliente" || valor === "Proveedor" || valor === "Empleado";
 }
 
+function rutaEntidadDireccion(entidadTipo: TipoEntidadDireccion, entidadId: string): string {
+  if (entidadTipo === "Cliente") return `/comercial/clientes/${entidadId}`;
+  if (entidadTipo === "Proveedor") return `/catalogo/proveedores/${entidadId}`;
+  return `/rrhh/empleados/${entidadId}`;
+}
+
 async function puedeEditarDirecciones(usuario: Usuario, entidadTipo: string): Promise<boolean> {
   if (!esTipoEntidadDireccion(entidadTipo)) return false;
   if (usuario.rol === "ADMIN") return true;
@@ -58,10 +64,11 @@ async function existeEntidadDireccionAutorizada(
 export async function agregarDireccion(
   entidadTipo: string,
   entidadId: string,
-  rutaRevalidar: string,
+  _rutaRevalidar: string,
   _prevState: EstadoFormulario,
   formData: FormData
 ): Promise<EstadoFormulario> {
+  void _rutaRevalidar;
   const usuario = await obtenerUsuario();
   if (!usuario) return { error: "Sesión expirada. Vuelva a iniciar sesión." };
   if (!(await puedeEditarDirecciones(usuario, entidadTipo)) || !esTipoEntidadDireccion(entidadTipo)) {
@@ -117,11 +124,12 @@ export async function agregarDireccion(
     });
   });
 
-  revalidatePath(rutaRevalidar);
+  revalidatePath(rutaEntidadDireccion(entidadTipo, entidadId));
   return {};
 }
 
-export async function eliminarDireccion(id: string, rutaRevalidar: string) {
+export async function eliminarDireccion(id: string, _rutaRevalidar: string) {
+  void _rutaRevalidar;
   const usuario = await obtenerUsuario();
   if (!usuario) return;
   const direccion = await prisma.direccion.findUnique({ where: { id } });
@@ -143,5 +151,5 @@ export async function eliminarDireccion(id: string, rutaRevalidar: string) {
     return;
   }
   await prisma.direccion.delete({ where: { id: direccion.id } });
-  revalidatePath(rutaRevalidar);
+  revalidatePath(rutaEntidadDireccion(direccion.entidadTipo, direccion.entidadId));
 }

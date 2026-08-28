@@ -1188,6 +1188,14 @@ test("contactos derivan la ruta revalidada desde la entidad autorizada", async (
   assert.doesNotMatch(acciones, /revalidatePath\(rutaRevalidar\)/);
   assert.match(acciones, /revalidatePath\(rutaEntidadContacto\(/);
 });
+test("direcciones derivan la ruta revalidada desde la entidad autorizada", async () => {
+  const acciones = await readFile(
+    resolve(process.cwd(), "src/app/(app)/direcciones/actions.ts"),
+    "utf8"
+  );
+  assert.doesNotMatch(acciones, /revalidatePath\(rutaRevalidar\)/);
+  assert.match(acciones, /revalidatePath\(rutaEntidadDireccion\(/);
+});
 
 test("una fase EDT solo puede imputarse a su propio proyecto", () => {
   assert.equal(edtPerteneceAProyecto({ proyectoId: "proyecto-a" }, "proyecto-a"), true);
