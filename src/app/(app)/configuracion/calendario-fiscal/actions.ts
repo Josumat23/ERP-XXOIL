@@ -10,13 +10,16 @@ export async function generarAnioFiscal(anio: number) {
   if ("error" in auth) return;
   if (!esAnioOperativoValido(anio)) return;
 
-  for (let mes = 1; mes <= 12; mes++) {
-    await prisma.periodoFiscal.upsert({
-      where: { empresaId_anio_mes: { empresaId: "1", anio, mes } },
-      update: {},
-      create: { anio, mes },
-    });
-  }
+  await prisma.$transaction(
+    Array.from({ length: 12 }, (_, indice) => {
+      const mes = indice + 1;
+      return prisma.periodoFiscal.upsert({
+        where: { empresaId_anio_mes: { empresaId: "1", anio, mes } },
+        update: {},
+        create: { anio, mes },
+      });
+    })
+  );
 
   revalidatePath("/configuracion/calendario-fiscal");
 }
