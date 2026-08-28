@@ -85,7 +85,7 @@ export async function GET(req: NextRequest) {
         igv: igvNc,
         total: montoNc,
         moneda: nc.factura.moneda,
-        tipoCambio: nc.factura.tipoCambio.toNumber(),
+        tipoCambio: nc.tipoCambio.toNumber(),
         refFechaEmision: nc.factura.fechaEmision,
         refTipoComprobante: "01",
         refSerie: original.serie,

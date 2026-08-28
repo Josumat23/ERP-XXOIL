@@ -23,9 +23,9 @@ import {
   NotaCreditoFormulario,
   AnularFacturaFormulario,
   DevolucionFormulario,
+  RecargoMoraFormulario,
 } from "./FormulariosFactura";
 import {
-  aplicarRecargoMora,
   enviarComprobanteFactura,
   enviarComprobanteNotaCredito,
 } from "../actions";
@@ -79,7 +79,7 @@ export default async function DetalleFacturaPage({
   );
 
   const vencida = factura.estado === "PENDIENTE" && factura.fechaVencimiento < new Date();
-  const puedeAplicarMora = factura.moneda === "PEN" && vencida && (config?.tasaRecargoMora.toNumber() ?? 0) > 0;
+  const puedeAplicarMora = vencida && (config?.tasaRecargoMora.toNumber() ?? 0) > 0;
 
   const totalNC = factura.notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
   const puedeOperar = factura.estado !== "ANULADA";
@@ -104,7 +104,8 @@ export default async function DetalleFacturaPage({
     maxAcreditable: d.cantidad - (yaAcreditadoPorLinea.get(d.id) ?? 0),
   }));
   const hayLineasAcreditables = lineasAcreditables.some((l) => l.maxAcreditable > 0);
-  const seriesNC = puedeOperar && factura.moneda === "PEN" && hayLineasAcreditables ? await seriesActivas("NOTA_CREDITO") : [];
+  const puedeCrearNotaCredito = puedeOperar && factura.saldo.toNumber() > 0 && hayLineasAcreditables;
+  const seriesNC = puedeCrearNotaCredito ? await seriesActivas("NOTA_CREDITO") : [];
 
   // Devoluciones: cuánto de cada línea ya se devolvió, para saber cuánto falta.
   const liberacionesPorDevolucion = await prisma.asignacionLoteVenta.findMany({
@@ -216,7 +217,7 @@ export default async function DetalleFacturaPage({
       </div>
       {factura.moneda !== "PEN" && (
         <p className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-300">
-          Cobranza USD habilitada con diferencia de cambio. Nota de crédito, anulación y mora permanecen bloqueadas hasta completar sus reversos funcionales.
+          Operación USD: cobranza, notas de crédito, anulación y mora se valorizan en PEN con el tipo de cambio congelado de cada operación.
         </p>
       )}
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
@@ -389,24 +390,22 @@ export default async function DetalleFacturaPage({
                     </td>
                     <td className="text-right">{r.diasCalculados}</td>
                     <td className="text-right">{r.tasaAplicada.toNumber()}%/mes</td>
-                    <td className="text-right">{formatMoneda(r.monto)}</td>
+                    <td className="text-right">
+                      {formatMoneda(r.monto, r.moneda)}
+                      <span className="block text-xs text-neutral-400">
+                        {formatMoneda(r.montoFuncional, factura.monedaFuncional)} · TC {r.tipoCambio.toString()}
+                      </span>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
           {puedeAplicarMora && (
-            <form
-              action={async () => {
-                "use server";
-                await aplicarRecargoMora(factura.id);
-              }}
-              className="mt-3"
-            >
-              <button type="submit" className="boton-secundario text-xs">
-                Aplicar recargo por mora ({config?.tasaRecargoMora.toNumber()}%/mes)
-              </button>
-            </form>
+            <RecargoMoraFormulario
+              facturaId={factura.id}
+              tasa={config?.tasaRecargoMora.toNumber() ?? 0}
+            />
           )}
         </section>
       )}
@@ -438,7 +437,12 @@ export default async function DetalleFacturaPage({
                     <td className="text-xs text-neutral-500">{ETIQUETA_TIPO_NOTA_CREDITO[nc.tipoNota]}</td>
                     <td className="text-sm">{nc.motivo}</td>
                     <td className="text-sm">{nc.usuarioNombre}</td>
-                    <td className="text-right">{formatMoneda(nc.monto)}</td>
+                    <td className="text-right">
+                      {formatMoneda(nc.monto, nc.moneda)}
+                      <span className="block text-xs text-neutral-400">
+                        {formatMoneda(nc.montoFuncional, factura.monedaFuncional)} · TC {nc.tipoCambio.toString()}
+                      </span>
+                    </td>
                     <td className="no-imprimir">
                       <div className="flex items-center gap-2">
                         <span
@@ -467,7 +471,7 @@ export default async function DetalleFacturaPage({
             </tbody>
           </table>
         )}
-        {puedeOperar && factura.moneda === "PEN" && hayLineasAcreditables && (
+        {puedeCrearNotaCredito && (
           <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 mt-3">
             <NotaCreditoFormulario
               facturaId={factura.id}
@@ -480,7 +484,7 @@ export default async function DetalleFacturaPage({
             />
           </div>
         )}
-        {factura.notasCredito.length === 0 && (!puedeOperar || !hayLineasAcreditables) && (
+        {factura.notasCredito.length === 0 && !puedeCrearNotaCredito && (
           <p className="text-sm text-neutral-500 mt-2">Sin notas de crédito.</p>
         )}
       </section>
@@ -554,7 +558,7 @@ export default async function DetalleFacturaPage({
         </table>
       </section>
 
-      {puedeOperar && factura.moneda === "PEN" && sinCobrosNiNC && (
+      {puedeOperar && sinCobrosNiNC && (
         <section className="mt-8 border border-red-200 dark:border-red-900 rounded-lg p-4">
           <h2 className="font-medium text-red-700 dark:text-red-400 mb-3">Zona de anulación</h2>
           <AnularFacturaFormulario facturaId={factura.id} />

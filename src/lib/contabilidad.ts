@@ -37,7 +37,8 @@ export type ClaveControl =
   | "CTS_POR_PAGAR"
   | "GASTO_ORDEN_INTERNA"
   | "GANANCIA_DIFERENCIA_CAMBIO"
-  | "PERDIDA_DIFERENCIA_CAMBIO";
+  | "PERDIDA_DIFERENCIA_CAMBIO"
+  | "INGRESO_MORA";
 
 export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   CUENTAS_POR_COBRAR: "Cuentas por cobrar comerciales",
@@ -64,6 +65,7 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   GASTO_ORDEN_INTERNA: "Gasto de orden interna (campaña, evento, proyecto puntual)",
   GANANCIA_DIFERENCIA_CAMBIO: "Ganancia por diferencia de cambio",
   PERDIDA_DIFERENCIA_CAMBIO: "Pérdida por diferencia de cambio",
+  INGRESO_MORA: "Ingresos financieros por mora",
 };
 
 type LineaAsiento = {
@@ -397,6 +399,25 @@ export async function postearNotaCredito(
       { clave: "DEVOLUCIONES", debe: datos.montoBase },
       { clave: "IGV_POR_PAGAR", debe: datos.montoIgv },
       { clave: "CUENTAS_POR_COBRAR", haber: datos.montoTotal },
+    ],
+    ...audit,
+  });
+}
+
+// Recargo por mora: CxC (debe) / ingreso financiero (haber), en moneda funcional.
+export async function postearRecargoMora(
+  tx: Tx,
+  datos: { numeroFactura: string; montoFuncional: number; fecha?: Date },
+  audit: Auditoria
+) {
+  await postearAsiento(tx, {
+    origen: "RECARGO_MORA",
+    glosa: `Recargo por mora factura ${datos.numeroFactura}`,
+    referencia: datos.numeroFactura,
+    fecha: datos.fecha,
+    lineas: [
+      { clave: "CUENTAS_POR_COBRAR", debe: datos.montoFuncional },
+      { clave: "INGRESO_MORA", haber: datos.montoFuncional },
     ],
     ...audit,
   });

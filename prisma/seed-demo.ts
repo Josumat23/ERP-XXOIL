@@ -754,13 +754,22 @@ async function main() {
           numero: "FC01-00000001",
           facturaId: facturaParaNC.id,
           monto: montoNC,
+          moneda: facturaParaNC.moneda,
+          tipoCambio: facturaParaNC.tipoCambio,
+          montoFuncional: montoNC * facturaParaNC.tipoCambio.toNumber(),
           motivo: "Descuento comercial por pronto pago",
           ...audit,
         },
       });
       await tx.factura.update({
         where: { id: facturaParaNC.id },
-        data: { saldo: Math.max(0, facturaParaNC.saldo.toNumber() - montoNC) },
+        data: {
+          saldo: Math.max(0, facturaParaNC.saldo.toNumber() - montoNC),
+          saldoFuncional: Math.max(
+            0,
+            facturaParaNC.saldoFuncional.toNumber() - montoNC * facturaParaNC.tipoCambio.toNumber()
+          ),
+        },
       });
       const montoBase = montoNC / 1.18;
       await postearNotaCredito(

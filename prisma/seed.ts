@@ -442,6 +442,7 @@ async function main() {
 { codigo: "6552", nombre: "Costo neto de enajenación de activos inmovilizados", tipo: "GASTO" },
     { codigo: "6761", nombre: "Pérdida por diferencia de cambio", tipo: "GASTO" },
     { codigo: "7761", nombre: "Ganancia por diferencia de cambio", tipo: "INGRESO" },
+    { codigo: "7721", nombre: "Intereses por mora comercial", tipo: "INGRESO" },
   ];
   const cuentaPorCodigo = new Map<string, string>();
   for (const c of cuentasSemilla) {
@@ -479,6 +480,7 @@ async function main() {
 ["GASTO_ORDEN_INTERNA", "6311"],
     ["GANANCIA_DIFERENCIA_CAMBIO", "7761"],
     ["PERDIDA_DIFERENCIA_CAMBIO", "6761"],
+    ["INGRESO_MORA", "7721"],
   ];
   for (const [clave, codigo] of controlesSemilla) {
     const cuentaId = cuentaPorCodigo.get(codigo)!;

@@ -17,7 +17,11 @@ import {
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
 import { CODIGO_TIPO_NOTA_CREDITO } from "@/lib/catalogosSunat";
-import { calcularAplicacionCobro, validarTipoCambio } from "@/lib/multimoneda";
+import {
+  calcularAplicacionCobro,
+  calcularImportesFuncionales,
+  validarTipoCambio,
+} from "@/lib/multimoneda";
 
 export type EstadoFormulario = { error?: string };
 
@@ -342,8 +346,6 @@ export async function crearNotaCredito(
       });
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
-      if (factura.moneda !== "PEN") throw new Error("Las notas de crédito USD requieren la fase de reversión contable multimoneda.");
-
       const detallesPorId = new Map(factura.pedido.detalles.map((d) => [d.id, d]));
       const notasPrevias = await tx.notaCreditoDetalle.findMany({
         where: { notaCredito: { facturaId } },
@@ -382,9 +384,20 @@ export async function crearNotaCredito(
 
       const montoIgv = Math.round(montoBase * factura.tasaIgv.toNumber()) / 100;
       const monto = montoBase + montoIgv;
+      const importesFuncionales = calcularImportesFuncionales({
+        moneda: factura.moneda,
+        tipoCambio: factura.tipoCambio.toNumber(),
+        monedaFuncional: factura.monedaFuncional,
+        subtotal: montoBase,
+        igv: montoIgv,
+        total: monto,
+      });
 
       const totalNC = factura.notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
-      const maximo = factura.total.toNumber() - totalNC;
+      const maximo = Math.min(
+        factura.total.toNumber() - totalNC,
+        factura.saldo.toNumber()
+      );
       if (monto > maximo + 1e-9) {
         throw new Error(
           `El monto supera lo disponible para notas de crédito (${maximo.toFixed(2)}).`
@@ -396,6 +409,9 @@ export async function crearNotaCredito(
           numero,
           facturaId,
           monto,
+          moneda: factura.moneda,
+          tipoCambio: factura.tipoCambio,
+          montoFuncional: importesFuncionales.totalFuncional,
           motivo,
           tipoNota,
           usuarioId: auth.usuario.id,
@@ -407,9 +423,22 @@ export async function crearNotaCredito(
 
       // El saldo por cobrar baja hasta un mínimo de cero.
       const nuevoSaldo = Math.max(0, factura.saldo.toNumber() - monto);
+      const nuevoSaldoFuncional = Math.max(
+        0,
+        factura.saldoFuncional.toNumber() - importesFuncionales.totalFuncional
+      );
       const actualizada = await tx.factura.updateMany({
-        where: { id: facturaId, estado: factura.estado, saldo: factura.saldo },
-        data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : factura.estado },
+        where: {
+          id: facturaId,
+          estado: factura.estado,
+          saldo: factura.saldo,
+          saldoFuncional: factura.saldoFuncional,
+        },
+        data: {
+          saldo: nuevoSaldo,
+          saldoFuncional: nuevoSaldoFuncional,
+          estado: nuevoSaldo <= 1e-9 ? "PAGADA" : factura.estado,
+        },
       });
       if (actualizada.count !== 1) {
         throw new Error("La factura cambió mientras se registraba la nota de crédito. Intente nuevamente.");
@@ -426,7 +455,7 @@ export async function crearNotaCredito(
             facturaId,
             tipo: "REVERSION",
             tasa,
-            monto: -(montoBase * tasa) / 100,
+            monto: -(importesFuncionales.subtotalFuncional * tasa) / 100,
             motivo: `Nota de crédito ${numero}`,
           },
         });
@@ -439,9 +468,9 @@ export async function crearNotaCredito(
         {
           numeroNC: numero,
           numeroFactura: factura.numero,
-          montoBase,
-          montoIgv,
-          montoTotal: monto,
+          montoBase: importesFuncionales.subtotalFuncional,
+          montoIgv: importesFuncionales.igvFuncional,
+          montoTotal: importesFuncionales.totalFuncional,
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
       );
@@ -491,7 +520,6 @@ export async function anularFactura(
       });
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura ya está anulada.");
-      if (factura.moneda !== "PEN") throw new Error("La anulación USD requiere la fase de reversión contable multimoneda.");
       if (factura.cobros.length > 0) {
         throw new Error("No se puede anular una factura con cobros registrados.");
       }
@@ -504,12 +532,14 @@ export async function anularFactura(
           id: facturaId,
           estado: factura.estado,
           saldo: factura.saldo,
+          saldoFuncional: factura.saldoFuncional,
           cobros: { none: {} },
           notasCredito: { none: {} },
         },
         data: {
           estado: "ANULADA",
           saldo: 0,
+          saldoFuncional: 0,
           motivoAnulacion: motivo,
           anuladaEn: new Date(),
           anuladaPor: auth.usuario.nombre,
@@ -572,11 +602,11 @@ export async function anularFactura(
         {
           numeroFactura: factura.numero,
           subtotal:
-            factura.subtotal.toNumber() > 0
-              ? factura.subtotal.toNumber()
-              : factura.total.toNumber(),
-          igv: factura.igv.toNumber(),
-          total: factura.total.toNumber(),
+            factura.subtotalFuncional.toNumber() > 0
+              ? factura.subtotalFuncional.toNumber()
+              : factura.totalFuncional.toNumber(),
+          igv: factura.igvFuncional.toNumber(),
+          total: factura.totalFuncional.toNumber(),
           costoVentas: costoVentasAnulado,
           motivo,
         },
@@ -688,7 +718,13 @@ export async function registrarDevolucion(
 // recargo aplicado (o desde el vencimiento, si es el primero) — nunca se
 // puede duplicar el cobro de los mismos días. Incrementa el saldo por
 // cobrar, no el total original de la factura (valor de venta emitido).
-export async function aplicarRecargoMora(facturaId: string): Promise<EstadoFormulario> {
+export async function aplicarRecargoMora(
+  facturaId: string,
+  _prevState: EstadoFormulario,
+  _formData: FormData
+): Promise<EstadoFormulario> {
+  void _prevState;
+  void _formData;
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return auth;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {

@@ -7,6 +7,7 @@ import {
   registrarCobro,
   crearNotaCredito,
   anularFactura,
+  aplicarRecargoMora,
   registrarDevolucion,
   type EstadoFormulario,
 } from "../actions";
@@ -21,7 +22,21 @@ type LineaAcreditable = {
   maxAcreditable: number;
 };
 
+export function RecargoMoraFormulario({ facturaId, tasa }: { facturaId: string; tasa: number }) {
+  const accion = aplicarRecargoMora.bind(null, facturaId);
+  const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
+
+  return (
+    <form action={formAction} className="mt-3">
+      <button type="submit" disabled={enviando} className="boton-secundario text-xs disabled:opacity-50">
+        {enviando ? "Calculando…" : `Aplicar recargo por mora (${tasa}%/mes)`}
+      </button>
+      {estado.error && <p className="mt-2 text-sm text-red-600" role="alert">{estado.error}</p>}
+    </form>
+  );
+}
 export function CobroFormulario({
+
   facturaId,
   saldo,
   moneda,
