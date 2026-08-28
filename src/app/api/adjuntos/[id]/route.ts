@@ -34,6 +34,8 @@ export async function GET(
       headers: {
         "Content-Type": adjunto.mimeType,
         "Content-Disposition": `inline; filename="${encodeURIComponent(adjunto.nombreOriginal)}"`,
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "private, no-store",
       },
     });
   } catch {

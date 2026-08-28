@@ -1160,6 +1160,14 @@ test("rutas de adjuntos permanecen dentro de su directorio físico", () => {
   assert.equal(resolverRutaAdjunto(resolve(tmpdir(), "fuera.pdf")), null);
   assert.equal(resolverRutaAdjunto(""), null);
 });
+test("descargas de adjuntos impiden detectar contenido y almacenar respuestas privadas", async () => {
+  const ruta = await readFile(
+    resolve(process.cwd(), "src/app/api/adjuntos/[id]/route.ts"),
+    "utf8"
+  );
+  assert.match(ruta, /"X-Content-Type-Options": "nosniff"/);
+  assert.match(ruta, /"Cache-Control": "private, no-store"/);
+});
 
 test("una fase EDT solo puede imputarse a su propio proyecto", () => {
   assert.equal(edtPerteneceAProyecto({ proyectoId: "proyecto-a" }, "proyecto-a"), true);
