@@ -24,6 +24,12 @@ function esTipoEntidadContacto(valor: string): valor is TipoEntidadContacto {
   return valor === "Cliente" || valor === "Proveedor" || valor === "Empleado";
 }
 
+function rutaEntidadContacto(entidadTipo: TipoEntidadContacto, entidadId: string): string {
+  if (entidadTipo === "Cliente") return `/comercial/clientes/${entidadId}`;
+  if (entidadTipo === "Proveedor") return `/catalogo/proveedores/${entidadId}`;
+  return `/rrhh/empleados/${entidadId}`;
+}
+
 async function puedeEditarContactos(usuario: Usuario, entidadTipo: string): Promise<boolean> {
   if (!esTipoEntidadContacto(entidadTipo)) return false;
   if (usuario.rol === "ADMIN") return true;
@@ -55,10 +61,11 @@ async function existeEntidadContactoAutorizada(
 export async function agregarContacto(
   entidadTipo: string,
   entidadId: string,
-  rutaRevalidar: string,
+  _rutaRevalidar: string,
   _prevState: EstadoFormulario,
   formData: FormData
 ): Promise<EstadoFormulario> {
+  void _rutaRevalidar;
   const usuario = await obtenerUsuario();
   if (!usuario) return { error: "Sesión expirada. Vuelva a iniciar sesión." };
   if (!(await puedeEditarContactos(usuario, entidadTipo)) || !esTipoEntidadContacto(entidadTipo)) {
@@ -96,11 +103,12 @@ export async function agregarContacto(
     });
   });
 
-  revalidatePath(rutaRevalidar);
+  revalidatePath(rutaEntidadContacto(entidadTipo, entidadId));
   return {};
 }
 
-export async function eliminarContacto(id: string, rutaRevalidar: string) {
+export async function eliminarContacto(id: string, _rutaRevalidar: string) {
+  void _rutaRevalidar;
   const usuario = await obtenerUsuario();
   if (!usuario) return;
   const contacto = await prisma.contacto.findUnique({ where: { id } });
@@ -122,5 +130,5 @@ export async function eliminarContacto(id: string, rutaRevalidar: string) {
     return;
   }
   await prisma.contacto.delete({ where: { id: contacto.id } });
-  revalidatePath(rutaRevalidar);
+  revalidatePath(rutaEntidadContacto(contacto.entidadTipo, contacto.entidadId));
 }

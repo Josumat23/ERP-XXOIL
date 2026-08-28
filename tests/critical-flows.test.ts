@@ -1180,6 +1180,14 @@ test("exportaciones financieras y de planilla no se almacenan en cachés compart
     assert.match(ruta, /"Cache-Control": "private, no-store"/);
   }
 });
+test("contactos derivan la ruta revalidada desde la entidad autorizada", async () => {
+  const acciones = await readFile(
+    resolve(process.cwd(), "src/app/(app)/contactos/actions.ts"),
+    "utf8"
+  );
+  assert.doesNotMatch(acciones, /revalidatePath\(rutaRevalidar\)/);
+  assert.match(acciones, /revalidatePath\(rutaEntidadContacto\(/);
+});
 
 test("una fase EDT solo puede imputarse a su propio proyecto", () => {
   assert.equal(edtPerteneceAProyecto({ proyectoId: "proyecto-a" }, "proyecto-a"), true);
