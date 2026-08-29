@@ -37,8 +37,9 @@ export default async function RecallPage({
               asignacionesLote: {
                 include: {
                   pedidoDetalle: {
-                    include: { pedido: { include: { cliente: true, factura: true } } },
+                    include: { pedido: { include: { cliente: true } } },
                   },
+                  facturaDetalle: { include: { factura: true } },
                 },
               },
             },
@@ -61,17 +62,19 @@ export default async function RecallPage({
     for (const e of lote.envasados) {
       const netoPorDetalle = new Map<string, number>();
       for (const a of e.asignacionesLote) {
-        const actual = netoPorDetalle.get(a.pedidoDetalleId) ?? 0;
-        netoPorDetalle.set(a.pedidoDetalleId, actual + (a.tipo === "ASIGNADA" ? a.cantidad : -a.cantidad));
+        const clave = a.facturaDetalleId ?? a.pedidoDetalleId;
+        const actual = netoPorDetalle.get(clave) ?? 0;
+        netoPorDetalle.set(clave, actual + (a.tipo === "ASIGNADA" ? a.cantidad : -a.cantidad));
       }
       for (const a of e.asignacionesLote) {
-        const cantidad = netoPorDetalle.get(a.pedidoDetalleId) ?? 0;
+        const clave = a.facturaDetalleId ?? a.pedidoDetalleId;
+        const cantidad = netoPorDetalle.get(clave) ?? 0;
         if (cantidad <= 0) continue;
-        netoPorDetalle.set(a.pedidoDetalleId, 0); // evita duplicar por cada evento de la misma línea
+        netoPorDetalle.set(clave, 0); // evita duplicar por cada evento de la misma línea
         destinos.push({
           cantidad,
           clienteNombre: a.pedidoDetalle.pedido.cliente.razonSocial,
-          facturaNumero: a.pedidoDetalle.pedido.factura?.numero ?? null,
+          facturaNumero: a.facturaDetalle?.factura.numero ?? null,
           pedidoNumero: a.pedidoDetalle.pedido.numero,
           envasadoCodigo: e.codigo,
         });

@@ -86,6 +86,7 @@ export const ETIQUETA_TIPO_VENDEDOR: Record<$Enums.TipoVendedor, string> = {
 
 export const ETIQUETA_ESTADO_PEDIDO: Record<$Enums.EstadoPedido, string> = {
   PENDIENTE: "Pendiente",
+  PARCIAL: "Facturación parcial",
   FACTURADO: "Facturado",
   ANULADO: "Anulado",
 };

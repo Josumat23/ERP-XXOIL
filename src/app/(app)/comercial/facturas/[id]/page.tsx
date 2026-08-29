@@ -116,18 +116,20 @@ export default async function DetalleFacturaPage({
     where: {
       tipo: "LIBERADA",
       motivo: { startsWith: MOTIVO_DEVOLUCION_PREFIJO },
-      pedidoDetalleId: { in: factura.detalles.map((d) => d.pedidoDetalleId) },
+      facturaDetalleId: { in: factura.detalles.map((d) => d.id) },
     },
     orderBy: { creadoEn: "asc" },
   });
   const yaDevueltoPorLinea = new Map<string, number>();
   for (const l of liberacionesPorDevolucion) {
-    yaDevueltoPorLinea.set(l.pedidoDetalleId, (yaDevueltoPorLinea.get(l.pedidoDetalleId) ?? 0) + l.cantidad);
+    if (l.facturaDetalleId) {
+      yaDevueltoPorLinea.set(l.facturaDetalleId, (yaDevueltoPorLinea.get(l.facturaDetalleId) ?? 0) + l.cantidad);
+    }
   }
   const lineasDevolvibles = factura.detalles.map((d) => ({
     pedidoDetalleId: d.pedidoDetalleId,
     etiqueta: `${d.presentacion.producto.nombre} — ${d.presentacion.nombre}`,
-    maxDevolvible: d.cantidad - (yaDevueltoPorLinea.get(d.pedidoDetalleId) ?? 0),
+    maxDevolvible: d.cantidad - (yaDevueltoPorLinea.get(d.id) ?? 0),
   }));
 
   return (
