@@ -28,14 +28,19 @@ type Resultado = {
   }[];
 };
 
-const baseFactura = (f: { subtotal: { toNumber(): number }; total: { toNumber(): number } }) =>
-  f.subtotal.toNumber() > 0 ? f.subtotal.toNumber() : f.total.toNumber();
+const baseFactura = (f: {
+  subtotalFuncional: { toNumber(): number };
+  totalFuncional: { toNumber(): number };
+}) =>
+  f.subtotalFuncional.toNumber() > 0
+    ? f.subtotalFuncional.toNumber()
+    : f.totalFuncional.toNumber();
 
 async function calcularResultados(inicio: Date, fin: Date): Promise<Resultado> {
   const [facturas, notasCredito, comisiones, movimientosManuales] = await Promise.all([
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicio, lt: fin } },
-      include: { pedido: { include: { detalles: true } }, cliente: true },
+      include: { detalles: true, cliente: true },
       orderBy: { fechaEmision: "asc" },
     }),
     prisma.notaCredito.findMany({
@@ -50,18 +55,18 @@ async function calcularResultados(inicio: Date, fin: Date): Promise<Resultado> {
 
   const ventasBrutas = facturas.reduce((acc, f) => acc + baseFactura(f), 0);
   const totalNC = notasCredito.reduce(
-    (acc, nc) => acc + nc.monto.toNumber() / (1 + nc.factura.tasaIgv.toNumber() / 100),
+    (acc, nc) => acc + nc.montoFuncional.toNumber() / (1 + nc.factura.tasaIgv.toNumber() / 100),
     0
   );
   const ventasNetas = ventasBrutas - totalNC;
 
   const costoVentas = facturas.reduce(
     (acc, f) =>
-      acc + f.pedido.detalles.reduce((s, d) => s + d.cantidad * d.costoUnitario.toNumber(), 0),
+      acc + f.detalles.reduce((s, d) => s + d.cantidad * d.costoUnitario.toNumber(), 0),
     0
   );
   const sinCosto = facturas.some((f) =>
-    f.pedido.detalles.some((d) => d.costoUnitario.toNumber() === 0)
+    f.detalles.some((d) => d.costoUnitario.toNumber() === 0)
   );
 
   const utilidadBruta = ventasNetas - costoVentas;
@@ -90,7 +95,7 @@ async function calcularResultados(inicio: Date, fin: Date): Promise<Resultado> {
     sinCosto,
     facturas: facturas.map((f) => {
       const venta = baseFactura(f);
-      const costo = f.pedido.detalles.reduce((s, d) => s + d.cantidad * d.costoUnitario.toNumber(), 0);
+      const costo = f.detalles.reduce((s, d) => s + d.cantidad * d.costoUnitario.toNumber(), 0);
       return { id: f.id, numero: f.numero, cliente: { razonSocial: f.cliente.razonSocial }, venta, costo };
     }),
   };

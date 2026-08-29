@@ -33,11 +33,7 @@ async function calcularAgregados(desde: Date, hasta: Date, filtros: Filtros) {
     },
     include: {
       cliente: true,
-      pedido: {
-        include: {
-          detalles: { include: { presentacion: { include: { producto: true } } } },
-        },
-      },
+      detalles: { include: { presentacion: { include: { producto: true } } } },
     },
   });
 
@@ -46,8 +42,8 @@ async function calcularAgregados(desde: Date, hasta: Date, filtros: Filtros) {
 
   for (const f of facturas) {
     const canal = f.cliente.canal ?? "SIN_CANAL";
-    for (const d of f.pedido.detalles) {
-      const ventas = d.subtotal.toNumber();
+    for (const d of f.detalles) {
+      const ventas = d.subtotalFuncional.toNumber();
       const costo = d.costoUnitario.toNumber() * d.cantidad;
 
       const segmento = d.presentacion.producto.segmentoMercado ?? "SIN_SEGMENTO";
@@ -63,7 +59,7 @@ async function calcularAgregados(desde: Date, hasta: Date, filtros: Filtros) {
     }
   }
 
-  const totalVentas = facturas.reduce((acc, f) => acc + f.subtotal.toNumber(), 0);
+  const totalVentas = facturas.reduce((acc, f) => acc + f.subtotalFuncional.toNumber(), 0);
   const totalCosto = [...porSegmento.values()].reduce((acc, f) => acc + f.costo, 0);
 
   return { porSegmento, porCanal, totalVentas, totalCosto };

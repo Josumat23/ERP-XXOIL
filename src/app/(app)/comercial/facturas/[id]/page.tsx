@@ -52,7 +52,8 @@ export default async function DetalleFacturaPage({
       include: {
         cliente: true,
         vendedor: true,
-        pedido: { include: { detalles: { include: { presentacion: { include: { producto: true } } } } } },
+        pedido: true,
+        detalles: { include: { presentacion: { include: { producto: true } } } },
         cobros: { orderBy: { fecha: "asc" } },
         notasCredito: { orderBy: { fecha: "asc" } },
         comisiones: { orderBy: { creadoEn: "asc" } },
@@ -88,7 +89,10 @@ export default async function DetalleFacturaPage({
   // Notas de crédito: cuánto de cada línea ya se acreditó, para saber cuánto
   // falta disponible (mismo principio que las devoluciones más abajo).
   const notaCreditoDetalles = await prisma.notaCreditoDetalle.findMany({
-    where: { pedidoDetalleId: { in: factura.pedido.detalles.map((d) => d.id) } },
+    where: {
+      notaCredito: { facturaId: factura.id },
+      pedidoDetalleId: { in: factura.detalles.map((d) => d.pedidoDetalleId) },
+    },
   });
   const yaAcreditadoPorLinea = new Map<string, number>();
   for (const d of notaCreditoDetalles) {
@@ -97,11 +101,11 @@ export default async function DetalleFacturaPage({
       (yaAcreditadoPorLinea.get(d.pedidoDetalleId) ?? 0) + d.cantidad.toNumber()
     );
   }
-  const lineasAcreditables = factura.pedido.detalles.map((d) => ({
-    pedidoDetalleId: d.id,
+  const lineasAcreditables = factura.detalles.map((d) => ({
+    pedidoDetalleId: d.pedidoDetalleId,
     etiqueta: `${d.presentacion.producto.nombre} — ${d.presentacion.nombre}`,
     precioUnitario: d.precioUnitario.toNumber(),
-    maxAcreditable: d.cantidad - (yaAcreditadoPorLinea.get(d.id) ?? 0),
+    maxAcreditable: d.cantidad - (yaAcreditadoPorLinea.get(d.pedidoDetalleId) ?? 0),
   }));
   const hayLineasAcreditables = lineasAcreditables.some((l) => l.maxAcreditable > 0);
   const puedeCrearNotaCredito = puedeOperar && factura.saldo.toNumber() > 0 && hayLineasAcreditables;
@@ -112,7 +116,7 @@ export default async function DetalleFacturaPage({
     where: {
       tipo: "LIBERADA",
       motivo: { startsWith: MOTIVO_DEVOLUCION_PREFIJO },
-      pedidoDetalleId: { in: factura.pedido.detalles.map((d) => d.id) },
+      pedidoDetalleId: { in: factura.detalles.map((d) => d.pedidoDetalleId) },
     },
     orderBy: { creadoEn: "asc" },
   });
@@ -120,10 +124,10 @@ export default async function DetalleFacturaPage({
   for (const l of liberacionesPorDevolucion) {
     yaDevueltoPorLinea.set(l.pedidoDetalleId, (yaDevueltoPorLinea.get(l.pedidoDetalleId) ?? 0) + l.cantidad);
   }
-  const lineasDevolvibles = factura.pedido.detalles.map((d) => ({
-    pedidoDetalleId: d.id,
+  const lineasDevolvibles = factura.detalles.map((d) => ({
+    pedidoDetalleId: d.pedidoDetalleId,
     etiqueta: `${d.presentacion.producto.nombre} — ${d.presentacion.nombre}`,
-    maxDevolvible: d.cantidad - (yaDevueltoPorLinea.get(d.id) ?? 0),
+    maxDevolvible: d.cantidad - (yaDevueltoPorLinea.get(d.pedidoDetalleId) ?? 0),
   }));
 
   return (
@@ -251,7 +255,7 @@ export default async function DetalleFacturaPage({
             </tr>
           </thead>
           <tbody>
-            {factura.pedido.detalles.map((d) => (
+            {factura.detalles.map((d) => (
               <tr key={d.id}>
                 <td>
                   {d.presentacion.producto.nombre} — {d.presentacion.nombre}

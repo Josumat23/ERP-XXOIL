@@ -39,7 +39,7 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
     where: { id: facturaId },
     include: {
       cliente: true,
-      pedido: { include: { detalles: { include: { presentacion: true } } } },
+      detalles: { include: { presentacion: true } },
     },
   });
   if (!factura) return;
@@ -64,7 +64,7 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
       totalIgv: factura.igv.toNumber(),
       total: factura.total.toNumber(),
       tasaIgv: factura.tasaIgv.toNumber(),
-      items: factura.pedido.detalles.map((d) => ({
+      items: factura.detalles.map((d) => ({
         descripcion: d.presentacion.nombre,
         unidadMedida: d.presentacion.unidadMedidaSunat,
         cantidad: d.cantidad,
@@ -342,11 +342,11 @@ export async function crearNotaCredito(
 
       const factura = await tx.factura.findUnique({
         where: { id: facturaId },
-        include: { notasCredito: true, comisiones: true, pedido: { include: { detalles: true } } },
+        include: { notasCredito: true, comisiones: true, detalles: true },
       });
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
-      const detallesPorId = new Map(factura.pedido.detalles.map((d) => [d.id, d]));
+      const detallesPorId = new Map(factura.detalles.map((d) => [d.pedidoDetalleId, d]));
       const notasPrevias = await tx.notaCreditoDetalle.findMany({
         where: { notaCredito: { facturaId } },
       });
@@ -515,7 +515,8 @@ export async function anularFactura(
           cobros: true,
           comisiones: true,
           notasCredito: true,
-          pedido: { include: { detalles: true } },
+          pedido: true,
+          detalles: true,
         },
       });
       if (!factura) throw new Error("La factura no existe.");
@@ -550,7 +551,7 @@ export async function anularFactura(
       }
 
       // Reingreso del stock vendido
-      for (const d of factura.pedido.detalles) {
+      for (const d of factura.detalles) {
         const mov = await registrarMovimiento(tx, {
           tipoItem: "PRESENTACION",
           presentacionId: d.presentacionId,
@@ -565,7 +566,7 @@ export async function anularFactura(
         if (!mov.ok) throw new Error(mov.error);
 
         await liberarAsignacionesLote(tx, {
-          pedidoDetalleId: d.id,
+          pedidoDetalleId: d.pedidoDetalleId,
           motivo: `Anulación factura ${factura.numero}`,
         });
       }
@@ -593,7 +594,7 @@ export async function anularFactura(
         data: { estado: "ANULADO" },
       });
 
-      const costoVentasAnulado = factura.pedido.detalles.reduce(
+      const costoVentasAnulado = factura.detalles.reduce(
         (acc, d) => acc + d.cantidad * d.costoUnitario.toNumber(),
         0
       );
@@ -669,8 +670,10 @@ export async function registrarDevolucion(
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
 
-      const detalle = await tx.pedidoDetalle.findUnique({ where: { id: pedidoDetalleId } });
-      if (!detalle || detalle.pedidoId !== factura.pedidoId) {
+      const detalle = await tx.facturaDetalle.findUnique({
+        where: { facturaId_pedidoDetalleId: { facturaId, pedidoDetalleId } },
+      });
+      if (!detalle) {
         throw new Error("La línea seleccionada no pertenece a esta factura.");
       }
 

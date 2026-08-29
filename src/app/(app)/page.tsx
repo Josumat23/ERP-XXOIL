@@ -10,8 +10,13 @@ import FichaTabs from "@/components/FichaTabs";
 const MESES_TENDENCIA = 12;
 
 // Base imponible de una factura (sin IGV); las antiguas sin desglose usan su total.
-const baseFactura = (f: { subtotal: { toNumber(): number }; total: { toNumber(): number } }) =>
-  f.subtotal.toNumber() > 0 ? f.subtotal.toNumber() : f.total.toNumber();
+const baseFactura = (f: {
+  subtotalFuncional: { toNumber(): number };
+  totalFuncional: { toNumber(): number };
+}) =>
+  f.subtotalFuncional.toNumber() > 0
+    ? f.subtotalFuncional.toNumber()
+    : f.totalFuncional.toNumber();
 
 export default async function PanelPage() {
   const hoy = new Date();
@@ -43,7 +48,7 @@ export default async function PanelPage() {
   ] = await Promise.all([
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicioRango } },
-      include: { cliente: true, vendedor: true, pedido: { include: { detalles: true } } },
+      include: { cliente: true, vendedor: true, detalles: true },
     }),
     prisma.factura.findMany({
       where: { estado: "PENDIENTE" },
@@ -151,7 +156,7 @@ export default async function PanelPage() {
     const balde = baldesMes.find((b) => f.fechaEmision >= b.inicio && f.fechaEmision < b.fin);
     if (balde) {
       balde.total += baseFactura(f);
-      balde.costo += f.pedido.detalles.reduce(
+      balde.costo += f.detalles.reduce(
         (acc, d) => acc + d.cantidad * d.costoUnitario.toNumber(),
         0
       );
@@ -193,7 +198,7 @@ export default async function PanelPage() {
   const topVendedores = [...ventasPorVendedor.values()].sort((a, b) => b.total - a.total).slice(0, 5);
   const maxVendedor = Math.max(...topVendedores.map((v) => v.total), 1);
 
-  const cuentasPorCobrar = facturasPendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
+  const cuentasPorCobrar = facturasPendientes.reduce((acc, f) => acc + f.saldoFuncional.toNumber(), 0);
   const facturasVencidas = facturasPendientes.filter(
     (f) => f.fechaVencimiento < hoy && f.saldo.toNumber() > 0
   );
@@ -219,7 +224,7 @@ export default async function PanelPage() {
   // Finanzas: estado de resultados del mes (misma fórmula que /finanzas/resultados)
   // ---------------------------------------------------------------------
   const totalNC = notasCreditoMes.reduce(
-    (acc, nc) => acc + nc.monto.toNumber() / (1 + nc.factura.tasaIgv.toNumber() / 100),
+    (acc, nc) => acc + nc.montoFuncional.toNumber() / (1 + nc.factura.tasaIgv.toNumber() / 100),
     0
   );
   const ventasNetas = ventasMes - totalNC;
