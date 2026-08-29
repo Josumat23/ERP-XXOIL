@@ -135,9 +135,7 @@ export async function crearGuiaRemision(
           where: { id: facturaId },
           select: {
             clienteId: true,
-            pedido: {
-              select: { detalles: { select: { presentacionId: true, cantidad: true } } },
-            },
+            detalles: { select: { presentacionId: true, cantidad: true } },
             guias: {
               select: { detalles: { select: { presentacionId: true, cantidad: true } } },
             },
@@ -148,7 +146,7 @@ export async function crearGuiaRemision(
         }
 
         const facturadoPorPresentacion = new Map<string, number>();
-        for (const detalle of factura.pedido.detalles) {
+        for (const detalle of factura.detalles) {
           facturadoPorPresentacion.set(
             detalle.presentacionId,
             (facturadoPorPresentacion.get(detalle.presentacionId) ?? 0) + detalle.cantidad

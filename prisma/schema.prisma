@@ -276,6 +276,7 @@ model Presentacion {
   saldosAlmacen      SaldoAlmacen[]
   envasados          Envasado[]
   pedidoDetalles     PedidoDetalle[]
+  facturaDetalles    FacturaDetalle[]
   guiaDetalles       GuiaRemisionDetalle[]
   proyeccionDetalles ProyeccionDetalle[]
   escalonesPrecio    EscalonPrecio[]
@@ -998,6 +999,7 @@ model PedidoDetalle {
   presentacion        Presentacion          @relation(fields: [presentacionId], references: [id])
   asignacionesLote    AsignacionLoteVenta[]
   notaCreditoDetalles NotaCreditoDetalle[]
+  facturaDetalles     FacturaDetalle[]
 
   @@map("pedido_detalles")
 }
@@ -1054,8 +1056,38 @@ model Factura {
   guias          GuiaRemision[]
   recargosMora   RecargoMora[]
   reclamos       ReclamoCliente[]
+  detalles       FacturaDetalle[]
 
   @@map("facturas")
+}
+
+// Snapshot inmutable de las líneas efectivamente facturadas. Separa el documento
+// tributario del pedido origen y habilita facturación parcial sin reescribir historia.
+model FacturaDetalle {
+  id                      String  @id @default(cuid())
+  facturaId               String
+  pedidoDetalleId         String
+  presentacionId          String
+  cantidad                Int
+  precioLista             Decimal @default(0)
+  origenPrecio            String  @default("LEGACY")
+  cantidadMinimaPrecio    Int?
+  descuentoPct            Decimal @default(0)
+  descuentoMonto          Decimal @default(0)
+  precioUnitario          Decimal
+  subtotal                Decimal
+  precioUnitarioFuncional Decimal @default(0)
+  subtotalFuncional       Decimal @default(0)
+  costoUnitario           Decimal @default(0)
+
+  factura       Factura       @relation(fields: [facturaId], references: [id])
+  pedidoDetalle PedidoDetalle @relation(fields: [pedidoDetalleId], references: [id])
+  presentacion  Presentacion  @relation(fields: [presentacionId], references: [id])
+
+  @@unique([facturaId, pedidoDetalleId])
+  @@index([pedidoDetalleId])
+  @@index([presentacionId])
+  @@map("factura_detalles")
 }
 
 // Recargo por mora sobre facturas vencidas: incrementa el saldo por cobrar

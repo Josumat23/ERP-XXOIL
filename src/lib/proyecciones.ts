@@ -38,13 +38,13 @@ export function trimestreAnterior(anio: number, trimestre: number): { anio: numb
 export async function ventasHistoricasPorTrimestre(): Promise<Map<string, Map<string, number>>> {
   const facturas = await prisma.factura.findMany({
     where: { estado: { not: "ANULADA" } },
-    include: { pedido: { include: { detalles: true } } },
+    include: { detalles: true },
   });
   const mapa = new Map<string, Map<string, number>>();
   for (const f of facturas) {
     const { anio, trimestre } = trimestreDe(f.fechaEmision);
     const clave = `${anio}-${trimestre}`;
-    for (const d of f.pedido.detalles) {
+    for (const d of f.detalles) {
       const porPresentacion = mapa.get(d.presentacionId) ?? new Map<string, number>();
       porPresentacion.set(clave, (porPresentacion.get(clave) ?? 0) + d.cantidad);
       mapa.set(d.presentacionId, porPresentacion);

@@ -16,7 +16,7 @@ export default async function NuevaGuiaPage() {
       where: { estado: { not: "ANULADA" } },
       include: {
         cliente: true,
-        pedido: { include: { detalles: true } },
+        detalles: true,
       },
       orderBy: { fechaEmision: "desc" },
       take: 50,
@@ -62,7 +62,7 @@ export default async function NuevaGuiaPage() {
             id: f.id,
             etiqueta: `${f.numero} — ${f.cliente.razonSocial}`,
             clienteId: f.clienteId,
-            lineas: f.pedido.detalles.map((d) => ({
+            lineas: f.detalles.map((d) => ({
               presentacionId: d.presentacionId,
               cantidad: d.cantidad,
             })),

@@ -678,6 +678,26 @@ async function main() {
         },
       });
 
+      const detallesFactura = await tx.pedidoDetalle.findMany({ where: { pedidoId: pedido.id } });
+      await tx.facturaDetalle.createMany({
+        data: detallesFactura.map((d) => ({
+          facturaId: factura.id,
+          pedidoDetalleId: d.id,
+          presentacionId: d.presentacionId,
+          cantidad: d.cantidad,
+          precioLista: d.precioLista,
+          origenPrecio: d.origenPrecio,
+          cantidadMinimaPrecio: d.cantidadMinimaPrecio,
+          descuentoPct: d.descuentoPct,
+          descuentoMonto: d.descuentoMonto,
+          precioUnitario: d.precioUnitario,
+          subtotal: d.subtotal,
+          precioUnitarioFuncional: d.precioUnitario,
+          subtotalFuncional: d.subtotal,
+          costoUnitario: d.costoUnitario,
+        })),
+      });
+
       const tasa = (await tx.vendedor.findUniqueOrThrow({ where: { id: venta.cliente.vendedorId } })).tasaComision.toNumber();
       await tx.comision.create({
         data: {

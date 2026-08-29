@@ -23,7 +23,7 @@ import {
 import { calcularTotalesPedido, resolverCondicionPrecioPedido } from "@/lib/preciosPedido";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { esValorEnum } from "@/lib/enums";
-import { calcularImportesFuncionales } from "@/lib/multimoneda";
+import { calcularImportesFuncionales, convertirAMonedaFuncional } from "@/lib/multimoneda";
 
 export type EstadoFormulario = { error?: string };
 
@@ -420,6 +420,33 @@ export async function facturarPedido(
           saldoFuncional: importesFuncionales.totalFuncional,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
+          detalles: {
+            create: pedido.detalles.map((d) => ({
+              pedidoDetalleId: d.id,
+              presentacionId: d.presentacionId,
+              cantidad: d.cantidad,
+              precioLista: d.precioLista,
+              origenPrecio: d.origenPrecio,
+              cantidadMinimaPrecio: d.cantidadMinimaPrecio,
+              descuentoPct: d.descuentoPct,
+              descuentoMonto: d.descuentoMonto,
+              precioUnitario: d.precioUnitario,
+              subtotal: d.subtotal,
+              precioUnitarioFuncional: convertirAMonedaFuncional(
+                d.precioUnitario.toNumber(),
+                pedido.moneda,
+                tipoCambio,
+                importesFuncionales.monedaFuncional
+              ),
+              subtotalFuncional: convertirAMonedaFuncional(
+                d.subtotal.toNumber(),
+                pedido.moneda,
+                tipoCambio,
+                importesFuncionales.monedaFuncional
+              ),
+              costoUnitario: d.presentacion.costoPromedio,
+            })),
+          },
         },
       });
       facturaId = factura.id;
