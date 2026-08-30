@@ -24,6 +24,7 @@ import { calcularTotalesPedido, resolverCondicionPrecioPedido } from "@/lib/prec
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { esValorEnum } from "@/lib/enums";
 import { calcularImportesFuncionales, convertirAMonedaFuncional } from "@/lib/multimoneda";
+import { calcularSaldoFacturable, calcularTotalesFacturaParcial } from "@/lib/facturacionParcial";
 
 export type EstadoFormulario = { error?: string };
 
@@ -287,31 +288,57 @@ export async function facturarPedido(
 
   let facturaId = "";
   let errorCredito: string | null = null;
+
   try {
     await prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.findUnique({
         where: { id },
         include: {
-          detalles: { include: { presentacion: true } },
+          detalles: {
+            include: {
+              presentacion: true,
+              facturaDetalles: { include: { factura: { select: { estado: true } } } },
+            },
+          },
           vendedor: true,
           cliente: true,
         },
       });
       if (!pedido) throw new Error("El pedido no existe.");
-      if (pedido.estado !== "PENDIENTE") {
-        throw new Error("Solo se puede facturar un pedido pendiente.");
+      if (pedido.estado !== "PENDIENTE" && pedido.estado !== "PARCIAL") {
+        throw new Error("Solo se puede facturar un pedido pendiente o parcialmente facturado.");
       }
       if (condicionPago !== pedido.condicionPago) {
         throw new Error("La condición de pago debe coincidir con la aprobada en el pedido.");
       }
 
-      // Las condiciones e impuestos se congelaron al aprobar el pedido. La
-      // factura copia esos importes para que cambios posteriores de catálogo
-      // o configuración fiscal no alteren el documento comercial acordado.
+      const lineas = pedido.detalles.map((detalle) => {
+        const facturado = detalle.facturaDetalles
+          .filter((fd) => fd.factura.estado !== "ANULADA")
+          .reduce((total, fd) => total + fd.cantidad, 0);
+        const saldo = calcularSaldoFacturable(detalle.cantidad, [facturado]);
+        const cantidad = Number(formData.get(`cantidad:${detalle.id}`) ?? 0);
+        if (!Number.isInteger(cantidad) || cantidad < 0) {
+          throw new Error(`La cantidad a facturar de ${detalle.presentacion.nombre} debe ser un entero mayor o igual a 0.`);
+        }
+        if (cantidad > saldo) {
+          throw new Error(`La cantidad de ${detalle.presentacion.nombre} supera el saldo pendiente (${saldo}).`);
+        }
+        return { detalle, facturado, saldo, cantidad };
+      });
+      const seleccionadas = lineas.filter((linea) => linea.cantidad > 0);
+      if (seleccionadas.length === 0) {
+        throw new Error("Ingrese al menos una cantidad a facturar.");
+      }
+
       const tasaIgv = pedido.tasaIgv.toNumber();
-      const subtotal = pedido.total.toNumber();
-      const igv = pedido.igv.toNumber();
-      const totalConIgv = pedido.totalConIgv.toNumber();
+      const { subtotal, igv, total: totalConIgv } = calcularTotalesFacturaParcial(
+        seleccionadas.map((linea) => ({
+          cantidad: linea.cantidad,
+          precioUnitario: linea.detalle.precioUnitario.toNumber(),
+        })),
+        tasaIgv
+      );
       const empresa = await tx.empresa.findUnique({ where: { id: pedido.empresaId } });
       const tipoCambio = pedido.tipoCambio.toNumber();
       const importesFuncionales = calcularImportesFuncionales({
@@ -323,12 +350,6 @@ export async function facturarPedido(
         total: totalConIgv,
       });
 
-      // Control de límite de crédito (0 = sin límite). Solo aplica a ventas
-      // al crédito: la deuda vigente más esta factura (IGV incluido) no puede
-      // exceder el límite.
-      // Serializa la evaluación del cupo entre pedidos distintos del mismo
-      // cliente. Sin este bloqueo, dos facturas concurrentes podían leer la
-      // misma deuda y aprobarse ambas contra un límite ya insuficiente.
       const limite =
         condicionPago === "CONTADO"
           ? 0
@@ -383,19 +404,23 @@ export async function facturarPedido(
           }
         }
       }
+
       const reclamo = await tx.pedido.updateMany({
-        where: { id, estado: "PENDIENTE" },
-        data: { estado: "FACTURADO" },
+        where: {
+          id: pedido.id,
+          estado: pedido.estado,
+          fulfillmentVersion: pedido.fulfillmentVersion,
+        },
+        data: { fulfillmentVersion: { increment: 1 } },
       });
       if (reclamo.count !== 1) {
-        throw new Error("El pedido cambió mientras se facturaba. Actualice la página e intente nuevamente.");
+        throw new Error("El saldo del pedido cambió mientras se facturaba. Actualice la página e intente nuevamente.");
       }
 
       const fechaEmision = new Date();
       const fechaVencimiento = new Date(
         fechaEmision.getTime() + DIAS_CONDICION[condicionPago] * 24 * 60 * 60 * 1000
       );
-
       const factura = await tx.factura.create({
         data: {
           numero,
@@ -420,73 +445,89 @@ export async function facturarPedido(
           saldoFuncional: importesFuncionales.totalFuncional,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
-          detalles: {
-            create: pedido.detalles.map((d) => ({
-              pedidoDetalleId: d.id,
-              presentacionId: d.presentacionId,
-              cantidad: d.cantidad,
-              precioLista: d.precioLista,
-              origenPrecio: d.origenPrecio,
-              cantidadMinimaPrecio: d.cantidadMinimaPrecio,
-              descuentoPct: d.descuentoPct,
-              descuentoMonto: d.descuentoMonto,
-              precioUnitario: d.precioUnitario,
-              subtotal: d.subtotal,
-              precioUnitarioFuncional: convertirAMonedaFuncional(
-                d.precioUnitario.toNumber(),
-                pedido.moneda,
-                tipoCambio,
-                importesFuncionales.monedaFuncional
-              ),
-              subtotalFuncional: convertirAMonedaFuncional(
-                d.subtotal.toNumber(),
-                pedido.moneda,
-                tipoCambio,
-                importesFuncionales.monedaFuncional
-              ),
-              costoUnitario: d.presentacion.costoPromedio,
-            })),
-          },
         },
       });
       facturaId = factura.id;
 
-      // Salida de stock por cada línea, congelando el costo de venta del momento
       let costoVentas = 0;
-      for (const d of pedido.detalles) {
-        costoVentas += d.cantidad * d.presentacion.costoPromedio.toNumber();
+      for (const linea of seleccionadas) {
+        const d = linea.detalle;
+        const subtotalLinea = calcularTotalesFacturaParcial(
+          [{ cantidad: linea.cantidad, precioUnitario: d.precioUnitario.toNumber() }],
+          0
+        ).subtotal;
+        const descuentoLinea = calcularTotalesFacturaParcial(
+          [
+            {
+              cantidad: linea.cantidad,
+              precioUnitario: d.precioLista.toNumber() - d.precioUnitario.toNumber(),
+            },
+          ],
+          0
+        ).subtotal;
+        const costoUnitario = d.presentacion.costoPromedio.toNumber();
+        costoVentas += linea.cantidad * costoUnitario;
+        const facturaDetalle = await tx.facturaDetalle.create({
+          data: {
+            facturaId: factura.id,
+            pedidoDetalleId: d.id,
+            presentacionId: d.presentacionId,
+            cantidad: linea.cantidad,
+            precioLista: d.precioLista,
+            origenPrecio: d.origenPrecio,
+            cantidadMinimaPrecio: d.cantidadMinimaPrecio,
+            descuentoPct: d.descuentoPct,
+            descuentoMonto: descuentoLinea,
+            precioUnitario: d.precioUnitario,
+            subtotal: subtotalLinea,
+            precioUnitarioFuncional: convertirAMonedaFuncional(
+              d.precioUnitario.toNumber(),
+              pedido.moneda,
+              tipoCambio,
+              importesFuncionales.monedaFuncional
+            ),
+            subtotalFuncional: convertirAMonedaFuncional(
+              subtotalLinea,
+              pedido.moneda,
+              tipoCambio,
+              importesFuncionales.monedaFuncional
+            ),
+            costoUnitario,
+          },
+        });
         await tx.pedidoDetalle.update({
           where: { id: d.id },
-          data: { costoUnitario: d.presentacion.costoPromedio },
+          data: { costoUnitario },
         });
         const mov = await registrarMovimiento(tx, {
           tipoItem: "PRESENTACION",
           presentacionId: d.presentacionId,
           tipoMovimiento: "SALIDA",
           origen: "VENTA",
-          cantidad: d.cantidad,
+          cantidad: linea.cantidad,
           referencia: `Factura ${numero} (pedido ${pedido.numero})`,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
         });
         if (!mov.ok) throw new Error(mov.error);
-
-        // Trazabilidad: qué lote(s) de envasado cubrieron esta venta (FIFO).
         await asignarLoteVenta(tx, {
+          facturaDetalleId: facturaDetalle.id,
           pedidoDetalleId: d.id,
           presentacionId: d.presentacionId,
-          cantidad: d.cantidad,
+          cantidad: linea.cantidad,
         });
-
-        // La reserva ya cumplió su propósito: el stock se descontó de verdad arriba.
         await tx.presentacion.update({
           where: { id: d.presentacionId },
-          data: { stockReservado: { decrement: d.cantidad } },
+          data: { stockReservado: { decrement: linea.cantidad } },
         });
       }
 
-      // Comisión generada con la tasa vigente del vendedor, sobre la base
-      // imponible (valor de venta sin IGV: el impuesto no es ingreso).
+      const completo = lineas.every((linea) => linea.facturado + linea.cantidad === linea.detalle.cantidad);
+      await tx.pedido.update({
+        where: { id: pedido.id },
+        data: { estado: completo ? "FACTURADO" : "PARCIAL" },
+      });
+
       const tasa = pedido.vendedor.tasaComision.toNumber();
       await tx.comision.create({
         data: {
@@ -497,11 +538,7 @@ export async function facturarPedido(
           monto: (importesFuncionales.subtotalFuncional * tasa) / 100,
         },
       });
-
       await avanzarSerie(tx, serieId);
-
-      // Asiento contable automático (best-effort: sin controles configurados
-      // la venta se registra igual, solo sin asiento)
       await postearVenta(
         tx,
         {
@@ -527,8 +564,7 @@ export async function facturarPedido(
     revalidatePath(`/comercial/pedidos/${id}`);
     return { error: errorCredito };
   }
-  // Envío al OSE fuera de la transacción (llamada de red): best-effort, si
-  // falla la factura ya quedó creada y se puede reintentar desde su ficha.
+  if (!facturaId) return { error: "No se pudo registrar la factura." };
   await enviarComprobanteFactura(facturaId);
 
   revalidatePath("/comercial/pedidos");
@@ -543,7 +579,7 @@ export async function aprobarCreditoPedido(id: string): Promise<EstadoFormulario
     return { error: "Su grupo de seguridad no permite aprobar excepciones de crédito." };
   }
   const pedido = await prisma.pedido.findUnique({ where: { id } });
-  if (!pedido || pedido.estado !== "PENDIENTE") return { error: "El pedido no está pendiente." };
+  if (!pedido || (pedido.estado !== "PENDIENTE" && pedido.estado !== "PARCIAL")) return { error: "El pedido no tiene saldo pendiente." };
   if (!puedeResolverSolicitud(pedido.usuarioId, auth.usuario.id)) {
     return { error: "La persona que creó el pedido no puede resolver su excepción de crédito." };
   }
@@ -553,7 +589,7 @@ export async function aprobarCreditoPedido(id: string): Promise<EstadoFormulario
   const resultado = await prisma.pedido.updateMany({
     where: {
       id,
-      estado: "PENDIENTE",
+      estado: { in: ["PENDIENTE", "PARCIAL"] },
       estadoAprobacionCredito: "PENDIENTE",
       usuarioId: { not: auth.usuario.id },
     },
@@ -583,7 +619,7 @@ export async function rechazarCreditoPedido(
   if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
   if (motivo.length > 500) return { error: "El motivo no puede superar 500 caracteres." };
   const pedido = await prisma.pedido.findUnique({ where: { id } });
-  if (!pedido || pedido.estado !== "PENDIENTE") return { error: "El pedido no está pendiente." };
+  if (!pedido || (pedido.estado !== "PENDIENTE" && pedido.estado !== "PARCIAL")) return { error: "El pedido no tiene saldo pendiente." };
   if (!puedeResolverSolicitud(pedido.usuarioId, auth.usuario.id)) {
     return { error: "La persona que creó el pedido no puede resolver su excepción de crédito." };
   }
@@ -593,7 +629,7 @@ export async function rechazarCreditoPedido(
   const resultado = await prisma.pedido.updateMany({
     where: {
       id,
-      estado: "PENDIENTE",
+      estado: { in: ["PENDIENTE", "PARCIAL"] },
       estadoAprobacionCredito: "PENDIENTE",
       usuarioId: { not: auth.usuario.id },
     },

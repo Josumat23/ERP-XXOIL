@@ -645,11 +645,6 @@ async function main() {
         });
         if (!mov.ok) throw new Error(mov.error);
 
-        await asignarLoteVenta(tx, {
-          pedidoDetalleId: d.id,
-          presentacionId: d.presentacionId,
-          cantidad: d.cantidad,
-        });
       }
 
       const montoInicial = venta.cobro === "NINGUNO" ? 0 : venta.cobro === "PARCIAL" ? totalConIgv * 0.5 : totalConIgv;
@@ -697,6 +692,15 @@ async function main() {
           costoUnitario: d.costoUnitario,
         })),
       });
+      const lineasFactura = await tx.facturaDetalle.findMany({ where: { facturaId: factura.id } });
+      for (const linea of lineasFactura) {
+        await asignarLoteVenta(tx, {
+          facturaDetalleId: linea.id,
+          pedidoDetalleId: linea.pedidoDetalleId,
+          presentacionId: linea.presentacionId,
+          cantidad: linea.cantidad,
+        });
+      }
 
       const tasa = (await tx.vendedor.findUniqueOrThrow({ where: { id: venta.cliente.vendedorId } })).tasaComision.toNumber();
       await tx.comision.create({

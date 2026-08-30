@@ -11,6 +11,7 @@ import BarraFiltro from "@/components/BarraFiltro";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  PARCIAL: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
   FACTURADO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
   ANULADO: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
 };
@@ -24,7 +25,7 @@ export default async function PedidosPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { q, estado } = await searchParams;
-  const ESTADOS_VALIDOS = ["PENDIENTE", "FACTURADO", "ANULADO"] as const;
+  const ESTADOS_VALIDOS = ["PENDIENTE", "PARCIAL", "FACTURADO", "ANULADO"] as const;
   const estadoFiltro = ESTADOS_VALIDOS.find((e) => e === estado);
 
   const pedidos = await prisma.pedido.findMany({
@@ -39,7 +40,7 @@ export default async function PedidosPage({
           }
         : {}),
     },
-    include: { cliente: true, vendedor: true, factura: true },
+    include: { cliente: true, vendedor: true, facturas: { orderBy: { fechaEmision: "desc" } } },
     orderBy: { fecha: "desc" },
   });
 
@@ -63,6 +64,7 @@ export default async function PedidosPage({
           <select name="estado" defaultValue={estado ?? ""} className="campo-input">
             <option value="">Todos</option>
             <option value="PENDIENTE">Pendiente</option>
+            <option value="PARCIAL">Facturación parcial</option>
             <option value="FACTURADO">Facturado</option>
             <option value="ANULADO">Anulado</option>
           </select>
@@ -105,10 +107,13 @@ export default async function PedidosPage({
                 </span>
               </td>
               <td className="font-mono text-xs">
-                {p.factura ? (
-                  <Link href={`/comercial/facturas/${p.factura.id}`} className="hover:underline">
-                    {p.factura.numero}
-                  </Link>
+                {p.facturas.length > 0 ? (
+                  <>
+                    <Link href={`/comercial/facturas/${p.facturas[0].id}`} className="hover:underline">
+                      {p.facturas[0].numero}
+                    </Link>
+                    {p.facturas.length > 1 && <span className="ml-1 text-neutral-400">+{p.facturas.length - 1}</span>}
+                  </>
                 ) : (
                   "—"
                 )}

@@ -13,9 +13,9 @@ import type { Tx } from "@/lib/inventario";
 /** Asigna FIFO (por fecha de envasado) la cantidad vendida de una línea de pedido a los envasados con saldo disponible. */
 export async function asignarLoteVenta(
   tx: Tx,
-  params: { pedidoDetalleId: string; presentacionId: string; cantidad: number }
+  params: { facturaDetalleId: string; pedidoDetalleId: string; presentacionId: string; cantidad: number }
 ): Promise<void> {
-  const { pedidoDetalleId, presentacionId, cantidad } = params;
+  const { facturaDetalleId, pedidoDetalleId, presentacionId, cantidad } = params;
   let restante = cantidad;
 
   const envasados = await tx.envasado.findMany({
@@ -35,7 +35,7 @@ export async function asignarLoteVenta(
     if (reclamo.count !== 1) continue;
 
     await tx.asignacionLoteVenta.create({
-      data: { pedidoDetalleId, envasadoId: e.id, tipo: "ASIGNADA", cantidad: tomar },
+      data: { facturaDetalleId, pedidoDetalleId, envasadoId: e.id, tipo: "ASIGNADA", cantidad: tomar },
     });
     restante -= tomar;
   }
@@ -90,12 +90,12 @@ export async function asignarLoteInsumo(
  */
 export async function liberarAsignacionesLote(
   tx: Tx,
-  params: { pedidoDetalleId: string; motivo: string; cantidad?: number }
+  params: { facturaDetalleId: string; pedidoDetalleId: string; motivo: string; cantidad?: number }
 ): Promise<void> {
-  const { pedidoDetalleId, motivo, cantidad } = params;
+  const { facturaDetalleId, pedidoDetalleId, motivo, cantidad } = params;
 
   const eventos = await tx.asignacionLoteVenta.findMany({
-    where: { pedidoDetalleId },
+    where: { facturaDetalleId },
     orderBy: { creadoEn: "asc" },
   });
 
@@ -113,7 +113,7 @@ export async function liberarAsignacionesLote(
     const liberar = Math.min(restante, disponible);
 
     await tx.asignacionLoteVenta.create({
-      data: { pedidoDetalleId, envasadoId, tipo: "LIBERADA", cantidad: liberar, motivo },
+      data: { facturaDetalleId, pedidoDetalleId, envasadoId, tipo: "LIBERADA", cantidad: liberar, motivo },
     });
     await tx.envasado.update({
       where: { id: envasadoId },

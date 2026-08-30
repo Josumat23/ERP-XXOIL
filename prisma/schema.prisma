@@ -733,17 +733,20 @@ enum TipoAsignacionLote {
 // vigente de un PedidoDetalle en un Envasado es la suma de ASIGNADA menos
 // LIBERADA.
 model AsignacionLoteVenta {
-  id              String             @id @default(cuid())
-  pedidoDetalleId String
-  envasadoId      String
-  tipo            TipoAsignacionLote @default(ASIGNADA)
-  cantidad        Int // siempre positiva; el signo real lo da "tipo"
-  motivo          String? // ej. "Anulación factura F001-123" (null en la asignación original)
-  creadoEn        DateTime           @default(now())
+  id               String             @id @default(cuid())
+  pedidoDetalleId  String
+  facturaDetalleId String?
+  envasadoId       String
+  tipo             TipoAsignacionLote @default(ASIGNADA)
+  cantidad         Int // siempre positiva; el signo real lo da "tipo"
+  motivo           String? // ej. "Anulación factura F001-123" (null en la asignación original)
+  creadoEn         DateTime           @default(now())
 
-  pedidoDetalle PedidoDetalle @relation(fields: [pedidoDetalleId], references: [id])
-  envasado      Envasado      @relation(fields: [envasadoId], references: [id])
+  pedidoDetalle  PedidoDetalle   @relation(fields: [pedidoDetalleId], references: [id])
+  facturaDetalle FacturaDetalle? @relation(fields: [facturaDetalleId], references: [id])
+  envasado       Envasado        @relation(fields: [envasadoId], references: [id])
 
+  @@index([facturaDetalleId])
   @@map("asignaciones_lote_venta")
 }
 
@@ -880,6 +883,7 @@ model Cliente {
 
 enum EstadoPedido {
   PENDIENTE
+  PARCIAL
   FACTURADO
   ANULADO
 }
@@ -946,6 +950,7 @@ model Pedido {
   fecha                   DateTime         @default(now())
   fechaEntregaSolicitada  DateTime?
   estado                  EstadoPedido     @default(PENDIENTE)
+  fulfillmentVersion      Int              @default(0)
   moneda                  String           @default("PEN")
   tipoCambio              Decimal          @default(1)
   condicionPago           CondicionPago    @default(CONTADO)
@@ -975,7 +980,7 @@ model Pedido {
   vendedor         Vendedor        @relation(fields: [vendedorId], references: [id])
   almacen          Almacen?        @relation(fields: [almacenId], references: [id])
   detalles         PedidoDetalle[]
-  factura          Factura?
+  facturas         Factura[]
   cotizacionOrigen Cotizacion?
 
   @@map("pedidos")
@@ -1021,7 +1026,7 @@ model Factura {
   id                String        @id @default(cuid())
   empresaId         String        @default("1")
   numero            String        @unique // número SUNAT, ej. F001-00000123
-  pedidoId          String        @unique
+  pedidoId          String
   clienteId         String
   vendedorId        String
   moneda            String        @default("PEN")
@@ -1058,6 +1063,7 @@ model Factura {
   reclamos       ReclamoCliente[]
   detalles       FacturaDetalle[]
 
+  @@index([pedidoId])
   @@map("facturas")
 }
 
@@ -1080,9 +1086,10 @@ model FacturaDetalle {
   subtotalFuncional       Decimal @default(0)
   costoUnitario           Decimal @default(0)
 
-  factura       Factura       @relation(fields: [facturaId], references: [id])
-  pedidoDetalle PedidoDetalle @relation(fields: [pedidoDetalleId], references: [id])
-  presentacion  Presentacion  @relation(fields: [presentacionId], references: [id])
+  factura          Factura               @relation(fields: [facturaId], references: [id])
+  pedidoDetalle    PedidoDetalle         @relation(fields: [pedidoDetalleId], references: [id])
+  presentacion     Presentacion          @relation(fields: [presentacionId], references: [id])
+  asignacionesLote AsignacionLoteVenta[]
 
   @@unique([facturaId, pedidoDetalleId])
   @@index([pedidoDetalleId])

@@ -566,8 +566,13 @@ export async function anularFactura(
         if (!mov.ok) throw new Error(mov.error);
 
         await liberarAsignacionesLote(tx, {
+          facturaDetalleId: d.id,
           pedidoDetalleId: d.pedidoDetalleId,
           motivo: `Anulación factura ${factura.numero}`,
+        });
+        await tx.presentacion.update({
+          where: { id: d.presentacionId },
+          data: { stockReservado: { increment: d.cantidad } },
         });
       }
 
@@ -587,11 +592,20 @@ export async function anularFactura(
       }
 
 
-      // El pedido queda anulado junto con su factura; si la venta se
-      // retoma, se registra un pedido nuevo (la historia no se reutiliza).
+      // Anular un documento parcial reabre únicamente su saldo comercial.
+      // El pedido conserva las demás facturas vigentes y vuelve a quedar
+      // parcial o pendiente para permitir una nueva entrega/factura.
+      const otrasLineasVigentes = await tx.facturaDetalle.count({
+        where: {
+          factura: { pedidoId: factura.pedidoId, estado: { not: "ANULADA" } },
+        },
+      });
       await tx.pedido.update({
         where: { id: factura.pedidoId },
-        data: { estado: "ANULADO" },
+        data: {
+          estado: otrasLineasVigentes > 0 ? "PARCIAL" : "PENDIENTE",
+          fulfillmentVersion: { increment: 1 },
+        },
       });
 
       const costoVentasAnulado = factura.detalles.reduce(
@@ -678,7 +692,7 @@ export async function registrarDevolucion(
       }
 
       const liberacionesPrevias = await tx.asignacionLoteVenta.findMany({
-        where: { pedidoDetalleId, tipo: "LIBERADA", motivo: { startsWith: MOTIVO_DEVOLUCION_PREFIJO } },
+        where: { facturaDetalleId: detalle.id, tipo: "LIBERADA", motivo: { startsWith: MOTIVO_DEVOLUCION_PREFIJO } },
       });
       const yaDevuelto = liberacionesPrevias.reduce((acc, l) => acc + l.cantidad, 0);
       const maxDevolvible = detalle.cantidad - yaDevuelto;
@@ -702,6 +716,7 @@ export async function registrarDevolucion(
       if (!mov.ok) throw new Error(mov.error);
 
       await liberarAsignacionesLote(tx, {
+        facturaDetalleId: detalle.id,
         pedidoDetalleId,
         cantidad,
         motivo: `${MOTIVO_DEVOLUCION_PREFIJO} factura ${factura.numero}: ${motivo}`,

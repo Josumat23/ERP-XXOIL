@@ -13,6 +13,7 @@ import { puedeRealizar } from "@/lib/permisos";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  PARCIAL: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
   FACTURADO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
   ANULADO: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
 };
@@ -34,16 +35,37 @@ export default async function DetallePedidoPage({
         cliente: true,
         vendedor: true,
         almacen: true,
-        factura: true,
-        detalles: { include: { presentacion: { include: { producto: true } } } },
+        facturas: { orderBy: { fechaEmision: "desc" } },
+        detalles: {
+          include: {
+            presentacion: { include: { producto: true } },
+            facturaDetalles: { include: { factura: { select: { estado: true } } } },
+          },
+        },
       },
     }),
     prisma.pedido.findMany({ include: { cliente: true }, orderBy: { fecha: "desc" } }),
   ]);
   if (!pedido) notFound();
 
-  const series =
-    pedido.estado === "PENDIENTE" ? await seriesActivas("FACTURA") : [];
+  const lineasFacturacion = pedido.detalles.map((detalle) => {
+    const facturado = detalle.facturaDetalles
+      .filter((fd) => fd.factura.estado !== "ANULADA")
+      .reduce((total, fd) => total + fd.cantidad, 0);
+    return {
+      id: detalle.id,
+      etiqueta: `${detalle.presentacion.producto.nombre} — ${detalle.presentacion.nombre}`,
+      sku: detalle.presentacion.sku,
+      cantidadPedida: detalle.cantidad,
+      cantidadFacturada: facturado,
+      saldo: detalle.cantidad - facturado,
+      precioUnitario: detalle.precioUnitario.toNumber(),
+    };
+  });
+  const puedeFacturar =
+    (pedido.estado === "PENDIENTE" || pedido.estado === "PARCIAL") &&
+    lineasFacturacion.some((linea) => linea.saldo > 0);
+  const series = puedeFacturar ? await seriesActivas("FACTURA") : [];
   const puedeAprobarCredito =
     pedido.estadoAprobacionCredito === "PENDIENTE" &&
     usuario !== null &&
@@ -125,7 +147,9 @@ export default async function DetallePedidoPage({
         <thead>
           <tr>
             <th>Presentación</th>
-            <th className="text-right">Cantidad</th>
+            <th className="text-right">Pedido</th>
+            <th className="text-right">Facturado</th>
+            <th className="text-right">Saldo</th>
             <th className="text-right">Precio lista</th>
             <th className="text-right">Descuento</th>
             <th className="text-right">Precio neto</th>
@@ -142,6 +166,8 @@ export default async function DetallePedidoPage({
                 </span>
               </td>
               <td className="text-right">{d.cantidad}</td>
+              <td className="text-right">{lineasFacturacion.find((linea) => linea.id === d.id)?.cantidadFacturada ?? 0}</td>
+              <td className="text-right font-medium">{lineasFacturacion.find((linea) => linea.id === d.id)?.saldo ?? d.cantidad}</td>
               <td className="text-right">
                 {formatMoneda(d.precioLista, pedido.moneda)}
                 <span className="block text-xs text-neutral-400">
@@ -157,23 +183,23 @@ export default async function DetallePedidoPage({
             </tr>
           ))}
           <tr>
-            <td colSpan={5} className="text-right">Subtotal bruto</td>
+            <td colSpan={7} className="text-right">Subtotal bruto</td>
             <td className="text-right">{formatMoneda(pedido.subtotalBruto, pedido.moneda)}</td>
           </tr>
           <tr>
-            <td colSpan={5} className="text-right">Descuentos</td>
+            <td colSpan={7} className="text-right">Descuentos</td>
             <td className="text-right">-{formatMoneda(pedido.descuentoTotal, pedido.moneda)}</td>
           </tr>
           <tr>
-            <td colSpan={5} className="text-right font-medium">Base imponible</td>
+            <td colSpan={7} className="text-right font-medium">Base imponible</td>
             <td className="text-right font-medium">{formatMoneda(pedido.total, pedido.moneda)}</td>
           </tr>
           <tr>
-            <td colSpan={5} className="text-right">IGV ({pedido.tasaIgv.toNumber()}%)</td>
+            <td colSpan={7} className="text-right">IGV ({pedido.tasaIgv.toNumber()}%)</td>
             <td className="text-right">{formatMoneda(pedido.igv, pedido.moneda)}</td>
           </tr>
           <tr>
-            <td colSpan={5} className="text-right font-semibold">Total del documento</td>
+            <td colSpan={7} className="text-right font-semibold">Total del documento</td>
             <td className="text-right font-semibold">{formatMoneda(pedido.totalConIgv, pedido.moneda)}</td>
           </tr>
         </tbody>
@@ -216,7 +242,7 @@ export default async function DetallePedidoPage({
           </p>
         </section>
       )}
-      {pedido.estado === "PENDIENTE" && (
+      {puedeFacturar && (
         <>
           <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4">
             <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
@@ -225,6 +251,9 @@ export default async function DetallePedidoPage({
             <FacturarFormulario
               pedidoId={pedido.id}
               condicionDefecto={pedido.condicionPago}
+              moneda={pedido.moneda}
+              tasaIgv={pedido.tasaIgv.toNumber()}
+              lineas={lineasFacturacion}
               series={series.map((s) => ({
                 id: s.id,
                 serie: s.serie,
@@ -233,7 +262,8 @@ export default async function DetallePedidoPage({
             />
           </section>
 
-          <form
+          {pedido.estado === "PENDIENTE" && pedido.facturas.length === 0 && (
+            <form
             className="mt-4"
             action={async () => {
               "use server";
@@ -243,20 +273,24 @@ export default async function DetallePedidoPage({
             <button type="submit" className="text-sm text-red-600 dark:text-red-400 hover:underline">
               Anular pedido
             </button>
-          </form>
+            </form>
+          )}
         </>
       )}
 
-      {pedido.factura && (
-        <p className="mt-6 text-sm">
-          Factura asociada:{" "}
+      {pedido.facturas.length > 0 && (
+        <div className="mt-6 text-sm">
+          <span className="font-medium">Facturas asociadas:</span>{" "}
           <Link
-            href={`/comercial/facturas/${pedido.factura.id}`}
+            href={`/comercial/facturas/${pedido.facturas[0].id}`}
             className="font-mono hover:underline"
           >
-            {pedido.factura.numero}
+            {pedido.facturas[0].numero}
           </Link>
-        </p>
+          {pedido.facturas.slice(1).map((factura) => (
+            <span key={factura.id}> · <Link href={`/comercial/facturas/${factura.id}`} className="font-mono hover:underline">{factura.numero}</Link></span>
+          ))}
+        </div>
       )}
       </div>
       </PanelMaestroDetalle>

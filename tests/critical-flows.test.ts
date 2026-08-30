@@ -37,6 +37,7 @@ import {
 import { esValorEnum } from "@/lib/enums";
 import { normalizarLineasSolicitudPedido, normalizarLineasVenta } from "@/lib/lineasVenta";
 import { calcularTotalesPedido, resolverCondicionPrecioPedido } from "@/lib/preciosPedido";
+import { calcularSaldoFacturable, calcularTotalesFacturaParcial } from "@/lib/facturacionParcial";
 import { calcularAplicacionCobro, calcularImportesFuncionales } from "@/lib/multimoneda";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
@@ -319,6 +320,19 @@ test("motor de precios congela escalón, descuento e IGV con redondeo monetario"
   );
 });
 
+test("facturación parcial calcula únicamente el saldo y total seleccionado", () => {
+  assert.equal(calcularSaldoFacturable(10, [3, 2]), 5);
+  assert.deepEqual(
+    calcularTotalesFacturaParcial(
+      [
+        { cantidad: 2, precioUnitario: 76 },
+        { cantidad: 1, precioUnitario: 20.55 },
+      ],
+      18
+    ),
+    { subtotal: 172.55, igv: 31.06, total: 203.61 }
+  );
+});
 test("asientos manuales aceptan solo cuentas activas de la compañía contable", async () => {
   const sufijo = Date.now().toString();
   const planPrincipal = await prisma.planCuentas.create({
@@ -918,18 +932,63 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   assert.equal(pedido.direccionEntrega, "Av. Industrial 123, Lima");
   assert.equal(pedido.ordenCompraCliente, "OC-45000125");
   assert.equal(pedido.referenciaCliente, "Parada de planta");
+  const facturaRecall = await prisma.factura.create({
+    data: {
+      numero: "F-RECALL-" + sufijo,
+      pedidoId: pedido.id,
+      clienteId: cliente.id,
+      vendedorId: vendedor.id,
+      moneda: "USD",
+      tipoCambio: 3.75,
+      condicionPago: "DIAS_30",
+      fechaVencimiento: new Date("2099-12-31T00:00:00.000Z"),
+      subtotal: 140,
+      total: 140,
+      saldo: 140,
+      ...audit,
+    },
+  });
+  const segundaFacturaMismoPedido = await prisma.factura.create({
+    data: {
+      numero: "F-RECALL-2-" + sufijo,
+      pedidoId: pedido.id,
+      clienteId: cliente.id,
+      vendedorId: vendedor.id,
+      moneda: "USD",
+      tipoCambio: 3.75,
+      condicionPago: "DIAS_30",
+      fechaVencimiento: new Date("2099-12-31T00:00:00.000Z"),
+      subtotal: 60,
+      total: 60,
+      saldo: 60,
+      ...audit,
+    },
+  });
+  assert.equal(await prisma.factura.count({ where: { pedidoId: pedido.id } }), 2);
+  await prisma.factura.delete({ where: { id: segundaFacturaMismoPedido.id } });
+
+  const facturaDetalleRecall = await prisma.facturaDetalle.create({
+    data: {
+      facturaId: facturaRecall.id,
+      pedidoDetalleId: detalleId,
+      presentacionId: presentacion.id,
+      cantidad: 7,
+      precioUnitario: 20,
+      subtotal: 140,
+    },
+  });
 
   await prisma.$transaction((tx) =>
-    asignarLoteVenta(tx, { pedidoDetalleId: detalleId, presentacionId: presentacion.id, cantidad: 7 })
+    asignarLoteVenta(tx, { facturaDetalleId: facturaDetalleRecall.id, pedidoDetalleId: detalleId, presentacionId: presentacion.id, cantidad: 7 })
   );
   await prisma.$transaction((tx) =>
-    liberarAsignacionesLote(tx, { pedidoDetalleId: detalleId, cantidad: 3, motivo: "Devolución parcial de prueba" })
+    liberarAsignacionesLote(tx, { facturaDetalleId: facturaDetalleRecall.id, pedidoDetalleId: detalleId, cantidad: 3, motivo: "Devolución parcial de prueba" })
   );
   await prisma.$transaction((tx) =>
-    liberarAsignacionesLote(tx, { pedidoDetalleId: detalleId, motivo: "Anulación del saldo de prueba" })
+    liberarAsignacionesLote(tx, { facturaDetalleId: facturaDetalleRecall.id, pedidoDetalleId: detalleId, motivo: "Anulación del saldo de prueba" })
   );
   await prisma.$transaction((tx) =>
-    liberarAsignacionesLote(tx, { pedidoDetalleId: detalleId, motivo: "Segundo intento idempotente" })
+    liberarAsignacionesLote(tx, { facturaDetalleId: facturaDetalleRecall.id, pedidoDetalleId: detalleId, motivo: "Segundo intento idempotente" })
   );
 
   const [envasadoRestituido, eventosRecall] = await Promise.all([

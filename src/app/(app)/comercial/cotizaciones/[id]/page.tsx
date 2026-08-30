@@ -43,7 +43,7 @@ export default async function DetalleCotizacionPage({
         cliente: true,
         vendedor: true,
         detalles: { include: { presentacion: { include: { producto: true } } } },
-        pedido: { include: { factura: true } },
+        pedido: { include: { facturas: { orderBy: { fechaEmision: "desc" } } } },
       },
     }),
     prisma.cotizacion.findMany({ include: { cliente: true }, orderBy: { fecha: "desc" } }),
@@ -99,15 +99,15 @@ export default async function DetalleCotizacionPage({
             <Link href={`/comercial/pedidos/${cotizacion.pedido.id}`} className="hover:underline font-mono">
               {cotizacion.pedido.numero}
             </Link>
-            {cotizacion.pedido.factura && (
+            {cotizacion.pedido.facturas[0] && (
               <>
                 {" "}
                 — facturado como{" "}
                 <Link
-                  href={`/comercial/facturas/${cotizacion.pedido.factura.id}`}
+                  href={`/comercial/facturas/${cotizacion.pedido.facturas[0].id}`}
                   className="hover:underline font-mono"
                 >
-                  {cotizacion.pedido.factura.numero}
+                  {cotizacion.pedido.facturas[0].numero}
                 </Link>
               </>
             )}
