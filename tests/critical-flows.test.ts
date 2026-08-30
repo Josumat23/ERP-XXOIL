@@ -38,6 +38,7 @@ import { esValorEnum } from "@/lib/enums";
 import { normalizarLineasSolicitudPedido, normalizarLineasVenta } from "@/lib/lineasVenta";
 import { calcularTotalesPedido, resolverCondicionPrecioPedido } from "@/lib/preciosPedido";
 import { calcularSaldoFacturable, calcularTotalesFacturaParcial } from "@/lib/facturacionParcial";
+import { asignarEntregasFifo, calcularSaldoDocumento } from "@/lib/cumplimientoVentas";
 import { calcularAplicacionCobro, calcularImportesFuncionales } from "@/lib/multimoneda";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
@@ -331,6 +332,33 @@ test("facturación parcial calcula únicamente el saldo y total seleccionado", (
       18
     ),
     { subtotal: 172.55, igv: 31.06, total: 203.61 }
+  );
+});
+test("cumplimiento de ventas asigna entregas FIFO y conserva su costo real", () => {
+  assert.equal(calcularSaldoDocumento(8, [3, 2]), 3);
+  assert.deepEqual(
+    asignarEntregasFifo(
+      [
+        { guiaDetalleId: "entrega-b", cantidadEntregada: 4, cantidadFacturada: 0, costoUnitario: 12, fechaSalida: new Date("2026-01-02") },
+        { guiaDetalleId: "entrega-a", cantidadEntregada: 5, cantidadFacturada: 3, costoUnitario: 10, fechaSalida: new Date("2026-01-01") },
+      ],
+      5
+    ),
+    {
+      asignaciones: [
+        { guiaDetalleId: "entrega-a", cantidad: 2 },
+        { guiaDetalleId: "entrega-b", cantidad: 3 },
+      ],
+      costoUnitario: 11.2,
+    }
+  );
+  assert.throws(
+    () =>
+      asignarEntregasFifo(
+        [{ guiaDetalleId: "entrega-a", cantidadEntregada: 5, cantidadFacturada: 4, costoUnitario: 10, fechaSalida: new Date("2026-01-01") }],
+        2
+      ),
+    /saldo entregado cambió/
   );
 });
 test("asientos manuales aceptan solo cuentas activas de la compañía contable", async () => {
@@ -1003,6 +1031,60 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
       { tipo: "LIBERADA", cantidad: 3 },
       { tipo: "LIBERADA", cantidad: 4 },
     ]
+  );
+
+  const guia = await prisma.guiaRemision.create({
+    data: {
+      numero: "T-RECALL-" + sufijo,
+      pedidoId: pedido.id,
+      clienteId: cliente.id,
+      fechaTraslado: new Date("2099-12-30T00:00:00.000Z"),
+      puntoPartida: "Planta",
+      puntoLlegada: pedido.direccionEntrega!,
+      estadoDespacho: "EN_RUTA",
+      fechaSalida: new Date("2099-12-30T08:00:00.000Z"),
+      ...audit,
+      detalles: {
+        create: { pedidoDetalleId: detalleId, presentacionId: presentacion.id, cantidad: 2, costoUnitario: 8 },
+      },
+    },
+    include: { detalles: true },
+  });
+  const guiaDetalleId = guia.detalles[0]?.id;
+  assert.ok(guiaDetalleId);
+  await prisma.$transaction((tx) =>
+    asignarLoteVenta(tx, { guiaDetalleId, pedidoDetalleId: detalleId, presentacionId: presentacion.id, cantidad: 2 })
+  );
+  await prisma.facturaDetalleEntrega.create({
+    data: { facturaDetalleId: facturaDetalleRecall.id, guiaDetalleId, cantidad: 2 },
+  });
+  const liberadoDesdeEntrega = await prisma.$transaction((tx) =>
+    liberarAsignacionesLote(tx, {
+      facturaDetalleId: facturaDetalleRecall.id,
+      guiaDetalleId,
+      pedidoDetalleId: detalleId,
+      cantidad: 2,
+      motivo: "Devolución con origen logístico",
+    })
+  );
+  const guiaAuditada = await prisma.guiaRemision.findUniqueOrThrow({
+    where: { id: guia.id },
+    include: {
+      detalles: {
+        include: { facturaAsignaciones: true, asignacionesLote: { orderBy: { creadoEn: "asc" } } },
+      },
+    },
+  });
+  assert.equal(liberadoDesdeEntrega, 2);
+  assert.equal(guiaAuditada.pedidoId, pedido.id);
+  assert.equal(guiaAuditada.detalles[0]?.facturaAsignaciones[0]?.cantidad, 2);
+  assert.deepEqual(
+    guiaAuditada.detalles[0]?.asignacionesLote.map((evento) => [evento.tipo, evento.cantidad]),
+    [["ASIGNADA", 2], ["LIBERADA", 2]]
+  );
+  assert.equal(
+    (await prisma.envasado.findUniqueOrThrow({ where: { id: lote.envasados[0]!.id } })).unidadesDisponibles,
+    10
   );
 });
 test("planilla usa parámetros versionados, excluye configuraciones incompletas y contabiliza", async () => {

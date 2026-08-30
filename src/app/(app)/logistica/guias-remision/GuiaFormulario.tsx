@@ -9,21 +9,47 @@ type FacturaOpcion = {
   id: string;
   etiqueta: string;
   clienteId: string;
+  pedidoId: string;
   lineas: { presentacionId: string; cantidad: number }[];
+};
+type PedidoOpcion = {
+  id: string;
+  etiqueta: string;
+  clienteId: string;
+  lineas: {
+    pedidoDetalleId: string;
+    presentacionId: string;
+    etiqueta: string;
+    sku: string;
+    cantidadPedida: number;
+    cantidadPlanificada: number;
+    saldo: number;
+  }[];
 };
 type Opcion = { id: string; etiqueta: string };
 type UbigeoOpcion = { id: string; codigo: string; departamento: string; etiqueta: string };
 type Serie = { id: string; serie: string; correlativoActual: number };
 
-type Linea = { presentacionId: string; cantidad: string };
+type Linea = {
+  pedidoDetalleId?: string;
+  presentacionId: string;
+  cantidad: string;
+  etiqueta?: string;
+  sku?: string;
+  cantidadPedida?: number;
+  cantidadPlanificada?: number;
+  saldo?: number;
+}
 
 type Props = {
+  pedidos: PedidoOpcion[];
   facturas: FacturaOpcion[];
   clientes: Opcion[];
   presentaciones: Opcion[];
   equipos: Opcion[];
   ubigeos: UbigeoOpcion[];
   puntoPartidaDefecto: string;
+  pedidoInicialId?: string;
   series?: Serie[];
 };
 
@@ -50,45 +76,61 @@ function SelectorUbigeo({ name, ubigeos }: { name: string; ubigeos: UbigeoOpcion
 }
 
 export default function GuiaFormulario({
+  pedidos,
   facturas,
   clientes,
   presentaciones,
   equipos,
   ubigeos,
   puntoPartidaDefecto,
+  pedidoInicialId,
   series = [],
 }: Props) {
+  const pedidoInicial = pedidos.find((pedido) => pedido.id === pedidoInicialId);
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     crearGuiaRemision,
     {}
   );
+  const [pedidoId, setPedidoId] = useState(pedidoInicial?.id ?? "");
   const [facturaId, setFacturaId] = useState("");
-  const [clienteId, setClienteId] = useState("");
-  const [lineas, setLineas] = useState<Linea[]>([{ presentacionId: "", cantidad: "" }]);
+  const [clienteId, setClienteId] = useState(pedidoInicial?.clienteId ?? "");
+  const [lineas, setLineas] = useState<Linea[]>(() =>
+    pedidoInicial
+      ? pedidoInicial.lineas.map((linea) => ({ ...linea, cantidad: String(linea.saldo) }))
+      : [{ presentacionId: "", cantidad: "" }]
+  );
   const [modalidadTransporte, setModalidadTransporte] = useState<"PUBLICO" | "PRIVADO">("PRIVADO");
+  const [motivoTraslado, setMotivoTraslado] = useState("Venta");
 
   const lineasJson = JSON.stringify(
-    lineas.map((l) => ({ presentacionId: l.presentacionId, cantidad: Number(l.cantidad) }))
+    lineas.map((l) => ({ pedidoDetalleId: l.pedidoDetalleId, presentacionId: l.presentacionId, cantidad: Number(l.cantidad) }))
   );
 
+  function elegirPedido(id: string) {
+    setPedidoId(id);
+    setFacturaId("");
+    const pedido = pedidos.find((opcion) => opcion.id === id);
+    if (!pedido) {
+      setLineas([{ presentacionId: "", cantidad: "" }]);
+      return;
+    }
+    setClienteId(pedido.clienteId);
+    setLineas(
+      pedido.lineas.map((linea) => ({
+        ...linea,
+        cantidad: String(linea.saldo),
+      }))
+    );
+  }
   function elegirFactura(id: string) {
     setFacturaId(id);
-    const factura = facturas.find((f) => f.id === id);
-    if (factura) {
-      setClienteId(factura.clienteId);
-      setLineas(
-        factura.lineas.map((l) => ({
-          presentacionId: l.presentacionId,
-          cantidad: String(l.cantidad),
-        }))
-      );
-    }
   }
 
   function actualizarLinea(idx: number, cambios: Partial<Linea>) {
-    setLineas((prev) => prev.map((l, i) => (i === idx ? { ...l, ...cambios } : l)));
+    setLineas((previas) =>
+      previas.map((linea, indice) => (indice === idx ? { ...linea, ...cambios } : linea))
+    );
   }
-
   return (
     <form action={formAction} className="flex flex-col gap-4">
       {estado.error && (
@@ -100,25 +142,37 @@ export default function GuiaFormulario({
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
-            Factura asociada (opcional, autocompleta el detalle)
+            Pedido de venta / entrega
           </span>
           <select
-            name="facturaId"
-            value={facturaId}
-            onChange={(e) => elegirFactura(e.target.value)}
+            name="pedidoId"
+            value={pedidoId}
+            onChange={(e) => elegirPedido(e.target.value)}
+            required={motivoTraslado === "Venta"}
             className="campo-input"
           >
-            <option value="">Sin factura asociada</option>
-            {facturas.map((f) => (
-              <option key={f.id} value={f.id}>
-                {f.etiqueta}
-              </option>
+            <option value="">Sin pedido (solo traslados no comerciales)</option>
+            {pedidos.map((pedido) => (
+              <option key={pedido.id} value={pedido.id}>{pedido.etiqueta}</option>
             ))}
           </select>
         </label>
         <SelectorSerieNumero series={series} etiquetaNumero="N° guía (SUNAT)" />
       </div>
 
+      {pedidoId && (
+        <label className="flex flex-col gap-1 text-sm max-w-md">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Factura de referencia (opcional)
+          </span>
+          <select name="facturaId" value={facturaId} onChange={(e) => elegirFactura(e.target.value)} className="campo-input">
+            <option value="">Entrega pendiente de facturación</option>
+            {facturas.filter((factura) => factura.pedidoId === pedidoId).map((factura) => (
+              <option key={factura.id} value={factura.id}>{factura.etiqueta}</option>
+            ))}
+          </select>
+        </label>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Cliente</span>
@@ -252,7 +306,7 @@ export default function GuiaFormulario({
 
       <label className="flex flex-col gap-1 text-sm max-w-md">
         <span className="font-medium text-neutral-700 dark:text-neutral-300">Motivo de traslado</span>
-        <select name="motivoTraslado" defaultValue="Venta" className="campo-input">
+        <select name="motivoTraslado" value={motivoTraslado} onChange={(e) => setMotivoTraslado(e.target.value)} className="campo-input">
           <option value="Venta">Venta</option>
           <option value="Traslado entre establecimientos">Traslado entre establecimientos</option>
           <option value="Devolución">Devolución</option>
@@ -264,55 +318,85 @@ export default function GuiaFormulario({
         <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
           Mercadería trasladada
         </p>
-        <div className="flex flex-col gap-2">
-          {lineas.map((linea, idx) => (
-            <div key={idx} className="flex gap-2 items-center">
-              <select
-                aria-label={`Presentación de la línea ${idx + 1}`}
-                value={linea.presentacionId}
-                onChange={(e) => actualizarLinea(idx, { presentacionId: e.target.value })}
-                className="campo-input flex-1"
-              >
-                <option value="" disabled>
-                  Seleccione presentación
-                </option>
-                {presentaciones.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.etiqueta}
-                  </option>
-                ))}
-              </select>
-              <input
-                aria-label={`Cantidad de la línea ${idx + 1}`}
-                type="number"
-                step="1"
-                min="1"
-                placeholder="Cant."
-                value={linea.cantidad}
-                onChange={(e) => actualizarLinea(idx, { cantidad: e.target.value })}
-                className="campo-input w-24"
-              />
-              <button
-                type="button"
-                onClick={() => setLineas((prev) => prev.filter((_, i) => i !== idx))}
-                disabled={lineas.length === 1}
-                className="text-neutral-400 hover:text-red-500 disabled:opacity-30 px-2"
-                aria-label="Quitar línea"
-              >
-                ✕
-              </button>
-            </div>
-          ))}
+        <div className="overflow-x-auto rounded-md border border-black/10 dark:border-white/10">
+          <table className="tabla min-w-full">
+            <thead>
+              <tr>
+                <th>Producto / presentación</th>
+                {pedidoId && <th className="text-right">Pedido</th>}
+                {pedidoId && <th className="text-right">Ya planificado</th>}
+                {pedidoId && <th className="text-right">Saldo</th>}
+                <th className="text-right">Entregar ahora</th>
+                {!pedidoId && <th aria-label="Acciones" />}
+              </tr>
+            </thead>
+            <tbody>
+              {lineas.map((linea, idx) => (
+                <tr key={linea.pedidoDetalleId ?? idx}>
+                  <td>
+                    {linea.pedidoDetalleId ? (
+                      <>
+                        {linea.etiqueta}
+                        <span className="block font-mono text-xs text-neutral-400">{linea.sku}</span>
+                      </>
+                    ) : (
+                      <select
+                        aria-label={`Presentación de la línea ${idx + 1}`}
+                        value={linea.presentacionId}
+                        onChange={(e) => actualizarLinea(idx, { presentacionId: e.target.value })}
+                        className="campo-input w-full"
+                      >
+                        <option value="" disabled>Seleccione presentación</option>
+                        {presentaciones.map((presentacion) => (
+                          <option key={presentacion.id} value={presentacion.id}>{presentacion.etiqueta}</option>
+                        ))}
+                      </select>
+                    )}
+                  </td>
+                  {pedidoId && <td className="text-right">{linea.cantidadPedida}</td>}
+                  {pedidoId && <td className="text-right">{linea.cantidadPlanificada}</td>}
+                  {pedidoId && <td className="text-right font-medium">{linea.saldo}</td>}
+                  <td className="text-right">
+                    <input
+                      aria-label={`Cantidad de la línea ${idx + 1}`}
+                      type="number"
+                      step="1"
+                      min="1"
+                      max={linea.saldo}
+                      required
+                      value={linea.cantidad}
+                      onChange={(e) => actualizarLinea(idx, { cantidad: e.target.value })}
+                      className="campo-input w-24 text-right"
+                    />
+                  </td>
+                  {!pedidoId && (
+                    <td className="text-right">
+                      <button
+                        type="button"
+                        onClick={() => setLineas((prev) => prev.filter((_, i) => i !== idx))}
+                        disabled={lineas.length === 1}
+                        className="text-neutral-400 hover:text-red-500 disabled:opacity-30 px-2"
+                        aria-label="Quitar línea"
+                      >
+                        ✕
+                      </button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
-        <button
-          type="button"
-          onClick={() => setLineas((prev) => [...prev, { presentacionId: "", cantidad: "" }])}
-          className="boton-secundario mt-2 text-xs"
-        >
-          + Agregar línea
-        </button>
+        {!pedidoId && (
+          <button
+            type="button"
+            onClick={() => setLineas((prev) => [...prev, { presentacionId: "", cantidad: "" }])}
+            className="boton-secundario mt-2 text-xs"
+          >
+            + Agregar línea
+          </button>
+        )}
       </div>
-
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium text-neutral-700 dark:text-neutral-300">Observaciones</span>
         <textarea name="observaciones" rows={2} className="campo-input" />

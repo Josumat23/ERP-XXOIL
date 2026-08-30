@@ -736,17 +736,20 @@ model AsignacionLoteVenta {
   id               String             @id @default(cuid())
   pedidoDetalleId  String
   facturaDetalleId String?
+  guiaDetalleId    String?
   envasadoId       String
   tipo             TipoAsignacionLote @default(ASIGNADA)
   cantidad         Int // siempre positiva; el signo real lo da "tipo"
   motivo           String? // ej. "Anulación factura F001-123" (null en la asignación original)
   creadoEn         DateTime           @default(now())
 
-  pedidoDetalle  PedidoDetalle   @relation(fields: [pedidoDetalleId], references: [id])
-  facturaDetalle FacturaDetalle? @relation(fields: [facturaDetalleId], references: [id])
-  envasado       Envasado        @relation(fields: [envasadoId], references: [id])
+  pedidoDetalle  PedidoDetalle        @relation(fields: [pedidoDetalleId], references: [id])
+  facturaDetalle FacturaDetalle?      @relation(fields: [facturaDetalleId], references: [id])
+  guiaDetalle    GuiaRemisionDetalle? @relation(fields: [guiaDetalleId], references: [id])
+  envasado       Envasado             @relation(fields: [envasadoId], references: [id])
 
   @@index([facturaDetalleId])
+  @@index([guiaDetalleId])
   @@map("asignaciones_lote_venta")
 }
 
@@ -951,6 +954,7 @@ model Pedido {
   fechaEntregaSolicitada  DateTime?
   estado                  EstadoPedido     @default(PENDIENTE)
   fulfillmentVersion      Int              @default(0)
+  requiereEntrega         Boolean          @default(false)
   moneda                  String           @default("PEN")
   tipoCambio              Decimal          @default(1)
   condicionPago           CondicionPago    @default(CONTADO)
@@ -981,6 +985,7 @@ model Pedido {
   almacen          Almacen?        @relation(fields: [almacenId], references: [id])
   detalles         PedidoDetalle[]
   facturas         Factura[]
+  guias            GuiaRemision[]
   cotizacionOrigen Cotizacion?
 
   @@map("pedidos")
@@ -1005,6 +1010,7 @@ model PedidoDetalle {
   asignacionesLote    AsignacionLoteVenta[]
   notaCreditoDetalles NotaCreditoDetalle[]
   facturaDetalles     FacturaDetalle[]
+  guiaDetalles        GuiaRemisionDetalle[]
 
   @@map("pedido_detalles")
 }
@@ -1086,10 +1092,11 @@ model FacturaDetalle {
   subtotalFuncional       Decimal @default(0)
   costoUnitario           Decimal @default(0)
 
-  factura          Factura               @relation(fields: [facturaId], references: [id])
-  pedidoDetalle    PedidoDetalle         @relation(fields: [pedidoDetalleId], references: [id])
-  presentacion     Presentacion          @relation(fields: [presentacionId], references: [id])
+  factura          Factura                 @relation(fields: [facturaId], references: [id])
+  pedidoDetalle    PedidoDetalle           @relation(fields: [pedidoDetalleId], references: [id])
+  presentacion     Presentacion            @relation(fields: [presentacionId], references: [id])
   asignacionesLote AsignacionLoteVenta[]
+  entregas         FacturaDetalleEntrega[]
 
   @@unique([facturaId, pedidoDetalleId])
   @@index([pedidoDetalleId])
@@ -1495,6 +1502,7 @@ model GuiaRemision {
   empresaId           String              @default("1")
   numero              String              @unique // ej. T001-00000001
   facturaId           String?
+  pedidoId            String?
   clienteId           String
   fechaTraslado       DateTime
   puntoPartida        String
@@ -1528,12 +1536,14 @@ model GuiaRemision {
   creadoEn            DateTime            @default(now())
 
   factura       Factura?              @relation(fields: [facturaId], references: [id])
+  pedido        Pedido?               @relation(fields: [pedidoId], references: [id])
   cliente       Cliente               @relation(fields: [clienteId], references: [id])
   equipo        Equipo?               @relation(fields: [equipoId], references: [id])
   ubigeoPartida Ubigeo?               @relation("UbigeoPartida", fields: [ubigeoPartidaId], references: [id])
   ubigeoLlegada Ubigeo?               @relation("UbigeoLlegada", fields: [ubigeoLlegadaId], references: [id])
   detalles      GuiaRemisionDetalle[]
 
+  @@index([pedidoId])
   @@map("guias_remision")
 }
 
@@ -1555,15 +1565,35 @@ model Ubigeo {
 }
 
 model GuiaRemisionDetalle {
-  id             String @id @default(cuid())
-  guiaId         String
-  presentacionId String
-  cantidad       Int
+  id              String  @id @default(cuid())
+  guiaId          String
+  presentacionId  String
+  pedidoDetalleId String?
+  cantidad        Int
+  costoUnitario   Decimal @default(0)
 
-  guia         GuiaRemision @relation(fields: [guiaId], references: [id])
-  presentacion Presentacion @relation(fields: [presentacionId], references: [id])
+  guia                GuiaRemision            @relation(fields: [guiaId], references: [id])
+  presentacion        Presentacion            @relation(fields: [presentacionId], references: [id])
+  pedidoDetalle       PedidoDetalle?          @relation(fields: [pedidoDetalleId], references: [id])
+  facturaAsignaciones FacturaDetalleEntrega[]
+  asignacionesLote    AsignacionLoteVenta[]
 
+  @@index([pedidoDetalleId])
   @@map("guia_remision_detalles")
+}
+
+model FacturaDetalleEntrega {
+  id               String @id @default(cuid())
+  facturaDetalleId String
+  guiaDetalleId    String
+  cantidad         Int
+
+  facturaDetalle FacturaDetalle      @relation(fields: [facturaDetalleId], references: [id])
+  guiaDetalle    GuiaRemisionDetalle @relation(fields: [guiaDetalleId], references: [id])
+
+  @@unique([facturaDetalleId, guiaDetalleId])
+  @@index([guiaDetalleId])
+  @@map("factura_detalle_entregas")
 }
 
 // ---------------------------------------------------------------------------

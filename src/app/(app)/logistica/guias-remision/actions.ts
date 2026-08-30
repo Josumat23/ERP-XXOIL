@@ -9,10 +9,12 @@ import { puedeRealizar } from "@/lib/permisos";
 import { avanzarSerie } from "@/lib/series";
 import { enviarComprobanteGuiaInterno } from "@/lib/guiasRemision";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { registrarMovimiento } from "@/lib/inventario";
+import { asignarLoteVenta } from "@/lib/trazabilidad";
 
 export type EstadoFormulario = { error?: string };
 
-type LineaGuia = { presentacionId: string; cantidad: number };
+type LineaGuia = { pedidoDetalleId?: string; presentacionId: string; cantidad: number };
 
 const MODALIDADES_VALIDAS: $Enums.ModalidadTransporte[] = ["PUBLICO", "PRIVADO"];
 
@@ -40,10 +42,10 @@ export async function crearGuiaRemision(
   }
 
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
+  const pedidoId = String(formData.get("pedidoId") ?? "") || null;
   const facturaId = String(formData.get("facturaId") ?? "") || null;
   const clienteId = String(formData.get("clienteId") ?? "");
-  const fechaTrasladoRaw = String(formData.get("fechaTraslado") ?? "");
-  const fechaTraslado = crearFechaCalendarioLocal(fechaTrasladoRaw);
+  const fechaTraslado = crearFechaCalendarioLocal(String(formData.get("fechaTraslado") ?? ""));
   const puntoPartida = String(formData.get("puntoPartida") ?? "").trim();
   const puntoLlegada = String(formData.get("puntoLlegada") ?? "").trim();
   const ubigeoPartidaId = String(formData.get("ubigeoPartidaId") ?? "") || null;
@@ -65,13 +67,14 @@ export async function crearGuiaRemision(
   } catch {
     return { error: "El detalle de la guía es inválido." };
   }
-  if (!Array.isArray(lineasRaw)) {
-    return { error: "El detalle de la guía es inválido." };
-  }
+  if (!Array.isArray(lineasRaw)) return { error: "El detalle de la guía es inválido." };
 
   if (!numero) return { error: "Ingrese el número de la guía (serie SUNAT)." };
   if (!clienteId) return { error: "Seleccione el cliente." };
   if (!fechaTraslado) return { error: "Indique una fecha de traslado válida." };
+  if (motivoTraslado === "Venta" && !pedidoId) {
+    return { error: "Seleccione el pedido de venta que origina la entrega." };
+  }
   if (!puntoPartida || !puntoLlegada) {
     return { error: "El punto de partida y el punto de llegada son obligatorios." };
   }
@@ -90,94 +93,88 @@ export async function crearGuiaRemision(
   if (modalidadTransporte === "PRIVADO" && (!placaVehiculo || !dniConductor)) {
     return { error: "La placa del vehículo y el DNI del conductor son obligatorios en transporte privado." };
   }
-  const cantidadesPorPresentacion = new Map<string, number>();
-  for (const linea of lineasRaw) {
+
+  const lineas: LineaGuia[] = [];
+  const claves = new Set<string>();
+  for (const candidata of lineasRaw) {
     if (
-      typeof linea !== "object" ||
-      linea === null ||
-      !("presentacionId" in linea) ||
-      !("cantidad" in linea) ||
-      typeof linea.presentacionId !== "string" ||
-      typeof linea.cantidad !== "number" ||
-      !linea.presentacionId ||
-      !Number.isInteger(linea.cantidad) ||
-      linea.cantidad <= 0
-    ) {
-      continue;
-    }
-    cantidadesPorPresentacion.set(
-      linea.presentacionId,
-      (cantidadesPorPresentacion.get(linea.presentacionId) ?? 0) + linea.cantidad
-    );
+      typeof candidata !== "object" ||
+      candidata === null ||
+      !("presentacionId" in candidata) ||
+      !("cantidad" in candidata) ||
+      typeof candidata.presentacionId !== "string" ||
+      typeof candidata.cantidad !== "number" ||
+      !candidata.presentacionId ||
+      !Number.isInteger(candidata.cantidad) ||
+      candidata.cantidad <= 0
+    ) continue;
+    const pedidoDetalleId =
+      "pedidoDetalleId" in candidata && typeof candidata.pedidoDetalleId === "string"
+        ? candidata.pedidoDetalleId || undefined
+        : undefined;
+    const clave = pedidoDetalleId ?? candidata.presentacionId;
+    if (claves.has(clave)) return { error: "Cada línea de origen debe aparecer una sola vez." };
+    claves.add(clave);
+    lineas.push({ pedidoDetalleId, presentacionId: candidata.presentacionId, cantidad: candidata.cantidad });
   }
-  const lineas: LineaGuia[] = [...cantidadesPorPresentacion].map(
-    ([presentacionId, cantidad]) => ({ presentacionId, cantidad })
-  );
-  if (lineas.length === 0) {
-    return { error: "Agregue al menos una línea con cantidad válida." };
-  }
+  if (lineas.length === 0) return { error: "Agregue al menos una línea con cantidad válida." };
 
   let guiaId = "";
   try {
     await prisma.$transaction(async (tx) => {
-      if (facturaId) {
-        // Reclama una factura vigente antes de vincularla. La validación en
-        // servidor no depende del autocompletado manipulable del formulario.
-        const reclamoFactura = await tx.factura.updateMany({
-          where: { id: facturaId, estado: { not: "ANULADA" } },
-          data: { saldo: { increment: 0 } },
-        });
-        if (reclamoFactura.count !== 1) {
-          throw new Error("La factura asociada no existe o está anulada.");
-        }
-
-        const factura = await tx.factura.findUnique({
-          where: { id: facturaId },
-          select: {
-            clienteId: true,
-            detalles: { select: { presentacionId: true, cantidad: true } },
-            guias: {
-              select: { detalles: { select: { presentacionId: true, cantidad: true } } },
+      if (pedidoId) {
+        const pedido = await tx.pedido.findUnique({
+          where: { id: pedidoId },
+          include: {
+            detalles: {
+              include: {
+                guiaDetalles: { select: { cantidad: true } },
+              },
             },
           },
         });
-        if (!factura || factura.clienteId !== clienteId) {
-          throw new Error("La factura asociada pertenece a otro cliente.");
+        if (!pedido || pedido.estado === "ANULADO") throw new Error("El pedido no existe o está anulado.");
+        if (pedido.clienteId !== clienteId) throw new Error("El pedido pertenece a otro cliente.");
+        if (!pedido.requiereEntrega) {
+          throw new Error("Este pedido histórico usa el flujo de guía posterior a factura.");
         }
-
-        const facturadoPorPresentacion = new Map<string, number>();
-        for (const detalle of factura.detalles) {
-          facturadoPorPresentacion.set(
-            detalle.presentacionId,
-            (facturadoPorPresentacion.get(detalle.presentacionId) ?? 0) + detalle.cantidad
-          );
+        const reclamoPedido = await tx.pedido.updateMany({
+          where: { id: pedido.id, fulfillmentVersion: pedido.fulfillmentVersion },
+          data: { fulfillmentVersion: { increment: 1 } },
+        });
+        if (reclamoPedido.count !== 1) {
+          throw new Error("El saldo de entrega cambió. Actualice la página e intente nuevamente.");
         }
-        const guiadoPorPresentacion = new Map<string, number>();
-        for (const guiaPrevia of factura.guias) {
-          for (const detalle of guiaPrevia.detalles) {
-            guiadoPorPresentacion.set(
-              detalle.presentacionId,
-              (guiadoPorPresentacion.get(detalle.presentacionId) ?? 0) + detalle.cantidad
-            );
-          }
-        }
+        const porId = new Map(pedido.detalles.map((detalle) => [detalle.id, detalle]));
         for (const linea of lineas) {
-          const facturado = facturadoPorPresentacion.get(linea.presentacionId) ?? 0;
-          const guiado = guiadoPorPresentacion.get(linea.presentacionId) ?? 0;
-          const disponible = facturado - guiado;
-          if (facturado === 0) {
-            throw new Error("La guía contiene una presentación que no pertenece a la factura.");
+          if (!linea.pedidoDetalleId) throw new Error("La entrega requiere la línea exacta del pedido.");
+          const detalle = porId.get(linea.pedidoDetalleId);
+          if (!detalle || detalle.presentacionId !== linea.presentacionId) {
+            throw new Error("La entrega contiene una línea que no pertenece al pedido.");
           }
+          const planificado = detalle.guiaDetalles.reduce((total, gd) => total + gd.cantidad, 0);
+          const disponible = detalle.cantidad - planificado;
           if (linea.cantidad > disponible) {
-            throw new Error(
-              `La cantidad de una presentación supera las ${disponible} unidad(es) pendientes de guía.`
-            );
+            throw new Error(`La cantidad supera las ${disponible} unidad(es) pendientes de entrega.`);
           }
         }
+        if (facturaId) {
+          const factura = await tx.factura.findFirst({
+            where: { id: facturaId, pedidoId: pedido.id, estado: { not: "ANULADA" } },
+          });
+          if (!factura) throw new Error("La factura de referencia no pertenece al pedido o está anulada.");
+        }
+      } else if (facturaId) {
+        const factura = await tx.factura.findFirst({
+          where: { id: facturaId, clienteId, estado: { not: "ANULADA" } },
+        });
+        if (!factura) throw new Error("La factura asociada no existe, está anulada o pertenece a otro cliente.");
       }
+
       const guia = await tx.guiaRemision.create({
         data: {
           numero,
+          pedidoId,
           facturaId,
           clienteId,
           fechaTraslado,
@@ -197,7 +194,11 @@ export async function crearGuiaRemision(
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
           detalles: {
-            create: lineas.map((l) => ({ presentacionId: l.presentacionId, cantidad: l.cantidad })),
+            create: lineas.map((linea) => ({
+              pedidoDetalleId: linea.pedidoDetalleId,
+              presentacionId: linea.presentacionId,
+              cantidad: linea.cantidad,
+            })),
           },
         },
       });
@@ -213,11 +214,10 @@ export async function crearGuiaRemision(
   }
 
   await enviarComprobanteGuiaInterno(guiaId);
-
   revalidatePath("/logistica/guias-remision");
+  revalidatePath("/comercial/pedidos");
   redirect(`/logistica/guias-remision/${guiaId}`);
 }
-
 // Avance del estado de ejecución del despacho (flota propia): visibilidad
 // de qué guía ya salió y cuál ya se entregó, sin necesitar GPS ni
 // integración con terceros.
@@ -228,25 +228,76 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
     return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
   }
 
-  const guia = await prisma.guiaRemision.findUnique({ where: { id: guiaId } });
-  if (!guia) return { error: "La guía no existe." };
-  if (guia.estadoDespacho !== "PLANIFICADO") {
-    return { error: "Esta guía ya no está planificada." };
-  }
+  try {
+    await prisma.$transaction(async (tx) => {
+      const guia = await tx.guiaRemision.findUnique({
+        where: { id: guiaId },
+        include: {
+          pedido: true,
+          detalles: { include: { pedidoDetalle: true, presentacion: true } },
+        },
+      });
+      if (!guia) throw new Error("La guía no existe.");
+      if (guia.estadoDespacho !== "PLANIFICADO") {
+        throw new Error("Esta guía ya no está planificada.");
+      }
 
-  const resultado = await prisma.guiaRemision.updateMany({
-    where: { id: guiaId, estadoDespacho: "PLANIFICADO" },
-    data: { estadoDespacho: "EN_RUTA", fechaSalida: new Date() },
-  });
-  if (resultado.count !== 1) {
-    return { error: "La gu\u00eda cambi\u00f3 mientras se marcaba la salida. Actualice la p\u00e1gina e intente nuevamente." };
+      const reclamo = await tx.guiaRemision.updateMany({
+        where: { id: guiaId, estadoDespacho: "PLANIFICADO" },
+        data: { estadoDespacho: "EN_RUTA", fechaSalida: new Date() },
+      });
+      if (reclamo.count !== 1) {
+        throw new Error("La guía cambió mientras se marcaba la salida. Actualice la página e intente nuevamente.");
+      }
+
+      if (guia.pedido?.requiereEntrega) {
+        for (const detalle of guia.detalles) {
+          if (!detalle.pedidoDetalle || detalle.pedidoDetalle.pedidoId !== guia.pedido.id) {
+            throw new Error("La guía contiene una línea sin origen válido en el pedido.");
+          }
+          const movimiento = await registrarMovimiento(tx, {
+            tipoItem: "PRESENTACION",
+            presentacionId: detalle.presentacionId,
+            tipoMovimiento: "SALIDA",
+            origen: "VENTA",
+            cantidad: detalle.cantidad,
+            almacenId: guia.pedido.almacenId ?? undefined,
+            referencia: `Guía ${guia.numero} (pedido ${guia.pedido.numero})`,
+            usuarioId: auth.usuario.id,
+            usuarioNombre: auth.usuario.nombre,
+          });
+          if (!movimiento.ok) throw new Error(movimiento.error);
+
+          const reserva = await tx.presentacion.updateMany({
+            where: { id: detalle.presentacionId, stockReservado: { gte: detalle.cantidad } },
+            data: { stockReservado: { decrement: detalle.cantidad } },
+          });
+          if (reserva.count !== 1) {
+            throw new Error("La reserva de stock cambió antes del despacho. Actualice la página.");
+          }
+          await tx.guiaRemisionDetalle.update({
+            where: { id: detalle.id },
+            data: { costoUnitario: detalle.presentacion.costoPromedio },
+          });
+          await asignarLoteVenta(tx, {
+            guiaDetalleId: detalle.id,
+            pedidoDetalleId: detalle.pedidoDetalle.id,
+            presentacionId: detalle.presentacionId,
+            cantidad: detalle.cantidad,
+          });
+        }
+      }
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
   }
 
   revalidatePath("/logistica/guias-remision");
   revalidatePath(`/logistica/guias-remision/${guiaId}`);
+  revalidatePath("/comercial/pedidos");
   return {};
 }
-
 export async function marcarEntregaGuia(guiaId: string): Promise<EstadoFormulario> {
   const auth = await requerirRol(["ALMACEN", "VENTAS"]);
   if ("error" in auth) return auth;

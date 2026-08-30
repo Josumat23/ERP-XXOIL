@@ -11,6 +11,7 @@ type LineaFacturable = {
   etiqueta: string;
   sku: string;
   cantidadPedida: number;
+  cantidadEntregada: number;
   cantidadFacturada: number;
   saldo: number;
   precioUnitario: number;
@@ -22,6 +23,7 @@ export default function FacturarFormulario({
   moneda,
   tasaIgv,
   lineas,
+  requiereEntrega,
   series = [],
 }: {
   pedidoId: string;
@@ -29,6 +31,7 @@ export default function FacturarFormulario({
   moneda: string;
   tasaIgv: number;
   lineas: LineaFacturable[];
+  requiereEntrega: boolean;
   series?: Serie[];
 }) {
   const accion = facturarPedido.bind(null, pedidoId);
@@ -63,6 +66,7 @@ export default function FacturarFormulario({
             <tr>
               <th>Producto / presentación</th>
               <th className="text-right">Pedido</th>
+              <th className="text-right">Entregado</th>
               <th className="text-right">Facturado</th>
               <th className="text-right">Saldo</th>
               <th className="text-right">Facturar ahora</th>
@@ -76,6 +80,7 @@ export default function FacturarFormulario({
                   <span className="block font-mono text-xs text-neutral-400">{linea.sku}</span>
                 </td>
                 <td className="text-right">{linea.cantidadPedida}</td>
+                <td className="text-right">{linea.cantidadEntregada}</td>
                 <td className="text-right">{linea.cantidadFacturada}</td>
                 <td className="text-right font-medium">{linea.saldo}</td>
                 <td className="text-right">
@@ -121,7 +126,7 @@ export default function FacturarFormulario({
       </div>
       <div className="flex items-center justify-between gap-4">
         <p className="text-xs text-neutral-500">
-          El servidor vuelve a validar saldos, precios, crédito, stock y lotes antes de registrar.
+          {requiereEntrega ? "Solo se factura mercadería despachada; el servidor asigna cada línea a su entrega y costo real." : "Pedido histórico: el servidor valida saldos, precios, crédito, stock y lotes antes de registrar."}
         </p>
         <button type="submit" disabled={enviando || !hayCantidad} className="boton-primario whitespace-nowrap">
           {enviando ? "Facturando..." : "Registrar factura parcial"}

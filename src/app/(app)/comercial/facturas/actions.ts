@@ -516,7 +516,7 @@ export async function anularFactura(
           comisiones: true,
           notasCredito: true,
           pedido: true,
-          detalles: true,
+          detalles: { include: { entregas: { include: { guiaDetalle: true } } } },
         },
       });
       if (!factura) throw new Error("La factura no existe.");
@@ -550,32 +550,34 @@ export async function anularFactura(
         throw new Error("La factura cambió mientras se anulaba. Actualice la página e intente nuevamente.");
       }
 
-      // Reingreso del stock vendido
-      for (const d of factura.detalles) {
-        const mov = await registrarMovimiento(tx, {
+      // Solo las facturas históricas hicieron la salida física al facturar.
+      // En el flujo nuevo la entrega sigue vigente y anular la factura reabre
+      // únicamente el saldo de facturación, sin duplicar stock ni reservas.
+      for (const detalle of factura.detalles) {
+        if (detalle.entregas.length > 0) continue;
+        const movimiento = await registrarMovimiento(tx, {
           tipoItem: "PRESENTACION",
-          presentacionId: d.presentacionId,
+          presentacionId: detalle.presentacionId,
           tipoMovimiento: "ENTRADA",
           origen: "ANULACION_VENTA",
-          cantidad: d.cantidad,
+          cantidad: detalle.cantidad,
           motivo,
           referencia: `Anulación factura ${factura.numero}`,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
         });
-        if (!mov.ok) throw new Error(mov.error);
+        if (!movimiento.ok) throw new Error(movimiento.error);
 
         await liberarAsignacionesLote(tx, {
-          facturaDetalleId: d.id,
-          pedidoDetalleId: d.pedidoDetalleId,
+          facturaDetalleId: detalle.id,
+          pedidoDetalleId: detalle.pedidoDetalleId,
           motivo: `Anulación factura ${factura.numero}`,
         });
         await tx.presentacion.update({
-          where: { id: d.presentacionId },
-          data: { stockReservado: { increment: d.cantidad } },
+          where: { id: detalle.presentacionId },
+          data: { stockReservado: { increment: detalle.cantidad } },
         });
       }
-
       // Reversión total de la comisión generada
       const generada = factura.comisiones.find((c) => c.tipo === "GENERADA");
       if (generada) {
@@ -686,6 +688,7 @@ export async function registrarDevolucion(
 
       const detalle = await tx.facturaDetalle.findUnique({
         where: { facturaId_pedidoDetalleId: { facturaId, pedidoDetalleId } },
+        include: { entregas: true },
       });
       if (!detalle) {
         throw new Error("La línea seleccionada no pertenece a esta factura.");
@@ -715,12 +718,37 @@ export async function registrarDevolucion(
       });
       if (!mov.ok) throw new Error(mov.error);
 
-      await liberarAsignacionesLote(tx, {
-        facturaDetalleId: detalle.id,
-        pedidoDetalleId,
-        cantidad,
-        motivo: `${MOTIVO_DEVOLUCION_PREFIJO} factura ${factura.numero}: ${motivo}`,
-      });
+      const motivoLote = `${MOTIVO_DEVOLUCION_PREFIJO} factura ${factura.numero}: ${motivo}`;
+      if (detalle.entregas.length === 0) {
+        await liberarAsignacionesLote(tx, {
+          facturaDetalleId: detalle.id,
+          pedidoDetalleId,
+          cantidad,
+          motivo: motivoLote,
+        });
+      } else {
+        let restante = cantidad;
+        for (const entrega of detalle.entregas) {
+          if (restante <= 0) break;
+          const devueltoDesdeEntrega = liberacionesPrevias
+            .filter((evento) => evento.guiaDetalleId === entrega.guiaDetalleId)
+            .reduce((total, evento) => total + evento.cantidad, 0);
+          const disponible = entrega.cantidad - devueltoDesdeEntrega;
+          if (disponible <= 0) continue;
+          const solicitado = Math.min(restante, disponible);
+          const liberado = await liberarAsignacionesLote(tx, {
+            facturaDetalleId: detalle.id,
+            guiaDetalleId: entrega.guiaDetalleId,
+            pedidoDetalleId,
+            cantidad: solicitado,
+            motivo: motivoLote,
+          });
+          restante -= liberado;
+        }
+        if (restante > 0) {
+          throw new Error("No se pudo identificar el lote físico completo de la devolución.");
+        }
+      }
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
