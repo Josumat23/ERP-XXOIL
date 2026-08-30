@@ -29,6 +29,13 @@ export default async function DetalleEnvasadoPage({
               include: { pedido: { include: { cliente: true } } },
             },
             facturaDetalle: { include: { factura: true } },
+            guiaDetalle: {
+              include: {
+                facturaAsignaciones: {
+                  include: { facturaDetalle: { include: { factura: true } } },
+                },
+              },
+            },
           },
           orderBy: { creadoEn: "asc" },
         },
@@ -45,11 +52,17 @@ export default async function DetalleEnvasadoPage({
     { cantidad: number; clienteNombre: string; facturaNumero: string | null; pedidoNumero: string }
   >();
   for (const a of envasado.asignacionesLote) {
-    const clave = a.facturaDetalleId ?? a.pedidoDetalleId;
+    const clave = a.facturaDetalleId ?? a.guiaDetalleId ?? a.pedidoDetalleId;
     const actual = netoPorPedidoDetalle.get(clave) ?? {
       cantidad: 0,
       clienteNombre: a.pedidoDetalle.pedido.cliente.razonSocial,
-      facturaNumero: a.facturaDetalle?.factura.numero ?? null,
+      facturaNumero:
+        a.facturaDetalle?.factura.numero ??
+        a.guiaDetalle?.facturaAsignaciones
+          .filter((asignacion) => asignacion.facturaDetalle.factura.estado !== "ANULADA")
+          .map((asignacion) => asignacion.facturaDetalle.factura.numero)
+          .join(", ") ??
+        null,
       pedidoNumero: a.pedidoDetalle.pedido.numero,
     };
     actual.cantidad += a.tipo === "ASIGNADA" ? a.cantidad : -a.cantidad;

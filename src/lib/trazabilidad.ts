@@ -13,9 +13,12 @@ import type { Tx } from "@/lib/inventario";
 /** Asigna FIFO (por fecha de envasado) la cantidad vendida de una línea de pedido a los envasados con saldo disponible. */
 export async function asignarLoteVenta(
   tx: Tx,
-  params: { facturaDetalleId: string; pedidoDetalleId: string; presentacionId: string; cantidad: number }
+  params: { facturaDetalleId?: string; guiaDetalleId?: string; pedidoDetalleId: string; presentacionId: string; cantidad: number }
 ): Promise<void> {
-  const { facturaDetalleId, pedidoDetalleId, presentacionId, cantidad } = params;
+  const { facturaDetalleId, guiaDetalleId, pedidoDetalleId, presentacionId, cantidad } = params;
+  if ((facturaDetalleId ? 1 : 0) + (guiaDetalleId ? 1 : 0) !== 1) {
+    throw new Error("La asignación de lote requiere una única línea de factura o entrega.");
+  }
   let restante = cantidad;
 
   const envasados = await tx.envasado.findMany({
@@ -35,7 +38,7 @@ export async function asignarLoteVenta(
     if (reclamo.count !== 1) continue;
 
     await tx.asignacionLoteVenta.create({
-      data: { facturaDetalleId, pedidoDetalleId, envasadoId: e.id, tipo: "ASIGNADA", cantidad: tomar },
+      data: { facturaDetalleId, guiaDetalleId, pedidoDetalleId, envasadoId: e.id, tipo: "ASIGNADA", cantidad: tomar },
     });
     restante -= tomar;
   }
@@ -90,12 +93,15 @@ export async function asignarLoteInsumo(
  */
 export async function liberarAsignacionesLote(
   tx: Tx,
-  params: { facturaDetalleId: string; pedidoDetalleId: string; motivo: string; cantidad?: number }
-): Promise<void> {
-  const { facturaDetalleId, pedidoDetalleId, motivo, cantidad } = params;
+  params: { facturaDetalleId?: string; guiaDetalleId?: string; pedidoDetalleId: string; motivo: string; cantidad?: number }
+): Promise<number> {
+  const { facturaDetalleId, guiaDetalleId, pedidoDetalleId, motivo, cantidad } = params;
+  if ((facturaDetalleId ? 1 : 0) + (guiaDetalleId ? 1 : 0) < 1) {
+    throw new Error("La liberación de lote requiere una línea de factura o entrega.");
+  }
 
   const eventos = await tx.asignacionLoteVenta.findMany({
-    where: { facturaDetalleId },
+    where: guiaDetalleId ? { guiaDetalleId } : { facturaDetalleId },
     orderBy: { creadoEn: "asc" },
   });
 
@@ -106,6 +112,7 @@ export async function liberarAsignacionesLote(
   }
 
   let restante = cantidad ?? [...netoPorEnvasado.values()].reduce((a, b) => a + b, 0);
+  const solicitado = restante;
 
   for (const [envasadoId, disponible] of netoPorEnvasado) {
     if (restante <= 0) break;
@@ -113,7 +120,7 @@ export async function liberarAsignacionesLote(
     const liberar = Math.min(restante, disponible);
 
     await tx.asignacionLoteVenta.create({
-      data: { facturaDetalleId, pedidoDetalleId, envasadoId, tipo: "LIBERADA", cantidad: liberar, motivo },
+      data: { facturaDetalleId, guiaDetalleId, pedidoDetalleId, envasadoId, tipo: "LIBERADA", cantidad: liberar, motivo },
     });
     await tx.envasado.update({
       where: { id: envasadoId },
@@ -121,4 +128,5 @@ export async function liberarAsignacionesLote(
     });
     restante -= liberar;
   }
+  return solicitado - restante;
 }

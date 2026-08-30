@@ -40,6 +40,13 @@ export default async function RecallPage({
                     include: { pedido: { include: { cliente: true } } },
                   },
                   facturaDetalle: { include: { factura: true } },
+                  guiaDetalle: {
+                    include: {
+                      facturaAsignaciones: {
+                        include: { facturaDetalle: { include: { factura: true } } },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -62,19 +69,25 @@ export default async function RecallPage({
     for (const e of lote.envasados) {
       const netoPorDetalle = new Map<string, number>();
       for (const a of e.asignacionesLote) {
-        const clave = a.facturaDetalleId ?? a.pedidoDetalleId;
+        const clave = a.facturaDetalleId ?? a.guiaDetalleId ?? a.pedidoDetalleId;
         const actual = netoPorDetalle.get(clave) ?? 0;
         netoPorDetalle.set(clave, actual + (a.tipo === "ASIGNADA" ? a.cantidad : -a.cantidad));
       }
       for (const a of e.asignacionesLote) {
-        const clave = a.facturaDetalleId ?? a.pedidoDetalleId;
+        const clave = a.facturaDetalleId ?? a.guiaDetalleId ?? a.pedidoDetalleId;
         const cantidad = netoPorDetalle.get(clave) ?? 0;
         if (cantidad <= 0) continue;
         netoPorDetalle.set(clave, 0); // evita duplicar por cada evento de la misma línea
         destinos.push({
           cantidad,
           clienteNombre: a.pedidoDetalle.pedido.cliente.razonSocial,
-          facturaNumero: a.facturaDetalle?.factura.numero ?? null,
+          facturaNumero:
+        a.facturaDetalle?.factura.numero ??
+        a.guiaDetalle?.facturaAsignaciones
+          .filter((asignacion) => asignacion.facturaDetalle.factura.estado !== "ANULADA")
+          .map((asignacion) => asignacion.facturaDetalle.factura.numero)
+          .join(", ") ??
+        null,
           pedidoNumero: a.pedidoDetalle.pedido.numero,
           envasadoCodigo: e.codigo,
         });

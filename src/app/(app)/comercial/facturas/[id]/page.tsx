@@ -53,7 +53,12 @@ export default async function DetalleFacturaPage({
         cliente: true,
         vendedor: true,
         pedido: true,
-        detalles: { include: { presentacion: { include: { producto: true } } } },
+        detalles: {
+          include: {
+            presentacion: { include: { producto: true } },
+            entregas: { include: { guiaDetalle: { include: { guia: true } } } },
+          },
+        },
         cobros: { orderBy: { fecha: "asc" } },
         notasCredito: { orderBy: { fecha: "asc" } },
         comisiones: { orderBy: { creadoEn: "asc" } },
@@ -252,6 +257,7 @@ export default async function DetalleFacturaPage({
             <tr>
               <th>Presentación</th>
               <th className="text-right">Cantidad</th>
+              <th>Entrega fuente</th>
               <th className="text-right">Precio unit.</th>
               <th className="text-right">Subtotal</th>
             </tr>
@@ -263,12 +269,19 @@ export default async function DetalleFacturaPage({
                   {d.presentacion.producto.nombre} — {d.presentacion.nombre}
                 </td>
                 <td className="text-right">{d.cantidad}</td>
+                <td className="text-xs">
+                  {d.entregas.length > 0
+                    ? d.entregas
+                        .map((entrega) => `${entrega.guiaDetalle.guia.numero} (${entrega.cantidad})`)
+                        .join(", ")
+                    : "Facturación directa histórica"}
+                </td>
                 <td className="text-right">{formatMoneda(d.precioUnitario, factura.moneda)}</td>
                 <td className="text-right">{formatMoneda(d.subtotal, factura.moneda)}</td>
               </tr>
             ))}
             <tr>
-              <td colSpan={3} className="text-right text-neutral-500">
+              <td colSpan={4} className="text-right text-neutral-500">
                 Valor de venta
               </td>
               <td className="text-right">
@@ -276,13 +289,13 @@ export default async function DetalleFacturaPage({
               </td>
             </tr>
             <tr>
-              <td colSpan={3} className="text-right text-neutral-500">
+              <td colSpan={4} className="text-right text-neutral-500">
                 IGV ({factura.tasaIgv.toNumber()}%)
               </td>
               <td className="text-right">{formatMoneda(factura.igv, factura.moneda)}</td>
             </tr>
             <tr>
-              <td colSpan={3} className="text-right font-semibold">
+              <td colSpan={4} className="text-right font-semibold">
                 Total
               </td>
               <td className="text-right font-semibold">{formatMoneda(factura.total, factura.moneda)}</td>

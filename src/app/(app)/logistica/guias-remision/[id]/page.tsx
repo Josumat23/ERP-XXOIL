@@ -32,10 +32,18 @@ export default async function DetalleGuiaPage({
       include: {
         cliente: true,
         factura: true,
+        pedido: true,
         equipo: true,
         ubigeoPartida: true,
         ubigeoLlegada: true,
-        detalles: { include: { presentacion: { include: { producto: true } } } },
+        detalles: {
+          include: {
+            presentacion: { include: { producto: true } },
+            facturaAsignaciones: {
+              include: { facturaDetalle: { include: { factura: true } } },
+            },
+          },
+        },
       },
     }),
     prisma.guiaRemision.findMany({ include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
@@ -155,7 +163,13 @@ export default async function DetalleGuiaPage({
               href={`/produccion/equipos/${guia.equipo.id}`}
             />
           )}
-          {guia.factura && (
+          {guia.pedido && (
+            <Dato
+              etiqueta="Pedido origen"
+              valor={guia.pedido.numero}
+              href={`/comercial/pedidos/${guia.pedido.id}`}
+            />
+          )}          {guia.factura && (
             <Dato
               etiqueta="Factura relacionada"
               valor={guia.factura.numero}
@@ -170,6 +184,7 @@ export default async function DetalleGuiaPage({
               <th>Descripción</th>
               <th>SKU</th>
               <th className="text-right">Cantidad</th>
+              <th className="text-right">Facturado</th>
               <th className="text-right">Peso (kg)</th>
             </tr>
           </thead>
@@ -181,6 +196,11 @@ export default async function DetalleGuiaPage({
                 </td>
                 <td className="font-mono text-xs">{d.presentacion.sku}</td>
                 <td className="text-right">{d.cantidad}</td>
+                <td className="text-right">
+                  {d.facturaAsignaciones
+                    .filter((asignacion) => asignacion.facturaDetalle.factura.estado !== "ANULADA")
+                    .reduce((total, asignacion) => total + asignacion.cantidad, 0)}
+                </td>
                 <td className="text-right">
                   {formatNumero(d.cantidad * d.presentacion.contenidoKg.toNumber(), 2)}
                 </td>

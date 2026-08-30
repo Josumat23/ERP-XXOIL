@@ -7,16 +7,36 @@ import { seriesActivas } from "@/lib/series";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import GuiaFormulario from "../GuiaFormulario";
 
-export default async function NuevaGuiaPage() {
+export default async function NuevaGuiaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pedidoId?: string }>;
+}) {
+  const { pedidoId: pedidoInicialId } = await searchParams;
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
-  const [facturas, clientes, presentaciones, equipos, series, guias, ubigeos] = await Promise.all([
+  const [pedidosRaw, facturas, clientes, presentaciones, equipos, series, guias, ubigeos] = await Promise.all([
+    prisma.pedido.findMany({
+      where: { requiereEntrega: true, estado: { not: "ANULADO" } },
+      include: {
+        cliente: true,
+        detalles: {
+          include: {
+            presentacion: { include: { producto: true } },
+            guiaDetalles: true,
+          },
+        },
+      },
+      orderBy: { fecha: "desc" },
+      take: 100,
+    }),
     prisma.factura.findMany({
       where: { estado: { not: "ANULADA" } },
       include: {
         cliente: true,
         detalles: true,
+        pedido: true,
       },
       orderBy: { fechaEmision: "desc" },
       take: 50,
@@ -33,8 +53,29 @@ export default async function NuevaGuiaPage() {
     prisma.ubigeo.findMany({ orderBy: [{ departamento: "asc" }, { provincia: "asc" }, { distrito: "asc" }] }),
   ]);
 
-  return (
-    <div>
+const pedidos = pedidosRaw
+    .map((pedido) => ({
+      id: pedido.id,
+      etiqueta: `${pedido.numero} — ${pedido.cliente.razonSocial}`,
+      clienteId: pedido.clienteId,
+      lineas: pedido.detalles
+        .map((detalle) => {
+          const planificado = detalle.guiaDetalles.reduce((total, guia) => total + guia.cantidad, 0);
+          return {
+            pedidoDetalleId: detalle.id,
+            presentacionId: detalle.presentacionId,
+            etiqueta: `${detalle.presentacion.producto.nombre} — ${detalle.presentacion.nombre}`,
+            sku: detalle.presentacion.sku,
+            cantidadPedida: detalle.cantidad,
+            cantidadPlanificada: planificado,
+            saldo: detalle.cantidad - planificado,
+          };
+        })
+        .filter((linea) => linea.saldo > 0),
+    }))
+    .filter((pedido) => pedido.lineas.length > 0);
+
+  return (    <div>
       <Link href="/logistica/guias-remision" className="text-sm hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
         ← Volver a guías de remisión
       </Link>
@@ -57,11 +98,14 @@ export default async function NuevaGuiaPage() {
       >
       <div className="max-w-3xl">
         <GuiaFormulario
+          pedidos={pedidos}
+          pedidoInicialId={pedidos.some((pedido) => pedido.id === pedidoInicialId) ? pedidoInicialId : undefined}
           puntoPartidaDefecto="Planta de producción"
           facturas={facturas.map((f) => ({
             id: f.id,
             etiqueta: `${f.numero} — ${f.cliente.razonSocial}`,
             clienteId: f.clienteId,
+            pedidoId: f.pedidoId,
             lineas: f.detalles.map((d) => ({
               presentacionId: d.presentacionId,
               cantidad: d.cantidad,

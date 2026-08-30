@@ -25,6 +25,7 @@ import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { esValorEnum } from "@/lib/enums";
 import { calcularImportesFuncionales, convertirAMonedaFuncional } from "@/lib/multimoneda";
 import { calcularSaldoFacturable, calcularTotalesFacturaParcial } from "@/lib/facturacionParcial";
+import { asignarEntregasFifo } from "@/lib/cumplimientoVentas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -201,6 +202,7 @@ export async function crearPedido(
           direccionEntrega,
           ordenCompraCliente,
           referenciaCliente,
+          requiereEntrega: true,
           subtotalBruto: totales.subtotalBruto,
           descuentoTotal: totales.descuentoTotal,
           total: totales.total,
@@ -298,6 +300,14 @@ export async function facturarPedido(
             include: {
               presentacion: true,
               facturaDetalles: { include: { factura: { select: { estado: true } } } },
+              guiaDetalles: {
+                include: {
+                  guia: { select: { estadoDespacho: true, fechaSalida: true, creadoEn: true } },
+                  facturaAsignaciones: {
+                    include: { facturaDetalle: { include: { factura: { select: { estado: true } } } } },
+                  },
+                },
+              },
             },
           },
           vendedor: true,
@@ -316,15 +326,20 @@ export async function facturarPedido(
         const facturado = detalle.facturaDetalles
           .filter((fd) => fd.factura.estado !== "ANULADA")
           .reduce((total, fd) => total + fd.cantidad, 0);
-        const saldo = calcularSaldoFacturable(detalle.cantidad, [facturado]);
+        const entregado = detalle.guiaDetalles
+          .filter((gd) => gd.guia.estadoDespacho !== "PLANIFICADO")
+          .reduce((total, gd) => total + gd.cantidad, 0);
+        const limiteDocumento = pedido.requiereEntrega ? entregado : detalle.cantidad;
+        const saldo = calcularSaldoFacturable(limiteDocumento, [facturado]);
         const cantidad = Number(formData.get(`cantidad:${detalle.id}`) ?? 0);
         if (!Number.isInteger(cantidad) || cantidad < 0) {
           throw new Error(`La cantidad a facturar de ${detalle.presentacion.nombre} debe ser un entero mayor o igual a 0.`);
         }
         if (cantidad > saldo) {
-          throw new Error(`La cantidad de ${detalle.presentacion.nombre} supera el saldo pendiente (${saldo}).`);
+          const origen = pedido.requiereEntrega ? "entregado y pendiente de facturar" : "pendiente";
+          throw new Error(`La cantidad de ${detalle.presentacion.nombre} supera el saldo ${origen} (${saldo}).`);
         }
-        return { detalle, facturado, saldo, cantidad };
+        return { detalle, facturado, entregado, saldo, cantidad };
       });
       const seleccionadas = lineas.filter((linea) => linea.cantidad > 0);
       if (seleccionadas.length === 0) {
@@ -465,8 +480,29 @@ export async function facturarPedido(
           ],
           0
         ).subtotal;
-        const costoUnitario = d.presentacion.costoPromedio.toNumber();
+
+        const asignacionesEntrega: Array<{ guiaDetalleId: string; cantidad: number }> = [];
+        let costoUnitario = d.presentacion.costoPromedio.toNumber();
+        if (pedido.requiereEntrega) {
+          const asignacion = asignarEntregasFifo(
+            d.guiaDetalles
+              .filter((gd) => gd.guia.estadoDespacho !== "PLANIFICADO")
+              .map((entrega) => ({
+                guiaDetalleId: entrega.id,
+                cantidadEntregada: entrega.cantidad,
+                cantidadFacturada: entrega.facturaAsignaciones
+                  .filter((registro) => registro.facturaDetalle.factura.estado !== "ANULADA")
+                  .reduce((total, registro) => total + registro.cantidad, 0),
+                costoUnitario: entrega.costoUnitario.toNumber(),
+                fechaSalida: entrega.guia.fechaSalida ?? entrega.guia.creadoEn,
+              })),
+            linea.cantidad
+          );
+          asignacionesEntrega.push(...asignacion.asignaciones);
+          costoUnitario = asignacion.costoUnitario;
+        }
         costoVentas += linea.cantidad * costoUnitario;
+
         const facturaDetalle = await tx.facturaDetalle.create({
           data: {
             facturaId: factura.id,
@@ -495,33 +531,40 @@ export async function facturarPedido(
             costoUnitario,
           },
         });
-        await tx.pedidoDetalle.update({
-          where: { id: d.id },
-          data: { costoUnitario },
-        });
-        const mov = await registrarMovimiento(tx, {
-          tipoItem: "PRESENTACION",
-          presentacionId: d.presentacionId,
-          tipoMovimiento: "SALIDA",
-          origen: "VENTA",
-          cantidad: linea.cantidad,
-          referencia: `Factura ${numero} (pedido ${pedido.numero})`,
-          usuarioId: auth.usuario.id,
-          usuarioNombre: auth.usuario.nombre,
-        });
-        if (!mov.ok) throw new Error(mov.error);
-        await asignarLoteVenta(tx, {
-          facturaDetalleId: facturaDetalle.id,
-          pedidoDetalleId: d.id,
-          presentacionId: d.presentacionId,
-          cantidad: linea.cantidad,
-        });
-        await tx.presentacion.update({
-          where: { id: d.presentacionId },
-          data: { stockReservado: { decrement: linea.cantidad } },
-        });
-      }
+        await tx.pedidoDetalle.update({ where: { id: d.id }, data: { costoUnitario } });
 
+        if (pedido.requiereEntrega) {
+          await tx.facturaDetalleEntrega.createMany({
+            data: asignacionesEntrega.map((asignacion) => ({
+              facturaDetalleId: facturaDetalle.id,
+              ...asignacion,
+            })),
+          });
+        } else {
+          const movimiento = await registrarMovimiento(tx, {
+            tipoItem: "PRESENTACION",
+            presentacionId: d.presentacionId,
+            tipoMovimiento: "SALIDA",
+            origen: "VENTA",
+            cantidad: linea.cantidad,
+            almacenId: pedido.almacenId ?? undefined,
+            referencia: `Factura ${numero} (pedido ${pedido.numero})`,
+            usuarioId: auth.usuario.id,
+            usuarioNombre: auth.usuario.nombre,
+          });
+          if (!movimiento.ok) throw new Error(movimiento.error);
+          await asignarLoteVenta(tx, {
+            facturaDetalleId: facturaDetalle.id,
+            pedidoDetalleId: d.id,
+            presentacionId: d.presentacionId,
+            cantidad: linea.cantidad,
+          });
+          await tx.presentacion.update({
+            where: { id: d.presentacionId },
+            data: { stockReservado: { decrement: linea.cantidad } },
+          });
+        }
+      }
       const completo = lineas.every((linea) => linea.facturado + linea.cantidad === linea.detalle.cantidad);
       await tx.pedido.update({
         where: { id: pedido.id },

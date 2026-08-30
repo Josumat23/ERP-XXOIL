@@ -36,10 +36,12 @@ export default async function DetallePedidoPage({
         vendedor: true,
         almacen: true,
         facturas: { orderBy: { fechaEmision: "desc" } },
+        guias: { orderBy: { creadoEn: "desc" } },
         detalles: {
           include: {
             presentacion: { include: { producto: true } },
             facturaDetalles: { include: { factura: { select: { estado: true } } } },
+            guiaDetalles: { include: { guia: { select: { estadoDespacho: true } } } },
           },
         },
       },
@@ -52,17 +54,23 @@ export default async function DetallePedidoPage({
     const facturado = detalle.facturaDetalles
       .filter((fd) => fd.factura.estado !== "ANULADA")
       .reduce((total, fd) => total + fd.cantidad, 0);
+    const planificado = detalle.guiaDetalles.reduce((total, gd) => total + gd.cantidad, 0);
+    const entregadoReal = detalle.guiaDetalles
+      .filter((gd) => gd.guia.estadoDespacho !== "PLANIFICADO")
+      .reduce((total, gd) => total + gd.cantidad, 0);
+    const entregado = pedido.requiereEntrega ? entregadoReal : detalle.cantidad;
     return {
       id: detalle.id,
       etiqueta: `${detalle.presentacion.producto.nombre} — ${detalle.presentacion.nombre}`,
       sku: detalle.presentacion.sku,
       cantidadPedida: detalle.cantidad,
+      cantidadPlanificada: planificado,
+      cantidadEntregada: entregado,
       cantidadFacturada: facturado,
-      saldo: detalle.cantidad - facturado,
+      saldo: entregado - facturado,
       precioUnitario: detalle.precioUnitario.toNumber(),
     };
-  });
-  const puedeFacturar =
+  });  const puedeFacturar =
     (pedido.estado === "PENDIENTE" || pedido.estado === "PARCIAL") &&
     lineasFacturacion.some((linea) => linea.saldo > 0);
   const series = puedeFacturar ? await seriesActivas("FACTURA") : [];
@@ -148,6 +156,7 @@ export default async function DetallePedidoPage({
           <tr>
             <th>Presentación</th>
             <th className="text-right">Pedido</th>
+            <th className="text-right">Entregado</th>
             <th className="text-right">Facturado</th>
             <th className="text-right">Saldo</th>
             <th className="text-right">Precio lista</th>
@@ -166,6 +175,7 @@ export default async function DetallePedidoPage({
                 </span>
               </td>
               <td className="text-right">{d.cantidad}</td>
+              <td className="text-right">{lineasFacturacion.find((linea) => linea.id === d.id)?.cantidadEntregada ?? 0}</td>
               <td className="text-right">{lineasFacturacion.find((linea) => linea.id === d.id)?.cantidadFacturada ?? 0}</td>
               <td className="text-right font-medium">{lineasFacturacion.find((linea) => linea.id === d.id)?.saldo ?? d.cantidad}</td>
               <td className="text-right">
@@ -183,23 +193,23 @@ export default async function DetallePedidoPage({
             </tr>
           ))}
           <tr>
-            <td colSpan={7} className="text-right">Subtotal bruto</td>
+            <td colSpan={8} className="text-right">Subtotal bruto</td>
             <td className="text-right">{formatMoneda(pedido.subtotalBruto, pedido.moneda)}</td>
           </tr>
           <tr>
-            <td colSpan={7} className="text-right">Descuentos</td>
+            <td colSpan={8} className="text-right">Descuentos</td>
             <td className="text-right">-{formatMoneda(pedido.descuentoTotal, pedido.moneda)}</td>
           </tr>
           <tr>
-            <td colSpan={7} className="text-right font-medium">Base imponible</td>
+            <td colSpan={8} className="text-right font-medium">Base imponible</td>
             <td className="text-right font-medium">{formatMoneda(pedido.total, pedido.moneda)}</td>
           </tr>
           <tr>
-            <td colSpan={7} className="text-right">IGV ({pedido.tasaIgv.toNumber()}%)</td>
+            <td colSpan={8} className="text-right">IGV ({pedido.tasaIgv.toNumber()}%)</td>
             <td className="text-right">{formatMoneda(pedido.igv, pedido.moneda)}</td>
           </tr>
           <tr>
-            <td colSpan={7} className="text-right font-semibold">Total del documento</td>
+            <td colSpan={8} className="text-right font-semibold">Total del documento</td>
             <td className="text-right font-semibold">{formatMoneda(pedido.totalConIgv, pedido.moneda)}</td>
           </tr>
         </tbody>
@@ -254,6 +264,7 @@ export default async function DetallePedidoPage({
               moneda={pedido.moneda}
               tasaIgv={pedido.tasaIgv.toNumber()}
               lineas={lineasFacturacion}
+              requiereEntrega={pedido.requiereEntrega}
               series={series.map((s) => ({
                 id: s.id,
                 serie: s.serie,
@@ -278,6 +289,34 @@ export default async function DetallePedidoPage({
         </>
       )}
 
+      {pedido.requiereEntrega && (
+        <section className="mt-8 rounded-lg border border-black/10 p-4 dark:border-white/10">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Entregas y guías</h2>
+              <p className="mt-1 text-xs text-neutral-500">
+                La salida física ocurre al marcar la guía en ruta; después queda disponible para facturación.
+              </p>
+            </div>
+            {lineasFacturacion.some((linea) => linea.cantidadPlanificada < linea.cantidadPedida) && (
+              <Link href={`/logistica/guias-remision/nueva?pedidoId=${pedido.id}`} className="boton-primario text-sm">
+                Crear entrega parcial
+              </Link>
+            )}
+          </div>
+          {pedido.guias.length > 0 ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {pedido.guias.map((guia) => (
+                <Link key={guia.id} href={`/logistica/guias-remision/${guia.id}`} className="insignia bg-neutral-100 text-neutral-700 hover:underline dark:bg-neutral-800 dark:text-neutral-300">
+                  {guia.numero} · {guia.estadoDespacho === "PLANIFICADO" ? "Planificada" : guia.estadoDespacho === "EN_RUTA" ? "En ruta" : "Entregada"}
+                </Link>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-sm text-neutral-500">Aún no hay entregas planificadas.</p>
+          )}
+        </section>
+      )}
       {pedido.facturas.length > 0 && (
         <div className="mt-6 text-sm">
           <span className="font-medium">Facturas asociadas:</span>{" "}
