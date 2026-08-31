@@ -882,6 +882,7 @@ model Cliente {
   movimientosCasco MovimientoCasco[]
   avisosCobranza   AvisoCobranza[]
   reclamos         ReclamoCliente[]
+  creditosCliente  CreditoCliente[]
 
   @@unique([empresaId, ruc])
   @@unique([empresaId, codigo])
@@ -1061,9 +1062,9 @@ model Factura {
   usuarioId         String
   usuarioNombre     String
 
-  pedido              Pedido              @relation(fields: [pedidoId], references: [id])
-  cliente             Cliente             @relation(fields: [clienteId], references: [id])
-  vendedor            Vendedor            @relation(fields: [vendedorId], references: [id])
+  pedido              Pedido                     @relation(fields: [pedidoId], references: [id])
+  cliente             Cliente                    @relation(fields: [clienteId], references: [id])
+  vendedor            Vendedor                   @relation(fields: [vendedorId], references: [id])
   cobros              Cobro[]
   avisosCobranza      AvisoCobranza[]
   notasCredito        NotaCredito[]
@@ -1073,6 +1074,7 @@ model Factura {
   recargosMora        RecargoMora[]
   reclamos            ReclamoCliente[]
   detalles            FacturaDetalle[]
+  aplicacionesCredito AplicacionCreditoCliente[]
 
   @@index([pedidoId])
   @@map("facturas")
@@ -1263,6 +1265,7 @@ model NotaCredito {
 
   factura  Factura              @relation(fields: [facturaId], references: [id])
   detalles NotaCreditoDetalle[]
+  credito  CreditoCliente?
 
   @@map("notas_credito")
 }
@@ -1285,6 +1288,81 @@ model NotaCreditoDetalle {
 
   @@index([devolucionDetalleId])
   @@map("nota_credito_detalles")
+}
+
+enum EstadoCreditoCliente {
+  DISPONIBLE
+  AGOTADO
+}
+
+model CreditoCliente {
+  id                     String               @id @default(cuid())
+  empresaId              String               @default("1")
+  clienteId              String
+  notaCreditoId          String               @unique
+  moneda                 String               @default("PEN")
+  tipoCambioOrigen       Decimal              @default(1)
+  montoOriginal          Decimal
+  saldo                  Decimal
+  montoFuncionalOriginal Decimal              @default(0)
+  saldoFuncional         Decimal              @default(0)
+  estado                 EstadoCreditoCliente @default(DISPONIBLE)
+  creadoEn               DateTime             @default(now())
+
+  cliente      Cliente                    @relation(fields: [clienteId], references: [id])
+  notaCredito  NotaCredito                @relation(fields: [notaCreditoId], references: [id])
+  aplicaciones AplicacionCreditoCliente[]
+  reembolsos   ReembolsoCliente[]
+
+  @@index([clienteId, estado])
+  @@map("creditos_cliente")
+}
+
+model AplicacionCreditoCliente {
+  id                       String   @id @default(cuid())
+  empresaId                String   @default("1")
+  creditoId                String
+  facturaId                String
+  fecha                    DateTime @default(now())
+  monto                    Decimal
+  creditoFuncionalAplicado Decimal
+  cxcFuncionalAplicada     Decimal
+  diferenciaCambio         Decimal  @default(0)
+  usuarioId                String
+  usuarioNombre            String
+
+  credito CreditoCliente @relation(fields: [creditoId], references: [id])
+  factura Factura        @relation(fields: [facturaId], references: [id])
+
+  @@index([creditoId])
+  @@index([facturaId])
+  @@map("aplicaciones_credito_cliente")
+}
+
+model ReembolsoCliente {
+  id                       String           @id @default(cuid())
+  empresaId                String           @default("1")
+  creditoId                String
+  fecha                    DateTime         @default(now())
+  monto                    Decimal
+  moneda                   String           @default("PEN")
+  tipoCambio               Decimal          @default(1)
+  montoFuncional           Decimal
+  creditoFuncionalAplicado Decimal
+  diferenciaCambio         Decimal          @default(0)
+  medioPago                MedioPago
+  referencia               String?
+  estadoAprobacion         EstadoAprobacion @default(NO_REQUERIDA)
+  aprobadoPor              String?
+  aprobadoEn               DateTime?
+  motivoRechazo            String?
+  usuarioId                String
+  usuarioNombre            String
+
+  credito CreditoCliente @relation(fields: [creditoId], references: [id])
+
+  @@index([creditoId, estadoAprobacion])
+  @@map("reembolsos_cliente")
 }
 
 enum EstadoDevolucionCliente {
@@ -2087,6 +2165,8 @@ enum OrigenAsiento {
   DEVOLUCION_CLIENTE
   COBRO
   NOTA_CREDITO
+  APLICACION_CREDITO_CLIENTE
+  REEMBOLSO_CLIENTE
   ANULACION_VENTA
   RECARGO_MORA
   COMPRA

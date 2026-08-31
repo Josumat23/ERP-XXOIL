@@ -74,7 +74,7 @@ export default async function DetalleFacturaPage({
           },
         },
         cobros: { orderBy: { fecha: "asc" } },
-        notasCredito: { orderBy: { fecha: "asc" } },
+        notasCredito: { orderBy: { fecha: "asc" }, include: { credito: true } },
         comisiones: { orderBy: { creadoEn: "asc" } },
         guias: true,
         recargosMora: { orderBy: { fecha: "asc" } },
@@ -155,8 +155,11 @@ export default async function DetalleFacturaPage({
         maxAcreditable,
       }];
     })
-  );  const hayLineasAcreditables = [...lineasAcreditables, ...lineasDevolucionAcreditables].some((l) => l.maxAcreditable > 0);
-  const puedeCrearNotaCredito = puedeOperar && factura.saldo.toNumber() > 0 && hayLineasAcreditables;
+  );
+  const hayLineasAcreditables = [...lineasAcreditables, ...lineasDevolucionAcreditables].some(
+    (linea) => linea.maxAcreditable > 0
+  );
+  const puedeCrearNotaCredito = puedeOperar && hayLineasAcreditables;
   const seriesNC = puedeCrearNotaCredito ? await seriesActivas("NOTA_CREDITO") : [];
 
   // El documento de devolución es la fuente; lo retornado físicamente al
@@ -481,6 +484,7 @@ export default async function DetalleFacturaPage({
                 <th>Motivo</th>
                 <th>Registrado por</th>
                 <th className="text-right">Monto</th>
+                <th className="text-right">Saldo a favor</th>
                 <th className="no-imprimir">SUNAT</th>
               </tr>
             </thead>
@@ -501,6 +505,13 @@ export default async function DetalleFacturaPage({
                       <span className="block text-xs text-neutral-400">
                         {formatMoneda(nc.montoFuncional, factura.monedaFuncional)} · TC {nc.tipoCambio.toString()}
                       </span>
+                    </td>
+                    <td className="text-right text-sm">
+                      {nc.credito ? (
+                        <Link href="/finanzas/saldos-favor-clientes" className="text-[var(--epicor-azul)] hover:underline">
+                          {formatMoneda(nc.credito.saldo, nc.credito.moneda)}
+                        </Link>
+                      ) : "—"}
                     </td>
                     <td className="no-imprimir">
                       <div className="flex items-center gap-2">

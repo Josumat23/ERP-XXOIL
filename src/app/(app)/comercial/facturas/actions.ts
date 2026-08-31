@@ -16,6 +16,7 @@ import {
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
 import { calcularSaldoAcreditableDevolucion, crearDocumentoDevolucion, inspeccionarDetalleDevolucion } from "@/lib/devolucionesCliente";
+import { calcularDistribucionNotaCredito } from "@/lib/creditosCliente";
 import { CODIGO_TIPO_NOTA_CREDITO } from "@/lib/catalogosSunat";
 import {
   calcularAplicacionCobro,
@@ -428,18 +429,23 @@ export async function crearNotaCredito(
       });
 
       const totalNC = factura.notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
-      const maximo = Math.min(
-        factura.total.toNumber() - totalNC,
-        factura.saldo.toNumber()
-      );
+      const maximo = factura.total.toNumber() - totalNC;
       if (monto > maximo + 1e-9) {
         throw new Error(
-          `El monto supera lo disponible para notas de crédito (${maximo.toFixed(2)}).`
+          "El monto supera lo disponible para notas de crédito (" + maximo.toFixed(2) + ")."
         );
       }
       if (tipoNota === "DEVOLUCION_TOTAL" && Math.abs(monto - maximo) > 1e-9) {
-        throw new Error(`La devolución total debe acreditar el saldo completo disponible (${maximo.toFixed(2)}).`);
+        throw new Error(
+          "La devolución total debe acreditar el saldo completo disponible (" + maximo.toFixed(2) + ")."
+        );
       }
+      const distribucion = calcularDistribucionNotaCredito({
+        monto,
+        montoFuncional: importesFuncionales.totalFuncional,
+        saldoFactura: factura.saldo.toNumber(),
+        saldoFuncionalFactura: factura.saldoFuncional.toNumber(),
+      });
 
       const nc = await tx.notaCredito.create({
         data: {
@@ -458,12 +464,22 @@ export async function crearNotaCredito(
       });
       notaCreditoId = nc.id;
 
-      // El saldo por cobrar baja hasta un mínimo de cero.
-      const nuevoSaldo = Math.max(0, factura.saldo.toNumber() - monto);
-      const nuevoSaldoFuncional = Math.max(
-        0,
-        factura.saldoFuncional.toNumber() - importesFuncionales.totalFuncional
-      );
+      if (distribucion.montoSaldoFavor > 1e-9) {
+        await tx.creditoCliente.create({
+          data: {
+            empresaId: factura.empresaId,
+            clienteId: factura.clienteId,
+            notaCreditoId: nc.id,
+            moneda: factura.moneda,
+            tipoCambioOrigen: factura.tipoCambio,
+            montoOriginal: distribucion.montoSaldoFavor,
+            saldo: distribucion.montoSaldoFavor,
+            montoFuncionalOriginal: distribucion.montoSaldoFavorFuncional,
+            saldoFuncional: distribucion.montoSaldoFavorFuncional,
+          },
+        });
+      }
+
       const actualizada = await tx.factura.updateMany({
         where: {
           id: facturaId,
@@ -472,9 +488,9 @@ export async function crearNotaCredito(
           saldoFuncional: factura.saldoFuncional,
         },
         data: {
-          saldo: nuevoSaldo,
-          saldoFuncional: nuevoSaldoFuncional,
-          estado: nuevoSaldo <= 1e-9 ? "PAGADA" : factura.estado,
+          saldo: distribucion.nuevoSaldoFactura,
+          saldoFuncional: distribucion.nuevoSaldoFuncionalFactura,
+          estado: distribucion.nuevoSaldoFactura <= 1e-9 ? "PAGADA" : "PENDIENTE",
         },
       });
       if (actualizada.count !== 1) {
@@ -507,7 +523,8 @@ export async function crearNotaCredito(
           numeroFactura: factura.numero,
           montoBase: importesFuncionales.subtotalFuncional,
           montoIgv: importesFuncionales.igvFuncional,
-          montoTotal: importesFuncionales.totalFuncional,
+          montoCxc: distribucion.montoCxcFuncional,
+          montoSaldoFavor: distribucion.montoSaldoFavorFuncional,
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
       );
