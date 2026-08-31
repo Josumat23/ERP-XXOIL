@@ -11,6 +11,7 @@ import { enviarComprobanteGuiaInterno } from "@/lib/guiasRemision";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { registrarMovimiento } from "@/lib/inventario";
 import { asignarLoteVenta } from "@/lib/trazabilidad";
+import { postearSalidaMercancia } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -251,6 +252,7 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
       }
 
       if (guia.pedido?.requiereEntrega) {
+        let costoTotal = 0;
         for (const detalle of guia.detalles) {
           if (!detalle.pedidoDetalle || detalle.pedidoDetalle.pedidoId !== guia.pedido.id) {
             throw new Error("La guía contiene una línea sin origen válido en el pedido.");
@@ -279,6 +281,7 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
             where: { id: detalle.id },
             data: { costoUnitario: detalle.presentacion.costoPromedio },
           });
+          costoTotal += detalle.cantidad * detalle.presentacion.costoPromedio.toNumber();
           await asignarLoteVenta(tx, {
             guiaDetalleId: detalle.id,
             pedidoDetalleId: detalle.pedidoDetalle.id,
@@ -286,6 +289,11 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
             cantidad: detalle.cantidad,
           });
         }
+        await postearSalidaMercancia(
+          tx,
+          { numeroGuia: guia.numero, pedido: guia.pedido.numero, costoTotal },
+          { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        );
       }
     });
   } catch (e) {

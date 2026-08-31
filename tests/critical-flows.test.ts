@@ -12,6 +12,7 @@ import {
   postearPagoProveedor,
   postearRecargoMora,
   postearRecepcionCompra,
+  postearSalidaMercancia,
   postearVenta,
 } from "@/lib/contabilidad";
 import { calcularUnidadesAProducir, esPeriodoProyeccionValido } from "@/lib/proyecciones";
@@ -752,6 +753,21 @@ test("venta y cobro generan asientos balanceados y trazables", async () => {
   assert.deepEqual(new Set(asientos.map((asiento) => asiento.origen)), new Set(["VENTA", "COBRO"]));
 });
 
+test("PGI reconoce costo e inventario al salir la guía", async () => {
+  const referencia = "T-PGI-" + Date.now();
+  const audit = await auditoria();
+  await prisma.$transaction((tx) =>
+    postearSalidaMercancia(tx, { numeroGuia: referencia, pedido: "PED-PGI", costoTotal: 87.5 }, audit)
+  );
+  const [asiento] = await asientosPorReferencia(referencia);
+  assert.ok(asiento);
+  comprobarCuadre(asiento);
+  assert.equal(asiento.origen, "SALIDA_MERCANCIA");
+  assert.deepEqual(asiento.detalles.map((detalle) => [detalle.debe.toNumber(), detalle.haber.toNumber()]), [
+    [87.5, 0],
+    [0, 87.5],
+  ]);
+});
 test("recepción de compra y pago generan asientos balanceados", async () => {
   const referencia = "PTEST-" + Date.now();
   const audit = await auditoria();

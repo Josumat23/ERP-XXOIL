@@ -590,7 +590,7 @@ export async function facturarPedido(
           subtotal: importesFuncionales.subtotalFuncional,
           igv: importesFuncionales.igvFuncional,
           total: importesFuncionales.totalFuncional,
-          costoVentas,
+          costoVentas: pedido.requiereEntrega ? 0 : costoVentas,
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
       );
