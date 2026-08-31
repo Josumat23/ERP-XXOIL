@@ -89,8 +89,10 @@ export default async function DetalleGuiaPage({
         <div className="flex items-center gap-2 mt-2 no-imprimir">
           <span
             className={`insignia ${
-              guia.estadoDespacho === "ENTREGADO"
-                ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
+              guia.estadoDespacho === "ANULADO"
+                ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                : guia.estadoDespacho === "ENTREGADO"
+                  ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
                 : guia.estadoDespacho === "EN_RUTA"
                   ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400"
                   : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800"
@@ -207,7 +209,7 @@ export default async function DetalleGuiaPage({
               </tr>
             ))}
             <tr>
-              <td colSpan={3} className="text-right font-semibold">
+              <td colSpan={4} className="text-right font-semibold">
                 Peso total
               </td>
               <td className="text-right font-semibold">{formatNumero(totalKg, 2)} kg</td>
@@ -217,6 +219,15 @@ export default async function DetalleGuiaPage({
 
         {guia.observaciones && (
           <p className="text-sm text-neutral-500 mt-4">Observaciones: {guia.observaciones}</p>
+        )}
+        {guia.estadoDespacho === "ANULADO" && guia.anuladaEn && (
+          <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900 dark:bg-red-950/30">
+            <p className="font-semibold text-red-800 dark:text-red-300">Despacho anulado</p>
+            <p className="mt-1">{guia.motivoAnulacion}</p>
+            <p className="mt-1 text-xs text-neutral-500">
+              {guia.anuladaPorNombre} · {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short" }).format(guia.anuladaEn)}
+            </p>
+          </div>
         )}
 
         <p className="text-xs text-neutral-400 mt-6">

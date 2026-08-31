@@ -434,6 +434,7 @@ enum OrigenMovimiento {
   ENVASADO // consumo de envases/etiquetas y entrada de presentaciones
   VENTA
   ANULACION_VENTA
+  REVERSO_ENTREGA
   DEVOLUCION_CLIENTE // el cliente devuelve mercadería físicamente (no es anulación ni NC)
   DEVOLUCION_PROVEEDOR // se devuelve materia prima/insumo a un proveedor (defecto, no conformidad)
   TRASLADO // movimiento entre dos almacenes: una SALIDA en el origen + una ENTRADA en el destino
@@ -1487,6 +1488,7 @@ enum EstadoDespacho {
   PLANIFICADO
   EN_RUTA
   ENTREGADO
+  ANULADO
 }
 
 // Catálogo 20 de SUNAT: determina qué otro dato es obligatorio (público
@@ -1531,6 +1533,10 @@ model GuiaRemision {
   estadoDespacho      EstadoDespacho      @default(PLANIFICADO)
   fechaSalida         DateTime?
   fechaEntrega        DateTime?
+  anuladaEn           DateTime?
+  anuladaPorId        String?
+  anuladaPorNombre    String?
+  motivoAnulacion     String?
   usuarioId           String
   usuarioNombre       String
   creadoEn            DateTime            @default(now())

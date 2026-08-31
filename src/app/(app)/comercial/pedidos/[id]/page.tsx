@@ -54,9 +54,11 @@ export default async function DetallePedidoPage({
     const facturado = detalle.facturaDetalles
       .filter((fd) => fd.factura.estado !== "ANULADA")
       .reduce((total, fd) => total + fd.cantidad, 0);
-    const planificado = detalle.guiaDetalles.reduce((total, gd) => total + gd.cantidad, 0);
+    const planificado = detalle.guiaDetalles
+      .filter((gd) => gd.guia.estadoDespacho !== "ANULADO")
+      .reduce((total, gd) => total + gd.cantidad, 0);
     const entregadoReal = detalle.guiaDetalles
-      .filter((gd) => gd.guia.estadoDespacho !== "PLANIFICADO")
+      .filter((gd) => gd.guia.estadoDespacho === "EN_RUTA" || gd.guia.estadoDespacho === "ENTREGADO")
       .reduce((total, gd) => total + gd.cantidad, 0);
     const entregado = pedido.requiereEntrega ? entregadoReal : detalle.cantidad;
     return {
@@ -308,7 +310,7 @@ export default async function DetallePedidoPage({
             <div className="mt-3 flex flex-wrap gap-2">
               {pedido.guias.map((guia) => (
                 <Link key={guia.id} href={`/logistica/guias-remision/${guia.id}`} className="insignia bg-neutral-100 text-neutral-700 hover:underline dark:bg-neutral-800 dark:text-neutral-300">
-                  {guia.numero} · {guia.estadoDespacho === "PLANIFICADO" ? "Planificada" : guia.estadoDespacho === "EN_RUTA" ? "En ruta" : "Entregada"}
+                  {guia.numero} · {guia.estadoDespacho === "PLANIFICADO" ? "Planificada" : guia.estadoDespacho === "EN_RUTA" ? "En ruta" : guia.estadoDespacho === "ENTREGADO" ? "Entregada" : "Anulada"}
                 </Link>
               ))}
             </div>

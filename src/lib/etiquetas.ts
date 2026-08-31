@@ -13,6 +13,7 @@ export const ETIQUETA_ORIGEN: Record<$Enums.OrigenMovimiento, string> = {
   ENVASADO: "Envasado",
   VENTA: "Venta",
   ANULACION_VENTA: "Anulación de venta",
+  REVERSO_ENTREGA: "Reverso de entrega",
   DEVOLUCION_CLIENTE: "Devolución de cliente",
   DEVOLUCION_PROVEEDOR: "Devolución a proveedor",
   TRASLADO: "Traslado entre almacenes",
@@ -46,6 +47,7 @@ export const ETIQUETA_ESTADO_DESPACHO: Record<$Enums.EstadoDespacho, string> = {
   PLANIFICADO: "Planificado",
   EN_RUTA: "En ruta",
   ENTREGADO: "Entregado",
+  ANULADO: "Anulado",
 };
 
 export const ETIQUETA_ESTADO_LOTE: Record<$Enums.EstadoLote, string> = {
