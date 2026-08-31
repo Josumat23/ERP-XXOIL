@@ -327,9 +327,10 @@ model Proveedor {
   activo              Boolean             @default(true)
   creadoEn            DateTime            @default(now())
 
-  insumos         Insumo[]
-  ordenesCompra   OrdenCompra[]
-  cuentasPorPagar CuentaPorPagar[]
+  insumos           Insumo[]
+  ordenesCompra     OrdenCompra[]
+  cuentasPorPagar   CuentaPorPagar[]
+  creditosProveedor CreditoProveedor[]
 
   @@unique([empresaId, ruc])
   @@map("proveedores")
@@ -1568,24 +1569,84 @@ model RecepcionCompraDetalle {
 }
 
 // Devolución de un insumo/materia prima a su proveedor (defecto, no
-// conformidad detectada después de recibido). Reduce el stock físico y se
-// aplica como crédito contra la cuenta por pagar de esa recepción — el
-// equivalente a una nota de crédito de proveedor, sin modelarla como
-// documento SUNAT aparte porque quien la emite es el proveedor, no XXOil.
+// conformidad detectada después de recibido). Reduce el stock físico, cancela
+// la CxP abierta y conserva cualquier excedente como activo recuperable en el
+// subledger del proveedor. El comprobante lo emite el proveedor, no XXOil.
 model DevolucionCompra {
   id                       String   @id @default(cuid())
   empresaId                String   @default("1")
   recepcionCompraDetalleId String
   cantidad                 Decimal
   motivo                   String
-  montoCredito             Decimal // cantidad * costoUnitario de la línea, aplicado a la CxP
+  montoCredito             Decimal // importe en moneda de la OC para trazabilidad
+  montoFuncional           Decimal  @default(0) // valor en PEN usado por CxP y contabilidad
   usuarioId                String
   usuarioNombre            String
   creadoEn                 DateTime @default(now())
 
   recepcionCompraDetalle RecepcionCompraDetalle @relation(fields: [recepcionCompraDetalleId], references: [id])
+  credito                CreditoProveedor?
 
   @@map("devoluciones_compra")
+}
+
+enum EstadoCreditoProveedor {
+  DISPONIBLE
+  AGOTADO
+}
+
+model CreditoProveedor {
+  id                     String                 @id @default(cuid())
+  empresaId              String                 @default("1")
+  proveedorId            String
+  devolucionCompraId     String                 @unique
+  montoFuncionalOriginal Decimal
+  saldoFuncional         Decimal
+  estado                 EstadoCreditoProveedor @default(DISPONIBLE)
+  creadoEn               DateTime               @default(now())
+
+  proveedor    Proveedor                    @relation(fields: [proveedorId], references: [id])
+  devolucion   DevolucionCompra             @relation(fields: [devolucionCompraId], references: [id])
+  aplicaciones AplicacionCreditoProveedor[]
+  reembolsos   ReembolsoProveedor[]
+
+  @@index([proveedorId, estado])
+  @@map("creditos_proveedor")
+}
+
+model AplicacionCreditoProveedor {
+  id               String   @id @default(cuid())
+  empresaId        String   @default("1")
+  creditoId        String
+  cuentaPorPagarId String
+  fecha            DateTime @default(now())
+  montoFuncional   Decimal
+  usuarioId        String
+  usuarioNombre    String
+
+  credito        CreditoProveedor @relation(fields: [creditoId], references: [id])
+  cuentaPorPagar CuentaPorPagar   @relation(fields: [cuentaPorPagarId], references: [id])
+
+  @@index([creditoId])
+  @@index([cuentaPorPagarId])
+  @@map("aplicaciones_credito_proveedor")
+}
+
+model ReembolsoProveedor {
+  id             String    @id @default(cuid())
+  empresaId      String    @default("1")
+  creditoId      String
+  fecha          DateTime  @default(now())
+  montoFuncional Decimal
+  medioPago      MedioPago
+  referencia     String?
+  usuarioId      String
+  usuarioNombre  String
+
+  credito CreditoProveedor @relation(fields: [creditoId], references: [id])
+
+  @@index([creditoId])
+  @@map("reembolsos_proveedor")
 }
 
 // Ledger de consumo (solo ida, sin reversos: un LoteGranel no se "anula")
@@ -1793,10 +1854,11 @@ model CuentaPorPagar {
   usuarioId             String
   usuarioNombre         String
 
-  proveedor       Proveedor        @relation(fields: [proveedorId], references: [id])
-  ordenCompra     OrdenCompra?     @relation(fields: [ordenCompraId], references: [id])
-  recepcionCompra RecepcionCompra? @relation(fields: [recepcionCompraId], references: [id])
-  pagos           PagoProveedor[]
+  proveedor           Proveedor                    @relation(fields: [proveedorId], references: [id])
+  ordenCompra         OrdenCompra?                 @relation(fields: [ordenCompraId], references: [id])
+  recepcionCompra     RecepcionCompra?             @relation(fields: [recepcionCompraId], references: [id])
+  pagos               PagoProveedor[]
+  aplicacionesCredito AplicacionCreditoProveedor[]
 
   @@map("cuentas_por_pagar")
 }
@@ -2176,6 +2238,8 @@ enum OrigenAsiento {
   VENTA_ACTIVO_FIJO
   REVERSO
   DEVOLUCION_COMPRA
+  APLICACION_CREDITO_PROVEEDOR
+  REEMBOLSO_PROVEEDOR
   PLANILLA
   GRATIFICACION
   CTS
