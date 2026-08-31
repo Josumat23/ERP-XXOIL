@@ -3,6 +3,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { prisma } from "@/lib/prisma";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import EmpresaFormulario from "./EmpresaFormulario";
 import CuentasBancarias from "./CuentasBancarias";
 
@@ -11,9 +12,10 @@ export default async function EmpresaPage() {
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
   if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
+  const empresaId = await obtenerEmpresaActivaId();
   const [config, cuentasBancarias] = await Promise.all([
     obtenerConfiguracionEmpresa(),
-    prisma.cuentaBancariaEmpresa.findMany({ where: { empresaId: "1" }, orderBy: { banco: "asc" } }),
+    prisma.cuentaBancariaEmpresa.findMany({ where: { empresaId, activo: true }, orderBy: { banco: "asc" } }),
   ]);
 
   return (

@@ -41,7 +41,7 @@ export default function CuentasBancarias({ cuentas }: { cuentas: Cuenta[] }) {
                     type="submit"
                     className="inline-flex min-h-11 items-center px-2 text-xs text-neutral-400 hover:text-red-500"
                   >
-                    Eliminar
+                    Desactivar
                   </button>
                 </form>
               </td>
