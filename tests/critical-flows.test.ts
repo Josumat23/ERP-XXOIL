@@ -61,6 +61,11 @@ import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } f
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, esPorcentajePlanillaValido, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
+import {
+  calcularSaldoAcreditableDevolucion,
+  crearDocumentoDevolucion,
+  inspeccionarDetalleDevolucion,
+} from "@/lib/devolucionesCliente";
 import { revertirDespacho, validarAnulacionDespacho } from "@/lib/reversaDespacho";
 import {
   esTipoComprobanteRecepcionValido,
@@ -1019,36 +1024,107 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
       presentacionId: presentacion.id,
       cantidad: 7,
       precioUnitario: 20,
+      costoUnitario: 8,
       subtotal: 140,
     },
   });
 
-  await prisma.$transaction((tx) =>
-    asignarLoteVenta(tx, { facturaDetalleId: facturaDetalleRecall.id, pedidoDetalleId: detalleId, presentacionId: presentacion.id, cantidad: 7 })
+  await prisma.$transaction(async (tx) => {
+    const salida = await registrarMovimiento(tx, {
+      tipoItem: "PRESENTACION",
+      presentacionId: presentacion.id,
+      tipoMovimiento: "SALIDA",
+      origen: "VENTA",
+      cantidad: 7,
+      almacenId: almacen.id,
+      referencia: facturaRecall.numero,
+      ...audit,
+    });
+    if (!salida.ok) throw new Error(salida.error);
+    await asignarLoteVenta(tx, {
+      facturaDetalleId: facturaDetalleRecall.id,
+      pedidoDetalleId: detalleId,
+      presentacionId: presentacion.id,
+      cantidad: 7,
+    });
+  });
+  const stockTrasVenta = await prisma.presentacion.findUniqueOrThrow({ where: { id: presentacion.id } });
+  assert.equal(stockTrasVenta.stock.toNumber(), 3);
+  assert.equal((await prisma.envasado.findUniqueOrThrow({ where: { id: lote.envasados[0]!.id } })).unidadesDisponibles, 3);
+
+  const devolucionId = await prisma.$transaction((tx) =>
+    crearDocumentoDevolucion(tx, {
+      numero: "DEV-RECALL-" + sufijo,
+      facturaId: facturaRecall.id,
+      almacenId: almacen.id,
+      motivo: "Mercadería observada por el cliente industrial",
+      lineas: [{ facturaDetalleId: facturaDetalleRecall.id, cantidad: 7 }],
+      audit,
+    })
   );
+  const recibida = await prisma.devolucionCliente.findUniqueOrThrow({
+    where: { id: devolucionId },
+    include: { detalles: true },
+  });
+  const devolucionDetalleId = recibida.detalles[0]?.id;
+  assert.ok(devolucionDetalleId);
+  assert.equal(recibida.estado, "PENDIENTE_INSPECCION");
+  assert.equal((await prisma.presentacion.findUniqueOrThrow({ where: { id: presentacion.id } })).stock.toNumber(), 3);
+  assert.equal((await prisma.envasado.findUniqueOrThrow({ where: { id: lote.envasados[0]!.id } })).unidadesDisponibles, 3);
+
   await prisma.$transaction((tx) =>
-    liberarAsignacionesLote(tx, { facturaDetalleId: facturaDetalleRecall.id, pedidoDetalleId: detalleId, cantidad: 3, motivo: "Devolución parcial de prueba" })
-  );
-  await prisma.$transaction((tx) =>
-    liberarAsignacionesLote(tx, { facturaDetalleId: facturaDetalleRecall.id, pedidoDetalleId: detalleId, motivo: "Anulación del saldo de prueba" })
-  );
-  await prisma.$transaction((tx) =>
-    liberarAsignacionesLote(tx, { facturaDetalleId: facturaDetalleRecall.id, pedidoDetalleId: detalleId, motivo: "Segundo intento idempotente" })
+    inspeccionarDetalleDevolucion(tx, {
+      detalleId: devolucionDetalleId,
+      cantidadReingreso: 3,
+      cantidadDesecho: 2,
+      cantidadDevolverCliente: 2,
+      cantidadAcreditable: 4,
+      observacion: "Tres conformes, dos dañadas y dos no corresponden",
+      audit,
+    })
   );
 
-  const [envasadoRestituido, eventosRecall] = await Promise.all([
-    prisma.envasado.findUniqueOrThrow({ where: { id: lote.envasados[0]!.id } }),
-    prisma.asignacionLoteVenta.findMany({ where: { pedidoDetalleId: detalleId }, orderBy: { creadoEn: "asc" } }),
-  ]);
-  assert.equal(envasadoRestituido.unidadesDisponibles, 10);
+  const [devolucionCerrada, stockInspeccionado, envasadoRestituido, eventosRecall, asientoDevolucion] =
+    await Promise.all([
+      prisma.devolucionCliente.findUniqueOrThrow({
+        where: { id: devolucionId },
+        include: { detalles: true },
+      }),
+      prisma.presentacion.findUniqueOrThrow({ where: { id: presentacion.id } }),
+      prisma.envasado.findUniqueOrThrow({ where: { id: lote.envasados[0]!.id } }),
+      prisma.asignacionLoteVenta.findMany({
+        where: { pedidoDetalleId: detalleId },
+        orderBy: { creadoEn: "asc" },
+      }),
+      prisma.asientoContable.findFirstOrThrow({
+        where: { origen: "DEVOLUCION_CLIENTE", referencia: recibida.numero },
+        include: { detalles: true },
+      }),
+    ]);
+  assert.equal(devolucionCerrada.estado, "CERRADA");
+  assert.equal(devolucionCerrada.detalles[0]?.decision, "MIXTA");
+  assert.equal(devolucionCerrada.detalles[0]?.cantidadAcreditable, 4);
+  assert.equal(stockInspeccionado.stock.toNumber(), 6);
+  assert.equal(envasadoRestituido.unidadesDisponibles, 6);
   assert.deepEqual(
-    eventosRecall.map((evento) => ({ tipo: evento.tipo, cantidad: evento.cantidad })),
+    eventosRecall.map((evento) => ({
+      tipo: evento.tipo,
+      cantidad: evento.cantidad,
+      devolucionDetalleId: evento.devolucionDetalleId,
+    })),
     [
-      { tipo: "ASIGNADA", cantidad: 7 },
-      { tipo: "LIBERADA", cantidad: 3 },
-      { tipo: "LIBERADA", cantidad: 4 },
+      { tipo: "ASIGNADA", cantidad: 7, devolucionDetalleId: null },
+      { tipo: "LIBERADA", cantidad: 3, devolucionDetalleId },
+      { tipo: "LIBERADA", cantidad: 2, devolucionDetalleId },
     ]
   );
+  comprobarCuadre(asientoDevolucion);
+  assert.equal(
+    asientoDevolucion.detalles.reduce((total, linea) => total + linea.debe.toNumber(), 0),
+    24
+  );
+  assert.equal(calcularSaldoAcreditableDevolucion(4, []), 4);
+  assert.equal(calcularSaldoAcreditableDevolucion(4, [1, 2]), 1);
 
   const guia = await prisma.guiaRemision.create({
     data: {
@@ -1101,7 +1177,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   );
   assert.equal(
     (await prisma.envasado.findUniqueOrThrow({ where: { id: lote.envasados[0]!.id } })).unidadesDisponibles,
-    10
+    6
   );
 
   assert.match(validarAnulacionDespacho("ENTREGADO", false) ?? "", /devolución física/);
@@ -1171,7 +1247,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   assert.equal(guiaRevertida.motivoAnulacion, "Error de preparación confirmado");
   assert.equal(presentacionRevertida.stock.toNumber(), presentacionAntesReversa.stock.toNumber());
   assert.equal(presentacionRevertida.stockReservado.toNumber(), presentacionAntesReversa.stockReservado.toNumber() + 2);
-  assert.equal(envasadoRevertido.unidadesDisponibles, 10);
+  assert.equal(envasadoRevertido.unidadesDisponibles, 6);
   assert.deepEqual(new Set(asientosReversa.map((asiento) => asiento.origen)), new Set(["SALIDA_MERCANCIA", "REVERSO"]));
   asientosReversa.forEach(comprobarCuadre);
   assert.equal(movimientosReversa.at(-1)?.origen, "REVERSO_ENTREGA");

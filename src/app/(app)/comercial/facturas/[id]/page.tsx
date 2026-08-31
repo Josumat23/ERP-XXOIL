@@ -9,7 +9,6 @@ import {
   ETIQUETA_ESTADO_FACTURA,
   ETIQUETA_CONDICION_PAGO,
   ETIQUETA_MEDIO_PAGO,
-  MOTIVO_DEVOLUCION_PREFIJO,
   ETIQUETA_ESTADO_SUNAT,
   COLOR_ESTADO_SUNAT,
 } from "@/lib/etiquetas";
@@ -23,6 +22,7 @@ import {
   NotaCreditoFormulario,
   AnularFacturaFormulario,
   DevolucionFormulario,
+  InspeccionDevolucionFormulario,
   RecargoMoraFormulario,
 } from "./FormulariosFactura";
 import {
@@ -30,6 +30,14 @@ import {
   enviarComprobanteNotaCredito,
 } from "../actions";
 
+function DatoRetorno({ etiqueta, valor }: { etiqueta: string; valor: string | number }) {
+  return (
+    <div>
+      <p className="text-xs text-neutral-500">{etiqueta}</p>
+      <p className="font-medium">{valor}</p>
+    </div>
+  );
+}
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
   PAGADA: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
@@ -42,11 +50,17 @@ export default async function DetalleFacturaPage({
   params: Promise<{ id: string }>;
 }) {
   const usuario = await obtenerUsuario();
-  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+  if (!usuario) redirect("/");
+  const [puedeVerVentas, puedeEditarVentas, puedeInspeccionar] = await Promise.all([
+    puedeRealizar(usuario, "ventas", "ver"),
+    puedeRealizar(usuario, "ventas", "editar"),
+    puedeRealizar(usuario, "materiales", "editar"),
+  ]);
+  if (!puedeVerVentas) redirect("/");
 
   const { id } = await params;
 
-  const [factura, facturas, config] = await Promise.all([
+  const [factura, facturas, config, almacenes] = await Promise.all([
     prisma.factura.findUnique({
       where: { id },
       include: {
@@ -64,10 +78,23 @@ export default async function DetalleFacturaPage({
         comisiones: { orderBy: { creadoEn: "asc" } },
         guias: true,
         recargosMora: { orderBy: { fecha: "asc" } },
+        devolucionesCliente: {
+          orderBy: { fechaRecepcion: "asc" },
+          include: {
+            almacen: true,
+            detalles: {
+              include: {
+                facturaDetalle: { include: { presentacion: { include: { producto: true } } } },
+                notasCreditoDetalle: true,
+              },
+            },
+          },
+        },
       },
     }),
     prisma.factura.findMany({ include: { cliente: true }, orderBy: { fechaEmision: "desc" } }),
     prisma.configuracionEmpresa.findUnique({ where: { id: "1" } }),
+    prisma.almacen.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
   ]);
   if (!factura) notFound();
 
@@ -88,7 +115,7 @@ export default async function DetalleFacturaPage({
   const puedeAplicarMora = vencida && (config?.tasaRecargoMora.toNumber() ?? 0) > 0;
 
   const totalNC = factura.notasCredito.reduce((acc, nc) => acc + nc.monto.toNumber(), 0);
-  const puedeOperar = factura.estado !== "ANULADA";
+  const puedeOperar = puedeEditarVentas && factura.estado !== "ANULADA";
   const sinCobrosNiNC = factura.cobros.length === 0 && factura.notasCredito.length === 0;
 
   // Notas de crédito: cuánto de cada línea ya se acreditó, para saber cuánto
@@ -107,36 +134,49 @@ export default async function DetalleFacturaPage({
     );
   }
   const lineasAcreditables = factura.detalles.map((d) => ({
+    clave: d.pedidoDetalleId,
     pedidoDetalleId: d.pedidoDetalleId,
     etiqueta: `${d.presentacion.producto.nombre} — ${d.presentacion.nombre}`,
     precioUnitario: d.precioUnitario.toNumber(),
     maxAcreditable: d.cantidad - (yaAcreditadoPorLinea.get(d.pedidoDetalleId) ?? 0),
   }));
-  const hayLineasAcreditables = lineasAcreditables.some((l) => l.maxAcreditable > 0);
+  const lineasDevolucionAcreditables = factura.devolucionesCliente.flatMap((devolucion) =>
+    devolucion.detalles.flatMap((detalle) => {
+      if (detalle.decision === "PENDIENTE") return [];
+      const acreditado = detalle.notasCreditoDetalle.reduce((total, linea) => total + linea.cantidad.toNumber(), 0);
+      const maxAcreditable = detalle.cantidadAcreditable - acreditado;
+      if (maxAcreditable <= 0) return [];
+      return [{
+        clave: detalle.id,
+        pedidoDetalleId: detalle.facturaDetalle.pedidoDetalleId,
+        devolucionDetalleId: detalle.id,
+        etiqueta: `${devolucion.numero} · ${detalle.facturaDetalle.presentacion.producto.nombre} — ${detalle.facturaDetalle.presentacion.nombre}`,
+        precioUnitario: detalle.facturaDetalle.precioUnitario.toNumber(),
+        maxAcreditable,
+      }];
+    })
+  );  const hayLineasAcreditables = [...lineasAcreditables, ...lineasDevolucionAcreditables].some((l) => l.maxAcreditable > 0);
   const puedeCrearNotaCredito = puedeOperar && factura.saldo.toNumber() > 0 && hayLineasAcreditables;
   const seriesNC = puedeCrearNotaCredito ? await seriesActivas("NOTA_CREDITO") : [];
 
-  // Devoluciones: cuánto de cada línea ya se devolvió, para saber cuánto falta.
-  const liberacionesPorDevolucion = await prisma.asignacionLoteVenta.findMany({
-    where: {
-      tipo: "LIBERADA",
-      motivo: { startsWith: MOTIVO_DEVOLUCION_PREFIJO },
-      facturaDetalleId: { in: factura.detalles.map((d) => d.id) },
-    },
-    orderBy: { creadoEn: "asc" },
-  });
-  const yaDevueltoPorLinea = new Map<string, number>();
-  for (const l of liberacionesPorDevolucion) {
-    if (l.facturaDetalleId) {
-      yaDevueltoPorLinea.set(l.facturaDetalleId, (yaDevueltoPorLinea.get(l.facturaDetalleId) ?? 0) + l.cantidad);
+  // El documento de devolución es la fuente; lo retornado físicamente al
+  // cliente vuelve a quedar disponible para una recepción posterior.
+  const recibidoNetoPorLinea = new Map<string, number>();
+  for (const devolucion of factura.devolucionesCliente) {
+    for (const detalle of devolucion.detalles) {
+      recibidoNetoPorLinea.set(
+        detalle.facturaDetalleId,
+        (recibidoNetoPorLinea.get(detalle.facturaDetalleId) ?? 0) +
+          detalle.cantidad -
+          detalle.cantidadDevolverCliente
+      );
     }
   }
-  const lineasDevolvibles = factura.detalles.map((d) => ({
-    pedidoDetalleId: d.pedidoDetalleId,
-    etiqueta: `${d.presentacion.producto.nombre} — ${d.presentacion.nombre}`,
-    maxDevolvible: d.cantidad - (yaDevueltoPorLinea.get(d.id) ?? 0),
+  const lineasDevolvibles = factura.detalles.map((detalle) => ({
+    facturaDetalleId: detalle.id,
+    etiqueta: `${detalle.presentacion.producto.nombre} — ${detalle.presentacion.nombre}`,
+    maxDevolvible: detalle.cantidad - (recibidoNetoPorLinea.get(detalle.id) ?? 0),
   }));
-
   return (
     <div>
       <div className="flex items-center justify-between no-imprimir">
@@ -495,6 +535,7 @@ export default async function DetalleFacturaPage({
             <NotaCreditoFormulario
               facturaId={factura.id}
               lineas={lineasAcreditables}
+              lineasDevolucion={lineasDevolucionAcreditables}
               series={seriesNC.map((s) => ({
                 id: s.id,
                 serie: s.serie,
@@ -509,42 +550,72 @@ export default async function DetalleFacturaPage({
       </section>
 
       <section className="mt-8">
-        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
-          Devoluciones de mercadería
-        </h2>
-        {liberacionesPorDevolucion.length > 0 && (
-          <table className="tabla mt-2">
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Motivo</th>
-                <th className="text-right">Unidades</th>
-              </tr>
-            </thead>
-            <tbody>
-              {liberacionesPorDevolucion.map((l) => (
-                <tr key={l.id}>
-                  <td className="text-xs text-neutral-500 whitespace-nowrap">
-                    {new Intl.DateTimeFormat("es-PE", { dateStyle: "short" }).format(l.creadoEn)}
-                  </td>
-                  <td className="text-sm">{l.motivo}</td>
-                  <td className="text-right">{l.cantidad}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-        {puedeOperar && lineasDevolvibles.some((l) => l.maxDevolvible > 0) && (
-          <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 mt-3">
-            <DevolucionFormulario facturaId={factura.id} lineas={lineasDevolvibles} />
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Devoluciones de cliente</h2>
+            <p className="mt-1 text-xs text-neutral-500">Recepción bloqueada → inspección → decisión de uso → compensación.</p>
+          </div>
+          {factura.devolucionesCliente.some((devolucion) => devolucion.estado === "PENDIENTE_INSPECCION") && (
+            <span className="insignia bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">Pendiente de Calidad</span>
+          )}
+        </div>
+
+        <div className="mt-3 space-y-3">
+          {factura.devolucionesCliente.map((devolucion) => (
+            <article key={devolucion.id} className="rounded-lg border border-black/10 p-4 dark:border-white/10">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="font-semibold">{devolucion.numero}</p>
+                  <p className="text-xs text-neutral-500">
+                    {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short" }).format(devolucion.fechaRecepcion)} · {devolucion.almacen.codigo} — {devolucion.almacen.nombre}
+                  </p>
+                  <p className="mt-1 text-sm">{devolucion.motivo}</p>
+                </div>
+                <span className={`insignia ${devolucion.estado === "CERRADA" ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"}`}>
+                  {devolucion.estado === "CERRADA" ? "Inspección cerrada" : "Stock bloqueado"}
+                </span>
+              </div>
+              <div className="mt-3 space-y-3">
+                {devolucion.detalles.map((detalle) => {
+                  const acreditado = detalle.notasCreditoDetalle.reduce((total, linea) => total + linea.cantidad.toNumber(), 0);
+                  return (
+                    <div key={detalle.id} className="border-t border-black/5 pt-3 dark:border-white/5">
+                      <div className="grid gap-2 text-sm md:grid-cols-6">
+                        <div className="md:col-span-2">
+                          <p className="font-medium">{detalle.facturaDetalle.presentacion.producto.nombre} — {detalle.facturaDetalle.presentacion.nombre}</p>
+                          <p className="text-xs text-neutral-500">Recibido: {detalle.cantidad}</p>
+                        </div>
+                        <DatoRetorno etiqueta="Reingreso" valor={detalle.cantidadReingreso} />
+                        <DatoRetorno etiqueta="Desecho" valor={detalle.cantidadDesecho} />
+                        <DatoRetorno etiqueta="Al cliente" valor={detalle.cantidadDevolverCliente} />
+                        <DatoRetorno etiqueta="Compensable / NC" valor={`${detalle.cantidadAcreditable} / ${acreditado}`} />
+                      </div>
+                      {detalle.observacionCalidad && <p className="mt-2 text-xs text-neutral-500">Calidad: {detalle.observacionCalidad}</p>}
+                      {detalle.decision === "PENDIENTE" && puedeInspeccionar && (
+                        <InspeccionDevolucionFormulario detalleId={detalle.id} cantidad={detalle.cantidad} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </article>
+          ))}
+        </div>
+
+        {puedeOperar && lineasDevolvibles.some((linea) => linea.maxDevolvible > 0) && (
+          <div className="mt-4 rounded-lg border border-black/10 p-4 dark:border-white/10">
+            <h3 className="mb-3 text-sm font-semibold">Nueva recepción de devolución</h3>
+            <DevolucionFormulario
+              facturaId={factura.id}
+              lineas={lineasDevolvibles}
+              almacenes={almacenes.map((almacen) => ({ id: almacen.id, etiqueta: `${almacen.codigo} — ${almacen.nombre}` }))}
+            />
           </div>
         )}
-        {liberacionesPorDevolucion.length === 0 &&
-          (!puedeOperar || !lineasDevolvibles.some((l) => l.maxDevolvible > 0)) && (
-            <p className="text-sm text-neutral-500 mt-2">Sin devoluciones registradas.</p>
-          )}
+        {factura.devolucionesCliente.length === 0 && !puedeOperar && (
+          <p className="mt-2 text-sm text-neutral-500">Sin devoluciones registradas.</p>
+        )}
       </section>
-
       <section className="mt-8">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
           Comisiones de esta factura

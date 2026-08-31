@@ -734,23 +734,26 @@ enum TipoAsignacionLote {
 // vigente de un PedidoDetalle en un Envasado es la suma de ASIGNADA menos
 // LIBERADA.
 model AsignacionLoteVenta {
-  id               String             @id @default(cuid())
-  pedidoDetalleId  String
-  facturaDetalleId String?
-  guiaDetalleId    String?
-  envasadoId       String
-  tipo             TipoAsignacionLote @default(ASIGNADA)
-  cantidad         Int // siempre positiva; el signo real lo da "tipo"
-  motivo           String? // ej. "Anulación factura F001-123" (null en la asignación original)
-  creadoEn         DateTime           @default(now())
+  id                  String             @id @default(cuid())
+  pedidoDetalleId     String
+  facturaDetalleId    String?
+  guiaDetalleId       String?
+  devolucionDetalleId String?
+  envasadoId          String
+  tipo                TipoAsignacionLote @default(ASIGNADA)
+  cantidad            Int // siempre positiva; el signo real lo da "tipo"
+  motivo              String? // ej. "Anulación factura F001-123" (null en la asignación original)
+  creadoEn            DateTime           @default(now())
 
-  pedidoDetalle  PedidoDetalle        @relation(fields: [pedidoDetalleId], references: [id])
-  facturaDetalle FacturaDetalle?      @relation(fields: [facturaDetalleId], references: [id])
-  guiaDetalle    GuiaRemisionDetalle? @relation(fields: [guiaDetalleId], references: [id])
-  envasado       Envasado             @relation(fields: [envasadoId], references: [id])
+  pedidoDetalle     PedidoDetalle             @relation(fields: [pedidoDetalleId], references: [id])
+  facturaDetalle    FacturaDetalle?           @relation(fields: [facturaDetalleId], references: [id])
+  guiaDetalle       GuiaRemisionDetalle?      @relation(fields: [guiaDetalleId], references: [id])
+  devolucionDetalle DevolucionClienteDetalle? @relation(fields: [devolucionDetalleId], references: [id])
+  envasado          Envasado                  @relation(fields: [envasadoId], references: [id])
 
   @@index([facturaDetalleId])
   @@index([guiaDetalleId])
+  @@index([devolucionDetalleId])
   @@map("asignaciones_lote_venta")
 }
 
@@ -1058,17 +1061,18 @@ model Factura {
   usuarioId         String
   usuarioNombre     String
 
-  pedido         Pedido           @relation(fields: [pedidoId], references: [id])
-  cliente        Cliente          @relation(fields: [clienteId], references: [id])
-  vendedor       Vendedor         @relation(fields: [vendedorId], references: [id])
-  cobros         Cobro[]
-  avisosCobranza AvisoCobranza[]
-  notasCredito   NotaCredito[]
-  comisiones     Comision[]
-  guias          GuiaRemision[]
-  recargosMora   RecargoMora[]
-  reclamos       ReclamoCliente[]
-  detalles       FacturaDetalle[]
+  pedido              Pedido              @relation(fields: [pedidoId], references: [id])
+  cliente             Cliente             @relation(fields: [clienteId], references: [id])
+  vendedor            Vendedor            @relation(fields: [vendedorId], references: [id])
+  cobros              Cobro[]
+  avisosCobranza      AvisoCobranza[]
+  notasCredito        NotaCredito[]
+  comisiones          Comision[]
+  guias               GuiaRemision[]
+  devolucionesCliente DevolucionCliente[]
+  recargosMora        RecargoMora[]
+  reclamos            ReclamoCliente[]
+  detalles            FacturaDetalle[]
 
   @@index([pedidoId])
   @@map("facturas")
@@ -1093,11 +1097,12 @@ model FacturaDetalle {
   subtotalFuncional       Decimal @default(0)
   costoUnitario           Decimal @default(0)
 
-  factura          Factura                 @relation(fields: [facturaId], references: [id])
-  pedidoDetalle    PedidoDetalle           @relation(fields: [pedidoDetalleId], references: [id])
-  presentacion     Presentacion            @relation(fields: [presentacionId], references: [id])
-  asignacionesLote AsignacionLoteVenta[]
-  entregas         FacturaDetalleEntrega[]
+  factura            Factura                    @relation(fields: [facturaId], references: [id])
+  pedidoDetalle      PedidoDetalle              @relation(fields: [pedidoDetalleId], references: [id])
+  presentacion       Presentacion               @relation(fields: [presentacionId], references: [id])
+  asignacionesLote   AsignacionLoteVenta[]
+  entregas           FacturaDetalleEntrega[]
+  devolucionDetalles DevolucionClienteDetalle[]
 
   @@unique([facturaId, pedidoDetalleId])
   @@index([pedidoDetalleId])
@@ -1266,17 +1271,83 @@ model NotaCredito {
 // cite el producto/cantidad real de la factura, no un texto libre como si
 // fuera un ítem — bug que tenía la versión anterior de este envío).
 model NotaCreditoDetalle {
-  id              String  @id @default(cuid())
-  notaCreditoId   String
-  pedidoDetalleId String
-  cantidad        Decimal
-  precioUnitario  Decimal
-  subtotal        Decimal
+  id                  String  @id @default(cuid())
+  notaCreditoId       String
+  pedidoDetalleId     String
+  devolucionDetalleId String?
+  cantidad            Decimal
+  precioUnitario      Decimal
+  subtotal            Decimal
 
-  notaCredito   NotaCredito   @relation(fields: [notaCreditoId], references: [id])
-  pedidoDetalle PedidoDetalle @relation(fields: [pedidoDetalleId], references: [id])
+  notaCredito       NotaCredito               @relation(fields: [notaCreditoId], references: [id])
+  pedidoDetalle     PedidoDetalle             @relation(fields: [pedidoDetalleId], references: [id])
+  devolucionDetalle DevolucionClienteDetalle? @relation(fields: [devolucionDetalleId], references: [id])
 
+  @@index([devolucionDetalleId])
   @@map("nota_credito_detalles")
+}
+
+enum EstadoDevolucionCliente {
+  PENDIENTE_INSPECCION
+  CERRADA
+}
+
+enum DecisionDevolucionCliente {
+  PENDIENTE
+  REINGRESO_STOCK
+  DESECHO
+  DEVOLVER_CLIENTE
+  MIXTA
+}
+
+model DevolucionCliente {
+  id               String                  @id @default(cuid())
+  empresaId        String                  @default("1")
+  numero           String                  @unique
+  facturaId        String
+  almacenId        String
+  fechaRecepcion   DateTime                @default(now())
+  motivo           String
+  estado           EstadoDevolucionCliente @default(PENDIENTE_INSPECCION)
+  usuarioId        String
+  usuarioNombre    String
+  cerradoEn        DateTime?
+  cerradoPorId     String?
+  cerradoPorNombre String?
+  creadoEn         DateTime                @default(now())
+
+  factura  Factura                    @relation(fields: [facturaId], references: [id])
+  almacen  Almacen                    @relation(fields: [almacenId], references: [id])
+  detalles DevolucionClienteDetalle[]
+
+  @@index([facturaId])
+  @@index([almacenId, estado])
+  @@map("devoluciones_cliente")
+}
+
+model DevolucionClienteDetalle {
+  id                      String                    @id @default(cuid())
+  devolucionId            String
+  facturaDetalleId        String
+  cantidad                Int
+  decision                DecisionDevolucionCliente @default(PENDIENTE)
+  cantidadReingreso       Int                       @default(0)
+  cantidadDesecho         Int                       @default(0)
+  cantidadDevolverCliente Int                       @default(0)
+  cantidadAcreditable     Int                       @default(0)
+  observacionCalidad      String?
+  inspeccionadaEn         DateTime?
+  inspeccionadaPorId      String?
+  inspeccionadaPorNombre  String?
+
+  devolucion          DevolucionCliente     @relation(fields: [devolucionId], references: [id])
+  facturaDetalle      FacturaDetalle        @relation(fields: [facturaDetalleId], references: [id])
+  notasCreditoDetalle NotaCreditoDetalle[]
+  asignacionesLote    AsignacionLoteVenta[]
+
+  @@unique([devolucionId, facturaDetalleId])
+  @@index([facturaDetalleId])
+  @@map("devolucion_cliente_detalles")
 }
 
 enum TipoComision {
@@ -1801,6 +1872,7 @@ model Almacen {
   centrosCosto         CentroCosto[]
   empleados            Empleado[]
   pedidos              Pedido[]
+  devolucionesCliente  DevolucionCliente[]
 
   @@unique([empresaId, codigo])
   @@map("almacenes")
@@ -2012,6 +2084,7 @@ enum OrigenAsiento {
   MANUAL
   VENTA
   SALIDA_MERCANCIA
+  DEVOLUCION_CLIENTE
   COBRO
   NOTA_CREDITO
   ANULACION_VENTA

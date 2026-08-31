@@ -7,7 +7,6 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { liberarAsignacionesLote } from "@/lib/trazabilidad";
-import { MOTIVO_DEVOLUCION_PREFIJO } from "@/lib/etiquetas";
 import { avanzarSerie } from "@/lib/series";
 import {
   postearCobro,
@@ -16,6 +15,7 @@ import {
 } from "@/lib/contabilidad";
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
+import { calcularSaldoAcreditableDevolucion, crearDocumentoDevolucion, inspeccionarDetalleDevolucion } from "@/lib/devolucionesCliente";
 import { CODIGO_TIPO_NOTA_CREDITO } from "@/lib/catalogosSunat";
 import {
   calcularAplicacionCobro,
@@ -266,7 +266,7 @@ const TIPOS_NOTA_VALIDOS: $Enums.TipoNotaCredito[] = [
   "OTROS_CONCEPTOS",
 ];
 
-type LineaNotaCredito = { pedidoDetalleId: string; cantidad: number };
+type LineaNotaCredito = { pedidoDetalleId: string; devolucionDetalleId?: string; cantidad: number };
 
 // Nota de crédito: reduce el saldo de la factura y revierte la comisión
 // en forma proporcional con un registro nuevo (nunca se edita la original).
@@ -304,7 +304,7 @@ export async function crearNotaCredito(
     return { error: "El detalle de la nota de crédito es inválido." };
   }
 
-  const cantidadesPorDetalle = new Map<string, number>();
+  const lineasPorOrigen = new Map<string, LineaNotaCredito>();
   for (const linea of lineasRaw) {
     if (
       typeof linea !== "object" ||
@@ -316,17 +316,20 @@ export async function crearNotaCredito(
       !linea.pedidoDetalleId ||
       !Number.isFinite(linea.cantidad) ||
       linea.cantidad <= 0
-    ) {
-      continue;
-    }
-    cantidadesPorDetalle.set(
-      linea.pedidoDetalleId,
-      (cantidadesPorDetalle.get(linea.pedidoDetalleId) ?? 0) + linea.cantidad
-    );
+    ) continue;
+    const devolucionDetalleId =
+      "devolucionDetalleId" in linea && typeof linea.devolucionDetalleId === "string"
+        ? linea.devolucionDetalleId || undefined
+        : undefined;
+    const clave = devolucionDetalleId ?? linea.pedidoDetalleId;
+    const previa = lineasPorOrigen.get(clave);
+    lineasPorOrigen.set(clave, {
+      pedidoDetalleId: linea.pedidoDetalleId,
+      devolucionDetalleId,
+      cantidad: (previa?.cantidad ?? 0) + linea.cantidad,
+    });
   }
-  const lineas: LineaNotaCredito[] = [...cantidadesPorDetalle].map(
-    ([pedidoDetalleId, cantidad]) => ({ pedidoDetalleId, cantidad })
-  );
+  const lineas = [...lineasPorOrigen.values()];
   if (lineas.length === 0) {
     return { error: "Agregue al menos una línea con cantidad válida." };
   }
@@ -347,6 +350,12 @@ export async function crearNotaCredito(
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
       const detallesPorId = new Map(factura.detalles.map((d) => [d.pedidoDetalleId, d]));
+      const esNotaDevolucion = tipoNota === "DEVOLUCION_TOTAL" || tipoNota === "DEVOLUCION_ITEM";
+      const origenesDevolucion = await tx.devolucionClienteDetalle.findMany({
+        where: { id: { in: lineas.flatMap((linea) => linea.devolucionDetalleId ? [linea.devolucionDetalleId] : []) } },
+        include: { facturaDetalle: true, notasCreditoDetalle: true },
+      });
+      const devolucionPorId = new Map(origenesDevolucion.map((detalle) => [detalle.id, detalle]));
       const notasPrevias = await tx.notaCreditoDetalle.findMany({
         where: { notaCredito: { facturaId } },
       });
@@ -361,6 +370,7 @@ export async function crearNotaCredito(
       let montoBase = 0;
       const detallesNC: {
         pedidoDetalleId: string;
+        devolucionDetalleId?: string;
         cantidad: number;
         precioUnitario: number;
         subtotal: number;
@@ -368,7 +378,27 @@ export async function crearNotaCredito(
       for (const l of lineas) {
         const detalle = detallesPorId.get(l.pedidoDetalleId);
         if (!detalle) throw new Error("Una de las líneas seleccionadas no pertenece a esta factura.");
-        const disponible = detalle.cantidad - (yaAcreditado.get(l.pedidoDetalleId) ?? 0);
+        if (esNotaDevolucion && !l.devolucionDetalleId) {
+          throw new Error("Las notas SUNAT 06/07 requieren una devolución inspeccionada como origen.");
+        }
+        if (!esNotaDevolucion && l.devolucionDetalleId) {
+          throw new Error("Este tipo de nota de crédito no debe consumir una devolución física.");
+        }
+        const origenDevolucion = l.devolucionDetalleId ? devolucionPorId.get(l.devolucionDetalleId) : undefined;
+        if (l.devolucionDetalleId && (
+          !origenDevolucion ||
+          origenDevolucion.facturaDetalle.facturaId !== factura.id ||
+          origenDevolucion.facturaDetalle.pedidoDetalleId !== l.pedidoDetalleId ||
+          origenDevolucion.decision === "PENDIENTE"
+        )) throw new Error("La devolución de origen no está inspeccionada o no pertenece a la factura.");
+        const disponibleDocumento = detalle.cantidad - (yaAcreditado.get(l.pedidoDetalleId) ?? 0);
+        const disponibleOrigen = origenDevolucion
+          ? calcularSaldoAcreditableDevolucion(
+              origenDevolucion.cantidadAcreditable,
+              origenDevolucion.notasCreditoDetalle.map((linea) => linea.cantidad.toNumber())
+            )
+          : disponibleDocumento;
+        const disponible = Math.min(disponibleDocumento, disponibleOrigen);
         if (l.cantidad > disponible) {
           throw new Error(
             `Solo puede acreditar hasta ${disponible} unidad(es) de esa línea (ya se acreditó ${
@@ -376,10 +406,14 @@ export async function crearNotaCredito(
             } de ${detalle.cantidad}).`
           );
         }
+        yaAcreditado.set(
+          l.pedidoDetalleId,
+          (yaAcreditado.get(l.pedidoDetalleId) ?? 0) + l.cantidad
+        );
         const precioUnitario = detalle.precioUnitario.toNumber();
         const subtotal = l.cantidad * precioUnitario;
         montoBase += subtotal;
-        detallesNC.push({ pedidoDetalleId: l.pedidoDetalleId, cantidad: l.cantidad, precioUnitario, subtotal });
+        detallesNC.push({ pedidoDetalleId: l.pedidoDetalleId, devolucionDetalleId: l.devolucionDetalleId, cantidad: l.cantidad, precioUnitario, subtotal });
       }
 
       const montoIgv = Math.round(montoBase * factura.tasaIgv.toNumber()) / 100;
@@ -402,6 +436,9 @@ export async function crearNotaCredito(
         throw new Error(
           `El monto supera lo disponible para notas de crédito (${maximo.toFixed(2)}).`
         );
+      }
+      if (tipoNota === "DEVOLUCION_TOTAL" && Math.abs(monto - maximo) > 1e-9) {
+        throw new Error(`La devolución total debe acreditar el saldo completo disponible (${maximo.toFixed(2)}).`);
       }
 
       const nc = await tx.notaCredito.create({
@@ -641,11 +678,8 @@ export async function anularFactura(
   return {};
 }
 
-// Devolución física de mercadería: reingresa stock al kardex y libera la
-// asignación de lote correspondiente. A diferencia de la Nota de Crédito
-// (que solo ajusta dinero/comisión) y de la Anulación (que revierte TODO),
-// esto es una cantidad parcial que no toca el saldo por cobrar — si además
-// corresponde devolver dinero, se registra una Nota de Crédito aparte.
+// Recepción física documentada: crea stock de devolución bloqueado no valuado.
+// No incrementa stock vendible ni libera lotes hasta la decisión de Calidad.
 export async function registrarDevolucion(
   facturaId: string,
   _prevState: EstadoFormulario,
@@ -656,109 +690,90 @@ export async function registrarDevolucion(
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
   }
-
-  const pedidoDetalleId = String(formData.get("pedidoDetalleId") ?? "");
-  const cantidad = Number(formData.get("cantidad"));
+  const numero = String(formData.get("numeroDevolucion") ?? "").trim().toUpperCase();
+  const almacenId = String(formData.get("almacenId") ?? "");
   const motivo = String(formData.get("motivo") ?? "").trim();
-
-  if (!pedidoDetalleId) return { error: "Seleccione la línea a devolver." };
-  if (!Number.isInteger(cantidad) || cantidad <= 0) {
-    return { error: "La cantidad debe ser un entero mayor a 0." };
+  let lineas: Array<{ facturaDetalleId: string; cantidad: number }>;
+  try {
+    const recibidas = JSON.parse(String(formData.get("lineasDevolucion") ?? "[]")) as unknown;
+    if (!Array.isArray(recibidas)) throw new Error();
+    lineas = recibidas.flatMap((linea) => {
+      if (
+        typeof linea !== "object" ||
+        linea === null ||
+        !("facturaDetalleId" in linea) ||
+        !("cantidad" in linea) ||
+        typeof linea.facturaDetalleId !== "string" ||
+        typeof linea.cantidad !== "number" ||
+        !Number.isInteger(linea.cantidad) ||
+        linea.cantidad <= 0
+      ) return [];
+      return [{ facturaDetalleId: linea.facturaDetalleId, cantidad: linea.cantidad }];
+    });
+  } catch {
+    return { error: "El detalle de devolución es inválido." };
   }
-  if (!motivo) return { error: "El motivo es obligatorio." };
 
   try {
-    await prisma.$transaction(async (tx) => {
-      // Serializa devoluciones y anulaciones sobre la misma factura antes de
-      // calcular el acumulado devuelto. Sin este reclamo, dos solicitudes
-      // concurrentes podrían validar contra el mismo saldo y reingresar más
-      // unidades de las que se vendieron.
-      const bloqueo = await tx.factura.updateMany({
-        where: { id: facturaId, estado: { not: "ANULADA" } },
-        data: { saldo: { increment: 0 } },
-      });
-      if (bloqueo.count !== 1) {
-        throw new Error("La factura no existe, está anulada o cambió mientras se registraba la devolución.");
-      }
-
-      const factura = await tx.factura.findUnique({ where: { id: facturaId } });
-      if (!factura) throw new Error("La factura no existe.");
-      if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
-
-      const detalle = await tx.facturaDetalle.findUnique({
-        where: { facturaId_pedidoDetalleId: { facturaId, pedidoDetalleId } },
-        include: { entregas: true },
-      });
-      if (!detalle) {
-        throw new Error("La línea seleccionada no pertenece a esta factura.");
-      }
-
-      const liberacionesPrevias = await tx.asignacionLoteVenta.findMany({
-        where: { facturaDetalleId: detalle.id, tipo: "LIBERADA", motivo: { startsWith: MOTIVO_DEVOLUCION_PREFIJO } },
-      });
-      const yaDevuelto = liberacionesPrevias.reduce((acc, l) => acc + l.cantidad, 0);
-      const maxDevolvible = detalle.cantidad - yaDevuelto;
-      if (cantidad > maxDevolvible) {
-        throw new Error(
-          `Solo puede devolver hasta ${maxDevolvible} unidad(es) de esta línea (ya se devolvieron ${yaDevuelto} de ${detalle.cantidad}).`
-        );
-      }
-
-      const mov = await registrarMovimiento(tx, {
-        tipoItem: "PRESENTACION",
-        presentacionId: detalle.presentacionId,
-        tipoMovimiento: "ENTRADA",
-        origen: "DEVOLUCION_CLIENTE",
-        cantidad,
+    await prisma.$transaction((tx) =>
+      crearDocumentoDevolucion(tx, {
+        numero,
+        facturaId,
+        almacenId,
         motivo,
-        referencia: `Devolución factura ${factura.numero}`,
-        usuarioId: auth.usuario.id,
-        usuarioNombre: auth.usuario.nombre,
-      });
-      if (!mov.ok) throw new Error(mov.error);
-
-      const motivoLote = `${MOTIVO_DEVOLUCION_PREFIJO} factura ${factura.numero}: ${motivo}`;
-      if (detalle.entregas.length === 0) {
-        await liberarAsignacionesLote(tx, {
-          facturaDetalleId: detalle.id,
-          pedidoDetalleId,
-          cantidad,
-          motivo: motivoLote,
-        });
-      } else {
-        let restante = cantidad;
-        for (const entrega of detalle.entregas) {
-          if (restante <= 0) break;
-          const devueltoDesdeEntrega = liberacionesPrevias
-            .filter((evento) => evento.guiaDetalleId === entrega.guiaDetalleId)
-            .reduce((total, evento) => total + evento.cantidad, 0);
-          const disponible = entrega.cantidad - devueltoDesdeEntrega;
-          if (disponible <= 0) continue;
-          const solicitado = Math.min(restante, disponible);
-          const liberado = await liberarAsignacionesLote(tx, {
-            facturaDetalleId: detalle.id,
-            guiaDetalleId: entrega.guiaDetalleId,
-            pedidoDetalleId,
-            cantidad: solicitado,
-            motivo: motivoLote,
-          });
-          restante -= liberado;
-        }
-        if (restante > 0) {
-          throw new Error("No se pudo identificar el lote físico completo de la devolución.");
-        }
-      }
-    });
-  } catch (e) {
-    if (e instanceof Error) return { error: e.message };
-    throw e;
+        lineas,
+        audit: { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre },
+      })
+    );
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return { error: `Ya existe una devolución con el número ${numero}.` };
+    }
+    if (error instanceof Error) return { error: error.message };
+    throw error;
   }
-
   revalidatePath(`/comercial/facturas/${facturaId}`);
   revalidatePath("/inventario/kardex");
+  revalidatePath("/logistica/devoluciones-clientes");
   return {};
 }
 
+export async function inspeccionarDevolucionDetalle(
+  detalleId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN", "PRODUCCION"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite decidir devoluciones." };
+  }
+  const valores = {
+    cantidadReingreso: Number(formData.get("cantidadReingreso")),
+    cantidadDesecho: Number(formData.get("cantidadDesecho")),
+    cantidadDevolverCliente: Number(formData.get("cantidadDevolverCliente")),
+    cantidadAcreditable: Number(formData.get("cantidadAcreditable")),
+  };
+  const observacion = String(formData.get("observacionCalidad") ?? "").trim();
+  try {
+    const resultado = await prisma.$transaction((tx) =>
+      inspeccionarDetalleDevolucion(tx, {
+        detalleId,
+        ...valores,
+        observacion,
+        audit: { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre },
+      })
+    );
+    revalidatePath(`/comercial/facturas/${resultado.facturaId}`);
+    revalidatePath("/inventario/kardex");
+    revalidatePath("/finanzas/asientos");
+    revalidatePath("/logistica/devoluciones-clientes");
+    return {};
+  } catch (error) {
+    if (error instanceof Error) return { error: error.message };
+    throw error;
+  }
+}
 // Recargo por mora: solo cubre los días transcurridos desde el último
 // recargo aplicado (o desde el vencimiento, si es el primero) — nunca se
 // puede duplicar el cobro de los mismos días. Incrementa el saldo por
