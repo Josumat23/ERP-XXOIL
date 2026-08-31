@@ -92,6 +92,10 @@ model CuentaBancariaEmpresa {
   cci          String?
   activo       Boolean @default(true)
 
+  movimientosCaja MovimientoCaja[]
+  conciliaciones  ConciliacionBancaria[]
+
+  @@index([empresaId, numeroCuenta])
   @@map("cuentas_bancarias_empresa")
 }
 
@@ -1895,21 +1899,96 @@ enum TipoMovimientoCaja {
 // Libro de caja: los cobros de facturas y pagos a proveedores generan
 // movimientos automáticos; también admite movimientos manuales con concepto.
 model MovimientoCaja {
-  id            String             @id @default(cuid())
-  empresaId     String             @default("1")
-  fecha         DateTime           @default(now())
-  tipo          TipoMovimientoCaja
-  concepto      String
-  monto         Decimal
-  moneda        String             @default("PEN")
-  tipoCambio    Decimal            @default(1)
-  montoOriginal Decimal?
-  medioPago     MedioPago
-  referencia    String? // nro de factura, OC, comisión, etc.
-  usuarioId     String
-  usuarioNombre String
+  id               String             @id @default(cuid())
+  empresaId        String             @default("1")
+  fecha            DateTime           @default(now())
+  tipo             TipoMovimientoCaja
+  concepto         String
+  monto            Decimal
+  moneda           String             @default("PEN")
+  tipoCambio       Decimal            @default(1)
+  montoOriginal    Decimal?
+  medioPago        MedioPago
+  referencia       String? // nro de factura, OC, comisión, etc.
+  usuarioId        String
+  usuarioNombre    String
+  cuentaBancariaId String?
 
+  cuentaBancaria CuentaBancariaEmpresa?           @relation(fields: [cuentaBancariaId], references: [id])
+  conciliaciones ConciliacionBancariaAplicacion[]
+
+  @@index([cuentaBancariaId, fecha])
   @@map("movimientos_caja")
+}
+
+enum EstadoConciliacionBancaria {
+  BORRADOR
+  CERRADA
+  ANULADA
+}
+
+model ConciliacionBancaria {
+  id                   String                     @id @default(cuid())
+  empresaId            String                     @default("1")
+  cuentaBancariaId     String
+  fechaDesde           DateTime
+  fechaHasta           DateTime
+  saldoInicialExtracto Decimal
+  saldoFinalExtracto   Decimal
+  estado               EstadoConciliacionBancaria @default(BORRADOR)
+  cerradaEn            DateTime?
+  cerradaPorId         String?
+  cerradaPorNombre     String?
+  anuladaEn            DateTime?
+  anuladaPorId         String?
+  anuladaPorNombre     String?
+  motivoAnulacion      String?
+  usuarioId            String
+  usuarioNombre        String
+  creadoEn             DateTime                   @default(now())
+
+  cuentaBancaria CuentaBancariaEmpresa        @relation(fields: [cuentaBancariaId], references: [id])
+  movimientos    MovimientoExtractoBancario[]
+
+  @@unique([cuentaBancariaId, fechaDesde, fechaHasta])
+  @@index([empresaId, estado])
+  @@map("conciliaciones_bancarias")
+}
+
+model MovimientoExtractoBancario {
+  id             String             @id @default(cuid())
+  conciliacionId String
+  fecha          DateTime
+  tipo           TipoMovimientoCaja
+  descripcion    String
+  referencia     String?
+  monto          Decimal
+  huella         String
+  creadoEn       DateTime           @default(now())
+
+  conciliacion ConciliacionBancaria             @relation(fields: [conciliacionId], references: [id])
+  aplicaciones ConciliacionBancariaAplicacion[]
+
+  @@unique([conciliacionId, huella])
+  @@index([conciliacionId, fecha])
+  @@map("movimientos_extracto_bancario")
+}
+
+model ConciliacionBancariaAplicacion {
+  id                   String   @id @default(cuid())
+  movimientoExtractoId String
+  movimientoCajaId     String
+  monto                Decimal
+  usuarioId            String
+  usuarioNombre        String
+  creadoEn             DateTime @default(now())
+
+  movimientoExtracto MovimientoExtractoBancario @relation(fields: [movimientoExtractoId], references: [id])
+  movimientoCaja     MovimientoCaja             @relation(fields: [movimientoCajaId], references: [id])
+
+  @@unique([movimientoExtractoId, movimientoCajaId])
+  @@index([movimientoCajaId])
+  @@map("conciliaciones_bancarias_aplicaciones")
 }
 
 // ---------------------------------------------------------------------------

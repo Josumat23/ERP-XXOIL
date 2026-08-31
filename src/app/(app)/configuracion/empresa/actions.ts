@@ -6,6 +6,7 @@ import { requerirRol } from "@/lib/auth";
 import { validarArchivoCertificadoSunat } from "@/lib/certificadoSunat";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -179,6 +180,7 @@ export async function agregarCuentaBancaria(
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return auth;
 
+  const empresaId = await obtenerEmpresaActivaId();
   const banco = String(formData.get("banco") ?? "").trim();
   const moneda = String(formData.get("moneda") ?? "PEN") === "USD" ? "USD" : "PEN";
   const numeroCuenta = String(formData.get("numeroCuenta") ?? "").trim();
@@ -187,9 +189,20 @@ export async function agregarCuentaBancaria(
   if (!banco) return { error: "Ingrese el nombre del banco." };
   if (!numeroCuenta) return { error: "Ingrese el número de cuenta." };
 
-  await prisma.cuentaBancariaEmpresa.create({
-    data: { banco, moneda, numeroCuenta, cci },
+  const existenteCuenta = await prisma.cuentaBancariaEmpresa.findFirst({
+    where: { empresaId, numeroCuenta },
   });
+  if (existenteCuenta?.activo) return { error: "Ese número de cuenta ya está registrado." };
+  if (existenteCuenta) {
+    await prisma.cuentaBancariaEmpresa.update({
+      where: { id: existenteCuenta.id },
+      data: { banco, moneda, cci, activo: true },
+    });
+  } else {
+    await prisma.cuentaBancariaEmpresa.create({
+      data: { empresaId, banco, moneda, numeroCuenta, cci },
+    });
+  }
 
   revalidatePath("/configuracion/empresa");
   return { ok: true };
@@ -199,6 +212,7 @@ export async function eliminarCuentaBancaria(id: string): Promise<void> {
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return;
 
-  await prisma.cuentaBancariaEmpresa.delete({ where: { id } });
+  const empresaId = await obtenerEmpresaActivaId();
+  await prisma.cuentaBancariaEmpresa.updateMany({ where: { id, empresaId }, data: { activo: false } });
   revalidatePath("/configuracion/empresa");
 }

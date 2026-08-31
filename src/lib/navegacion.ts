@@ -98,6 +98,7 @@ export const MODULOS: Modulo[] = [
           { href: "/finanzas/cobranza", etiqueta: "Gestión de cobranza", roles: ["ADMIN", "GERENCIA", "VENTAS"] },
           { href: "/finanzas/propuesta-pago", etiqueta: "Propuesta de pago", roles: ["ADMIN", "GERENCIA"] },
           { href: "/finanzas/caja", etiqueta: "Libro de caja" },
+          { href: "/finanzas/conciliacion-bancaria", etiqueta: "Conciliación bancaria", roles: ["ADMIN", "GERENCIA"] },
         ],
       },
       {

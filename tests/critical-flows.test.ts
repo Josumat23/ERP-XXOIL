@@ -75,6 +75,12 @@ import {
   registrarReembolsoProveedor,
 } from "@/lib/creditosProveedor";
 import {
+  aplicarMovimientoConciliacion,
+  calcularResumenConciliacion,
+  cerrarConciliacionBancaria,
+  parsearExtractoBancario,
+} from "@/lib/conciliacionBancaria";
+import {
   calcularSaldoAcreditableDevolucion,
   crearDocumentoDevolucion,
   inspeccionarDetalleDevolucion,
@@ -963,6 +969,73 @@ test("saldo de proveedor compensa CxP y registra reembolso recibido", async () =
   assert.equal(reembolsos.length, 1);
   assert.equal(caja.length, 1);
   assert.equal(caja[0]?.tipo, "INGRESO");
+});
+test("extractos bancarios validan CSV, saldos y duplicados estables", () => {
+  const lineas = parsearExtractoBancario(
+    "fecha;descripcion;referencia;debito;credito\n01/08/2026;Comisión;OP-1;1.234,56;\n2026-08-02;Cobro;OP-2;;1,294.56"
+  );
+  assert.equal(lineas.length, 2);
+  assert.equal(lineas[0]?.tipo, "EGRESO");
+  assert.equal(lineas[0]?.monto, 1234.56);
+  assert.equal(lineas[1]?.tipo, "INGRESO");
+  assert.equal(lineas[0]?.huella, parsearExtractoBancario(
+    "fecha;descripcion;referencia;debito;credito\n01/08/2026;Comisión;OP-1;1.234,56;\n2026-08-02;Cobro;OP-2;;1,294.56"
+  )[0]?.huella);
+  assert.deepEqual(
+    calcularResumenConciliacion({
+      saldoInicial: 100,
+      saldoFinal: 160,
+      movimientos: lineas.map((linea) => ({ ...linea, aplicado: linea.monto })),
+    }),
+    { ingresos: 1294.56, egresos: 1234.56, saldoCalculado: 160, diferenciaExtracto: 0, pendienteConciliar: 0 }
+  );
+});
+
+test("conciliación bancaria admite partidas agrupadas y cierra solo al cuadrar", async () => {
+  const sufijo = Date.now().toString(36);
+  const audit = await auditoria();
+  const cuenta = await prisma.cuentaBancariaEmpresa.create({
+    data: { banco: "Banco prueba", moneda: "PEN", numeroCuenta: "REC-" + sufijo },
+  });
+  const conciliacion = await prisma.conciliacionBancaria.create({
+    data: {
+      cuentaBancariaId: cuenta.id,
+      fechaDesde: crearFechaCalendarioLocal("2026-08-01")!,
+      fechaHasta: crearFechaCalendarioLocal("2026-08-31")!,
+      saldoInicialExtracto: 100,
+      saldoFinalExtracto: 150,
+      ...audit,
+    },
+  });
+  const ingreso = await prisma.movimientoExtractoBancario.create({
+    data: { conciliacionId: conciliacion.id, fecha: crearFechaCalendarioLocal("2026-08-10")!, tipo: "INGRESO", descripcion: "Depósitos agrupados", monto: 80, huella: "ing-" + sufijo },
+  });
+  const egreso = await prisma.movimientoExtractoBancario.create({
+    data: { conciliacionId: conciliacion.id, fecha: crearFechaCalendarioLocal("2026-08-12")!, tipo: "EGRESO", descripcion: "Pago", monto: 30, huella: "egr-" + sufijo },
+  });
+  const cajaIngreso1 = await prisma.movimientoCaja.create({ data: { fecha: crearFechaCalendarioLocal("2026-08-10")!, tipo: "INGRESO", concepto: "Cobro A", monto: 50, medioPago: "TRANSFERENCIA", ...audit } });
+  const cajaIngreso2 = await prisma.movimientoCaja.create({ data: { fecha: crearFechaCalendarioLocal("2026-08-10")!, tipo: "INGRESO", concepto: "Cobro B", monto: 30, medioPago: "DEPOSITO", ...audit } });
+  const cajaEgreso = await prisma.movimientoCaja.create({ data: { fecha: crearFechaCalendarioLocal("2026-08-12")!, tipo: "EGRESO", concepto: "Pago C", monto: 30, medioPago: "TRANSFERENCIA", ...audit } });
+  await assert.rejects(
+    prisma.$transaction((tx) => cerrarConciliacionBancaria(tx, conciliacion.id, { usuarioId: "revisor-temprano-" + sufijo, usuarioNombre: "Revisor" })),
+    /pendientes de conciliar/
+  );
+  await prisma.$transaction(async (tx) => {
+    await aplicarMovimientoConciliacion(tx, { conciliacionId: conciliacion.id, movimientoExtractoId: ingreso.id, movimientoCajaId: cajaIngreso1.id, monto: 50 }, audit);
+    await aplicarMovimientoConciliacion(tx, { conciliacionId: conciliacion.id, movimientoExtractoId: ingreso.id, movimientoCajaId: cajaIngreso2.id, monto: 30 }, audit);
+    await aplicarMovimientoConciliacion(tx, { conciliacionId: conciliacion.id, movimientoExtractoId: egreso.id, movimientoCajaId: cajaEgreso.id, monto: 30 }, audit);
+  });
+  await assert.rejects(prisma.$transaction((tx) => cerrarConciliacionBancaria(tx, conciliacion.id, audit)), /no puede cerrarla/);
+  const revisor = { usuarioId: "revisor-" + sufijo, usuarioNombre: "Revisor independiente" };
+  await prisma.$transaction((tx) => cerrarConciliacionBancaria(tx, conciliacion.id, revisor));
+  const [cerrada, aplicaciones, cajas] = await Promise.all([
+    prisma.conciliacionBancaria.findUniqueOrThrow({ where: { id: conciliacion.id } }),
+    prisma.conciliacionBancariaAplicacion.findMany({ where: { movimientoExtracto: { conciliacionId: conciliacion.id } } }),
+    prisma.movimientoCaja.findMany({ where: { id: { in: [cajaIngreso1.id, cajaIngreso2.id, cajaEgreso.id] } } }),
+  ]);
+  assert.equal(cerrada.estado, "CERRADA");
+  assert.equal(aplicaciones.length, 3);
+  assert.equal(cajas.every((caja) => caja.cuentaBancariaId === cuenta.id), true);
 });
 test("cobros multimoneda contabilizan ganancias y pérdidas cambiarias balanceadas", async () => {
   const sufijo = Date.now().toString();
