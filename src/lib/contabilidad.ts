@@ -351,6 +351,26 @@ export async function postearVenta(
   }
 }
 
+// Salida de mercancías (PGI): el costo y el inventario se reconocen cuando
+// el producto abandona físicamente el almacén, no cuando se emite la factura.
+export async function postearSalidaMercancia(
+  tx: Tx,
+  datos: { numeroGuia: string; pedido: string; costoTotal: number; fecha?: Date },
+  audit: Auditoria
+) {
+  if (datos.costoTotal <= 0) return;
+  await postearAsiento(tx, {
+    origen: "SALIDA_MERCANCIA",
+    glosa: `Salida de mercancías guía ${datos.numeroGuia} — pedido ${datos.pedido}`,
+    referencia: datos.numeroGuia,
+    fecha: datos.fecha,
+    lineas: [
+      { clave: "COSTO_VENTAS", debe: datos.costoTotal },
+      { clave: "INVENTARIO_PT", haber: datos.costoTotal },
+    ],
+    ...audit,
+  });
+}
 // Cobro: Caja y bancos (debe) / CxC (haber)
 export async function postearCobro(
   tx: Tx,

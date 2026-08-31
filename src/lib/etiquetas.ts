@@ -22,6 +22,7 @@ export const ETIQUETA_ORIGEN: Record<$Enums.OrigenMovimiento, string> = {
 export const ETIQUETA_ORIGEN_ASIENTO: Record<$Enums.OrigenAsiento, string> = {
   MANUAL: "Manual",
   VENTA: "Venta",
+  SALIDA_MERCANCIA: "Salida de mercancías",
   COBRO: "Cobro",
   NOTA_CREDITO: "Nota de crédito",
   RECARGO_MORA: "Recargo por mora",

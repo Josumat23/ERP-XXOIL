@@ -610,10 +610,9 @@ export async function anularFactura(
         },
       });
 
-      const costoVentasAnulado = factura.detalles.reduce(
-        (acc, d) => acc + d.cantidad * d.costoUnitario.toNumber(),
-        0
-      );
+      const costoVentasAnulado = factura.detalles
+        .filter((detalle) => detalle.entregas.length === 0)
+        .reduce((total, detalle) => total + detalle.cantidad * detalle.costoUnitario.toNumber(), 0);
       await postearAnulacionFactura(
         tx,
         {
