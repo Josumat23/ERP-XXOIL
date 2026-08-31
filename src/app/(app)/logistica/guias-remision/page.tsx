@@ -90,8 +90,10 @@ export default async function GuiasRemisionPage({
               <td>
                 <span
                   className={`insignia ${
-                    g.estadoDespacho === "ENTREGADO"
-                      ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
+                    g.estadoDespacho === "ANULADO"
+                      ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                      : g.estadoDespacho === "ENTREGADO"
+                        ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
                       : g.estadoDespacho === "EN_RUTA"
                         ? "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400"
                         : "bg-neutral-100 text-neutral-600 dark:bg-neutral-800"

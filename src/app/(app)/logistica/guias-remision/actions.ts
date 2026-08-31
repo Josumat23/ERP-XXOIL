@@ -12,6 +12,7 @@ import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { registrarMovimiento } from "@/lib/inventario";
 import { asignarLoteVenta } from "@/lib/trazabilidad";
 import { postearSalidaMercancia } from "@/lib/contabilidad";
+import { revertirDespacho } from "@/lib/reversaDespacho";
 
 export type EstadoFormulario = { error?: string };
 
@@ -129,7 +130,7 @@ export async function crearGuiaRemision(
           include: {
             detalles: {
               include: {
-                guiaDetalles: { select: { cantidad: true } },
+                guiaDetalles: { select: { cantidad: true, guia: { select: { estadoDespacho: true } } } },
               },
             },
           },
@@ -153,7 +154,9 @@ export async function crearGuiaRemision(
           if (!detalle || detalle.presentacionId !== linea.presentacionId) {
             throw new Error("La entrega contiene una línea que no pertenece al pedido.");
           }
-          const planificado = detalle.guiaDetalles.reduce((total, gd) => total + gd.cantidad, 0);
+          const planificado = detalle.guiaDetalles
+            .filter((gd) => gd.guia.estadoDespacho !== "ANULADO")
+            .reduce((total, gd) => total + gd.cantidad, 0);
           const disponible = detalle.cantidad - planificado;
           if (linea.cantidad > disponible) {
             throw new Error(`La cantidad supera las ${disponible} unidad(es) pendientes de entrega.`);
@@ -304,6 +307,40 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
   revalidatePath("/logistica/guias-remision");
   revalidatePath(`/logistica/guias-remision/${guiaId}`);
   revalidatePath("/comercial/pedidos");
+  return {};
+}
+export async function anularDespachoGuia(
+  guiaId: string,
+  motivo: string
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN", "VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
+  const motivoNormalizado = motivo.trim();
+  if (motivoNormalizado.length < 10) {
+    return { error: "Explique el motivo de la anulación con al menos 10 caracteres." };
+  }
+
+  let pedidoId: string | null = null;
+  try {
+    await prisma.$transaction(async (tx) => {
+      const resultado = await revertirDespacho(tx, guiaId, motivoNormalizado, {
+        usuarioId: auth.usuario.id,
+        usuarioNombre: auth.usuario.nombre,
+      });
+      pedidoId = resultado.pedidoId;
+    });
+  } catch (error) {
+    if (error instanceof Error) return { error: error.message };
+    throw error;
+  }
+
+  revalidatePath("/logistica/guias-remision");
+  revalidatePath(`/logistica/guias-remision/${guiaId}`);
+  revalidatePath("/comercial/pedidos");
+  if (pedidoId) revalidatePath(`/comercial/pedidos/${pedidoId}`);
   return {};
 }
 export async function marcarEntregaGuia(guiaId: string): Promise<EstadoFormulario> {

@@ -24,7 +24,7 @@ export default async function NuevaGuiaPage({
         detalles: {
           include: {
             presentacion: { include: { producto: true } },
-            guiaDetalles: true,
+            guiaDetalles: { include: { guia: { select: { estadoDespacho: true } } } },
           },
         },
       },
@@ -60,7 +60,9 @@ const pedidos = pedidosRaw
       clienteId: pedido.clienteId,
       lineas: pedido.detalles
         .map((detalle) => {
-          const planificado = detalle.guiaDetalles.reduce((total, guia) => total + guia.cantidad, 0);
+          const planificado = detalle.guiaDetalles
+            .filter((guia) => guia.guia.estadoDespacho !== "ANULADO")
+            .reduce((total, guia) => total + guia.cantidad, 0);
           return {
             pedidoDetalleId: detalle.id,
             presentacionId: detalle.presentacionId,

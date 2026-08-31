@@ -61,6 +61,7 @@ import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } f
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { calcularRetencion5taMensual, esPorcentajePlanillaValido, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
+import { revertirDespacho, validarAnulacionDespacho } from "@/lib/reversaDespacho";
 import {
   esTipoComprobanteRecepcionValido,
   normalizarLineasRecepcionCompra,
@@ -1102,6 +1103,112 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
     (await prisma.envasado.findUniqueOrThrow({ where: { id: lote.envasados[0]!.id } })).unidadesDisponibles,
     10
   );
+
+  assert.match(validarAnulacionDespacho("ENTREGADO", false) ?? "", /devolución física/);
+  assert.match(validarAnulacionDespacho("EN_RUTA", true) ?? "", /facturas vigentes/);
+  assert.equal(validarAnulacionDespacho("EN_RUTA", false), null);
+
+  await prisma.pedido.update({ where: { id: pedido.id }, data: { requiereEntrega: true } });
+  const presentacionAntesReversa = await prisma.presentacion.findUniqueOrThrow({ where: { id: presentacion.id } });
+  const guiaReversible = await prisma.guiaRemision.create({
+    data: {
+      numero: "T-REV-" + sufijo,
+      pedidoId: pedido.id,
+      clienteId: cliente.id,
+      fechaTraslado: new Date("2099-12-30T00:00:00.000Z"),
+      puntoPartida: "Planta",
+      puntoLlegada: pedido.direccionEntrega!,
+      estadoDespacho: "EN_RUTA",
+      fechaSalida: new Date("2099-12-30T09:00:00.000Z"),
+      ...audit,
+      detalles: {
+        create: { pedidoDetalleId: detalleId, presentacionId: presentacion.id, cantidad: 2, costoUnitario: 8 },
+      },
+    },
+    include: { detalles: true },
+  });
+  const detalleReversibleId = guiaReversible.detalles[0]?.id;
+  assert.ok(detalleReversibleId);
+  await prisma.$transaction(async (tx) => {
+    const salida = await registrarMovimiento(tx, {
+      tipoItem: "PRESENTACION",
+      presentacionId: presentacion.id,
+      tipoMovimiento: "SALIDA",
+      origen: "VENTA",
+      cantidad: 2,
+      almacenId: almacen.id,
+      referencia: guiaReversible.numero,
+      ...audit,
+    });
+    assert.deepEqual(salida, { ok: true });
+    await asignarLoteVenta(tx, {
+      guiaDetalleId: detalleReversibleId,
+      pedidoDetalleId: detalleId,
+      presentacionId: presentacion.id,
+      cantidad: 2,
+    });
+    await postearSalidaMercancia(
+      tx,
+      { numeroGuia: guiaReversible.numero, pedido: pedido.numero, costoTotal: 16 },
+      audit
+    );
+  });
+  await prisma.$transaction((tx) =>
+    revertirDespacho(tx, guiaReversible.id, "Error de preparación confirmado", audit)
+  );
+  const [guiaRevertida, presentacionRevertida, envasadoRevertido, asientosReversa, movimientosReversa] =
+    await Promise.all([
+      prisma.guiaRemision.findUniqueOrThrow({ where: { id: guiaReversible.id } }),
+      prisma.presentacion.findUniqueOrThrow({ where: { id: presentacion.id } }),
+      prisma.envasado.findUniqueOrThrow({ where: { id: lote.envasados[0]!.id } }),
+      asientosPorReferencia(guiaReversible.numero),
+      prisma.movimientoKardex.findMany({
+        where: { referencia: { contains: guiaReversible.numero } },
+        orderBy: { creadoEn: "asc" },
+      }),
+    ]);
+  assert.equal(guiaRevertida.estadoDespacho, "ANULADO");
+  assert.equal(guiaRevertida.motivoAnulacion, "Error de preparación confirmado");
+  assert.equal(presentacionRevertida.stock.toNumber(), presentacionAntesReversa.stock.toNumber());
+  assert.equal(presentacionRevertida.stockReservado.toNumber(), presentacionAntesReversa.stockReservado.toNumber() + 2);
+  assert.equal(envasadoRevertido.unidadesDisponibles, 10);
+  assert.deepEqual(new Set(asientosReversa.map((asiento) => asiento.origen)), new Set(["SALIDA_MERCANCIA", "REVERSO"]));
+  asientosReversa.forEach(comprobarCuadre);
+  assert.equal(movimientosReversa.at(-1)?.origen, "REVERSO_ENTREGA");
+
+  await assert.rejects(
+    prisma.$transaction((tx) => revertirDespacho(tx, guia.id, "Intento con factura vigente", audit)),
+    /facturas vigentes/
+  );
+  assert.equal((await prisma.guiaRemision.findUniqueOrThrow({ where: { id: guia.id } })).estadoDespacho, "EN_RUTA");
+
+  const guiaPlanificada = await prisma.guiaRemision.create({
+    data: {
+      numero: "T-PLAN-" + sufijo,
+      pedidoId: pedido.id,
+      clienteId: cliente.id,
+      fechaTraslado: new Date("2099-12-31T00:00:00.000Z"),
+      puntoPartida: "Planta",
+      puntoLlegada: pedido.direccionEntrega!,
+      ...audit,
+      detalles: { create: { pedidoDetalleId: detalleId, presentacionId: presentacion.id, cantidad: 1 } },
+    },
+  });
+  const [stockAntesPlan, reservaAntesPlan] = [presentacionRevertida.stock.toNumber(), presentacionRevertida.stockReservado.toNumber()];
+  await prisma.$transaction((tx) =>
+    revertirDespacho(tx, guiaPlanificada.id, "Planificación duplicada detectada", audit)
+  );
+  const [planAnulado, presentacionTrasPlan, asientosPlan, movimientosPlan] = await Promise.all([
+    prisma.guiaRemision.findUniqueOrThrow({ where: { id: guiaPlanificada.id } }),
+    prisma.presentacion.findUniqueOrThrow({ where: { id: presentacion.id } }),
+    asientosPorReferencia(guiaPlanificada.numero),
+    prisma.movimientoKardex.findMany({ where: { referencia: { contains: guiaPlanificada.numero } } }),
+  ]);
+  assert.equal(planAnulado.estadoDespacho, "ANULADO");
+  assert.equal(presentacionTrasPlan.stock.toNumber(), stockAntesPlan);
+  assert.equal(presentacionTrasPlan.stockReservado.toNumber(), reservaAntesPlan);
+  assert.equal(asientosPlan.length, 0);
+  assert.equal(movimientosPlan.length, 0);
 });
 test("planilla usa parámetros versionados, excluye configuraciones incompletas y contabiliza", async () => {
   const audit = await auditoria();

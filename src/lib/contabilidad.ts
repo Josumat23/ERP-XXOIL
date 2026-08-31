@@ -371,6 +371,26 @@ export async function postearSalidaMercancia(
     ...audit,
   });
 }
+// Reversa de PGI: repone el valor de inventario cuando una salida en ruta se
+// anula antes de ser entregada y sin documentos de facturación vigentes.
+export async function postearReversoSalidaMercancia(
+  tx: Tx,
+  datos: { numeroGuia: string; pedido: string; costoTotal: number; motivo: string; fecha?: Date },
+  audit: Auditoria
+) {
+  if (datos.costoTotal <= 0) return;
+  await postearAsiento(tx, {
+    origen: "REVERSO",
+    glosa: `Reverso salida guía ${datos.numeroGuia} — pedido ${datos.pedido}: ${datos.motivo}`,
+    referencia: datos.numeroGuia,
+    fecha: datos.fecha,
+    lineas: [
+      { clave: "INVENTARIO_PT", debe: datos.costoTotal },
+      { clave: "COSTO_VENTAS", haber: datos.costoTotal },
+    ],
+    ...audit,
+  });
+}
 // Cobro: Caja y bancos (debe) / CxC (haber)
 export async function postearCobro(
   tx: Tx,

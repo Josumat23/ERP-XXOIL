@@ -327,7 +327,7 @@ export async function facturarPedido(
           .filter((fd) => fd.factura.estado !== "ANULADA")
           .reduce((total, fd) => total + fd.cantidad, 0);
         const entregado = detalle.guiaDetalles
-          .filter((gd) => gd.guia.estadoDespacho !== "PLANIFICADO")
+          .filter((gd) => gd.guia.estadoDespacho === "EN_RUTA" || gd.guia.estadoDespacho === "ENTREGADO")
           .reduce((total, gd) => total + gd.cantidad, 0);
         const limiteDocumento = pedido.requiereEntrega ? entregado : detalle.cantidad;
         const saldo = calcularSaldoFacturable(limiteDocumento, [facturado]);
@@ -486,7 +486,7 @@ export async function facturarPedido(
         if (pedido.requiereEntrega) {
           const asignacion = asignarEntregasFifo(
             d.guiaDetalles
-              .filter((gd) => gd.guia.estadoDespacho !== "PLANIFICADO")
+              .filter((gd) => gd.guia.estadoDespacho === "EN_RUTA" || gd.guia.estadoDespacho === "ENTREGADO")
               .map((entrega) => ({
                 guiaDetalleId: entrega.id,
                 cantidadEntregada: entrega.cantidad,
