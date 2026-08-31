@@ -62,6 +62,14 @@ import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/audit
 import { calcularRetencion5taMensual, esPorcentajePlanillaValido, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
 import {
+  aplicarCreditoCliente,
+  aprobarReembolsoCliente,
+  calcularAplicacionCreditoCliente,
+  calcularDistribucionNotaCredito,
+  calcularReembolsoCreditoCliente,
+  solicitarReembolsoCliente,
+} from "@/lib/creditosCliente";
+import {
   calcularSaldoAcreditableDevolucion,
   crearDocumentoDevolucion,
   inspeccionarDetalleDevolucion,
@@ -669,6 +677,227 @@ test("multimoneda convierte factura y reconoce diferencias de cambio parciales y
   );
 });
 
+test("créditos de cliente separan CxC, pasivo y diferencia de cambio", () => {
+  assert.deepEqual(
+    calcularDistribucionNotaCredito({
+      monto: 118,
+      montoFuncional: 436.6,
+      saldoFactura: 0,
+      saldoFuncionalFactura: 0,
+    }),
+    {
+      montoCxc: 0,
+      montoCxcFuncional: 0,
+      montoSaldoFavor: 118,
+      montoSaldoFavorFuncional: 436.6,
+      nuevoSaldoFactura: 0,
+      nuevoSaldoFuncionalFactura: 0,
+    }
+  );
+  assert.deepEqual(
+    calcularAplicacionCreditoCliente({
+      monto: 50,
+      saldoCredito: 100,
+      saldoFuncionalCredito: 370,
+      saldoFactura: 50,
+      saldoFuncionalFactura: 190,
+    }),
+    {
+      creditoFuncionalAplicado: 185,
+      cxcFuncionalAplicada: 190,
+      diferenciaCambio: -5,
+      nuevoSaldoCredito: 50,
+      nuevoSaldoFuncionalCredito: 185,
+      nuevoSaldoFactura: 0,
+      nuevoSaldoFuncionalFactura: 0,
+    }
+  );
+  assert.deepEqual(
+    calcularReembolsoCreditoCliente({
+      monto: 25,
+      saldoCredito: 50,
+      saldoFuncionalCredito: 185,
+      moneda: "USD",
+      tipoCambio: 3.8,
+    }),
+    {
+      creditoFuncionalAplicado: 92.5,
+      montoFuncional: 95,
+      diferenciaCambio: -2.5,
+    }
+  );
+});
+
+test("saldo a favor compensa CxC y reembolsa con aprobación segregada", async () => {
+  const sufijo = Date.now().toString(36);
+  const audit = await auditoria();
+  const aprobador = { usuarioId: "aprobador-" + sufijo, usuarioNombre: "Gerencia prueba" };
+  const vendedor = await prisma.vendedor.create({
+    data: { nombre: "Vendedor crédito " + sufijo, tipo: "SOLO_COMISION", tasaComision: 0 },
+  });
+  const cliente = await prisma.cliente.create({
+    data: { codigo: "CLI-CRED-" + sufijo, razonSocial: "Cliente crédito " + sufijo },
+  });
+  const pedido = await prisma.pedido.create({
+    data: {
+      numero: "PED-CRED-" + sufijo,
+      clienteId: cliente.id,
+      vendedorId: vendedor.id,
+      total: 168,
+      ...audit,
+    },
+  });
+  const facturaOrigen = await prisma.factura.create({
+    data: {
+      numero: "F-CRED-O-" + sufijo,
+      pedidoId: pedido.id,
+      clienteId: cliente.id,
+      vendedorId: vendedor.id,
+      condicionPago: "CONTADO",
+      fechaVencimiento: new Date("2099-01-01T00:00:00.000Z"),
+      subtotal: 100,
+      tasaIgv: 18,
+      igv: 18,
+      total: 118,
+      saldo: 0,
+      subtotalFuncional: 100,
+      igvFuncional: 18,
+      totalFuncional: 118,
+      saldoFuncional: 0,
+      estado: "PAGADA",
+      ...audit,
+    },
+  });
+  const facturaDestino = await prisma.factura.create({
+    data: {
+      numero: "F-CRED-D-" + sufijo,
+      pedidoId: pedido.id,
+      clienteId: cliente.id,
+      vendedorId: vendedor.id,
+      condicionPago: "DIAS_30",
+      fechaVencimiento: new Date("2099-02-01T00:00:00.000Z"),
+      subtotal: 42.37,
+      tasaIgv: 18,
+      igv: 7.63,
+      total: 50,
+      saldo: 50,
+      subtotalFuncional: 42.37,
+      igvFuncional: 7.63,
+      totalFuncional: 50,
+      saldoFuncional: 50,
+      ...audit,
+    },
+  });
+  const nota = await prisma.notaCredito.create({
+    data: {
+      numero: "NC-CRED-" + sufijo,
+      facturaId: facturaOrigen.id,
+      monto: 118,
+      montoFuncional: 118,
+      motivo: "Devolución sobre factura pagada",
+      tipoNota: "DEVOLUCION_TOTAL",
+      ...audit,
+    },
+  });
+  const credito = await prisma.creditoCliente.create({
+    data: {
+      clienteId: cliente.id,
+      notaCreditoId: nota.id,
+      montoOriginal: 118,
+      saldo: 118,
+      montoFuncionalOriginal: 118,
+      saldoFuncional: 118,
+    },
+  });
+
+  await prisma.$transaction(async (tx) => {
+    await postearNotaCredito(
+      tx,
+      {
+        numeroNC: nota.numero,
+        numeroFactura: facturaOrigen.numero,
+        montoBase: 100,
+        montoIgv: 18,
+        montoCxc: 0,
+        montoSaldoFavor: 118,
+      },
+      audit
+    );
+    await aplicarCreditoCliente(
+      tx,
+      { creditoId: credito.id, facturaId: facturaDestino.id, monto: 30 },
+      audit
+    );
+    await solicitarReembolsoCliente(
+      tx,
+      {
+        creditoId: credito.id,
+        monto: 20,
+        tipoCambio: 1,
+        medioPago: "TRANSFERENCIA",
+        referencia: "TRX-" + sufijo,
+        montoAprobacionPagos: 100,
+      },
+      audit
+    );
+  });
+
+  const pendienteId = await prisma.$transaction((tx) =>
+    solicitarReembolsoCliente(
+      tx,
+      {
+        creditoId: credito.id,
+        monto: 10,
+        tipoCambio: 1,
+        medioPago: "DEPOSITO",
+        referencia: "APR-" + sufijo,
+        montoAprobacionPagos: 1,
+      },
+      audit
+    )
+  );
+  await assert.rejects(
+    prisma.$transaction((tx) =>
+      aplicarCreditoCliente(
+        tx,
+        { creditoId: credito.id, facturaId: facturaDestino.id, monto: 1 },
+        audit
+      )
+    ),
+    /reembolso pendiente/
+  );
+  await prisma.$transaction((tx) =>
+    aprobarReembolsoCliente(tx, pendienteId, aprobador)
+  );
+
+  const [creditoFinal, facturaFinal, aplicaciones, reembolsos, caja, asientos] =
+    await Promise.all([
+      prisma.creditoCliente.findUniqueOrThrow({ where: { id: credito.id } }),
+      prisma.factura.findUniqueOrThrow({ where: { id: facturaDestino.id } }),
+      prisma.aplicacionCreditoCliente.findMany({ where: { creditoId: credito.id } }),
+      prisma.reembolsoCliente.findMany({ where: { creditoId: credito.id }, orderBy: { fecha: "asc" } }),
+      prisma.movimientoCaja.findMany({ where: { referencia: { in: ["TRX-" + sufijo, "APR-" + sufijo] } } }),
+      prisma.asientoContable.findMany({
+        where: {
+          origen: { in: ["NOTA_CREDITO", "APLICACION_CREDITO_CLIENTE", "REEMBOLSO_CLIENTE"] },
+          OR: [
+            { referencia: nota.numero },
+            { referencia: facturaDestino.numero },
+          ],
+        },
+        include: { detalles: true },
+      }),
+    ]);
+  assert.equal(creditoFinal.saldo.toNumber(), 58);
+  assert.equal(creditoFinal.saldoFuncional.toNumber(), 58);
+  assert.equal(facturaFinal.saldo.toNumber(), 20);
+  assert.equal(aplicaciones.length, 1);
+  assert.equal(reembolsos.length, 2);
+  assert.deepEqual(reembolsos.map((reembolso) => reembolso.estadoAprobacion), ["NO_REQUERIDA", "APROBADA"]);
+  assert.equal(caja.length, 2);
+  assert.equal(asientos.length, 4);
+  asientos.forEach(comprobarCuadre);
+});
 test("cobros multimoneda contabilizan ganancias y pérdidas cambiarias balanceadas", async () => {
   const sufijo = Date.now().toString();
   const audit = await auditoria();
@@ -703,7 +932,8 @@ test("reversas y mora USD contabilizan únicamente importes funcionales balancea
         numeroFactura: facturaNC,
         montoBase: 370,
         montoIgv: 66.6,
-        montoTotal: 436.6,
+        montoCxc: 436.6,
+        montoSaldoFavor: 0,
       },
       audit
     );

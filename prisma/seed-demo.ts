@@ -803,7 +803,8 @@ async function main() {
           numeroFactura: facturaParaNC.numero,
           montoBase,
           montoIgv: montoNC - montoBase,
-          montoTotal: montoNC,
+          montoCxc: montoNC,
+          montoSaldoFavor: 0,
         },
         audit
       );

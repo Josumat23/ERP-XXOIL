@@ -22,6 +22,7 @@ export type ClaveControl =
   | "INVENTARIO_INSUMOS"
   | "CAJA_BANCOS"
   | "CUENTAS_POR_PAGAR"
+  | "SALDOS_FAVOR_CLIENTES"
   | "DEVOLUCIONES"
   | "GASTO_DEPRECIACION"
   | "DEPRECIACION_ACUMULADA"
@@ -49,6 +50,7 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   INVENTARIO_INSUMOS: "Inventario de materias primas y suministros",
   CAJA_BANCOS: "Caja y bancos",
   CUENTAS_POR_PAGAR: "Cuentas por pagar comerciales",
+  SALDOS_FAVOR_CLIENTES: "Saldos a favor de clientes",
   DEVOLUCIONES: "Devoluciones y descuentos concedidos",
   GASTO_DEPRECIACION: "Gasto por depreciación",
   DEPRECIACION_ACUMULADA: "Depreciación acumulada (activo contra cuenta)",
@@ -445,20 +447,89 @@ export async function postearCobro(
   });
 }
 
-// Nota de crédito: Devoluciones + IGV (debe) / CxC (haber)
+// Nota de crédito: revierte ventas e IGV; cancela la CxC abierta y reconoce
+// como pasivo el excedente ya cobrado que queda a disposición del cliente.
 export async function postearNotaCredito(
   tx: Tx,
-  datos: { numeroNC: string; numeroFactura: string; montoBase: number; montoIgv: number; montoTotal: number },
+  datos: {
+    numeroNC: string;
+    numeroFactura: string;
+    montoBase: number;
+    montoIgv: number;
+    montoCxc: number;
+    montoSaldoFavor: number;
+  },
   audit: Auditoria
 ) {
   await postearAsiento(tx, {
     origen: "NOTA_CREDITO",
-    glosa: `Nota de crédito ${datos.numeroNC} sobre factura ${datos.numeroFactura}`,
+    glosa: "Nota de crédito " + datos.numeroNC + " sobre factura " + datos.numeroFactura,
     referencia: datos.numeroNC,
     lineas: [
       { clave: "DEVOLUCIONES", debe: datos.montoBase },
       { clave: "IGV_POR_PAGAR", debe: datos.montoIgv },
-      { clave: "CUENTAS_POR_COBRAR", haber: datos.montoTotal },
+      ...(datos.montoCxc > 0
+        ? [{ clave: "CUENTAS_POR_COBRAR" as const, haber: datos.montoCxc }]
+        : []),
+      ...(datos.montoSaldoFavor > 0
+        ? [{ clave: "SALDOS_FAVOR_CLIENTES" as const, haber: datos.montoSaldoFavor }]
+        : []),
+    ],
+    ...audit,
+  });
+}
+
+export async function postearAplicacionCreditoCliente(
+  tx: Tx,
+  datos: {
+    numeroNC: string;
+    numeroFactura: string;
+    creditoFuncionalAplicado: number;
+    cxcFuncionalAplicada: number;
+    diferenciaCambio: number;
+  },
+  audit: Auditoria
+) {
+  await postearAsiento(tx, {
+    origen: "APLICACION_CREDITO_CLIENTE",
+    glosa: "Aplicación de saldo a favor " + datos.numeroNC + " a factura " + datos.numeroFactura,
+    referencia: datos.numeroFactura,
+    lineas: [
+      { clave: "SALDOS_FAVOR_CLIENTES", debe: datos.creditoFuncionalAplicado },
+      { clave: "CUENTAS_POR_COBRAR", haber: datos.cxcFuncionalAplicada },
+      ...(datos.diferenciaCambio > 0
+        ? [{ clave: "GANANCIA_DIFERENCIA_CAMBIO" as const, haber: datos.diferenciaCambio }]
+        : datos.diferenciaCambio < 0
+          ? [{ clave: "PERDIDA_DIFERENCIA_CAMBIO" as const, debe: -datos.diferenciaCambio }]
+          : []),
+    ],
+    ...audit,
+  });
+}
+
+export async function postearReembolsoCliente(
+  tx: Tx,
+  datos: {
+    numeroNC: string;
+    cliente: string;
+    montoCajaFuncional: number;
+    creditoFuncionalAplicado: number;
+    diferenciaCambio: number;
+  },
+  audit: Auditoria
+) {
+  await postearAsiento(tx, {
+    origen: "REEMBOLSO_CLIENTE",
+    glosa: "Reembolso a " + datos.cliente + " por saldo a favor " + datos.numeroNC,
+    referencia: datos.numeroNC,
+    lineas: [
+      { clave: "SALDOS_FAVOR_CLIENTES", debe: datos.creditoFuncionalAplicado },
+      { clave: "CAJA_BANCOS", haber: datos.montoCajaFuncional },
+      ...(datos.diferenciaCambio > 0
+        ? [{ clave: "GANANCIA_DIFERENCIA_CAMBIO" as const, haber: datos.diferenciaCambio }]
+        : datos.diferenciaCambio < 0
+          ? [{ clave: "PERDIDA_DIFERENCIA_CAMBIO" as const, debe: -datos.diferenciaCambio }]
+          : []),
     ],
     ...audit,
   });
