@@ -23,6 +23,7 @@ export type ClaveControl =
   | "CAJA_BANCOS"
   | "CUENTAS_POR_PAGAR"
   | "SALDOS_FAVOR_CLIENTES"
+  | "SALDOS_FAVOR_PROVEEDORES"
   | "DEVOLUCIONES"
   | "GASTO_DEPRECIACION"
   | "DEPRECIACION_ACUMULADA"
@@ -51,6 +52,7 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   CAJA_BANCOS: "Caja y bancos",
   CUENTAS_POR_PAGAR: "Cuentas por pagar comerciales",
   SALDOS_FAVOR_CLIENTES: "Saldos a favor de clientes",
+  SALDOS_FAVOR_PROVEEDORES: "Saldos a favor en proveedores",
   DEVOLUCIONES: "Devoluciones y descuentos concedidos",
   GASTO_DEPRECIACION: "Gasto por depreciación",
   DEPRECIACION_ACUMULADA: "Depreciación acumulada (activo contra cuenta)",
@@ -618,22 +620,65 @@ export async function postearRecepcionCompra(
   });
 }
 
-// Devolución de insumo a proveedor: reverso de la compra — CxP (debe) /
-// Inventario de insumos (haber). Si la CxP asociada ya no tiene saldo
-// suficiente para absorber el crédito completo, esto igual se postea (el
-// crédito remanente queda como diferencia a favor de XXOil frente al
-// proveedor, a coordinar fuera del sistema — no bloquea la devolución física).
+// Devolución de insumo a proveedor: revierte inventario y distribuye el debe
+// entre la CxP todavía abierta y el activo recuperable del proveedor.
 export async function postearDevolucionCompra(
   tx: Tx,
-  datos: { insumo: string; proveedor: string; cantidad: number; monto: number },
+  datos: {
+    insumo: string;
+    proveedor: string;
+    cantidad: number;
+    montoFuncional: number;
+    montoCxp: number;
+    montoSaldoFavor: number;
+  },
   audit: Auditoria
 ) {
   await postearAsiento(tx, {
     origen: "DEVOLUCION_COMPRA",
     glosa: `Devolución a ${datos.proveedor}: ${datos.insumo} (${datos.cantidad})`,
     lineas: [
-      { clave: "CUENTAS_POR_PAGAR", debe: datos.monto },
-      { clave: "INVENTARIO_INSUMOS", haber: datos.monto },
+      ...(datos.montoCxp > 0
+        ? [{ clave: "CUENTAS_POR_PAGAR" as const, debe: datos.montoCxp }]
+        : []),
+      ...(datos.montoSaldoFavor > 0
+        ? [{ clave: "SALDOS_FAVOR_PROVEEDORES" as const, debe: datos.montoSaldoFavor }]
+        : []),
+      { clave: "INVENTARIO_INSUMOS", haber: datos.montoFuncional },
+    ],
+    ...audit,
+  });
+}
+
+export async function postearAplicacionCreditoProveedor(
+  tx: Tx,
+  datos: { proveedor: string; documentoProveedor: string; montoFuncional: number },
+  audit: Auditoria
+) {
+  await postearAsiento(tx, {
+    origen: "APLICACION_CREDITO_PROVEEDOR",
+    glosa: `Aplicación de saldo a favor de ${datos.proveedor} al documento ${datos.documentoProveedor}`,
+    referencia: datos.documentoProveedor,
+    lineas: [
+      { clave: "CUENTAS_POR_PAGAR", debe: datos.montoFuncional },
+      { clave: "SALDOS_FAVOR_PROVEEDORES", haber: datos.montoFuncional },
+    ],
+    ...audit,
+  });
+}
+
+export async function postearReembolsoProveedor(
+  tx: Tx,
+  datos: { proveedor: string; referencia: string; montoFuncional: number },
+  audit: Auditoria
+) {
+  await postearAsiento(tx, {
+    origen: "REEMBOLSO_PROVEEDOR",
+    glosa: `Reembolso recibido de ${datos.proveedor} por saldo a favor`,
+    referencia: datos.referencia,
+    lineas: [
+      { clave: "CAJA_BANCOS", debe: datos.montoFuncional },
+      { clave: "SALDOS_FAVOR_PROVEEDORES", haber: datos.montoFuncional },
     ],
     ...audit,
   });

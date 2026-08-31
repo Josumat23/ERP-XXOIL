@@ -425,6 +425,7 @@ async function main() {
   const cuentasSemilla: { codigo: string; nombre: string; tipo: "ACTIVO" | "PASIVO" | "PATRIMONIO" | "INGRESO" | "GASTO" }[] = [
     { codigo: "1041", nombre: "Caja y bancos — cuentas corrientes", tipo: "ACTIVO" },
     { codigo: "1212", nombre: "Cuentas por cobrar comerciales — terceros", tipo: "ACTIVO" },
+    { codigo: "1689", nombre: "Otras cuentas por cobrar — saldos a favor en proveedores", tipo: "ACTIVO" },
     { codigo: "2411", nombre: "Materias primas", tipo: "ACTIVO" },
     { codigo: "2111", nombre: "Productos terminados", tipo: "ACTIVO" },
     { codigo: "4011", nombre: "IGV por pagar", tipo: "PASIVO" },
@@ -472,6 +473,7 @@ async function main() {
     ["CAJA_BANCOS", "1041"],
     ["CUENTAS_POR_PAGAR", "4212"],
     ["SALDOS_FAVOR_CLIENTES", "4699"],
+    ["SALDOS_FAVOR_PROVEEDORES", "1689"],
     ["DEVOLUCIONES", "7411"],
     ["GASTO_DEPRECIACION", "6814"],
     ["DEPRECIACION_ACUMULADA", "3913"],

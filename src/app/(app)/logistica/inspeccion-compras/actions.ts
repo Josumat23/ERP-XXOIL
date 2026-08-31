@@ -11,8 +11,8 @@ export type EstadoFormulario = { error?: string };
 // Resultado de la inspección de calidad de una recepción de compra: si se
 // aprueba, recién aquí entra al kardex y se actualiza el costo promedio
 // (quedó pendiente desde la recepción). Si se rechaza, nunca suma stock; la
-// devolución/nota de crédito al proveedor se maneja fuera del sistema, igual
-// que las notas de crédito de venta.
+// devolución/nota de crédito al proveedor se registra después desde la OC;
+// cualquier exceso sobre la CxP queda en el subledger de saldos a favor.
 export async function resolverInspeccionCompra(
   inspeccionId: string,
   _prevState: EstadoFormulario,

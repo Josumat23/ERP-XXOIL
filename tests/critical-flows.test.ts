@@ -70,6 +70,11 @@ import {
   solicitarReembolsoCliente,
 } from "@/lib/creditosCliente";
 import {
+  aplicarCreditoProveedor,
+  calcularDistribucionDevolucionProveedor,
+  registrarReembolsoProveedor,
+} from "@/lib/creditosProveedor";
+import {
   calcularSaldoAcreditableDevolucion,
   crearDocumentoDevolucion,
   inspeccionarDetalleDevolucion,
@@ -897,6 +902,67 @@ test("saldo a favor compensa CxC y reembolsa con aprobación segregada", async (
   assert.equal(caja.length, 2);
   assert.equal(asientos.length, 4);
   asientos.forEach(comprobarCuadre);
+});
+test("créditos de proveedor separan la CxP del activo recuperable", () => {
+  assert.deepEqual(
+    calcularDistribucionDevolucionProveedor({ montoFuncional: 370, saldoCxp: 100 }),
+    { montoCxp: 100, montoSaldoFavor: 270, nuevoSaldoCxp: 0 }
+  );
+  assert.deepEqual(
+    calcularDistribucionDevolucionProveedor({ montoFuncional: 40, saldoCxp: 100 }),
+    { montoCxp: 40, montoSaldoFavor: 0, nuevoSaldoCxp: 60 }
+  );
+});
+
+test("saldo de proveedor compensa CxP y registra reembolso recibido", async () => {
+  const sufijo = Date.now().toString(36);
+  const audit = await auditoria();
+  const proveedor = await prisma.proveedor.create({
+    data: { razonSocial: "Proveedor crédito " + sufijo, ruc: "20" + sufijo.padStart(9, "0").slice(-9) },
+  });
+  const insumo = await prisma.insumo.create({
+    data: {
+      codigo: "INS-CRED-" + sufijo,
+      nombre: "Insumo crédito " + sufijo,
+      tipo: "MATERIA_PRIMA",
+      unidadMedida: "KG",
+      stock: 0,
+      costoUnitario: 10,
+    },
+  });
+  const oc = await prisma.ordenCompra.create({
+    data: { numero: "OC-CRED-" + sufijo, proveedorId: proveedor.id, total: 300, usuarioId: audit.usuarioId, usuarioNombre: audit.usuarioNombre },
+  });
+  const recepcion = await prisma.recepcionCompra.create({
+    data: { numero: "RC-CRED-" + sufijo, ordenCompraId: oc.id, ...audit },
+  });
+  const detalle = await prisma.recepcionCompraDetalle.create({
+    data: { recepcionId: recepcion.id, insumoId: insumo.id, cantidad: 10, costoUnitario: 10 },
+  });
+  const devolucion = await prisma.devolucionCompra.create({
+    data: { recepcionCompraDetalleId: detalle.id, cantidad: 10, motivo: "Prueba", montoCredito: 100, montoFuncional: 100, ...audit },
+  });
+  const credito = await prisma.creditoProveedor.create({
+    data: { proveedorId: proveedor.id, devolucionCompraId: devolucion.id, montoFuncionalOriginal: 100, saldoFuncional: 100 },
+  });
+  const cxp = await prisma.cuentaPorPagar.create({
+    data: { proveedorId: proveedor.id, numeroDocumento: "F-CRED-" + sufijo, total: 80, saldo: 80, ...audit },
+  });
+  await prisma.$transaction((tx) => aplicarCreditoProveedor(tx, { creditoId: credito.id, cuentaPorPagarId: cxp.id, montoFuncional: 60 }, audit));
+  await prisma.$transaction((tx) => registrarReembolsoProveedor(tx, { creditoId: credito.id, montoFuncional: 25, medioPago: "TRANSFERENCIA", referencia: "REF-" + sufijo }, audit));
+  const [creditoFinal, cxpFinal, aplicaciones, reembolsos, caja] = await Promise.all([
+    prisma.creditoProveedor.findUniqueOrThrow({ where: { id: credito.id } }),
+    prisma.cuentaPorPagar.findUniqueOrThrow({ where: { id: cxp.id } }),
+    prisma.aplicacionCreditoProveedor.findMany({ where: { creditoId: credito.id } }),
+    prisma.reembolsoProveedor.findMany({ where: { creditoId: credito.id } }),
+    prisma.movimientoCaja.findMany({ where: { referencia: "REF-" + sufijo } }),
+  ]);
+  assert.equal(creditoFinal.saldoFuncional.toNumber(), 15);
+  assert.equal(cxpFinal.saldo.toNumber(), 20);
+  assert.equal(aplicaciones.length, 1);
+  assert.equal(reembolsos.length, 1);
+  assert.equal(caja.length, 1);
+  assert.equal(caja[0]?.tipo, "INGRESO");
 });
 test("cobros multimoneda contabilizan ganancias y pérdidas cambiarias balanceadas", async () => {
   const sufijo = Date.now().toString();

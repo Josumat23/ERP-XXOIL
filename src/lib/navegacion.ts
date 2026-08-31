@@ -94,6 +94,7 @@ export const MODULOS: Modulo[] = [
           { href: "/finanzas/cuentas-por-cobrar", etiqueta: "Cuentas por cobrar" },
           { href: "/finanzas/saldos-favor-clientes", etiqueta: "Saldos a favor de clientes" },
           { href: "/finanzas/cuentas-por-pagar", etiqueta: "Cuentas por pagar" },
+          { href: "/finanzas/saldos-favor-proveedores", etiqueta: "Saldos a favor en proveedores" },
           { href: "/finanzas/cobranza", etiqueta: "Gestión de cobranza", roles: ["ADMIN", "GERENCIA", "VENTAS"] },
           { href: "/finanzas/propuesta-pago", etiqueta: "Propuesta de pago", roles: ["ADMIN", "GERENCIA"] },
           { href: "/finanzas/caja", etiqueta: "Libro de caja" },

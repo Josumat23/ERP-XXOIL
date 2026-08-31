@@ -38,6 +38,8 @@ export const ETIQUETA_ORIGEN_ASIENTO: Record<$Enums.OrigenAsiento, string> = {
   VENTA_ACTIVO_FIJO: "Venta de activo fijo",
   REVERSO: "Reverso",
   DEVOLUCION_COMPRA: "Devolución a proveedor",
+  APLICACION_CREDITO_PROVEEDOR: "Aplicación de saldo de proveedor",
+  REEMBOLSO_PROVEEDOR: "Reembolso de proveedor",
   PLANILLA: "Planilla",
   GRATIFICACION: "Gratificación",
   CTS: "CTS",

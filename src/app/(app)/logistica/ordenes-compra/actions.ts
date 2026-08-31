@@ -22,6 +22,7 @@ import {
   type LineaOrdenCompraNormalizada,
 } from "@/lib/lineasOrdenCompra";
 import { crearOrdenCompraDesdeDatos } from "@/lib/ordenesCompra";
+import { calcularDistribucionDevolucionProveedor } from "@/lib/creditosProveedor";
 
 export type EstadoFormulario = { error?: string };
 
@@ -496,49 +497,61 @@ export async function registrarDevolucionProveedor(
       });
       if (!mov.ok) throw new Error(mov.error);
 
+      const oc = detalle.recepcion.ordenCompra;
       const montoCredito = cantidad * detalle.costoUnitario.toNumber();
-
-      await tx.devolucionCompra.create({
+      const montoFuncional = convertirAPen(montoCredito, oc.moneda, oc.tipoCambio.toNumber());
+      const cxp = await tx.cuentaPorPagar.findFirst({
+        where: { recepcionCompraId: detalle.recepcion.id },
+      });
+      const distribucion = calcularDistribucionDevolucionProveedor({
+        montoFuncional,
+        saldoCxp: cxp?.saldo.toNumber() ?? 0,
+      });
+      const devolucion = await tx.devolucionCompra.create({
         data: {
           recepcionCompraDetalleId,
           cantidad,
           motivo,
           montoCredito,
+          montoFuncional,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
         },
       });
 
-      // Aplica el crédito a la CxP que generó esta misma recepción. Si el
-      // crédito supera el saldo pendiente (ya se pagó total o parcial), el
-      // saldo baja hasta 0 y el remanente queda como diferencia a favor de
-      // XXOil frente al proveedor, a coordinar fuera del sistema.
-      const cxp = await tx.cuentaPorPagar.findFirst({
-        where: { recepcionCompraId: detalle.recepcion.id },
-      });
-      if (cxp) {
-        const nuevoTotal = Math.max(0, cxp.total.toNumber() - montoCredito);
-        const nuevoSaldo = Math.max(0, cxp.saldo.toNumber() - montoCredito);
+      if (cxp && distribucion.montoCxp > 0) {
         const actualizada = await tx.cuentaPorPagar.updateMany({
-          where: { id: cxp.id, total: cxp.total, saldo: cxp.saldo, estado: cxp.estado },
+          where: { id: cxp.id, saldo: cxp.saldo, estado: cxp.estado },
           data: {
-            total: nuevoTotal,
-            saldo: nuevoSaldo,
-            estado: nuevoSaldo <= 1e-9 ? "PAGADA" : cxp.estado,
+            saldo: distribucion.nuevoSaldoCxp,
+            estado: distribucion.nuevoSaldoCxp <= 1e-9 ? "PAGADA" : "PENDIENTE",
           },
         });
         if (actualizada.count !== 1) {
           throw new Error("La cuenta por pagar cambió durante la devolución. Intente nuevamente.");
         }
       }
+      if (distribucion.montoSaldoFavor > 0) {
+        await tx.creditoProveedor.create({
+          data: {
+            empresaId: oc.empresaId,
+            proveedorId: oc.proveedorId,
+            devolucionCompraId: devolucion.id,
+            montoFuncionalOriginal: distribucion.montoSaldoFavor,
+            saldoFuncional: distribucion.montoSaldoFavor,
+          },
+        });
+      }
 
       await postearDevolucionCompra(
         tx,
         {
           insumo: detalle.insumo.nombre,
-          proveedor: detalle.recepcion.ordenCompra.proveedor.razonSocial,
+          proveedor: oc.proveedor.razonSocial,
           cantidad,
-          monto: montoCredito,
+          montoFuncional,
+          montoCxp: distribucion.montoCxp,
+          montoSaldoFavor: distribucion.montoSaldoFavor,
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
       );
@@ -551,5 +564,6 @@ export async function registrarDevolucionProveedor(
   revalidatePath(`/logistica/ordenes-compra/${ordenCompraId}`);
   revalidatePath("/inventario/kardex");
   revalidatePath("/finanzas/cuentas-por-pagar");
+  revalidatePath("/finanzas/saldos-favor-proveedores");
   return {};
 }
