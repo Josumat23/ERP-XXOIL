@@ -62,6 +62,7 @@ export const MODULOS: Modulo[] = [
           { href: "/logistica/mrp", etiqueta: "MRP — Necesidades de compra" },
           { href: "/logistica/ordenes-compra", etiqueta: "Órdenes de compra" },
           { href: "/logistica/guias-remision", etiqueta: "Guías de remisión" },
+          { href: "/logistica/devoluciones-clientes", etiqueta: "Devoluciones de clientes", roles: ["ADMIN", "ALMACEN", "PRODUCCION"] },
           { href: "/logistica/inspeccion-compras", etiqueta: "Inspección de calidad" },
           { href: "/catalogo/proveedores", etiqueta: "Proveedores" },
           { href: "/catalogo/proveedores/evaluacion", etiqueta: "Evaluación de proveedores" },

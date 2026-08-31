@@ -93,9 +93,9 @@ export async function asignarLoteInsumo(
  */
 export async function liberarAsignacionesLote(
   tx: Tx,
-  params: { facturaDetalleId?: string; guiaDetalleId?: string; pedidoDetalleId: string; motivo: string; cantidad?: number }
+  params: { facturaDetalleId?: string; guiaDetalleId?: string; devolucionDetalleId?: string; pedidoDetalleId: string; motivo: string; cantidad?: number; restaurarDisponible?: boolean }
 ): Promise<number> {
-  const { facturaDetalleId, guiaDetalleId, pedidoDetalleId, motivo, cantidad } = params;
+  const { facturaDetalleId, guiaDetalleId, devolucionDetalleId, pedidoDetalleId, motivo, cantidad, restaurarDisponible = true } = params;
   if ((facturaDetalleId ? 1 : 0) + (guiaDetalleId ? 1 : 0) < 1) {
     throw new Error("La liberación de lote requiere una línea de factura o entrega.");
   }
@@ -120,12 +120,14 @@ export async function liberarAsignacionesLote(
     const liberar = Math.min(restante, disponible);
 
     await tx.asignacionLoteVenta.create({
-      data: { facturaDetalleId, guiaDetalleId, pedidoDetalleId, envasadoId, tipo: "LIBERADA", cantidad: liberar, motivo },
+      data: { facturaDetalleId, guiaDetalleId, devolucionDetalleId, pedidoDetalleId, envasadoId, tipo: "LIBERADA", cantidad: liberar, motivo },
     });
-    await tx.envasado.update({
-      where: { id: envasadoId },
-      data: { unidadesDisponibles: { increment: liberar } },
-    });
+    if (restaurarDisponible) {
+      await tx.envasado.update({
+        where: { id: envasadoId },
+        data: { unidadesDisponibles: { increment: liberar } },
+      });
+    }
     restante -= liberar;
   }
   return solicitado - restante;

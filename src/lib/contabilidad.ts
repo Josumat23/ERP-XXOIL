@@ -391,6 +391,26 @@ export async function postearReversoSalidaMercancia(
     ...audit,
   });
 }
+// Reingreso aprobado de una devolución: vuelve a valorar únicamente las
+// unidades liberadas por Calidad; el stock bloqueado no se contabiliza.
+export async function postearReingresoDevolucionCliente(
+  tx: Tx,
+  datos: { numeroDevolucion: string; factura: string; costoTotal: number; fecha?: Date },
+  audit: Auditoria
+) {
+  if (datos.costoTotal <= 0) return;
+  await postearAsiento(tx, {
+    origen: "DEVOLUCION_CLIENTE",
+    glosa: `Reingreso aprobado devolución ${datos.numeroDevolucion} — factura ${datos.factura}`,
+    referencia: datos.numeroDevolucion,
+    fecha: datos.fecha,
+    lineas: [
+      { clave: "INVENTARIO_PT", debe: datos.costoTotal },
+      { clave: "COSTO_VENTAS", haber: datos.costoTotal },
+    ],
+    ...audit,
+  });
+}
 // Cobro: Caja y bancos (debe) / CxC (haber)
 export async function postearCobro(
   tx: Tx,
