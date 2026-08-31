@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { postearAsiento } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -80,5 +81,58 @@ export async function registrarCalidad(
 
   revalidatePath("/produccion/calidad");
   revalidatePath("/produccion/lotes");
+  return {};
+}
+export async function desecharLote(
+  loteId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) {
+    return { error: "Su grupo de seguridad no permite disponer lotes rechazados." };
+  }
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (motivo.length < 10) return { error: "Describa el motivo del descarte (mínimo 10 caracteres)." };
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const lote = await tx.loteGranel.findUnique({ where: { id: loteId } });
+      if (!lote || lote.estado !== "RECHAZADO") throw new Error("El lote no está rechazado.");
+      if (lote.disposicionRechazo) throw new Error("El lote rechazado ya tiene una disposición final.");
+      const reclamo = await tx.loteGranel.updateMany({
+        where: { id: loteId, estado: "RECHAZADO", disposicionRechazo: null },
+        data: {
+          disposicionRechazo: "DESECHADO",
+          motivoDisposicion: motivo,
+          fechaDisposicion: new Date(),
+          usuarioDisposicionId: auth.usuario.id,
+          usuarioDisposicionNombre: auth.usuario.nombre,
+        },
+      });
+      if (reclamo.count !== 1) throw new Error("El lote fue dispuesto por otro usuario.");
+      const costo = lote.costoInsumos.toNumber() + lote.costoReproceso.toNumber() + lote.costoManoObra.toNumber();
+      if (costo > 0) {
+        await postearAsiento(tx, {
+          origen: "DESECHO_PRODUCCION",
+          glosa: `Descarte del lote rechazado ${lote.codigo}: ${motivo}`,
+          referencia: lote.codigo,
+          lineas: [
+            { clave: "PERDIDA_PRODUCCION", debe: costo },
+            { clave: "WIP_PRODUCCION", haber: costo },
+          ],
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        });
+      }
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+  revalidatePath("/produccion/lotes");
+  revalidatePath(`/produccion/lotes/${loteId}`);
+  revalidatePath("/produccion/calidad");
   return {};
 }

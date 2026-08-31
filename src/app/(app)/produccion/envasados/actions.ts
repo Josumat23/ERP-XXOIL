@@ -9,6 +9,7 @@ import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inven
 import { siguienteCodigoEnvasado } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { normalizarInsumosEnvasado, type InsumoEnvasadoNormalizado } from "@/lib/insumosEnvasado";
+import { postearAsiento } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -166,6 +167,20 @@ export async function crearEnvasado(
         usuarioNombre: auth.usuario.nombre,
       });
       if (!entrada.ok) throw new Error(entrada.error);
+
+      await postearAsiento(tx, {
+        origen: "ENVASADO_PRODUCCION",
+        glosa: `Transferencia a producto terminado ${envasado.codigo}`,
+        referencia: envasado.codigo,
+        lineas: [
+          { clave: "INVENTARIO_PT", debe: costoTotal },
+          { clave: "WIP_PRODUCCION", haber: kgConsumidos * lote.costoKg.toNumber() },
+          { clave: "INVENTARIO_INSUMOS", haber: costoEnvases },
+          { clave: "COSTOS_PRODUCCION_APLICADOS", haber: costoManoObra },
+        ],
+        usuarioId: auth.usuario.id,
+        usuarioNombre: auth.usuario.nombre,
+      });
 
     });
   } catch (e) {

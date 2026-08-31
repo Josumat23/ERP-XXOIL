@@ -577,30 +577,40 @@ enum EstadoLote {
   RECHAZADO
 }
 
+enum DisposicionLoteRechazado {
+  REPROCESADO
+  DESECHADO
+}
+
 model LoteGranel {
-  id            String     @id @default(cuid())
-  empresaId     String     @default("1")
-  codigo        String     @unique // LG-00001
-  formulaId     String
+  id                       String                    @id @default(cuid())
+  empresaId                String                    @default("1")
+  codigo                   String                    @unique // LG-00001
+  formulaId                String
   // Si este lote reprocesa un lote rechazado por calidad, referencia de dónde
-  // viene (trazabilidad de la no conformidad). No transfiere kg/costo
-  // automáticamente: el nuevo lote consume su propia fórmula igual que
-  // cualquier otro; esto solo documenta el origen para auditoría.
-  loteOrigenId  String?
-  kgObjetivo    Decimal
-  kgProducidos  Decimal    @default(0)
-  mermaKg       Decimal    @default(0)
-  kgDisponibles Decimal    @default(0) // granel aprobado aún no envasado
-  costoInsumos  Decimal    @default(0) // costo total de insumos consumidos al crear el lote
-  horasManoObra Decimal    @default(0) // horas-hombre invertidas en la cocción (al finalizar)
-  costoManoObra Decimal    @default(0) // horasManoObra * tarifa vigente al finalizar
-  costoKg       Decimal    @default(0) // (costoInsumos + costoManoObra) / kgProducidos
-  estado        EstadoLote @default(EN_PROCESO)
-  observaciones String?
-  fechaInicio   DateTime   @default(now())
-  fechaFin      DateTime?
-  usuarioId     String
-  usuarioNombre String
+  // viene (trazabilidad de la no conformidad). Su costo acumulado se incorpora
+  // al nuevo lote; la nueva orden consume además los insumos de su fórmula.
+  loteOrigenId             String?
+  kgObjetivo               Decimal
+  kgProducidos             Decimal                   @default(0)
+  mermaKg                  Decimal                   @default(0)
+  kgDisponibles            Decimal                   @default(0) // granel aprobado aún no envasado
+  costoInsumos             Decimal                   @default(0) // costo total de insumos consumidos al crear el lote
+  costoReproceso           Decimal                   @default(0) // costo heredado del lote rechazado incorporado al reproceso
+  horasManoObra            Decimal                   @default(0) // horas-hombre invertidas en la cocción (al finalizar)
+  costoManoObra            Decimal                   @default(0) // horasManoObra * tarifa vigente al finalizar
+  costoKg                  Decimal                   @default(0) // (costoInsumos + costoManoObra) / kgProducidos
+  estado                   EstadoLote                @default(EN_PROCESO)
+  observaciones            String?
+  fechaInicio              DateTime                  @default(now())
+  fechaFin                 DateTime?
+  usuarioId                String
+  disposicionRechazo       DisposicionLoteRechazado?
+  motivoDisposicion        String?
+  fechaDisposicion         DateTime?
+  usuarioDisposicionId     String?
+  usuarioDisposicionNombre String?
+  usuarioNombre            String
 
   formula                Formula                @relation(fields: [formulaId], references: [id])
   loteOrigen             LoteGranel?            @relation("Reproceso", fields: [loteOrigenId], references: [id])
@@ -2325,6 +2335,10 @@ enum OrigenAsiento {
   LIQUIDACION
   ORDEN_INTERNA
   RECLASIFICACION_COSTO
+  INICIO_PRODUCCION
+  MANO_OBRA_PRODUCCION
+  ENVASADO_PRODUCCION
+  DESECHO_PRODUCCION
 }
 
 model AsientoContable {

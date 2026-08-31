@@ -9,6 +9,7 @@ import { registrarMovimiento } from "@/lib/inventario";
 import { asignarLoteInsumo } from "@/lib/trazabilidad";
 import { siguienteCodigoLote } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { postearAsiento } from "@/lib/contabilidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -42,12 +43,25 @@ export async function crearLote(
       });
       if (!formula || !formula.activo) throw new Error("La fórmula no existe o está inactiva.");
 
+      let costoReproceso = 0;
       if (loteOrigenId) {
         const origen = await tx.loteGranel.findUnique({ where: { id: loteOrigenId } });
         if (!origen) throw new Error("El lote de origen del reproceso no existe.");
-        if (origen.estado !== "RECHAZADO") {
-          throw new Error("Solo se puede referenciar como reproceso un lote rechazado por calidad.");
+        if (origen.estado !== "RECHAZADO" || origen.disposicionRechazo) {
+          throw new Error("El lote rechazado ya fue dispuesto o no está disponible para reproceso.");
         }
+        costoReproceso = origen.costoInsumos.toNumber() + origen.costoManoObra.toNumber() + origen.costoReproceso.toNumber();
+        const disposicion = await tx.loteGranel.updateMany({
+          where: { id: loteOrigenId, estado: "RECHAZADO", disposicionRechazo: null },
+          data: {
+            disposicionRechazo: "REPROCESADO",
+            motivoDisposicion: "Costo y material incorporados a un nuevo lote de reproceso",
+            fechaDisposicion: new Date(),
+            usuarioDisposicionId: auth.usuario.id,
+            usuarioDisposicionNombre: auth.usuario.nombre,
+          },
+        });
+        if (disposicion.count !== 1) throw new Error("El lote rechazado fue dispuesto por otro usuario.");
       }
 
       const codigo = await siguienteCodigoLote(tx);
@@ -58,6 +72,7 @@ export async function crearLote(
           codigo,
           formulaId,
           loteOrigenId,
+          costoReproceso,
           kgObjetivo,
           observaciones,
           usuarioId: auth.usuario.id,
@@ -94,6 +109,19 @@ export async function crearLote(
       }
 
       await tx.loteGranel.update({ where: { id: lote.id }, data: { costoInsumos } });
+      if (costoInsumos > 0) {
+        await postearAsiento(tx, {
+          origen: "INICIO_PRODUCCION",
+          glosa: `Consumo de materias primas para ${lote.codigo}`,
+          referencia: lote.codigo,
+          lineas: [
+            { clave: "WIP_PRODUCCION", debe: costoInsumos },
+            { clave: "INVENTARIO_INSUMOS", haber: costoInsumos },
+          ],
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        });
+      }
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
@@ -125,33 +153,46 @@ export async function finalizarLote(
     return { error: "Las horas de mano de obra deben ser mayores o iguales a 0." };
   }
 
-  const lote = await prisma.loteGranel.findUnique({ where: { id } });
-  if (!lote) return { error: "El lote no existe." };
-  if (lote.estado !== "EN_PROCESO") {
-    return { error: "Solo se puede finalizar un lote en proceso." };
-  }
-
   const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
   const costoManoObra = horasManoObra * tarifaHoraManoObra.toNumber();
-  const merma = Math.max(0, lote.kgObjetivo.toNumber() - kgProducidos);
 
-  const resultado = await prisma.loteGranel.updateMany({
-    where: { id, estado: "EN_PROCESO" },
-    data: {
-      kgProducidos,
-      mermaKg: merma,
-      horasManoObra,
-      costoManoObra,
-      // La merma encarece el kg: el costo total se reparte entre lo realmente producido.
-      costoKg: (lote.costoInsumos.toNumber() + costoManoObra) / kgProducidos,
-      estado: "PENDIENTE_CALIDAD",
-      fechaFin: new Date(),
-    },
-  });
-  if (resultado.count !== 1) {
-    return { error: "El lote cambi\u00f3 mientras se finalizaba. Actualice la p\u00e1gina e intente nuevamente." };
+  try {
+    await prisma.$transaction(async (tx) => {
+      const lote = await tx.loteGranel.findUnique({ where: { id } });
+      if (!lote) throw new Error("El lote no existe.");
+      if (lote.estado !== "EN_PROCESO") throw new Error("Solo se puede finalizar un lote en proceso.");
+      const merma = Math.max(0, lote.kgObjetivo.toNumber() - kgProducidos);
+      const resultado = await tx.loteGranel.updateMany({
+        where: { id, estado: "EN_PROCESO" },
+        data: {
+          kgProducidos,
+          mermaKg: merma,
+          horasManoObra,
+          costoManoObra,
+          costoKg: (lote.costoInsumos.toNumber() + lote.costoReproceso.toNumber() + costoManoObra) / kgProducidos,
+          estado: "PENDIENTE_CALIDAD",
+          fechaFin: new Date(),
+        },
+      });
+      if (resultado.count !== 1) throw new Error("El lote cambió mientras se finalizaba. Actualice la página e intente nuevamente.");
+      if (costoManoObra > 0) {
+        await postearAsiento(tx, {
+          origen: "MANO_OBRA_PRODUCCION",
+          glosa: `Mano de obra aplicada a ${lote.codigo}`,
+          referencia: lote.codigo,
+          lineas: [
+            { clave: "WIP_PRODUCCION", debe: costoManoObra },
+            { clave: "COSTOS_PRODUCCION_APLICADOS", haber: costoManoObra },
+          ],
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        });
+      }
+    });
+  } catch (e) {
+    if (e instanceof Error) return { error: e.message };
+    throw e;
   }
-
   revalidatePath("/produccion/lotes");
   revalidatePath(`/produccion/lotes/${id}`);
   revalidatePath("/produccion/calidad");

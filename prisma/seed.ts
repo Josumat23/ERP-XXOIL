@@ -427,6 +427,7 @@ async function main() {
     { codigo: "1212", nombre: "Cuentas por cobrar comerciales — terceros", tipo: "ACTIVO" },
     { codigo: "1689", nombre: "Otras cuentas por cobrar — saldos a favor en proveedores", tipo: "ACTIVO" },
     { codigo: "2411", nombre: "Materias primas", tipo: "ACTIVO" },
+    { codigo: "2311", nombre: "Productos en proceso", tipo: "ACTIVO" },
     { codigo: "2111", nombre: "Productos terminados", tipo: "ACTIVO" },
     { codigo: "4011", nombre: "IGV por pagar", tipo: "PASIVO" },
     { codigo: "4212", nombre: "Cuentas por pagar comerciales — terceros", tipo: "PASIVO" },
@@ -445,6 +446,8 @@ async function main() {
     { codigo: "6761", nombre: "Pérdida por diferencia de cambio", tipo: "GASTO" },
     { codigo: "7761", nombre: "Ganancia por diferencia de cambio", tipo: "INGRESO" },
     { codigo: "7721", nombre: "Intereses por mora comercial", tipo: "INGRESO" },
+    { codigo: "7911", nombre: "Cargas imputables a cuentas de costos", tipo: "INGRESO" },
+    { codigo: "6599", nombre: "Otras pérdidas de gestión — producción rechazada", tipo: "GASTO" },
   ];
   const cuentaPorCodigo = new Map<string, string>();
   for (const c of cuentasSemilla) {
@@ -470,6 +473,9 @@ async function main() {
     ["COSTO_VENTAS", "6911"],
     ["INVENTARIO_PT", "2111"],
     ["INVENTARIO_INSUMOS", "2411"],
+    ["WIP_PRODUCCION", "2311"],
+    ["COSTOS_PRODUCCION_APLICADOS", "7911"],
+    ["PERDIDA_PRODUCCION", "6599"],
     ["CAJA_BANCOS", "1041"],
     ["CUENTAS_POR_PAGAR", "4212"],
     ["SALDOS_FAVOR_CLIENTES", "4699"],
