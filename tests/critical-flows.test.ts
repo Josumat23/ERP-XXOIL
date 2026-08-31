@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 import { calcularCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import {
   postearAnulacionFactura,
+  postearAsiento,
   postearCobro,
   postearNotaCredito,
   postearPagoProveedor,
@@ -1248,7 +1249,17 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
         ...audit,
       }),
       { ok: true }
-    );
+    );    const asientoInicio = await postearAsiento(tx, {
+      origen: "INICIO_PRODUCCION",
+      glosa: "Consumo productivo de prueba",
+      referencia: lote.codigo,
+      lineas: [
+        { clave: "WIP_PRODUCCION", debe: 40 },
+        { clave: "INVENTARIO_INSUMOS", haber: 40 },
+      ],
+      ...audit,
+    });
+    assert.equal(asientoInicio.ok, true);
     await tx.loteGranel.update({
       where: { id: lote.id },
       data: {
@@ -1293,6 +1304,18 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
       { ok: true }
     );
     await tx.loteGranel.update({ where: { id: lote.id }, data: { kgDisponibles: 9 } });
+    const costoTransferido = 400 / 19;
+    const asientoEnvasado = await postearAsiento(tx, {
+      origen: "ENVASADO_PRODUCCION",
+      glosa: "Transferencia productiva de prueba",
+      referencia: envasado.codigo,
+      lineas: [
+        { clave: "INVENTARIO_PT", debe: costoTransferido },
+        { clave: "WIP_PRODUCCION", haber: costoTransferido },
+      ],
+      ...audit,
+    });
+    assert.equal(asientoEnvasado.ok, true);
   });
 
   const [materiaPrima, terminado, lote, movimientos] = await Promise.all([
@@ -1314,6 +1337,14 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   assert.equal(lote.controlCalidad?.resultado, "APROBADO");
   assert.equal(lote.envasados[0]?.unidadesDisponibles, 10);
   assert.deepEqual(movimientos.map((movimiento) => movimiento.origen), ["PRODUCCION", "ENVASADO"]);
+  const [asientoInicio] = await asientosPorReferencia(lote.codigo);
+  const [asientoEnvasado] = await asientosPorReferencia(lote.envasados[0]!.codigo);
+  assert.ok(asientoInicio);
+  assert.ok(asientoEnvasado);
+  comprobarCuadre(asientoInicio);
+  comprobarCuadre(asientoEnvasado);
+  assert.equal(asientoInicio.origen, "INICIO_PRODUCCION");
+  assert.equal(asientoEnvasado.origen, "ENVASADO_PRODUCCION");
   const vendedor = await prisma.vendedor.create({
     data: { nombre: "Vendedor recall " + sufijo, tipo: "SOLO_COMISION", tasaComision: 2 },
   });

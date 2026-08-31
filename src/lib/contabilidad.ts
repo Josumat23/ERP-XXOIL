@@ -20,6 +20,9 @@ export type ClaveControl =
   | "COSTO_VENTAS"
   | "INVENTARIO_PT"
   | "INVENTARIO_INSUMOS"
+  | "WIP_PRODUCCION"
+  | "COSTOS_PRODUCCION_APLICADOS"
+  | "PERDIDA_PRODUCCION"
   | "CAJA_BANCOS"
   | "CUENTAS_POR_PAGAR"
   | "SALDOS_FAVOR_CLIENTES"
@@ -49,6 +52,9 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   COSTO_VENTAS: "Costo de ventas",
   INVENTARIO_PT: "Inventario de productos terminados",
   INVENTARIO_INSUMOS: "Inventario de materias primas y suministros",
+  WIP_PRODUCCION: "Productos en proceso",
+  COSTOS_PRODUCCION_APLICADOS: "Cargas imputables a cuentas de costos",
+  PERDIDA_PRODUCCION: "Pérdidas por rechazo de producción",
   CAJA_BANCOS: "Caja y bancos",
   CUENTAS_POR_PAGAR: "Cuentas por pagar comerciales",
   SALDOS_FAVOR_CLIENTES: "Saldos a favor de clientes",

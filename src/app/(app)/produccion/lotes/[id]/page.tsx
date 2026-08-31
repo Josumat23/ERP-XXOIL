@@ -7,6 +7,7 @@ import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import FinalizarLoteFormulario from "./FinalizarLoteFormulario";
+import DisponerLoteFormulario from "./DisponerLoteFormulario";
 
 const COLOR_ESTADO: Record<string, string> = {
   EN_PROCESO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
@@ -108,7 +109,7 @@ export default async function DetalleLotePage({
 
       {lote.estado !== "EN_PROCESO" && (
         <p className="text-xs text-neutral-500 mt-2">
-          Costo insumos: S/ {formatNumero(lote.costoInsumos, 2)} + Mano de obra:{" "}
+          Costo insumos: S/ {formatNumero(lote.costoInsumos, 2)} + Reproceso: S/ {formatNumero(lote.costoReproceso, 2)} + Mano de obra:{" "}
           {formatNumero(lote.horasManoObra, 2)} h × S/{" "}
           {lote.horasManoObra.toNumber() > 0
             ? formatNumero(lote.costoManoObra.toNumber() / lote.horasManoObra.toNumber(), 2)
@@ -151,6 +152,23 @@ export default async function DetalleLotePage({
           </h2>
           <FinalizarLoteFormulario loteId={lote.id} kgObjetivo={lote.kgObjetivo.toNumber()} />
         </section>
+      )}
+
+      {lote.estado === "RECHAZADO" && !lote.disposicionRechazo && (
+        <section className="mt-8 border border-red-200 dark:border-red-900 rounded-lg p-4">
+          <h2 className="font-medium text-red-700 dark:text-red-400">Disposición del lote rechazado</h2>
+          <p className="text-sm text-neutral-500 mt-1">
+            Reprocéselo desde una nueva orden o registre su descarte. Un lote solo puede disponerse una vez.
+          </p>
+          <DisponerLoteFormulario loteId={lote.id} />
+        </section>
+      )}
+
+      {lote.disposicionRechazo && (
+        <p className="mt-4 text-sm text-neutral-600 dark:text-neutral-400">
+          Disposición: <strong>{lote.disposicionRechazo === "REPROCESADO" ? "Reprocesado" : "Desechado"}</strong>
+          {lote.motivoDisposicion ? ` — ${lote.motivoDisposicion}` : ""}
+        </p>
       )}
 
       {lote.controlCalidad && (

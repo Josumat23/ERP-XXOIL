@@ -21,7 +21,7 @@ export default async function NuevoLotePage() {
       orderBy: { fechaInicio: "desc" },
     }),
     prisma.loteGranel.findMany({
-      where: { estado: "RECHAZADO" },
+      where: { estado: "RECHAZADO", disposicionRechazo: null },
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaFin: "desc" },
     }),
