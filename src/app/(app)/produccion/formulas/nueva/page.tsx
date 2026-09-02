@@ -10,7 +10,7 @@ export default async function NuevaFormulaPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
-  const [productos, insumos, formulas] = await Promise.all([
+  const [productos, insumos, formulas, centrosTrabajo] = await Promise.all([
     prisma.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
     prisma.insumo.findMany({
       where: { activo: true, tipo: "MATERIA_PRIMA" },
@@ -20,6 +20,7 @@ export default async function NuevaFormulaPage() {
       include: { producto: true },
       orderBy: [{ producto: { nombre: "asc" } }, { version: "desc" }],
     }),
+    prisma.centroTrabajo.findMany({ where: { activo: true }, orderBy: [{ codigo: "asc" }] }),
   ]);
 
   return (
@@ -53,6 +54,7 @@ export default async function NuevaFormulaPage() {
             nombre: i.nombre,
             unidadMedida: i.unidadMedida,
           }))}
+          centrosTrabajo={centrosTrabajo.map((centro) => ({ id: centro.id, codigo: centro.codigo, nombre: centro.nombre }))}
         />
       </div>
       </PanelMaestroDetalle>

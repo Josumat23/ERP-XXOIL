@@ -23,6 +23,7 @@ export default async function DetalleFormulaPage({
       include: {
         producto: true,
         detalles: { include: { insumo: true } },
+        operaciones: { include: { centroTrabajo: true }, orderBy: { secuencia: "asc" } },
         lotes: { orderBy: { fechaInicio: "desc" }, take: 20 },
       },
     }),
@@ -107,6 +108,12 @@ export default async function DetalleFormulaPage({
               </tr>
             ))}
           </tbody>
+        </table>
+
+        <h2 className="font-medium mt-6" style={{ color: "var(--epicor-texto)" }}>Ruta de producción</h2>
+        <table className="tabla mt-2">
+          <thead><tr><th>Sec.</th><th>Operación / centro</th><th className="text-right">Prep.</th><th className="text-right">Máquina</th><th className="text-right">M.O.</th></tr></thead>
+          <tbody>{formula.operaciones.map((operacion) => <tr key={operacion.id}><td>{operacion.secuencia}</td><td>{operacion.nombre}<span className="block text-xs text-neutral-500">{operacion.centroTrabajo.codigo} — {operacion.centroTrabajo.nombre}</span></td><td className="text-right">{formatNumero(operacion.preparacionHoras, 2)} h</td><td className="text-right">{formatNumero(operacion.maquinaHoras, 2)} h</td><td className="text-right">{formatNumero(operacion.manoObraHoras, 2)} h</td></tr>)}</tbody>
         </table>
 
         <form

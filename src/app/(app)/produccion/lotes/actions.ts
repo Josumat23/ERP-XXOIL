@@ -14,6 +14,50 @@ import { calcularVariacionProduccion } from "@/lib/costeoProduccion";
 
 export type EstadoFormulario = { error?: string };
 
+export async function iniciarOperacion(id: string): Promise<void> {
+  const auth = await requerirRol(["PRODUCCION"]);
+  if ("error" in auth || !(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
+  await prisma.$transaction(async (tx) => {
+    const operacion = await tx.loteOperacion.findUnique({ where: { id }, include: { loteGranel: true } });
+    if (!operacion || operacion.loteGranel.estado !== "EN_PROCESO") throw new Error("La operación no está disponible.");
+    const anteriorPendiente = await tx.loteOperacion.count({ where: { loteGranelId: operacion.loteGranelId, secuencia: { lt: operacion.secuencia }, estado: { not: "COMPLETADA" } } });
+    const otraEnProceso = await tx.loteOperacion.count({ where: { loteGranelId: operacion.loteGranelId, estado: "EN_PROCESO" } });
+    if (anteriorPendiente > 0 || otraEnProceso > 0) throw new Error("Complete la operación anterior antes de iniciar esta operación.");
+    const resultado = await tx.loteOperacion.updateMany({ where: { id, estado: "PENDIENTE" }, data: { estado: "EN_PROCESO", inicioEn: new Date(), usuarioInicioId: auth.usuario.id, usuarioInicioNombre: auth.usuario.nombre } });
+    if (resultado.count !== 1) throw new Error("La operación fue actualizada por otro usuario.");
+  });
+  revalidatePath(`/produccion/lotes`);
+}
+
+export async function completarOperacion(id: string, _prevState: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["PRODUCCION"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return { error: "Sin permiso para confirmar operaciones." };
+  const preparacionRealHoras = Number(formData.get("preparacionRealHoras"));
+  const maquinaRealHoras = Number(formData.get("maquinaRealHoras"));
+  const manoObraRealHoras = Number(formData.get("manoObraRealHoras"));
+  const equipoId = String(formData.get("equipoId") ?? "") || null;
+  const tiempos = [preparacionRealHoras, maquinaRealHoras, manoObraRealHoras];
+  if (tiempos.some((valor) => !Number.isFinite(valor) || valor < 0) || tiempos.every((valor) => valor === 0)) return { error: "Registre tiempos reales válidos; al menos uno debe ser mayor a cero." };
+  try {
+    const operacion = await prisma.$transaction(async (tx) => {
+      const actual = await tx.loteOperacion.findUnique({ where: { id }, include: { loteGranel: true } });
+      if (!actual || actual.estado !== "EN_PROCESO" || actual.loteGranel.estado !== "EN_PROCESO") throw new Error("Solo puede completar una operación en proceso.");
+      if (equipoId) {
+        const equipo = await tx.equipo.findFirst({ where: { id: equipoId, centroTrabajoId: actual.centroTrabajoId, activo: true }, select: { id: true } });
+        if (!equipo) throw new Error("El equipo no está activo o no pertenece al centro de trabajo de la operación.");
+      }
+      const resultado = await tx.loteOperacion.updateMany({ where: { id, estado: "EN_PROCESO" }, data: { equipoId, preparacionRealHoras, maquinaRealHoras, manoObraRealHoras, estado: "COMPLETADA", finEn: new Date(), usuarioFinId: auth.usuario.id, usuarioFinNombre: auth.usuario.nombre } });
+      if (resultado.count !== 1) throw new Error("La operación fue actualizada por otro usuario.");
+      return actual;
+    });
+    revalidatePath(`/produccion/lotes/${operacion.loteGranelId}`);
+    return {};
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo completar la operación." };
+  }
+}
+
 // Crear lote: consume insumos según la fórmula (escalados al kg objetivo)
 // y deja el lote EN_PROCESO. El consumo queda en el kardex con el código del lote.
 export async function crearLote(
@@ -42,7 +86,7 @@ export async function crearLote(
     await prisma.$transaction(async (tx) => {
       const formula = await tx.formula.findUnique({
         where: { id: formulaId },
-        include: { detalles: true, producto: true },
+        include: { detalles: true, producto: true, operaciones: { orderBy: { secuencia: "asc" } } },
       });
       if (!formula || !formula.activo) throw new Error("La fórmula no existe o está inactiva.");
 
@@ -80,6 +124,17 @@ export async function crearLote(
           observaciones,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
+          operaciones: {
+            create: formula.operaciones.map((operacion) => ({
+              formulaOperacionId: operacion.id,
+              centroTrabajoId: operacion.centroTrabajoId,
+              secuencia: operacion.secuencia,
+              nombre: operacion.nombre,
+              preparacionPlanHoras: operacion.preparacionHoras.toNumber() * factor,
+              maquinaPlanHoras: operacion.maquinaHoras.toNumber() * factor,
+              manoObraPlanHoras: operacion.manoObraHoras.toNumber() * factor,
+            })),
+          },
         },
       });
 
@@ -167,19 +222,22 @@ export async function finalizarLote(
   if (!Number.isFinite(kgProducidos) || kgProducidos <= 0) {
     return { error: "Los kg producidos deben ser mayores a 0." };
   }
-  const horasManoObra = Number(formData.get("horasManoObra") ?? 0);
-  if (!Number.isFinite(horasManoObra) || horasManoObra < 0) {
+  const horasManoObraIngresadas = Number(formData.get("horasManoObra") ?? 0);
+  if (!Number.isFinite(horasManoObraIngresadas) || horasManoObraIngresadas < 0) {
     return { error: "Las horas de mano de obra deben ser mayores o iguales a 0." };
   }
 
   const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
-  const costoManoObra = horasManoObra * tarifaHoraManoObra.toNumber();
-
   try {
     await prisma.$transaction(async (tx) => {
-      const lote = await tx.loteGranel.findUnique({ where: { id } });
+      const lote = await tx.loteGranel.findUnique({ where: { id }, include: { operaciones: true } });
       if (!lote) throw new Error("El lote no existe.");
       if (lote.estado !== "EN_PROCESO") throw new Error("Solo se puede finalizar un lote en proceso.");
+      if (lote.operaciones.some((operacion) => operacion.estado !== "COMPLETADA")) throw new Error("Complete todas las operaciones de la ruta antes de finalizar el lote.");
+      const horasManoObra = lote.operaciones.length > 0
+        ? lote.operaciones.reduce((total, operacion) => total + operacion.manoObraRealHoras.toNumber(), 0)
+        : horasManoObraIngresadas;
+      const costoManoObra = horasManoObra * tarifaHoraManoObra.toNumber();
       const merma = Math.max(0, lote.kgObjetivo.toNumber() - kgProducidos);
       const variaciones =
         lote.costoEstandarInsumos !== null && lote.costoEstandarManoObra !== null

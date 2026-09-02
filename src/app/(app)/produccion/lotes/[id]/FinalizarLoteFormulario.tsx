@@ -3,9 +3,9 @@
 import { useActionState } from "react";
 import { finalizarLote, type EstadoFormulario } from "../actions";
 
-type Props = { loteId: string; kgObjetivo: number };
+type Props = { loteId: string; kgObjetivo: number; tieneRuta: boolean };
 
-export default function FinalizarLoteFormulario({ loteId, kgObjetivo }: Props) {
+export default function FinalizarLoteFormulario({ loteId, kgObjetivo, tieneRuta }: Props) {
   const accion = finalizarLote.bind(null, loteId);
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
 
@@ -17,7 +17,7 @@ export default function FinalizarLoteFormulario({ loteId, kgObjetivo }: Props) {
         </p>
       )}
       <div className="flex items-end gap-3">
-        <label className="flex flex-col gap-1 text-sm">
+        {!tieneRuta && <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
             Kg producidos (objetivo: {kgObjetivo})
           </span>
@@ -29,7 +29,7 @@ export default function FinalizarLoteFormulario({ loteId, kgObjetivo }: Props) {
             required
             className="campo-input w-48"
           />
-        </label>
+        </label>}
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
             Horas de mano de obra
@@ -48,8 +48,7 @@ export default function FinalizarLoteFormulario({ loteId, kgObjetivo }: Props) {
         </button>
       </div>
       <p className="text-xs text-neutral-500">
-        La merma se calcula automáticamente (kg objetivo − kg producidos) y queda registrada en el
-        lote.
+        La merma se calcula automáticamente. {tieneRuta ? "Las horas de mano de obra provienen de las operaciones confirmadas." : "Las horas se registran manualmente para esta orden histórica sin ruta."}
       </p>
     </form>
   );

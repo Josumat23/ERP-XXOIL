@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { normalizarDetallesFormula, type DetalleFormulaNormalizado } from "@/lib/detallesFormula";
+import { normalizarRutaProduccion } from "@/lib/rutasProduccion";
 
 export type EstadoFormulario = { error?: string };
 
@@ -28,8 +29,10 @@ export async function crearFormula(
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   let detallesRaw: unknown;
+  let operacionesRaw: unknown;
   try {
     detallesRaw = JSON.parse(String(formData.get("detalles") ?? "[]"));
+    operacionesRaw = JSON.parse(String(formData.get("operaciones") ?? "[]"));
   } catch {
     return { error: "El detalle de insumos es inválido." };
   }
@@ -42,11 +45,17 @@ export async function crearFormula(
     return { error: "Las horas estándar deben ser mayores a 0." };
   }
   const detalles: DetalleFormulaNormalizado[] | null = normalizarDetallesFormula(detallesRaw);
+  const operaciones = normalizarRutaProduccion(operacionesRaw);
   if (detalles === null) {
     return { error: "El detalle de insumos es inválido." };
   }
   if (detalles.length === 0) {
     return { error: "Agregue al menos un insumo con cantidad mayor a 0." };
+  }
+  if (!operaciones) return { error: "Agregue una ruta válida con al menos una operación y tiempos no negativos." };
+  const horasRuta = operaciones.reduce((total, operacion) => total + operacion.manoObraHoras, 0);
+  if (Math.abs(horasRuta - horasEstandar) > 0.001) {
+    return { error: "La suma de horas de mano de obra de la ruta debe coincidir con las horas estándar del batch." };
   }
   const insumosUnicos = new Set(detalles.map((d) => d.insumoId));
   if (insumosUnicos.size !== detalles.length) {
@@ -54,6 +63,13 @@ export async function crearFormula(
   }
 
   await prisma.$transaction(async (tx) => {
+    const centros = await tx.centroTrabajo.findMany({
+      where: { id: { in: [...new Set(operaciones.map((operacion) => operacion.centroTrabajoId))] }, activo: true },
+      select: { id: true },
+    });
+    if (centros.length !== new Set(operaciones.map((operacion) => operacion.centroTrabajoId)).size) {
+      throw new Error("Uno o más centros de trabajo no existen o están inactivos.");
+    }
     // Serializa todas las versiones del mismo producto antes de calcular el
     // siguiente número o cambiar cuál queda vigente.
     await tx.producto.update({
@@ -91,8 +107,9 @@ export async function crearFormula(
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
         detalles: { create: detalles.map((d) => ({ insumoId: d.insumoId, cantidad: d.cantidad })) },
+        operaciones: { create: operaciones },
       },
-      include: { detalles: true },
+      include: { detalles: true, operaciones: true },
     });
     await registrarAuditoriaMaestro(tx, { entidad: "Formula", registroId: formula.id, accion: "CREAR", despues: formula, usuario: auth.usuario });
   });
