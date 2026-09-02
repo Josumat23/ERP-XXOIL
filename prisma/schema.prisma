@@ -2108,6 +2108,7 @@ model Almacen {
   equipos              Equipo[]
   ordenesCompra        OrdenCompra[]
   centrosCosto         CentroCosto[]
+  centrosTrabajo       CentroTrabajo[]
   empleados            Empleado[]
   pedidos              Pedido[]
   devolucionesCliente  DevolucionCliente[]
@@ -2448,6 +2449,7 @@ model CentroCosto {
   planesMantenimiento  PlanMantenimiento[]
   ordenesInternas      OrdenInterna[]
   proyectos            Proyecto[]
+  centrosTrabajo       CentroTrabajo[]
 
   @@unique([empresaId, codigo])
   @@map("centros_costo")
@@ -2764,30 +2766,61 @@ model CostoProyecto {
 
 // --- Mantenimiento de planta -------------------------------------------------
 
+enum TipoCentroTrabajo {
+  MEZCLA
+  ENVASADO
+  CALIDAD
+  MANTENIMIENTO
+  OTRO
+}
+
+model CentroTrabajo {
+  id                String            @id @default(cuid())
+  empresaId         String            @default("1")
+  codigo            String
+  nombre            String
+  tipo              TipoCentroTrabajo
+  almacenId         String
+  centroCostoId     String?
+  capacidadHorasDia Decimal
+  eficienciaPct     Decimal           @default(100)
+  activo            Boolean           @default(true)
+  creadoEn          DateTime          @default(now())
+
+  almacen     Almacen      @relation(fields: [almacenId], references: [id])
+  centroCosto CentroCosto? @relation(fields: [centroCostoId], references: [id])
+  equipos     Equipo[]
+
+  @@unique([empresaId, codigo])
+  @@map("centros_trabajo")
+}
+
 // El equipo es el activo físico que se mantiene; activoFijoId es opcional y lo
 // enlaza con su registro contable/depreciación cuando corresponde (no todo
 // equipo mantenible está capitalizado, ej. equipos menores ya depreciados).
 model Equipo {
-  id             String   @id @default(cuid())
-  empresaId      String   @default("1")
-  codigo         String // EQ-00001
-  nombre         String
-  almacenId      String
-  activoFijoId   String?  @unique
-  centroCostoId  String?
-  activo         Boolean  @default(true)
-  notas          String?
+  id              String   @id @default(cuid())
+  empresaId       String   @default("1")
+  codigo          String // EQ-00001
+  nombre          String
+  almacenId       String
+  activoFijoId    String?  @unique
+  centroCostoId   String?
+  centroTrabajoId String?
+  activo          Boolean  @default(true)
+  notas           String?
   // Contador de uso (horómetro/odómetro) para mantenimiento preventivo por
   // contador (ej. "cada 5,000 km" o "cada 250 horas de motor"). Se actualiza
   // manualmente — no hay telemetría real conectada. unidadContador queda null
   // en equipos que solo usan planes por tiempo.
-  contadorActual Decimal  @default(0)
-  unidadContador String? // "km", "horas", etc.
-  creadoEn       DateTime @default(now())
+  contadorActual  Decimal  @default(0)
+  unidadContador  String? // "km", "horas", etc.
+  creadoEn        DateTime @default(now())
 
   almacen              Almacen              @relation(fields: [almacenId], references: [id])
   activoFijo           ActivoFijo?          @relation(fields: [activoFijoId], references: [id])
   centroCosto          CentroCosto?         @relation(fields: [centroCostoId], references: [id])
+  centroTrabajo        CentroTrabajo?       @relation(fields: [centroTrabajoId], references: [id])
   ordenesMantenimiento OrdenMantenimiento[]
   guiasRemision        GuiaRemision[]
   planesMantenimiento  PlanMantenimiento[]
