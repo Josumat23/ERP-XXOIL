@@ -551,9 +551,10 @@ model Formula {
   usuarioNombre String
   creadoEn      DateTime  @default(now())
 
-  producto Producto         @relation(fields: [productoId], references: [id])
-  detalles FormulaDetalle[]
-  lotes    LoteGranel[]
+  producto    Producto           @relation(fields: [productoId], references: [id])
+  detalles    FormulaDetalle[]
+  operaciones FormulaOperacion[]
+  lotes       LoteGranel[]
 
   @@unique([productoId, version])
   @@map("formulas")
@@ -571,6 +572,24 @@ model FormulaDetalle {
   @@map("formula_detalles")
 }
 
+model FormulaOperacion {
+  id               String  @id @default(cuid())
+  formulaId        String
+  centroTrabajoId  String
+  secuencia        Int
+  nombre           String
+  preparacionHoras Decimal @default(0)
+  maquinaHoras     Decimal @default(0)
+  manoObraHoras    Decimal @default(0)
+
+  formula         Formula         @relation(fields: [formulaId], references: [id], onDelete: Cascade)
+  centroTrabajo   CentroTrabajo   @relation(fields: [centroTrabajoId], references: [id])
+  operacionesLote LoteOperacion[]
+
+  @@unique([formulaId, secuencia])
+  @@map("formula_operaciones")
+}
+
 enum EstadoLote {
   EN_PROCESO
   PENDIENTE_CALIDAD
@@ -581,6 +600,12 @@ enum EstadoLote {
 enum DisposicionLoteRechazado {
   REPROCESADO
   DESECHADO
+}
+
+enum EstadoOperacionLote {
+  PENDIENTE
+  EN_PROCESO
+  COMPLETADA
 }
 
 model LoteGranel {
@@ -627,8 +652,41 @@ model LoteGranel {
   controlCalidad         ControlCalidad?
   envasados              Envasado[]
   asignacionesLoteInsumo AsignacionLoteInsumo[]
+  operaciones            LoteOperacion[]
 
   @@map("lotes_granel")
+}
+
+model LoteOperacion {
+  id                   String              @id @default(cuid())
+  loteGranelId         String
+  formulaOperacionId   String?
+  centroTrabajoId      String
+  equipoId             String?
+  secuencia            Int
+  nombre               String
+  preparacionPlanHoras Decimal             @default(0)
+  maquinaPlanHoras     Decimal             @default(0)
+  manoObraPlanHoras    Decimal             @default(0)
+  preparacionRealHoras Decimal             @default(0)
+  maquinaRealHoras     Decimal             @default(0)
+  manoObraRealHoras    Decimal             @default(0)
+  estado               EstadoOperacionLote @default(PENDIENTE)
+  inicioEn             DateTime?
+  finEn                DateTime?
+  usuarioInicioId      String?
+  usuarioInicioNombre  String?
+  usuarioFinId         String?
+  usuarioFinNombre     String?
+
+  loteGranel       LoteGranel        @relation(fields: [loteGranelId], references: [id], onDelete: Cascade)
+  formulaOperacion FormulaOperacion? @relation(fields: [formulaOperacionId], references: [id], onDelete: SetNull)
+  centroTrabajo    CentroTrabajo     @relation(fields: [centroTrabajoId], references: [id])
+  equipo           Equipo?           @relation(fields: [equipoId], references: [id], onDelete: SetNull)
+
+  @@unique([loteGranelId, secuencia])
+  @@index([centroTrabajoId, estado])
+  @@map("lote_operaciones")
 }
 
 enum ResultadoCalidad {
@@ -2787,9 +2845,11 @@ model CentroTrabajo {
   activo            Boolean           @default(true)
   creadoEn          DateTime          @default(now())
 
-  almacen     Almacen      @relation(fields: [almacenId], references: [id])
-  centroCosto CentroCosto? @relation(fields: [centroCostoId], references: [id])
-  equipos     Equipo[]
+  almacen            Almacen            @relation(fields: [almacenId], references: [id])
+  centroCosto        CentroCosto?       @relation(fields: [centroCostoId], references: [id])
+  equipos            Equipo[]
+  operacionesFormula FormulaOperacion[]
+  operacionesLote    LoteOperacion[]
 
   @@unique([empresaId, codigo])
   @@map("centros_trabajo")
@@ -2825,6 +2885,7 @@ model Equipo {
   guiasRemision        GuiaRemision[]
   planesMantenimiento  PlanMantenimiento[]
   actividadesProyecto  ActividadProyecto[]
+  operacionesLote      LoteOperacion[]
 
   @@unique([empresaId, codigo])
   @@map("equipos")

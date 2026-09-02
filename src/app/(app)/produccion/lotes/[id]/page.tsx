@@ -8,6 +8,7 @@ import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import FinalizarLoteFormulario from "./FinalizarLoteFormulario";
 import DisponerLoteFormulario from "./DisponerLoteFormulario";
+import OperacionFormulario from "./OperacionFormulario";
 
 const COLOR_ESTADO: Record<string, string> = {
   EN_PROCESO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
@@ -35,6 +36,7 @@ export default async function DetalleLotePage({
         envasados: { include: { presentacion: true } },
         loteOrigen: { include: { formula: { include: { producto: true } } } },
         reprocesos: { include: { formula: { include: { producto: true } } } },
+        operaciones: { include: { centroTrabajo: true, equipo: true }, orderBy: { secuencia: "asc" } },
       },
     }),
     prisma.loteGranel.findMany({
@@ -43,6 +45,7 @@ export default async function DetalleLotePage({
     }),
   ]);
   if (!lote) notFound();
+  const equipos = await prisma.equipo.findMany({ where: { activo: true, centroTrabajoId: { in: lote.operaciones.map((operacion) => operacion.centroTrabajoId) } }, orderBy: { codigo: "asc" } });
 
   const consumos = await prisma.movimientoKardex.findMany({
     where: { origen: "PRODUCCION", referencia: { contains: lote.codigo } },
@@ -179,12 +182,22 @@ export default async function DetalleLotePage({
         </p>
       )}
 
+      {lote.operaciones.length > 0 && <section className="mt-8">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Ruta y confirmaciones</h2>
+        <p className="text-xs text-neutral-500 mt-1">Ejecución secuencial; tiempos: preparación / máquina / mano de obra.</p>
+        <div className="mt-2 flex flex-col gap-2">{lote.operaciones.map((operacion) => <article key={operacion.id} className="border border-black/10 dark:border-white/10 rounded-lg p-3">
+          <div className="flex justify-between gap-3"><div><strong>{operacion.secuencia}. {operacion.nombre}</strong><p className="text-xs text-neutral-500">{operacion.centroTrabajo.codigo} — {operacion.centroTrabajo.nombre} · Plan {formatNumero(operacion.preparacionPlanHoras, 2)} / {formatNumero(operacion.maquinaPlanHoras, 2)} / {formatNumero(operacion.manoObraPlanHoras, 2)} h</p></div><span className="text-xs font-medium">{operacion.estado.replace("_", " ")}</span></div>
+          {operacion.estado === "COMPLETADA" && <p className="text-xs mt-2">Real {formatNumero(operacion.preparacionRealHoras, 2)} / {formatNumero(operacion.maquinaRealHoras, 2)} / {formatNumero(operacion.manoObraRealHoras, 2)} h{operacion.equipo ? ` · ${operacion.equipo.codigo}` : ""}</p>}
+          {lote.estado === "EN_PROCESO" && <div className="mt-2"><OperacionFormulario operacionId={operacion.id} estado={operacion.estado} equipos={equipos.filter((equipo) => equipo.centroTrabajoId === operacion.centroTrabajoId).map((equipo) => ({ id: equipo.id, codigo: equipo.codigo, nombre: equipo.nombre }))} /></div>}
+        </article>)}</div>
+      </section>}
+
       {lote.estado === "EN_PROCESO" && (
         <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4">
           <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
             Finalizar cocción
           </h2>
-          <FinalizarLoteFormulario loteId={lote.id} kgObjetivo={lote.kgObjetivo.toNumber()} />
+          <FinalizarLoteFormulario loteId={lote.id} kgObjetivo={lote.kgObjetivo.toNumber()} tieneRuta={lote.operaciones.length > 0} />
         </section>
       )}
 

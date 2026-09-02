@@ -43,6 +43,7 @@ import { calcularSaldoFacturable, calcularTotalesFacturaParcial } from "@/lib/fa
 import { asignarEntregasFifo, calcularSaldoDocumento } from "@/lib/cumplimientoVentas";
 import { calcularAplicacionCobro, calcularImportesFuncionales } from "@/lib/multimoneda";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { normalizarRutaProduccion, puedeIniciarOperacion } from "@/lib/rutasProduccion";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
@@ -2210,4 +2211,16 @@ test("certificados SUNAT limitan extensión y tamaño antes de leer el contenido
 test("costo promedio pondera el stock previo y la entrada", () => {
   assert.equal(calcularCostoPromedioEntrada(100, 4, 20, 7), 4.5);
   assert.equal(calcularCostoPromedioEntrada(0, 0, 20, 7), 7);
+});
+
+test("ruta de producción normaliza secuencia y rechaza tiempos inválidos", () => {
+  assert.deepEqual(normalizarRutaProduccion([{ centroTrabajoId: "ct-1", nombre: "Mezcla", preparacionHoras: 1, maquinaHoras: 2, manoObraHoras: 3 }]), [{ centroTrabajoId: "ct-1", nombre: "Mezcla", secuencia: 10, preparacionHoras: 1, maquinaHoras: 2, manoObraHoras: 3 }]);
+  assert.equal(normalizarRutaProduccion([{ centroTrabajoId: "ct-1", nombre: "Mezcla", preparacionHoras: 0, maquinaHoras: 0, manoObraHoras: 0 }]), null);
+  assert.equal(normalizarRutaProduccion([]), null);
+});
+
+test("operaciones de producción respetan la secuencia", () => {
+  assert.equal(puedeIniciarOperacion(["COMPLETADA"], "PENDIENTE"), true);
+  assert.equal(puedeIniciarOperacion(["PENDIENTE"], "PENDIENTE"), false);
+  assert.equal(puedeIniciarOperacion([], "EN_PROCESO"), false);
 });
