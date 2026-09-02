@@ -1,0 +1,9 @@
+ALTER TABLE "formulas" ADD COLUMN "horasEstandar" DECIMAL;
+ALTER TABLE "lotes_granel" ADD COLUMN "costoEstandarInsumos" DECIMAL;
+ALTER TABLE "lotes_granel" ADD COLUMN "costoEstandarManoObra" DECIMAL;
+ALTER TABLE "lotes_granel" ADD COLUMN "costoEstandarTotal" DECIMAL;
+ALTER TABLE "lotes_granel" ADD COLUMN "costoEstandarPermitido" DECIMAL;
+ALTER TABLE "lotes_granel" ADD COLUMN "variacionInsumos" DECIMAL;
+ALTER TABLE "lotes_granel" ADD COLUMN "variacionManoObra" DECIMAL;
+ALTER TABLE "lotes_granel" ADD COLUMN "variacionRendimiento" DECIMAL;
+ALTER TABLE "lotes_granel" ADD COLUMN "variacionTotal" DECIMAL;

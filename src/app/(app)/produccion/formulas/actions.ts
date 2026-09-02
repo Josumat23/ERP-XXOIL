@@ -24,6 +24,7 @@ export async function crearFormula(
 
   const productoId = String(formData.get("productoId") ?? "");
   const rendimientoKg = Number(formData.get("rendimientoKg"));
+  const horasEstandar = Number(formData.get("horasEstandar"));
   const notas = String(formData.get("notas") ?? "").trim() || null;
 
   let detallesRaw: unknown;
@@ -36,6 +37,9 @@ export async function crearFormula(
   if (!productoId) return { error: "Seleccione el producto." };
   if (!Number.isFinite(rendimientoKg) || rendimientoKg <= 0) {
     return { error: "El rendimiento en kg debe ser mayor a 0." };
+  }
+  if (!Number.isFinite(horasEstandar) || horasEstandar <= 0) {
+    return { error: "Las horas estándar deben ser mayores a 0." };
   }
   const detalles: DetalleFormulaNormalizado[] | null = normalizarDetallesFormula(detallesRaw);
   if (detalles === null) {
@@ -81,6 +85,7 @@ export async function crearFormula(
         productoId,
         version: (ultima?.version ?? 0) + 1,
         rendimientoKg,
+        horasEstandar,
         notas,
         vigenteDesde: ahora,
         usuarioId: auth.usuario.id,

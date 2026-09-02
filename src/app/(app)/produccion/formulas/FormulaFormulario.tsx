@@ -67,6 +67,24 @@ export default function FormulaFormulario({ productos, insumos }: Props) {
         </label>
       </div>
 
+      <label className="flex flex-col gap-1 text-sm max-w-xs">
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">
+          Horas-hombre estándar por batch
+        </span>
+        <input
+          name="horasEstandar"
+          type="number"
+          step="0.01"
+          min="0.01"
+          required
+          placeholder="8"
+          className="campo-input"
+        />
+        <span className="text-xs text-neutral-500">
+          Base versionada para medir eficiencia y variación de mano de obra.
+        </span>
+      </label>
+
       <div>
         <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
           Insumos del batch

@@ -10,6 +10,7 @@ import { asignarLoteInsumo } from "@/lib/trazabilidad";
 import { siguienteCodigoLote } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { postearAsiento } from "@/lib/contabilidad";
+import { calcularVariacionProduccion } from "@/lib/costeoProduccion";
 
 export type EstadoFormulario = { error?: string };
 
@@ -34,6 +35,8 @@ export async function crearLote(
   if (!Number.isFinite(kgObjetivo) || kgObjetivo <= 0) {
     return { error: "Los kg objetivo deben ser mayores a 0." };
   }
+
+  const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -108,7 +111,23 @@ export async function crearLote(
         });
       }
 
-      await tx.loteGranel.update({ where: { id: lote.id }, data: { costoInsumos } });
+      const costoEstandarManoObra =
+        formula.horasEstandar === null
+          ? null
+          : formula.horasEstandar.toNumber() * factor * tarifaHoraManoObra.toNumber();
+      await tx.loteGranel.update({
+        where: { id: lote.id },
+        data: {
+          costoInsumos,
+          ...(costoEstandarManoObra === null
+            ? {}
+            : {
+                costoEstandarInsumos: costoInsumos,
+                costoEstandarManoObra,
+                costoEstandarTotal: costoInsumos + costoEstandarManoObra,
+              }),
+        },
+      });
       if (costoInsumos > 0) {
         await postearAsiento(tx, {
           origen: "INICIO_PRODUCCION",
@@ -162,6 +181,18 @@ export async function finalizarLote(
       if (!lote) throw new Error("El lote no existe.");
       if (lote.estado !== "EN_PROCESO") throw new Error("Solo se puede finalizar un lote en proceso.");
       const merma = Math.max(0, lote.kgObjetivo.toNumber() - kgProducidos);
+      const variaciones =
+        lote.costoEstandarInsumos !== null && lote.costoEstandarManoObra !== null
+          ? calcularVariacionProduccion({
+              kgObjetivo: lote.kgObjetivo.toNumber(),
+              kgProducidos,
+              costoEstandarInsumos: lote.costoEstandarInsumos.toNumber(),
+              costoEstandarManoObra: lote.costoEstandarManoObra.toNumber(),
+              costoRealInsumos: lote.costoInsumos.toNumber(),
+              costoRealManoObra: costoManoObra,
+              costoReproceso: lote.costoReproceso.toNumber(),
+            })
+          : null;
       const resultado = await tx.loteGranel.updateMany({
         where: { id, estado: "EN_PROCESO" },
         data: {
@@ -170,6 +201,7 @@ export async function finalizarLote(
           horasManoObra,
           costoManoObra,
           costoKg: (lote.costoInsumos.toNumber() + lote.costoReproceso.toNumber() + costoManoObra) / kgProducidos,
+          ...(variaciones ?? {}),
           estado: "PENDIENTE_CALIDAD",
           fechaFin: new Date(),
         },

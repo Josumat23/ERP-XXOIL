@@ -3,7 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
-import { formatNumero } from "@/lib/format";
+import { formatMoneda, formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import FinalizarLoteFormulario from "./FinalizarLoteFormulario";
@@ -116,6 +116,40 @@ export default async function DetalleLotePage({
             : "0.00"}
           /h = S/ {formatNumero(lote.costoManoObra, 2)}
         </p>
+      )}
+
+      {lote.variacionTotal !== null && (
+        <section className="mt-8">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+              Costo estándar vs. real
+            </h2>
+            <Link href="/produccion/variaciones" className="text-sm hover:underline">
+              Ver análisis consolidado
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-2">
+            <Dato etiqueta="Estándar objetivo" valor={formatMoneda(lote.costoEstandarTotal ?? 0)} />
+            <Dato etiqueta="Estándar permitido" valor={formatMoneda(lote.costoEstandarPermitido ?? 0)} />
+            <Dato
+              etiqueta="Costo real"
+              valor={formatMoneda(
+                lote.costoInsumos.toNumber() +
+                  lote.costoReproceso.toNumber() +
+                  lote.costoManoObra.toNumber()
+              )}
+            />
+            <Dato etiqueta="Variación total" valor={formatMoneda(lote.variacionTotal)} />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3 text-sm">
+            <Variacion etiqueta="Insumos / reproceso" valor={lote.variacionInsumos?.toNumber() ?? 0} />
+            <Variacion etiqueta="Mano de obra" valor={lote.variacionManoObra?.toNumber() ?? 0} />
+            <Variacion etiqueta="Rendimiento" valor={lote.variacionRendimiento?.toNumber() ?? 0} />
+          </div>
+          <p className="text-xs text-neutral-500 mt-2">
+            Positivo = desfavorable (costo real superior al permitido); negativo = favorable.
+          </p>
+        </section>
       )}
 
       {lote.observaciones && (
@@ -328,6 +362,17 @@ function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
     <div className="border border-black/10 dark:border-white/10 rounded-lg p-3">
       <p className="text-xs text-neutral-500">{etiqueta}</p>
       <p className="text-xl font-semibold text-neutral-900 dark:text-neutral-100 mt-0.5">{valor}</p>
+    </div>
+  );
+}
+
+function Variacion({ etiqueta, valor }: { etiqueta: string; valor: number }) {
+  return (
+    <div className="border border-black/10 dark:border-white/10 rounded-lg px-3 py-2 flex justify-between gap-3">
+      <span className="text-neutral-500">{etiqueta}</span>
+      <span className={valor > 0 ? "text-red-600 dark:text-red-400 font-medium" : valor < 0 ? "text-green-700 dark:text-green-400 font-medium" : ""}>
+        {formatMoneda(valor)}
+      </span>
     </div>
   );
 }
