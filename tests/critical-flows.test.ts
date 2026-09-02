@@ -44,6 +44,7 @@ import { asignarEntregasFifo, calcularSaldoDocumento } from "@/lib/cumplimientoV
 import { calcularAplicacionCobro, calcularImportesFuncionales } from "@/lib/multimoneda";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarRutaProduccion, puedeIniciarOperacion } from "@/lib/rutasProduccion";
+import { cargaPlanOperacion, programarCapacidadFinita } from "@/lib/planificacionCapacidad";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
@@ -2223,4 +2224,14 @@ test("operaciones de producción respetan la secuencia", () => {
   assert.equal(puedeIniciarOperacion(["COMPLETADA"], "PENDIENTE"), true);
   assert.equal(puedeIniciarOperacion(["PENDIENTE"], "PENDIENTE"), false);
   assert.equal(puedeIniciarOperacion([], "EN_PROCESO"), false);
+});
+
+test("planificación finita respeta capacidad, calendario y precedencia", () => {
+  const inicio = new Date(2026, 8, 7);
+  const programacion = programarCapacidadFinita([
+    { id: "op-1", centroTrabajoId: "ct", cargaHoras: 10, noAntesDe: inicio },
+    { id: "op-2", centroTrabajoId: "ct", cargaHoras: 4, noAntesDe: inicio, predecesoraId: "op-1" },
+  ], [{ centroTrabajoId: "ct", capacidadEfectivaHoras: 8, horasSemana: [0, 8, 8, 8, 8, 8, 0], diasNoLaborables: new Set(["2026-09-08"]) }]);
+  assert.deepEqual(programacion.map((item) => [item.id, item.fechaPlanInicio.getDate(), item.fechaPlanFin.getDate()]), [["op-1", 7, 9], ["op-2", 9, 9]]);
+  assert.equal(cargaPlanOperacion(1, 4, 6), 7);
 });

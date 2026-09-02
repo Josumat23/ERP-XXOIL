@@ -678,6 +678,8 @@ model LoteOperacion {
   usuarioInicioNombre  String?
   usuarioFinId         String?
   usuarioFinNombre     String?
+  fechaPlanInicio      DateTime?
+  fechaPlanFin         DateTime?
 
   loteGranel       LoteGranel        @relation(fields: [loteGranelId], references: [id], onDelete: Cascade)
   formulaOperacion FormulaOperacion? @relation(fields: [formulaOperacionId], references: [id], onDelete: SetNull)
@@ -686,6 +688,7 @@ model LoteOperacion {
 
   @@unique([loteGranelId, secuencia])
   @@index([centroTrabajoId, estado])
+  @@index([fechaPlanInicio, fechaPlanFin])
   @@map("lote_operaciones")
 }
 
