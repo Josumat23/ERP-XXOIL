@@ -11,7 +11,7 @@ export default async function NuevoEquipoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
-  const [almacenes, activosFijos, centrosCosto, equipos] = await Promise.all([
+  const [almacenes, activosFijos, centrosCosto, centrosTrabajo, equipos] = await Promise.all([
     prisma.almacen.findMany({
       where: { activo: true },
       select: { id: true, nombre: true },
@@ -25,6 +25,11 @@ export default async function NuevoEquipoPage() {
     prisma.centroCosto.findMany({
       where: { activo: true },
       select: { id: true, codigo: true, nombre: true },
+      orderBy: { codigo: "asc" },
+    }),
+    prisma.centroTrabajo.findMany({
+      where: { activo: true },
+      select: { id: true, codigo: true, nombre: true, almacenId: true },
       orderBy: { codigo: "asc" },
     }),
     prisma.equipo.findMany({ orderBy: { creadoEn: "desc" } }),
@@ -59,6 +64,7 @@ export default async function NuevoEquipoPage() {
           almacenes={almacenes}
           activosFijos={activosFijos}
           centrosCosto={centrosCosto}
+          centrosTrabajo={centrosTrabajo}
           textoBoton="Crear equipo"
         />
       </div>

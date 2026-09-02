@@ -49,6 +49,11 @@ import { normalizarDetallesFormula } from "@/lib/detallesFormula";
 import { normalizarInsumosEnvasado } from "@/lib/insumosEnvasado";
 import { normalizarRepuestosMantenimiento } from "@/lib/repuestosMantenimiento";
 import { calcularVariacionProduccion } from "@/lib/costeoProduccion";
+import {
+  capacidadEfectivaDiaria,
+  esCapacidadCentroTrabajoValida,
+  normalizarCodigoCentroTrabajo,
+} from "@/lib/centrosTrabajo";
 import { normalizarLecturaContador } from "@/lib/lecturasContador";
 import { esMonedaOrdenCompraValida, normalizarLineasOrdenCompra } from "@/lib/lineasOrdenCompra";
 import {
@@ -278,6 +283,16 @@ test("costeo estándar reconcilia consumo, mano de obra, rendimiento y variació
     costoRealInsumos: 1,
     costoRealManoObra: 1,
   }), null);
+});
+
+test("centros de trabajo validan identidad y capacidad efectiva industrial", () => {
+  assert.equal(normalizarCodigoCentroTrabajo(" mezcla-01 "), "MEZCLA-01");
+  assert.equal(normalizarCodigoCentroTrabajo("x"), null);
+  assert.equal(normalizarCodigoCentroTrabajo("MEZCLA 01"), null);
+  assert.equal(esCapacidadCentroTrabajoValida(8, 85), true);
+  assert.equal(esCapacidadCentroTrabajoValida(25, 85), false);
+  assert.equal(esCapacidadCentroTrabajoValida(8, 0), false);
+  assert.equal(capacidadEfectivaDiaria(8, 85), 6.8);
 });
 test("conteos aceptan solo ítems y cantidades físicas válidas", () => {
   assert.equal(normalizarLineasConteo({}), null);

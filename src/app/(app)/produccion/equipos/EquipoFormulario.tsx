@@ -6,12 +6,14 @@ import type { EstadoFormulario } from "./actions";
 type Almacen = { id: string; nombre: string };
 type ActivoFijo = { id: string; codigo: string; nombre: string };
 type CentroCosto = { id: string; codigo: string; nombre: string };
+type CentroTrabajo = { id: string; codigo: string; nombre: string; almacenId: string };
 
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   almacenes: Almacen[];
   activosFijos: ActivoFijo[];
   centrosCosto: CentroCosto[];
+  centrosTrabajo: CentroTrabajo[];
   textoBoton: string;
 };
 
@@ -20,6 +22,7 @@ export default function EquipoFormulario({
   almacenes,
   activosFijos,
   centrosCosto,
+  centrosTrabajo,
   textoBoton,
 }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
@@ -75,6 +78,18 @@ export default function EquipoFormulario({
       </Campo>
       <p className="text-xs text-neutral-500 -mt-2">
         Se usa como centro por defecto al postear el gasto de mantenimiento de este equipo.
+      </p>
+
+      <Campo etiqueta="Centro de trabajo productivo (opcional)">
+        <select name="centroTrabajoId" defaultValue="" className="campo-input">
+          <option value="">Sin asignar</option>
+          {centrosTrabajo.map((c) => (
+            <option key={c.id} value={c.id}>{c.codigo} — {c.nombre}</option>
+          ))}
+        </select>
+      </Campo>
+      <p className="text-xs text-neutral-500 -mt-2">
+        La validación al guardar exige que el equipo y el centro pertenezcan a la misma planta.
       </p>
 
       <div className="grid grid-cols-2 gap-4">

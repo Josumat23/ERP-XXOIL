@@ -29,6 +29,7 @@ export async function crearEquipo(
   const almacenId = String(formData.get("almacenId") ?? "");
   const activoFijoId = String(formData.get("activoFijoId") ?? "") || null;
   const centroCostoId = String(formData.get("centroCostoId") ?? "") || null;
+  const centroTrabajoId = String(formData.get("centroTrabajoId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
   const unidadContador = String(formData.get("unidadContador") ?? "").trim() || null;
   const contadorActual = Number(formData.get("contadorActual") ?? 0);
@@ -42,8 +43,12 @@ export async function crearEquipo(
   try {
     await prisma.$transaction(async (tx) => {
       const codigo = await siguienteCodigoEquipo(tx);
+      if (centroTrabajoId) {
+        const centro = await tx.centroTrabajo.findFirst({ where: { id: centroTrabajoId, almacenId, activo: true } });
+        if (!centro) throw new Error("El centro de trabajo no pertenece a la planta seleccionada o está inactivo.");
+      }
       const equipo = await tx.equipo.create({
-        data: { codigo, nombre, almacenId, activoFijoId, centroCostoId, notas, unidadContador, contadorActual },
+        data: { codigo, nombre, almacenId, activoFijoId, centroCostoId, centroTrabajoId, notas, unidadContador, contadorActual },
       });
       await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: equipo.id, accion: "CREAR", despues: equipo, usuario: auth.usuario });
     });
@@ -51,6 +56,7 @@ export async function crearEquipo(
     if (esErrorDuplicado(e)) {
       return { error: "Ese activo fijo ya está enlazado a otro equipo." };
     }
+    if (e instanceof Error) return { error: e.message };
     throw e;
   }
 
