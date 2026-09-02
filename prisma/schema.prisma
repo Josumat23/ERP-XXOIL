@@ -542,6 +542,7 @@ model Formula {
   productoId    String
   version       Int
   rendimientoKg Decimal // kg de granel que produce un batch con las cantidades del detalle
+  horasEstandar Decimal? // horas-hombre estándar de cocción por batch; null en versiones históricas sin base aprobada
   notas         String?
   activo        Boolean   @default(true)
   vigenteDesde  DateTime? // cuándo esta versión pasó a ser la vigente (se reasigna si se reactiva una versión anterior)
@@ -599,7 +600,15 @@ model LoteGranel {
   costoReproceso           Decimal                   @default(0) // costo heredado del lote rechazado incorporado al reproceso
   horasManoObra            Decimal                   @default(0) // horas-hombre invertidas en la cocción (al finalizar)
   costoManoObra            Decimal                   @default(0) // horasManoObra * tarifa vigente al finalizar
-  costoKg                  Decimal                   @default(0) // (costoInsumos + costoManoObra) / kgProducidos
+  costoKg                  Decimal                   @default(0) // costo real total / kg producido
+  costoEstandarInsumos     Decimal? // snapshot plan al liberar la orden
+  costoEstandarManoObra    Decimal? // horas estándar escaladas × tarifa snapshot
+  costoEstandarTotal       Decimal? // costo estándar para kg objetivo
+  costoEstandarPermitido   Decimal? // estándar permitido para kg realmente producidos
+  variacionInsumos         Decimal? // costo real insumos - estándar insumos
+  variacionManoObra        Decimal? // costo real MO - estándar MO
+  variacionRendimiento     Decimal? // estándar objetivo - estándar permitido
+  variacionTotal           Decimal? // costo real - estándar permitido
   estado                   EstadoLote                @default(EN_PROCESO)
   observaciones            String?
   fechaInicio              DateTime                  @default(now())

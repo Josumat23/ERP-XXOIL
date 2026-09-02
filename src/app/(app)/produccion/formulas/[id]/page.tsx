@@ -72,6 +72,12 @@ export default async function DetalleFormulaPage({
           {formula.notas ? ` · ${formula.notas}` : ""}
         </p>
         <p className="text-sm mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Tiempo estándar de cocción:{" "}
+          {formula.horasEstandar === null
+            ? "No definido en esta versión histórica"
+            : `${formatNumero(formula.horasEstandar, 2)} horas-hombre por batch`}
+        </p>
+        <p className="text-sm mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
           {formula.vigenteDesde
             ? `Vigente desde ${new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(formula.vigenteDesde)}${
                 formula.vigenteHasta

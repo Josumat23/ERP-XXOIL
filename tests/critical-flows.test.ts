@@ -48,6 +48,7 @@ import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
 import { normalizarInsumosEnvasado } from "@/lib/insumosEnvasado";
 import { normalizarRepuestosMantenimiento } from "@/lib/repuestosMantenimiento";
+import { calcularVariacionProduccion } from "@/lib/costeoProduccion";
 import { normalizarLecturaContador } from "@/lib/lecturasContador";
 import { esMonedaOrdenCompraValida, normalizarLineasOrdenCompra } from "@/lib/lineasOrdenCompra";
 import {
@@ -248,6 +249,35 @@ test("fórmulas aceptan solo insumos y cantidades productivas válidas", () => {
     ]),
     [{ insumoId: "insumo-1", cantidad: 2.5 }]
   );
+});
+
+test("costeo estándar reconcilia consumo, mano de obra, rendimiento y variación total", () => {
+  const variacion = calcularVariacionProduccion({
+    kgObjetivo: 100,
+    kgProducidos: 90,
+    costoEstandarInsumos: 800,
+    costoEstandarManoObra: 200,
+    costoRealInsumos: 830,
+    costoRealManoObra: 240,
+    costoReproceso: 50,
+  });
+  assert.deepEqual(variacion, {
+    costoEstandarTotal: 1000,
+    costoEstandarPermitido: 900,
+    variacionInsumos: 80,
+    variacionManoObra: 40,
+    variacionRendimiento: 100,
+    variacionTotal: 220,
+  });
+  assert.equal(830 + 240 + 50 - 900, variacion?.variacionTotal);
+  assert.equal(calcularVariacionProduccion({
+    kgObjetivo: 0,
+    kgProducidos: 1,
+    costoEstandarInsumos: 1,
+    costoEstandarManoObra: 1,
+    costoRealInsumos: 1,
+    costoRealManoObra: 1,
+  }), null);
 });
 test("conteos aceptan solo ítems y cantidades físicas válidas", () => {
   assert.equal(normalizarLineasConteo({}), null);
