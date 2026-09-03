@@ -39,6 +39,7 @@ export default async function DetalleLotePage({
         loteOrigen: { include: { formula: { include: { producto: true } } } },
         reprocesos: { include: { formula: { include: { producto: true } } } },
         operaciones: { include: { centroTrabajo: true, equipo: true }, orderBy: { secuencia: "asc" } },
+        reservasInsumo: { include: { insumo: true }, orderBy: { insumo: { codigo: "asc" } } },
       },
     }),
     prisma.loteGranel.findMany({
@@ -186,6 +187,8 @@ export default async function DetalleLotePage({
       )}
 
       {lote.estado === "PLANIFICADO" && <section className="mt-8 border border-blue-200 dark:border-blue-900 rounded-lg p-4"><h2 className="font-medium">Liberar orden de producción</h2><p className="text-sm text-neutral-500 mt-1">Valida stock, consume materiales por FIFO, registra trazabilidad y contabiliza el WIP en una sola transacción.</p><form action={liberarLote.bind(null, lote.id)} className="mt-3"><button className="boton-primario">Liberar y emitir materiales</button></form></section>}
+
+      {lote.reservasInsumo.length > 0 && <section className="mt-8"><h2 className="font-medium">Materiales reservados</h2><table className="tabla mt-2"><thead><tr><th>Insumo</th><th className="text-right">Comprometido</th><th className="text-right">Stock físico</th></tr></thead><tbody>{lote.reservasInsumo.map((reserva) => <tr key={reserva.id}><td>{reserva.insumo.codigo} — {reserva.insumo.nombre}</td><td className="text-right">{formatNumero(reserva.cantidad, 3)} {reserva.insumo.unidadMedida}</td><td className={`text-right ${reserva.insumo.stock.lt(reserva.cantidad) ? "text-red-600 font-medium" : ""}`}>{formatNumero(reserva.insumo.stock, 3)} {reserva.insumo.unidadMedida}</td></tr>)}</tbody></table></section>}
 
       {lote.operaciones.length > 0 && <section className="mt-8">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Ruta y confirmaciones</h2>

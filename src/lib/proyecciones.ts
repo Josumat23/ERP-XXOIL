@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { calcularCompraNeta } from "@/lib/reservasProduccion";
 import { horasDisponiblesEnRango, type ResumenCalendario } from "@/lib/calendarioProduccion";
 
 // ---------------------------------------------------------------------------
@@ -135,6 +136,7 @@ export type NecesidadInsumo = {
   costoUnitario: number;
   stock: number;
   stockMinimo: number;
+  stockReservadoProduccion: number;
   consumoProyectado: number;
   aComprar: number;
 };
@@ -182,6 +184,8 @@ export async function calcularOperaciones(
     include: { detalles: { include: { insumo: true } } },
     orderBy: { version: "desc" },
   });
+  const reservas = await prisma.reservaInsumoProduccion.groupBy({ by: ["insumoId"], _sum: { cantidad: true } });
+  const reservaPorInsumo = new Map(reservas.map((reserva) => [reserva.insumoId, reserva._sum.cantidad?.toNumber() ?? 0]));
   const formulaPorProducto = new Map<string, (typeof formulas)[number]>();
   for (const f of formulas) {
     if (!formulaPorProducto.has(f.productoId)) formulaPorProducto.set(f.productoId, f);
@@ -229,8 +233,9 @@ export async function calcularOperaciones(
     costoUnitario: insumo.costoUnitario.toNumber(),
     stock: insumo.stock.toNumber(),
     stockMinimo: insumo.stockMinimo.toNumber(),
+    stockReservadoProduccion: reservaPorInsumo.get(insumo.id) ?? 0,
     consumoProyectado: cantidad,
-    aComprar: Math.max(0, cantidad + insumo.stockMinimo.toNumber() - insumo.stock.toNumber()),
+    aComprar: calcularCompraNeta(cantidad, insumo.stockMinimo.toNumber(), insumo.stock.toNumber(), reservaPorInsumo.get(insumo.id) ?? 0),
   }));
 
   return {
