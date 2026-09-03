@@ -10,12 +10,12 @@ import { crearOrdenMantenimiento } from "../actions";
 export default async function NuevaOrdenMantenimientoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ equipoId?: string }>;
+  searchParams: Promise<{ equipoId?: string; avisoId?: string }>;
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
-  const { equipoId } = await searchParams;
+  const { equipoId, avisoId } = await searchParams;
 
   const [equipos, centrosCosto, ordenes] = await Promise.all([
     prisma.equipo.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
@@ -55,6 +55,7 @@ export default async function NuevaOrdenMantenimientoPage({
           equipos={equipos}
           centrosCosto={centrosCosto}
           equipoIdInicial={equipoId}
+          avisoId={avisoId}
           textoBoton="Crear orden"
         />
       </div>

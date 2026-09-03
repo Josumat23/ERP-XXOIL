@@ -3133,6 +3133,7 @@ model Equipo {
   planesMantenimiento  PlanMantenimiento[]
   actividadesProyecto  ActividadProyecto[]
   operacionesLote      LoteOperacion[]
+  avisosMantenimiento  AvisoMantenimiento[]
 
   @@unique([empresaId, codigo])
   @@map("equipos")
@@ -3154,35 +3155,73 @@ enum EstadoOrdenMantenimiento {
 // CalendarioProduccion del almacén del equipo (DiaNoLaborable), para que
 // Proyecciones refleje la parada de capacidad. Al cancelarse, libera esos días.
 model OrdenMantenimiento {
-  id                  String                   @id @default(cuid())
-  codigo              String                   @unique // OM-00001
-  equipoId            String
-  tipo                TipoMantenimiento
-  estado              EstadoOrdenMantenimiento @default(PROGRAMADA)
-  descripcion         String
-  fechaProgramada     DateTime
-  duracionDias        Int                      @default(1)
-  fechaInicio         DateTime?
-  fechaFin            DateTime?
-  costoManoObra       Decimal                  @default(0)
-  costoRepuestos      Decimal                  @default(0)
-  observaciones       String?
+  id                   String                   @id @default(cuid())
+  codigo               String                   @unique // OM-00001
+  equipoId             String
+  tipo                 TipoMantenimiento
+  estado               EstadoOrdenMantenimiento @default(PROGRAMADA)
+  descripcion          String
+  fechaProgramada      DateTime
+  duracionDias         Int                      @default(1)
+  fechaInicio          DateTime?
+  fechaFin             DateTime?
+  costoManoObra        Decimal                  @default(0)
+  costoRepuestos       Decimal                  @default(0)
+  observaciones        String?
   // Por defecto el del equipo, pero se puede anular al programar la orden
   // (ej. una reparación que en realidad corresponde a otra área).
-  centroCostoId       String?
+  centroCostoId        String?
   // Si esta orden nació de un plan preventivo (generación automática), queda
   // enlazada acá — al completarla se actualiza el ciclo del plan.
-  planMantenimientoId String?
-  usuarioId           String
-  usuarioNombre       String
-  creadoEn            DateTime                 @default(now())
+  planMantenimientoId  String?
+  avisoMantenimientoId String?                  @unique
+  usuarioId            String
+  usuarioNombre        String
+  creadoEn             DateTime                 @default(now())
 
-  equipo            Equipo                       @relation(fields: [equipoId], references: [id])
-  centroCosto       CentroCosto?                 @relation(fields: [centroCostoId], references: [id])
-  planMantenimiento PlanMantenimiento?           @relation(fields: [planMantenimientoId], references: [id])
-  repuestos         RepuestoOrdenMantenimiento[]
+  equipo             Equipo                       @relation(fields: [equipoId], references: [id])
+  centroCosto        CentroCosto?                 @relation(fields: [centroCostoId], references: [id])
+  planMantenimiento  PlanMantenimiento?           @relation(fields: [planMantenimientoId], references: [id])
+  repuestos          RepuestoOrdenMantenimiento[]
+  avisoMantenimiento AvisoMantenimiento?          @relation(fields: [avisoMantenimientoId], references: [id])
 
   @@map("ordenes_mantenimiento")
+}
+
+enum PrioridadAvisoMantenimiento {
+  BAJA
+  MEDIA
+  ALTA
+  EMERGENCIA
+}
+
+enum EstadoAvisoMantenimiento {
+  ABIERTO
+  CONVERTIDO
+  DESCARTADO
+}
+
+model AvisoMantenimiento {
+  id             String                      @id @default(cuid())
+  empresaId      String                      @default("1")
+  equipoId       String
+  prioridad      PrioridadAvisoMantenimiento @default(MEDIA)
+  estado         EstadoAvisoMantenimiento    @default(ABIERTO)
+  titulo         String
+  sintoma        String
+  equipoDetenido Boolean                     @default(false)
+  fechaDeteccion DateTime                    @default(now())
+  usuarioId      String
+  usuarioNombre  String
+  creadoEn       DateTime                    @default(now())
+  descartadoEn   DateTime?
+  motivoDescarte String?
+
+  equipo Equipo              @relation(fields: [equipoId], references: [id])
+  orden  OrdenMantenimiento?
+
+  @@index([empresaId, estado, prioridad])
+  @@map("avisos_mantenimiento")
 }
 
 enum TipoPlanMantenimiento {
