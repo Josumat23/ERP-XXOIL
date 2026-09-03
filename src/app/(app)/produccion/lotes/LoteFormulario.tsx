@@ -72,13 +72,13 @@ export default function LoteFormulario({
       {formula && factor > 0 && (
         <div className="border border-black/10 dark:border-white/10 rounded-lg p-4">
           <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
-            Consumo estimado de insumos
+            Necesidad planificada de insumos
           </p>
           <table className="tabla">
             <thead>
               <tr>
                 <th>Insumo</th>
-                <th className="text-right">Se consumirá</th>
+                <th className="text-right">Requerido al liberar</th>
                 <th className="text-right">Stock actual</th>
               </tr>
             </thead>
@@ -135,8 +135,9 @@ export default function LoteFormulario({
       </label>
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
-        {enviando ? "Creando lote..." : "Crear lote y consumir insumos"}
+        {enviando ? "Creando orden..." : "Crear orden planificada"}
       </button>
+      <p className="text-xs text-neutral-500">Crear la orden no mueve existencias. El stock y WIP se actualizan al liberarla.</p>
     </form>
   );
 }

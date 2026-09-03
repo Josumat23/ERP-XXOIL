@@ -11,7 +11,7 @@ export async function nivelarCapacidad(): Promise<void> {
   if ("error" in auth || !(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   const [centros, lotes] = await Promise.all([
     prisma.centroTrabajo.findMany({ where: { activo: true }, include: { almacen: { include: { calendarioProduccion: { include: { diasNoLaborables: true } } } } } }),
-    prisma.loteGranel.findMany({ where: { estado: "EN_PROCESO" }, include: { operaciones: { where: { estado: { not: "COMPLETADA" } }, orderBy: { secuencia: "asc" } } }, orderBy: { fechaInicio: "asc" } }),
+    prisma.loteGranel.findMany({ where: { estado: { in: ["PLANIFICADO", "EN_PROCESO"] } }, include: { operaciones: { where: { estado: { not: "COMPLETADA" } }, orderBy: { secuencia: "asc" } } }, orderBy: { fechaInicio: "asc" } }),
   ]);
   const calendarios = centros.flatMap((centro) => {
     const calendario = centro.almacen.calendarioProduccion;

@@ -12,7 +12,7 @@ export default async function CapacidadPage() {
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
   const centros = await prisma.centroTrabajo.findMany({
     where: { activo: true },
-    include: { almacen: true, operacionesLote: { where: { loteGranel: { estado: "EN_PROCESO" }, estado: { not: "COMPLETADA" } }, include: { loteGranel: { include: { formula: { include: { producto: true } } } } }, orderBy: [{ fechaPlanInicio: "asc" }, { loteGranel: { fechaInicio: "asc" } }] } },
+    include: { almacen: true, operacionesLote: { where: { loteGranel: { estado: { in: ["PLANIFICADO", "EN_PROCESO"] } }, estado: { not: "COMPLETADA" } }, include: { loteGranel: { include: { formula: { include: { producto: true } } } } }, orderBy: [{ fechaPlanInicio: "asc" }, { loteGranel: { fechaInicio: "asc" } }] } },
     orderBy: { codigo: "asc" },
   });
   return <div className="max-w-7xl">
