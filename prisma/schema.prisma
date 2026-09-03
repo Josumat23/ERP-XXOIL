@@ -3151,6 +3151,15 @@ enum EstadoOrdenMantenimiento {
   CANCELADA
 }
 
+enum CausaFallaMantenimiento {
+  MECANICA
+  ELECTRICA
+  INSTRUMENTACION
+  LUBRICACION
+  OPERACION
+  OTRO
+}
+
 // Al programarse (estado PROGRAMADA) bloquea los días de la ventana en el
 // CalendarioProduccion del almacén del equipo (DiaNoLaborable), para que
 // Proyecciones refleje la parada de capacidad. Al cancelarse, libera esos días.
@@ -3168,6 +3177,10 @@ model OrdenMantenimiento {
   costoManoObra        Decimal                  @default(0)
   costoRepuestos       Decimal                  @default(0)
   observaciones        String?
+  modoFalla            String?
+  causaFalla           CausaFallaMantenimiento?
+  tiempoParadaHoras    Decimal?
+  tecnicoResponsable   String?
   // Por defecto el del equipo, pero se puede anular al programar la orden
   // (ej. una reparación que en realidad corresponde a otra área).
   centroCostoId        String?
