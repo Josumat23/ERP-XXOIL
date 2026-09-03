@@ -45,7 +45,7 @@ import { calcularAplicacionCobro, calcularImportesFuncionales } from "@/lib/mult
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarRutaProduccion, puedeIniciarOperacion } from "@/lib/rutasProduccion";
 import { cargaPlanOperacion, programarCapacidadFinita } from "@/lib/planificacionCapacidad";
-import { puedeEjecutarOrden, puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
+import { puedeCancelarOrden, puedeEjecutarOrden, puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
 import { calcularCompraNeta, calcularStockDisponibleInsumo } from "@/lib/reservasProduccion";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
@@ -2243,6 +2243,8 @@ test("orden de producción separa planificación, liberación y ejecución", () 
   assert.equal(puedeLiberarOrden("EN_PROCESO"), false);
   assert.equal(puedeEjecutarOrden("PLANIFICADO"), false);
   assert.equal(puedeEjecutarOrden("EN_PROCESO"), true);
+  assert.equal(puedeCancelarOrden("PLANIFICADO"), true);
+  assert.equal(puedeCancelarOrden("EN_PROCESO"), false);
 });
 
 test("reservas de producción reducen disponibilidad y alimentan MRP", () => {
