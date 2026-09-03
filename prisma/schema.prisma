@@ -377,8 +377,8 @@ model Insumo {
   creadoEn           DateTime   @default(now())
   actualizadoEn      DateTime   @updatedAt
 
-  proveedor              Proveedor?                   @relation(fields: [proveedorId], references: [id])
-  zonaAlmacen            ZonaAlmacen?                 @relation(fields: [zonaAlmacenId], references: [id])
+  proveedor              Proveedor?                     @relation(fields: [proveedorId], references: [id])
+  zonaAlmacen            ZonaAlmacen?                   @relation(fields: [zonaAlmacenId], references: [id])
   movimientos            MovimientoKardex[]
   saldosAlmacen          SaldoAlmacen[]
   formulaDetalles        FormulaDetalle[]
@@ -389,6 +389,7 @@ model Insumo {
   movimientosCasco       MovimientoCasco[]
   repuestosMantenimiento RepuestoOrdenMantenimiento[]
   reservasProduccion     ReservaInsumoProduccion[]
+  movimientosProduccion  MovimientoMaterialProduccion[]
 
   @@unique([empresaId, codigo])
   @@map("insumos")
@@ -657,14 +658,15 @@ model LoteGranel {
   usuarioDisposicionNombre String?
   usuarioNombre            String
 
-  formula                Formula                   @relation(fields: [formulaId], references: [id])
-  loteOrigen             LoteGranel?               @relation("Reproceso", fields: [loteOrigenId], references: [id])
-  reprocesos             LoteGranel[]              @relation("Reproceso")
+  formula                Formula                        @relation(fields: [formulaId], references: [id])
+  loteOrigen             LoteGranel?                    @relation("Reproceso", fields: [loteOrigenId], references: [id])
+  reprocesos             LoteGranel[]                   @relation("Reproceso")
   controlCalidad         ControlCalidad?
   envasados              Envasado[]
   asignacionesLoteInsumo AsignacionLoteInsumo[]
   operaciones            LoteOperacion[]
   reservasInsumo         ReservaInsumoProduccion[]
+  movimientosMaterial    MovimientoMaterialProduccion[]
 
   @@map("lotes_granel")
 }
@@ -682,6 +684,46 @@ model ReservaInsumoProduccion {
   @@unique([loteGranelId, insumoId])
   @@index([insumoId])
   @@map("reservas_insumo_produccion")
+}
+
+enum TipoMovimientoMaterialProduccion {
+  CONSUMO_ADICIONAL
+  DEVOLUCION
+}
+
+model MovimientoMaterialProduccion {
+  id            String                           @id @default(cuid())
+  loteGranelId  String
+  insumoId      String
+  tipo          TipoMovimientoMaterialProduccion
+  cantidad      Decimal
+  costoUnitario Decimal
+  costoTotal    Decimal
+  motivo        String
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime                         @default(now())
+
+  loteGranel   LoteGranel                       @relation(fields: [loteGranelId], references: [id])
+  insumo       Insumo                           @relation(fields: [insumoId], references: [id])
+  devoluciones DevolucionAsignacionLoteInsumo[]
+
+  @@index([loteGranelId, creadoEn])
+  @@map("movimientos_material_produccion")
+}
+
+model DevolucionAsignacionLoteInsumo {
+  id                     String   @id @default(cuid())
+  movimientoMaterialId   String
+  asignacionLoteInsumoId String
+  cantidad               Decimal
+  creadoEn               DateTime @default(now())
+
+  movimiento MovimientoMaterialProduccion @relation(fields: [movimientoMaterialId], references: [id])
+  asignacion AsignacionLoteInsumo         @relation(fields: [asignacionLoteInsumoId], references: [id])
+
+  @@index([asignacionLoteInsumoId])
+  @@map("devoluciones_asignacion_lote_insumo")
 }
 
 model LoteOperacion {
@@ -1770,8 +1812,9 @@ model AsignacionLoteInsumo {
   cantidad                 Decimal
   creadoEn                 DateTime @default(now())
 
-  loteGranel             LoteGranel             @relation(fields: [loteGranelId], references: [id])
-  recepcionCompraDetalle RecepcionCompraDetalle @relation(fields: [recepcionCompraDetalleId], references: [id])
+  loteGranel                      LoteGranel                       @relation(fields: [loteGranelId], references: [id])
+  recepcionCompraDetalle          RecepcionCompraDetalle           @relation(fields: [recepcionCompraDetalleId], references: [id])
+  devolucionAsignacionLoteInsumos DevolucionAsignacionLoteInsumo[]
 
   @@map("asignaciones_lote_insumo")
 }
