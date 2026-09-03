@@ -55,6 +55,7 @@ export default async function InspeccionesCompraPage({
         <h1 className="text-2xl font-semibold" style={{ color: "var(--epicor-texto)" }}>
           Inspección de calidad de compras
         </h1>
+        <Link href="/logistica/inspeccion-compras/planes" className="boton-secundario">Planes de inspección</Link>
       </div>
 
       <PanelMaestroDetalle
