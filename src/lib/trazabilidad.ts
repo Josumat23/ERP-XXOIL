@@ -85,6 +85,33 @@ export async function asignarLoteInsumo(
   // feature) — no es un error, best-effort igual que asignarLoteVenta.
 }
 
+/** Devuelve FIFO trazado al almacén mediante eventos compensatorios, sin borrar el consumo original. */
+export async function devolverLoteInsumo(
+  tx: Tx,
+  params: { loteGranelId: string; insumoId: string; cantidad: number; movimientoMaterialId: string }
+): Promise<void> {
+  const asignaciones = await tx.asignacionLoteInsumo.findMany({
+    where: { loteGranelId: params.loteGranelId, recepcionCompraDetalle: { insumoId: params.insumoId } },
+    include: { devolucionAsignacionLoteInsumos: true },
+    orderBy: { creadoEn: "desc" },
+  });
+  const disponibles = asignaciones.map((asignacion) => ({
+    ...asignacion,
+    neto: asignacion.cantidad.toNumber() - asignacion.devolucionAsignacionLoteInsumos.reduce((total, devolucion) => total + devolucion.cantidad.toNumber(), 0),
+  }));
+  const totalDisponible = disponibles.reduce((total, asignacion) => total + asignacion.neto, 0);
+  if (params.cantidad > totalDisponible + 0.000001) throw new Error("La devolución supera el consumo trazado pendiente del insumo.");
+  let restante = params.cantidad;
+  for (const asignacion of disponibles) {
+    if (restante <= 0.000001) break;
+    const cantidad = Math.min(restante, asignacion.neto);
+    if (cantidad <= 0) continue;
+    await tx.devolucionAsignacionLoteInsumo.create({ data: { movimientoMaterialId: params.movimientoMaterialId, asignacionLoteInsumoId: asignacion.id, cantidad } });
+    await tx.recepcionCompraDetalle.update({ where: { id: asignacion.recepcionCompraDetalleId }, data: { cantidadDisponible: { increment: cantidad } } });
+    restante -= cantidad;
+  }
+}
+
 /**
  * Libera asignaciones vigentes de una línea de pedido, por anulación (toda la
  * línea) o devolución física (una cantidad parcial). Calcula el neto vigente

@@ -11,6 +11,7 @@ import DisponerLoteFormulario from "./DisponerLoteFormulario";
 import OperacionFormulario from "./OperacionFormulario";
 import { liberarLote } from "../actions";
 import CancelarLoteFormulario from "./CancelarLoteFormulario";
+import AjusteMaterialFormulario from "./AjusteMaterialFormulario";
 
 const COLOR_ESTADO: Record<string, string> = {
   PLANIFICADO: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
@@ -42,6 +43,7 @@ export default async function DetalleLotePage({
         reprocesos: { include: { formula: { include: { producto: true } } } },
         operaciones: { include: { centroTrabajo: true, equipo: true }, orderBy: { secuencia: "asc" } },
         reservasInsumo: { include: { insumo: true }, orderBy: { insumo: { codigo: "asc" } } },
+        movimientosMaterial: { include: { insumo: true }, orderBy: { creadoEn: "asc" } },
       },
     }),
     prisma.loteGranel.findMany({
@@ -50,7 +52,10 @@ export default async function DetalleLotePage({
     }),
   ]);
   if (!lote) notFound();
-  const equipos = await prisma.equipo.findMany({ where: { activo: true, centroTrabajoId: { in: lote.operaciones.map((operacion) => operacion.centroTrabajoId) } }, orderBy: { codigo: "asc" } });
+  const [equipos, insumosActivos] = await Promise.all([
+    prisma.equipo.findMany({ where: { activo: true, centroTrabajoId: { in: lote.operaciones.map((operacion) => operacion.centroTrabajoId) } }, orderBy: { codigo: "asc" } }),
+    prisma.insumo.findMany({ where: { activo: true, tipo: "MATERIA_PRIMA" }, orderBy: { codigo: "asc" } }),
+  ]);
 
   const consumos = await prisma.movimientoKardex.findMany({
     where: { origen: "PRODUCCION", referencia: { contains: lote.codigo } },
@@ -193,6 +198,8 @@ export default async function DetalleLotePage({
       {lote.estado === "CANCELADO" && <p className="mt-4 text-sm text-red-700 dark:text-red-400">Cancelada por {lote.usuarioCancelacionNombre}: {lote.motivoCancelacion}</p>}
 
       {lote.reservasInsumo.length > 0 && <section className="mt-8"><h2 className="font-medium">Materiales reservados</h2><table className="tabla mt-2"><thead><tr><th>Insumo</th><th className="text-right">Comprometido</th><th className="text-right">Stock físico</th></tr></thead><tbody>{lote.reservasInsumo.map((reserva) => <tr key={reserva.id}><td>{reserva.insumo.codigo} — {reserva.insumo.nombre}</td><td className="text-right">{formatNumero(reserva.cantidad, 3)} {reserva.insumo.unidadMedida}</td><td className={`text-right ${reserva.insumo.stock.lt(reserva.cantidad) ? "text-red-600 font-medium" : ""}`}>{formatNumero(reserva.insumo.stock, 3)} {reserva.insumo.unidadMedida}</td></tr>)}</tbody></table></section>}
+
+      {lote.estado === "EN_PROCESO" && <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4"><h2 className="font-medium">Ajustes de materiales</h2><p className="text-xs text-neutral-500 mt-1">Registra desviaciones contra la receta; cada movimiento actualiza kardex, trazabilidad y WIP.</p><AjusteMaterialFormulario loteId={lote.id} insumos={insumosActivos.map((insumo) => ({ id: insumo.id, codigo: insumo.codigo, nombre: insumo.nombre, unidad: insumo.unidadMedida }))} />{lote.movimientosMaterial.length > 0 && <table className="tabla mt-4"><thead><tr><th>Fecha</th><th>Movimiento</th><th>Insumo / motivo</th><th className="text-right">Cantidad</th><th className="text-right">Costo</th></tr></thead><tbody>{lote.movimientosMaterial.map((movimiento) => <tr key={movimiento.id}><td className="text-xs">{new Intl.DateTimeFormat("es-PE", { dateStyle: "short", timeStyle: "short" }).format(movimiento.creadoEn)}</td><td>{movimiento.tipo === "DEVOLUCION" ? "Devolución" : "Consumo adicional"}</td><td>{movimiento.insumo.codigo} — {movimiento.insumo.nombre}<span className="block text-xs text-neutral-500">{movimiento.motivo} · {movimiento.usuarioNombre}</span></td><td className="text-right">{formatNumero(movimiento.cantidad, 3)}</td><td className="text-right">{formatMoneda(movimiento.costoTotal)}</td></tr>)}</tbody></table>}</section>}
 
       {lote.operaciones.length > 0 && <section className="mt-8">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Ruta y confirmaciones</h2>

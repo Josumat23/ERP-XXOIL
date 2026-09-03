@@ -6,12 +6,15 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
-import { asignarLoteInsumo } from "@/lib/trazabilidad";
+import { asignarLoteInsumo, devolverLoteInsumo } from "@/lib/trazabilidad";
 import { siguienteCodigoLote } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { postearAsiento } from "@/lib/contabilidad";
 import { calcularVariacionProduccion } from "@/lib/costeoProduccion";
 import { puedeCancelarOrden, puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
+import { TipoMovimientoMaterialProduccion } from "@/generated/prisma/client";
+import { esValorEnum } from "@/lib/enums";
+import { costoInsumosAjustado, esCantidadAjusteMaterialValida } from "@/lib/ajustesMaterialProduccion";
 
 export type EstadoFormulario = { error?: string };
 
@@ -203,6 +206,46 @@ export async function cancelarLote(id: string, _prevState: EstadoFormulario, for
   revalidatePath("/produccion/lotes");
   revalidatePath(`/produccion/lotes/${id}`);
   revalidatePath("/logistica/mrp");
+  return {};
+}
+
+export async function ajustarMaterialLote(id: string, _prevState: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["PRODUCCION"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return { error: "Sin permiso para registrar consumos de producción." };
+  const tipoRaw = String(formData.get("tipo") ?? "");
+  const insumoId = String(formData.get("insumoId") ?? "");
+  const cantidad = Number(formData.get("cantidad"));
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (!esValorEnum(Object.values(TipoMovimientoMaterialProduccion), tipoRaw)) return { error: "El tipo de movimiento es inválido." };
+  if (!insumoId || !esCantidadAjusteMaterialValida(cantidad)) return { error: "Seleccione un insumo e ingrese una cantidad mayor a cero." };
+  if (motivo.length < 5 || motivo.length > 500) return { error: "Ingrese un motivo entre 5 y 500 caracteres." };
+  try {
+    await prisma.$transaction(async (tx) => {
+      const [lote, insumo] = await Promise.all([
+        tx.loteGranel.findUnique({ where: { id } }),
+        tx.insumo.findFirst({ where: { id: insumoId, activo: true } }),
+      ]);
+      if (!lote || lote.estado !== "EN_PROCESO") throw new Error("Solo se ajustan materiales de una orden en proceso.");
+      if (!insumo) throw new Error("El insumo no existe o está inactivo.");
+      const esDevolucion = tipoRaw === TipoMovimientoMaterialProduccion.DEVOLUCION;
+      const costoUnitario = insumo.costoUnitario.toNumber();
+      const costoTotal = cantidad * costoUnitario;
+      const nuevoCosto = costoInsumosAjustado(lote.costoInsumos.toNumber(), costoTotal, esDevolucion);
+      if (nuevoCosto === null) throw new Error("La devolución supera el costo de materiales aplicado a la orden.");
+      const movimientoMaterial = await tx.movimientoMaterialProduccion.create({ data: { loteGranelId: id, insumoId, tipo: tipoRaw, cantidad, costoUnitario, costoTotal, motivo, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre } });
+      const kardex = await registrarMovimiento(tx, { tipoItem: "INSUMO", insumoId, tipoMovimiento: esDevolucion ? "ENTRADA" : "SALIDA", origen: "PRODUCCION", cantidad, referencia: `${lote.codigo} · ${esDevolucion ? "devolución" : "consumo adicional"}: ${motivo}`, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
+      if (!kardex.ok) throw new Error(kardex.error);
+      if (esDevolucion) await devolverLoteInsumo(tx, { loteGranelId: id, insumoId, cantidad, movimientoMaterialId: movimientoMaterial.id });
+      else await asignarLoteInsumo(tx, { loteGranelId: id, insumoId, cantidad });
+      await tx.loteGranel.update({ where: { id }, data: { costoInsumos: nuevoCosto } });
+      await postearAsiento(tx, { origen: "INICIO_PRODUCCION", glosa: `${esDevolucion ? "Devolución" : "Consumo adicional"} de material en ${lote.codigo}`, referencia: lote.codigo, lineas: esDevolucion ? [{ clave: "INVENTARIO_INSUMOS", debe: costoTotal }, { clave: "WIP_PRODUCCION", haber: costoTotal }] : [{ clave: "WIP_PRODUCCION", debe: costoTotal }, { clave: "INVENTARIO_INSUMOS", haber: costoTotal }], usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
+    });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo registrar el movimiento." };
+  }
+  revalidatePath(`/produccion/lotes/${id}`);
+  revalidatePath("/inventario/kardex");
   return {};
 }
 

@@ -47,6 +47,7 @@ import { normalizarRutaProduccion, puedeIniciarOperacion } from "@/lib/rutasProd
 import { cargaPlanOperacion, programarCapacidadFinita } from "@/lib/planificacionCapacidad";
 import { puedeCancelarOrden, puedeEjecutarOrden, puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
 import { calcularCompraNeta, calcularStockDisponibleInsumo } from "@/lib/reservasProduccion";
+import { costoInsumosAjustado, esCantidadAjusteMaterialValida } from "@/lib/ajustesMaterialProduccion";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
@@ -2251,4 +2252,12 @@ test("reservas de producción reducen disponibilidad y alimentan MRP", () => {
   assert.equal(calcularStockDisponibleInsumo(100, 35), 65);
   assert.equal(calcularCompraNeta(80, 10, 100, 35), 25);
   assert.equal(calcularCompraNeta(20, 5, 100, 10), 0);
+});
+
+test("ajustes de material protegen cantidades y WIP negativo", () => {
+  assert.equal(esCantidadAjusteMaterialValida(1.25), true);
+  assert.equal(esCantidadAjusteMaterialValida(Number.NaN), false);
+  assert.equal(costoInsumosAjustado(100, 25, false), 125);
+  assert.equal(costoInsumosAjustado(100, 25, true), 75);
+  assert.equal(costoInsumosAjustado(10, 25, true), null);
 });
