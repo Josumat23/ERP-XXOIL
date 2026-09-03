@@ -1,0 +1,2 @@
+CREATE TABLE "lecturas_contador_equipo" ("id" TEXT NOT NULL PRIMARY KEY,"equipoId" TEXT NOT NULL,"valor" DECIMAL NOT NULL,"fuente" TEXT NOT NULL,"observacion" TEXT,"usuarioId" TEXT NOT NULL,"usuarioNombre" TEXT NOT NULL,"creadoEn" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,CONSTRAINT "lecturas_contador_equipo_equipoId_fkey" FOREIGN KEY ("equipoId") REFERENCES "equipos"("id") ON DELETE RESTRICT ON UPDATE CASCADE);
+CREATE INDEX "lecturas_contador_equipo_equipoId_creadoEn_idx" ON "lecturas_contador_equipo"("equipoId","creadoEn");
