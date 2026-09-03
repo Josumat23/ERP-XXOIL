@@ -88,7 +88,7 @@ export async function registrarCalidad(
         throw new Error("El lote cambi\u00f3 mientras se evaluaba. Actualice la p\u00e1gina e intente nuevamente.");
       }
 
-      await tx.controlCalidad.create({
+      const control = await tx.controlCalidad.create({
         data: {
           loteGranelId: loteId,
           resultado,
@@ -103,6 +103,13 @@ export async function registrarCalidad(
           resultadosCaracteristica: { create: resultados },
         },
       });
+      if (resultado === ResultadoCalidad.RECHAZADO) {
+        await tx.noConformidadCalidad.create({ data: {
+          empresaId: auth.usuario.empresaId, controlCalidadId: control.id,
+          causaRaizConfirmada: causaRaiz, accionCorrectiva,
+          eventos: { create: { estadoNuevo: "ABIERTA", comentario: observaciones ?? "Lote rechazado por calidad.", usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre } },
+        } });
+      }
     });
   } catch (e) {
     if (e instanceof Error) return { error: e.message };

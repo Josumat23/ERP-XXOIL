@@ -49,6 +49,8 @@ import { puedeCancelarOrden, puedeEjecutarOrden, puedeLiberarOrden } from "@/lib
 import { calcularCompraNeta, calcularStockDisponibleInsumo } from "@/lib/reservasProduccion";
 import { costoInsumosAjustado, esCantidadAjusteMaterialValida } from "@/lib/ajustesMaterialProduccion";
 import { normalizarCaracteristicasPlan, normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
+import { transicionCapaPermitida } from "@/lib/noConformidades";
+import { EstadoNoConformidad } from "@/generated/prisma/client";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
@@ -2272,4 +2274,11 @@ test("planes de calidad validan especificaciones y mediciones", () => {
   assert.equal(valorCumpleEspecificacion(100, 90, 110), true);
   assert.equal(valorCumpleEspecificacion(111, 90, 110), false);
   assert.throws(() => normalizarCaracteristicasPlan('[{"nombre":"Viscosidad","unidadMedida":"cSt"}]'), /al menos un límite/);
+});
+
+test("CAPA exige una secuencia controlada y permite reabrir una verificación ineficaz", () => {
+  assert.equal(transicionCapaPermitida(EstadoNoConformidad.ABIERTA, EstadoNoConformidad.INVESTIGACION), true);
+  assert.equal(transicionCapaPermitida(EstadoNoConformidad.ABIERTA, EstadoNoConformidad.CERRADA), false);
+  assert.equal(transicionCapaPermitida(EstadoNoConformidad.VERIFICACION, EstadoNoConformidad.IMPLEMENTACION), true);
+  assert.equal(transicionCapaPermitida(EstadoNoConformidad.CERRADA, EstadoNoConformidad.ABIERTA), false);
 });
