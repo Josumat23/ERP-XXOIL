@@ -19,9 +19,10 @@ type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   insumos: Insumo[];
   planPreventivo?: { unidadContador: string | null; contadorActual: number } | null;
+  esCorrectivo?: boolean;
 };
 
-export default function CompletarFormulario({ accion, insumos, planPreventivo }: Props) {
+export default function CompletarFormulario({ accion, insumos, planPreventivo, esCorrectivo }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
   const [repuestos, setRepuestos] = useState<Linea[]>([]);
 
@@ -66,6 +67,8 @@ export default function CompletarFormulario({ accion, insumos, planPreventivo }:
           </span>
         </label>
       )}
+      {esCorrectivo && <div className="grid gap-3 border border-amber-200 rounded-lg p-3"><strong className="text-sm">Análisis de falla</strong><label className="text-sm">Modo de falla<textarea required minLength={5} name="modoFalla" className="campo-input block w-full" placeholder="Componente y manifestación de la falla"/></label><label className="text-sm">Causa técnica<select required name="causaFalla" className="campo-input block w-full"><option value="">Seleccione</option><option value="MECANICA">Mecánica</option><option value="ELECTRICA">Eléctrica</option><option value="INSTRUMENTACION">Instrumentación</option><option value="LUBRICACION">Lubricación</option><option value="OPERACION">Operación</option><option value="OTRO">Otra</option></select></label><label className="text-sm">Técnico responsable<input required name="tecnicoResponsable" className="campo-input block w-full"/></label></div>}
+      <label className="text-sm"><span className="block font-medium">Tiempo real de parada (horas)</span><input name="tiempoParadaHoras" type="number" min="0" step="0.01" defaultValue={0} className="campo-input w-32"/></label>
 
       <label className="flex flex-col gap-1 text-sm">
         <span className="font-medium text-neutral-700 dark:text-neutral-300">

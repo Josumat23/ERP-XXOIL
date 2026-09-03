@@ -130,6 +130,7 @@ export default async function DetalleOrdenMantenimientoPage({
         {orden.observaciones && (
           <p className="text-sm text-neutral-500 mt-4">Trabajo realizado: {orden.observaciones}</p>
         )}
+        {orden.modoFalla && <section className="mt-5 border border-amber-200 rounded-lg p-4 text-sm"><h2 className="font-medium">Análisis de falla</h2><div className="grid sm:grid-cols-2 gap-2 mt-2"><Dato etiqueta="Modo de falla" valor={orden.modoFalla}/><Dato etiqueta="Causa" valor={orden.causaFalla?.replaceAll("_", " ") ?? "—"}/><Dato etiqueta="Técnico" valor={orden.tecnicoResponsable ?? "—"}/><Dato etiqueta="Tiempo de parada" valor={`${orden.tiempoParadaHoras?.toString() ?? "0"} h`}/></div></section>}
 
         {orden.repuestos.length > 0 && (
           <section className="mt-8">
@@ -199,6 +200,7 @@ export default async function DetalleOrdenMantenimientoPage({
                     ? { unidadContador: orden.equipo.unidadContador, contadorActual: orden.equipo.contadorActual.toNumber() }
                     : null
                 }
+                esCorrectivo={orden.tipo === "CORRECTIVO"}
               />
             </div>
           </section>
@@ -209,7 +211,7 @@ export default async function DetalleOrdenMantenimientoPage({
             <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
               Completar orden
             </h2>
-            <CompletarFormulario accion={completarOrdenMantenimiento.bind(null, id)} insumos={insumosParaFormulario} />
+            <CompletarFormulario accion={completarOrdenMantenimiento.bind(null, id)} insumos={insumosParaFormulario} esCorrectivo={orden.tipo === "CORRECTIVO"} />
           </section>
         )}
       </div>

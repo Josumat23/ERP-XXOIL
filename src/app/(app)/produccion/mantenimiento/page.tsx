@@ -69,6 +69,7 @@ export default async function MantenimientoPage({
             Equipos
           </Link>
           <Link href="/produccion/mantenimiento/avisos" className="boton-secundario">Avisos de avería</Link>
+          <Link href="/produccion/mantenimiento/confiabilidad" className="boton-secundario">Confiabilidad</Link>
           <BotonImprimir />
         </div>
       </div>
