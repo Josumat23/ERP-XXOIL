@@ -787,11 +787,60 @@ model ControlCalidad {
   causa                    CausaCalidad?                    @relation(fields: [causaId], references: [id])
   planInspeccion           PlanInspeccionCalidad?           @relation(fields: [planInspeccionId], references: [id])
   resultadosCaracteristica ResultadoCaracteristicaCalidad[]
+  noConformidad            NoConformidadCalidad?
 
   planInspeccionId String?
   planVersion      Int?
 
   @@map("controles_calidad")
+}
+
+enum EstadoNoConformidad {
+  ABIERTA
+  INVESTIGACION
+  IMPLEMENTACION
+  VERIFICACION
+  CERRADA
+}
+
+model NoConformidadCalidad {
+  id                   String              @id @default(cuid())
+  empresaId            String              @default("1")
+  controlCalidadId     String              @unique
+  estado               EstadoNoConformidad @default(ABIERTA)
+  contencionInmediata  String?
+  causaRaizConfirmada  String?
+  accionCorrectiva     String?
+  responsableId        String?
+  responsableNombre    String?
+  fechaCompromiso      DateTime?
+  verificacionEficacia String?
+  eficaz               Boolean?
+  cerradoEn            DateTime?
+  creadoEn             DateTime            @default(now())
+  actualizadoEn        DateTime            @updatedAt
+
+  controlCalidad ControlCalidad               @relation(fields: [controlCalidadId], references: [id])
+  eventos        EventoNoConformidadCalidad[]
+
+  @@index([empresaId, estado, fechaCompromiso])
+  @@map("no_conformidades_calidad")
+}
+
+model EventoNoConformidadCalidad {
+  id              String               @id @default(cuid())
+  noConformidadId String
+  estadoAnterior  EstadoNoConformidad?
+  estadoNuevo     EstadoNoConformidad
+  comentario      String
+  usuarioId       String
+  usuarioNombre   String
+  creadoEn        DateTime             @default(now())
+
+  noConformidad NoConformidadCalidad @relation(fields: [noConformidadId], references: [id], onDelete: Cascade)
+
+  @@index([noConformidadId, creadoEn])
+  @@map("eventos_no_conformidad_calidad")
 }
 
 model PlanInspeccionCalidad {

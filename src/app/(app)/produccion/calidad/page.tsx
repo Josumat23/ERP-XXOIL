@@ -56,6 +56,9 @@ export default async function CalidadPage({
         <Link href="/produccion/calidad/planes" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           Planes de inspección
         </Link>
+        <Link href="/produccion/calidad/no-conformidades" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
+          No conformidades / CAPA
+        </Link>
         <Link href="/produccion/calidad/reclamos" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           Reclamos de cliente
         </Link>
