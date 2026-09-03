@@ -37,6 +37,7 @@ export default function ContadorFormulario({
           className="campo-input w-40"
         />
       </label>
+      <label className="flex flex-col gap-1 text-sm"><span className="font-medium">Observación</span><input name="observacion" className="campo-input" placeholder="Turno, lectura de tablero..."/></label>
       <button type="submit" disabled={enviando} className="boton-secundario">
         {enviando ? "Guardando..." : "Actualizar"}
       </button>

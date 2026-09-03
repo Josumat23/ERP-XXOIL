@@ -45,6 +45,7 @@ export default async function DetalleEquipoPage({
         centroTrabajo: true,
         ordenesMantenimiento: { orderBy: { fechaProgramada: "desc" } },
         planesMantenimiento: { orderBy: { creadoEn: "desc" } },
+        lecturasContador: { orderBy: { creadoEn: "desc" }, take: 20 },
       },
     }),
     prisma.equipo.findMany({ orderBy: { creadoEn: "desc" } }),
@@ -118,6 +119,7 @@ export default async function DetalleEquipoPage({
             />
           </div>
         )}
+        {equipo.unidadContador && <section className="mt-6"><h2 className="font-medium">Historial del contador</h2><table className="tabla mt-2"><thead><tr><th>Fecha</th><th>Lectura</th><th>Origen</th><th>Observación</th><th>Usuario</th></tr></thead><tbody>{equipo.lecturasContador.map(l=><tr key={l.id}><td>{new Intl.DateTimeFormat("es-PE",{dateStyle:"short",timeStyle:"short"}).format(l.creadoEn)}</td><td>{l.valor.toString()} {equipo.unidadContador}</td><td>{l.fuente.replaceAll("_"," ")}</td><td>{l.observacion??"—"}</td><td>{l.usuarioNombre}</td></tr>)}</tbody></table></section>}
 
         <section className="mt-8">
           <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-2">

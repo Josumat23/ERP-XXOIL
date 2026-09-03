@@ -3124,19 +3124,42 @@ model Equipo {
   unidadContador  String? // "km", "horas", etc.
   creadoEn        DateTime @default(now())
 
-  almacen              Almacen              @relation(fields: [almacenId], references: [id])
-  activoFijo           ActivoFijo?          @relation(fields: [activoFijoId], references: [id])
-  centroCosto          CentroCosto?         @relation(fields: [centroCostoId], references: [id])
-  centroTrabajo        CentroTrabajo?       @relation(fields: [centroTrabajoId], references: [id])
+  almacen              Almacen                 @relation(fields: [almacenId], references: [id])
+  activoFijo           ActivoFijo?             @relation(fields: [activoFijoId], references: [id])
+  centroCosto          CentroCosto?            @relation(fields: [centroCostoId], references: [id])
+  centroTrabajo        CentroTrabajo?          @relation(fields: [centroTrabajoId], references: [id])
   ordenesMantenimiento OrdenMantenimiento[]
   guiasRemision        GuiaRemision[]
   planesMantenimiento  PlanMantenimiento[]
   actividadesProyecto  ActividadProyecto[]
   operacionesLote      LoteOperacion[]
   avisosMantenimiento  AvisoMantenimiento[]
+  lecturasContador     LecturaContadorEquipo[]
 
   @@unique([empresaId, codigo])
   @@map("equipos")
+}
+
+enum FuenteLecturaContador {
+  ALTA_EQUIPO
+  MANUAL
+  CIERRE_MANTENIMIENTO
+}
+
+model LecturaContadorEquipo {
+  id            String                @id @default(cuid())
+  equipoId      String
+  valor         Decimal
+  fuente        FuenteLecturaContador
+  observacion   String?
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime              @default(now())
+
+  equipo Equipo @relation(fields: [equipoId], references: [id])
+
+  @@index([equipoId, creadoEn])
+  @@map("lecturas_contador_equipo")
 }
 
 enum TipoMantenimiento {

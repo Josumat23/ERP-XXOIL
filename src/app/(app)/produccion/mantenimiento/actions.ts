@@ -272,6 +272,7 @@ export async function completarOrdenMantenimiento(
             where: { id: orden.equipoId, contadorActual: { lte: contadorLectura } },
             data: { contadorActual: contadorLectura },
           });
+          await tx.lecturaContadorEquipo.create({ data: { equipoId: orden.equipoId, valor: contadorLectura, fuente: "CIERRE_MANTENIMIENTO", observacion: `Cierre de ${orden.codigo}`, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre } });
         }
       }
 

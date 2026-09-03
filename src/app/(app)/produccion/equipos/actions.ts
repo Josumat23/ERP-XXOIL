@@ -50,6 +50,7 @@ export async function crearEquipo(
       const equipo = await tx.equipo.create({
         data: { codigo, nombre, almacenId, activoFijoId, centroCostoId, centroTrabajoId, notas, unidadContador, contadorActual },
       });
+      if (unidadContador) await tx.lecturaContadorEquipo.create({ data: { equipoId: equipo.id, valor: contadorActual, fuente: "ALTA_EQUIPO", observacion: "Lectura inicial", usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre } });
       await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: equipo.id, accion: "CREAR", despues: equipo, usuario: auth.usuario });
     });
   } catch (e) {
@@ -108,6 +109,7 @@ export async function actualizarContadorEquipo(
         throw new Error("El contador cambió mientras se actualizaba. Intente nuevamente.");
       }
 
+      await tx.lecturaContadorEquipo.create({ data: { equipoId: id, valor: contadorActual, fuente: "MANUAL", observacion: String(formData.get("observacion") ?? "").trim() || null, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre } });
       const despues = await tx.equipo.findUniqueOrThrow({ where: { id } });
       await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     });
