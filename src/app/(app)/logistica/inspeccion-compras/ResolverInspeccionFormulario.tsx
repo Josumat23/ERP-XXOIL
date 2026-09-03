@@ -1,43 +1,16 @@
 "use client";
-
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { resolverInspeccionCompra, type EstadoFormulario } from "./actions";
-
-export default function ResolverInspeccionFormulario({ inspeccionId }: { inspeccionId: string }) {
-  const accion = resolverInspeccionCompra.bind(null, inspeccionId);
-  const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
-
-  return (
-    <form action={formAction} className="flex flex-col gap-3">
-      {estado.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
-          {estado.error}
-        </p>
-      )}
-      <label className="flex flex-col gap-1 text-sm">
-        <span className="font-medium text-neutral-700 dark:text-neutral-300">Observaciones</span>
-        <textarea name="observaciones" rows={2} className="campo-input" />
-      </label>
-      <div className="flex gap-2">
-        <button
-          type="submit"
-          name="resultado"
-          value="APROBADO"
-          disabled={enviando}
-          className="boton-primario"
-        >
-          {enviando ? "Guardando..." : "Aprobar"}
-        </button>
-        <button
-          type="submit"
-          name="resultado"
-          value="RECHAZADO"
-          disabled={enviando}
-          className="boton-secundario"
-        >
-          {enviando ? "Guardando..." : "Rechazar"}
-        </button>
-      </div>
-    </form>
-  );
+type Plan = { id: string; version: number; nombre: string; caracteristicas: { id: string; secuencia: number; nombre: string; unidadMedida: string; limiteInferior: { toString(): string } | null; limiteSuperior: { toString(): string } | null; metodoEnsayo: string | null; obligatoria: boolean }[] };
+export default function ResolverInspeccionFormulario({ inspeccionId, plan }: { inspeccionId: string; plan: Plan | null }) {
+  const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(resolverInspeccionCompra.bind(null, inspeccionId), {});
+  const [lecturas, setLecturas] = useState<Record<string, string>>({});
+  const completo = plan?.caracteristicas.every(c => !c.obligatoria || (lecturas[c.id] !== undefined && lecturas[c.id] !== "" && Number.isFinite(Number(lecturas[c.id])))) ?? false;
+  const fuera = plan?.caracteristicas.some(c => { const v=Number(lecturas[c.id]); if(lecturas[c.id]===undefined||lecturas[c.id]===""||!Number.isFinite(v)) return false; return (c.limiteInferior!==null&&v<Number(c.limiteInferior.toString()))||(c.limiteSuperior!==null&&v>Number(c.limiteSuperior.toString())); }) ?? false;
+  const calculado = plan && completo ? (fuera ? "RECHAZADO" : "APROBADO") : "";
+  return <form action={formAction} className="flex flex-col gap-3">{estado.error && <p role="alert" className="text-sm text-red-600">{estado.error}</p>}
+    {plan ? <><input type="hidden" name="planId" value={plan.id}/><input type="hidden" name="resultado" value={calculado}/><input type="hidden" name="lecturas" value={JSON.stringify(plan.caracteristicas.filter(c=>lecturas[c.id]!==undefined&&lecturas[c.id]!=="").map(c=>({caracteristicaId:c.id,valorMedido:lecturas[c.id]})))}/><div className="border border-blue-200 rounded-lg p-3"><strong>{plan.nombre} · v{plan.version}</strong><div className="grid md:grid-cols-2 gap-3 mt-3">{plan.caracteristicas.map(c=><label key={c.id} className="text-sm"><span className="block font-medium">{c.secuencia}. {c.nombre}{c.obligatoria?" *":""}</span><span className="block text-xs text-neutral-500">{c.limiteInferior?.toString()??"−∞"} a {c.limiteSuperior?.toString()??"+∞"} {c.unidadMedida}{c.metodoEnsayo?` · ${c.metodoEnsayo}`:""}</span><input type="number" step="any" required={c.obligatoria} className="campo-input mt-1" value={lecturas[c.id]??""} onChange={e=>setLecturas(v=>({...v,[c.id]:e.target.value}))}/></label>)}</div><p className={`mt-3 text-sm font-medium ${calculado==="RECHAZADO"?"text-red-600":"text-green-700"}`}>{calculado ? `Resultado calculado: ${calculado}` : "Complete las mediciones."}</p></div></> : <p className="text-xs text-amber-700">Sin plan vigente: evaluación heredada habilitada.</p>}
+    <label className="text-sm"><span className="block font-medium">Observaciones (obligatorias si rechaza)</span><textarea name="observaciones" rows={2} className="campo-input w-full" /></label>
+    {plan ? <button type="submit" disabled={enviando||!completo} className="boton-primario self-start">{enviando?"Guardando...":"Registrar resultado"}</button> : <div className="flex gap-2"><button type="submit" name="resultado" value="APROBADO" disabled={enviando} className="boton-primario">Aprobar</button><button type="submit" name="resultado" value="RECHAZADO" disabled={enviando} className="boton-secundario">Rechazar</button></div>}
+  </form>;
 }

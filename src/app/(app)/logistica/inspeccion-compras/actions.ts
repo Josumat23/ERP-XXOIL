@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
+import { normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
+import { ResultadoInspeccion } from "@/generated/prisma/client";
 
 export type EstadoFormulario = { error?: string };
 
@@ -24,10 +26,12 @@ export async function resolverInspeccionCompra(
     return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
   }
 
-  const resultado = String(formData.get("resultado") ?? "");
+  const resultadoSolicitado = String(formData.get("resultado") ?? "");
+  let resultado: ResultadoInspeccion = resultadoSolicitado === ResultadoInspeccion.RECHAZADO ? ResultadoInspeccion.RECHAZADO : ResultadoInspeccion.APROBADO;
+  const planId = String(formData.get("planId") ?? "").trim() || null;
   const observaciones = String(formData.get("observaciones") ?? "").trim() || null;
 
-  if (resultado !== "APROBADO" && resultado !== "RECHAZADO") {
+  if (resultadoSolicitado !== ResultadoInspeccion.APROBADO && resultadoSolicitado !== ResultadoInspeccion.RECHAZADO) {
     return { error: "Seleccione el resultado de la inspección." };
   }
   if (resultado === "RECHAZADO" && !observaciones) {
@@ -36,8 +40,8 @@ export async function resolverInspeccionCompra(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const inspeccion = await tx.inspeccionCompra.findUnique({
-        where: { id: inspeccionId },
+      const inspeccion = await tx.inspeccionCompra.findFirst({
+        where: { id: inspeccionId, recepcionDetalle: { recepcion: { ordenCompra: { empresaId: auth.usuario.empresaId } } } },
         include: {
           recepcionDetalle: {
             include: { insumo: true, recepcion: { include: { ordenCompra: true } } },
@@ -48,6 +52,19 @@ export async function resolverInspeccionCompra(
       if (inspeccion.resultado !== "PENDIENTE") {
         throw new Error("Esta recepción ya fue evaluada.");
       }
+      const plan = await tx.planInspeccionInsumo.findFirst({ where: { empresaId: auth.usuario.empresaId, insumoId: inspeccion.recepcionDetalle.insumoId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } });
+      if (plan && plan.id !== planId) throw new Error("Debe usar el plan de inspección vigente. Actualice la página.");
+      if (!plan && planId) throw new Error("El plan de inspección ya no está vigente.");
+      let mediciones: { secuencia: number; nombre: string; unidadMedida: string; limiteInferior: number | null; limiteSuperior: number | null; metodoEnsayo: string | null; valorMedido: number; conforme: boolean }[] = [];
+      if (plan) {
+        const lecturas = normalizarLecturasCalidad(String(formData.get("lecturas") ?? ""));
+        const porId = new Map(lecturas.map(l => [l.caracteristicaId, l.valorMedido]));
+        const idsPlan = new Set(plan.caracteristicas.map(c => c.id));
+        if (new Set(lecturas.map(l => l.caracteristicaId)).size !== lecturas.length || lecturas.some(l => !idsPlan.has(l.caracteristicaId)) || plan.caracteristicas.some(c => c.obligatoria && !porId.has(c.id))) throw new Error("Las mediciones no corresponden al plan vigente.");
+        mediciones = plan.caracteristicas.filter(c => porId.has(c.id)).map(c => { const valorMedido = porId.get(c.id); if (valorMedido === undefined) throw new Error(`Falta ${c.nombre}.`); const minimo = c.limiteInferior?.toNumber() ?? null; const maximo = c.limiteSuperior?.toNumber() ?? null; return { secuencia: c.secuencia, nombre: c.nombre, unidadMedida: c.unidadMedida, limiteInferior: minimo, limiteSuperior: maximo, metodoEnsayo: c.metodoEnsayo, valorMedido, conforme: valorCumpleEspecificacion(valorMedido, minimo, maximo) }; });
+        resultado = mediciones.every(m => m.conforme) ? ResultadoInspeccion.APROBADO : ResultadoInspeccion.RECHAZADO;
+      }
+      if (resultado === ResultadoInspeccion.RECHAZADO && !observaciones) throw new Error("Al rechazar una recepción, las observaciones son obligatorias.");
 
       const reclamo = await tx.inspeccionCompra.updateMany({
         where: { id: inspeccionId, resultado: "PENDIENTE" },
@@ -57,11 +74,14 @@ export async function resolverInspeccionCompra(
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
           fecha: new Date(),
+          planInspeccionId: plan?.id ?? null,
+          planVersion: plan?.version ?? null,
         },
       });
       if (reclamo.count !== 1) {
         throw new Error("Esta recepción cambió mientras se evaluaba. Actualice la página e intente nuevamente.");
       }
+      if (mediciones.length > 0) await tx.medicionInspeccionCompra.createMany({ data: mediciones.map(m => ({ ...m, inspeccionCompraId: inspeccion.id })) });
 
       const detalle = inspeccion.recepcionDetalle;
       const insumo = detalle.insumo;

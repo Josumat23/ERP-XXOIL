@@ -27,6 +27,7 @@ export default async function DetalleInspeccionCompraPage({
     prisma.inspeccionCompra.findUnique({
       where: { id },
       include: {
+        mediciones: { orderBy: { secuencia: "asc" } },
         recepcionDetalle: {
           include: {
             insumo: true,
@@ -41,6 +42,7 @@ export default async function DetalleInspeccionCompraPage({
     }),
   ]);
   if (!inspeccion) notFound();
+  const plan = inspeccion.resultado === "PENDIENTE" ? await prisma.planInspeccionInsumo.findFirst({ where: { empresaId: usuario.empresaId, insumoId: inspeccion.recepcionDetalle.insumoId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } }) : null;
 
   const detalle = inspeccion.recepcionDetalle;
 
@@ -92,13 +94,14 @@ export default async function DetalleInspeccionCompraPage({
               <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
                 Evaluar recepción
               </h2>
-              <ResolverInspeccionFormulario inspeccionId={inspeccion.id} />
+              <ResolverInspeccionFormulario inspeccionId={inspeccion.id} plan={plan} />
             </section>
           ) : (
             <section className="mt-8 text-sm">
               {inspeccion.observaciones && (
                 <p className="text-neutral-500">{inspeccion.observaciones}</p>
               )}
+              {inspeccion.mediciones.length > 0 && <table className="tabla mt-3"><thead><tr><th>Característica</th><th>Especificación</th><th>Resultado</th></tr></thead><tbody>{inspeccion.mediciones.map(m=><tr key={m.id}><td>{m.nombre}<span className="block text-xs text-neutral-500">{m.metodoEnsayo??""}</span></td><td>{m.limiteInferior?.toString()??"−∞"} a {m.limiteSuperior?.toString()??"+∞"} {m.unidadMedida}</td><td className={m.conforme?"text-green-700":"text-red-600 font-medium"}>{m.valorMedido.toString()} {m.unidadMedida}</td></tr>)}</tbody></table>}
               <p className="text-xs text-neutral-400 mt-2">
                 Evaluado por {inspeccion.usuarioNombre} el{" "}
                 {inspeccion.fecha &&

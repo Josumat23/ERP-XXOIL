@@ -391,6 +391,7 @@ model Insumo {
   repuestosMantenimiento RepuestoOrdenMantenimiento[]
   reservasProduccion     ReservaInsumoProduccion[]
   movimientosProduccion  MovimientoMaterialProduccion[]
+  planesInspeccion       PlanInspeccionInsumo[]
 
   @@unique([empresaId, codigo])
   @@map("insumos")
@@ -1950,10 +1951,71 @@ model InspeccionCompra {
   usuarioNombre            String?
   fecha                    DateTime?
   creadoEn                 DateTime            @default(now())
+  planInspeccionId         String?
+  planVersion              Int?
 
-  recepcionDetalle RecepcionCompraDetalle @relation(fields: [recepcionCompraDetalleId], references: [id])
+  recepcionDetalle RecepcionCompraDetalle     @relation(fields: [recepcionCompraDetalleId], references: [id])
+  planInspeccion   PlanInspeccionInsumo?      @relation(fields: [planInspeccionId], references: [id])
+  mediciones       MedicionInspeccionCompra[]
 
   @@map("inspecciones_compra")
+}
+
+model PlanInspeccionInsumo {
+  id            String    @id @default(cuid())
+  empresaId     String    @default("1")
+  insumoId      String
+  version       Int
+  nombre        String
+  activo        Boolean   @default(true)
+  vigenteDesde  DateTime  @default(now())
+  vigenteHasta  DateTime?
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime  @default(now())
+
+  insumo          Insumo                     @relation(fields: [insumoId], references: [id])
+  caracteristicas CaracteristicaPlanInsumo[]
+  inspecciones    InspeccionCompra[]
+
+  @@unique([insumoId, version])
+  @@index([empresaId, activo])
+  @@map("planes_inspeccion_insumo")
+}
+
+model CaracteristicaPlanInsumo {
+  id             String   @id @default(cuid())
+  planId         String
+  secuencia      Int
+  nombre         String
+  unidadMedida   String
+  limiteInferior Decimal?
+  limiteSuperior Decimal?
+  metodoEnsayo   String?
+  obligatoria    Boolean  @default(true)
+
+  plan PlanInspeccionInsumo @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, secuencia])
+  @@map("caracteristicas_plan_insumo")
+}
+
+model MedicionInspeccionCompra {
+  id                 String   @id @default(cuid())
+  inspeccionCompraId String
+  secuencia          Int
+  nombre             String
+  unidadMedida       String
+  limiteInferior     Decimal?
+  limiteSuperior     Decimal?
+  metodoEnsayo       String?
+  valorMedido        Decimal
+  conforme           Boolean
+
+  inspeccion InspeccionCompra @relation(fields: [inspeccionCompraId], references: [id], onDelete: Cascade)
+
+  @@unique([inspeccionCompraId, secuencia])
+  @@map("mediciones_inspeccion_compra")
 }
 
 // ---------------------------------------------------------------------------
