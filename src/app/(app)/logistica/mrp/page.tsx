@@ -120,7 +120,7 @@ export default async function MrpPage({
         MRP — Necesidades de compra
       </h1>
       <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
-        Explota la demanda proyectada contra las fórmulas de producción (BOM) y el stock actual —
+        Explota la demanda proyectada contra las fórmulas, el stock físico y las reservas de órdenes planificadas —
         lo mismo que calcula la pestaña Operaciones de Proyecciones, agrupado aquí por proveedor
         para generar la orden de compra directamente.
       </p>

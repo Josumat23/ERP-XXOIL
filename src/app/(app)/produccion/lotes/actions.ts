@@ -108,7 +108,7 @@ export async function crearLote(
         costoEstandarInsumos += detalle.cantidad.toNumber() * factor * insumo.costoUnitario.toNumber();
       }
       const costoEstandarManoObra = formula.horasEstandar === null ? null : formula.horasEstandar.toNumber() * factor * tarifaHoraManoObra.toNumber();
-      await tx.loteGranel.create({
+      const lote = await tx.loteGranel.create({
         data: {
           codigo,
           formulaId,
@@ -135,6 +135,9 @@ export async function crearLote(
           },
         },
       });
+      await tx.reservaInsumoProduccion.createMany({
+        data: formula.detalles.map((detalle) => ({ loteGranelId: lote.id, insumoId: detalle.insumoId, cantidad: detalle.cantidad.toNumber() * factor })),
+      });
 
     });
   } catch (e) {
@@ -150,7 +153,7 @@ export async function liberarLote(id: string): Promise<void> {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth || !(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   await prisma.$transaction(async (tx) => {
-    const lote = await tx.loteGranel.findUnique({ where: { id }, include: { formula: { include: { detalles: true, producto: true } }, loteOrigen: true } });
+    const lote = await tx.loteGranel.findUnique({ where: { id }, include: { formula: { include: { producto: true } }, loteOrigen: true, reservasInsumo: true } });
     if (!lote || !puedeLiberarOrden(lote.estado)) throw new Error("Solo se puede liberar una orden planificada.");
     const ahora = new Date();
     const cambio = await tx.loteGranel.updateMany({ where: { id, estado: "PLANIFICADO" }, data: { estado: "EN_PROCESO", fechaInicio: ahora, fechaLiberacion: ahora, usuarioLiberacionId: auth.usuario.id, usuarioLiberacionNombre: auth.usuario.nombre } });
@@ -163,16 +166,16 @@ export async function liberarLote(id: string): Promise<void> {
       const disposicion = await tx.loteGranel.updateMany({ where: { id: origen.id, estado: "RECHAZADO", disposicionRechazo: null }, data: { disposicionRechazo: "REPROCESADO", motivoDisposicion: `Incorporado a ${lote.codigo}`, fechaDisposicion: new Date(), usuarioDisposicionId: auth.usuario.id, usuarioDisposicionNombre: auth.usuario.nombre } });
       if (disposicion.count !== 1) throw new Error("El lote rechazado fue dispuesto por otro usuario.");
     }
-    const factor = lote.kgObjetivo.toNumber() / lote.formula.rendimientoKg.toNumber();
     let costoInsumos = 0;
-    for (const detalle of lote.formula.detalles) {
-      const cantidad = detalle.cantidad.toNumber() * factor;
-      const insumo = await tx.insumo.findUniqueOrThrow({ where: { id: detalle.insumoId } });
+    for (const reserva of lote.reservasInsumo) {
+      const cantidad = reserva.cantidad.toNumber();
+      const insumo = await tx.insumo.findUniqueOrThrow({ where: { id: reserva.insumoId } });
       costoInsumos += cantidad * insumo.costoUnitario.toNumber();
-      const movimiento = await registrarMovimiento(tx, { tipoItem: "INSUMO", insumoId: detalle.insumoId, tipoMovimiento: "SALIDA", origen: "PRODUCCION", cantidad, referencia: `Lote ${lote.codigo} (${lote.formula.producto.nombre} v${lote.formula.version})`, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
+      const movimiento = await registrarMovimiento(tx, { tipoItem: "INSUMO", insumoId: reserva.insumoId, tipoMovimiento: "SALIDA", origen: "PRODUCCION", cantidad, referencia: `Lote ${lote.codigo} (${lote.formula.producto.nombre} v${lote.formula.version})`, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
       if (!movimiento.ok) throw new Error(movimiento.error);
-      await asignarLoteInsumo(tx, { loteGranelId: lote.id, insumoId: detalle.insumoId, cantidad });
+      await asignarLoteInsumo(tx, { loteGranelId: lote.id, insumoId: reserva.insumoId, cantidad });
     }
+    await tx.reservaInsumoProduccion.deleteMany({ where: { loteGranelId: lote.id } });
     await tx.loteGranel.update({ where: { id }, data: { costoInsumos, costoReproceso } });
     if (costoInsumos > 0) await postearAsiento(tx, { origen: "INICIO_PRODUCCION", glosa: `Liberación y consumo de materias primas para ${lote.codigo}`, referencia: lote.codigo, lineas: [{ clave: "WIP_PRODUCCION", debe: costoInsumos }, { clave: "INVENTARIO_INSUMOS", haber: costoInsumos }], usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
   });

@@ -46,6 +46,7 @@ import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarRutaProduccion, puedeIniciarOperacion } from "@/lib/rutasProduccion";
 import { cargaPlanOperacion, programarCapacidadFinita } from "@/lib/planificacionCapacidad";
 import { puedeEjecutarOrden, puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
+import { calcularCompraNeta, calcularStockDisponibleInsumo } from "@/lib/reservasProduccion";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
@@ -2242,4 +2243,10 @@ test("orden de producción separa planificación, liberación y ejecución", () 
   assert.equal(puedeLiberarOrden("EN_PROCESO"), false);
   assert.equal(puedeEjecutarOrden("PLANIFICADO"), false);
   assert.equal(puedeEjecutarOrden("EN_PROCESO"), true);
+});
+
+test("reservas de producción reducen disponibilidad y alimentan MRP", () => {
+  assert.equal(calcularStockDisponibleInsumo(100, 35), 65);
+  assert.equal(calcularCompraNeta(80, 10, 100, 35), 25);
+  assert.equal(calcularCompraNeta(20, 5, 100, 10), 0);
 });
