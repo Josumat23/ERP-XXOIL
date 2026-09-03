@@ -9,8 +9,10 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import FinalizarLoteFormulario from "./FinalizarLoteFormulario";
 import DisponerLoteFormulario from "./DisponerLoteFormulario";
 import OperacionFormulario from "./OperacionFormulario";
+import { liberarLote } from "../actions";
 
 const COLOR_ESTADO: Record<string, string> = {
+  PLANIFICADO: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
   EN_PROCESO: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400",
   PENDIENTE_CALIDAD: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
   APROBADO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
@@ -86,31 +88,32 @@ export default async function DetalleLotePage({
         </span>
       </div>
       <p className="text-neutral-500 mt-1">
-        {lote.formula.producto.nombre} — fórmula v{lote.formula.version} · Iniciado por{" "}
+        {lote.formula.producto.nombre} — fórmula v{lote.formula.version} · Creado por{" "}
         {lote.usuarioNombre} el{" "}
         {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short" }).format(
-          lote.fechaInicio
+          lote.fechaCreacion ?? lote.fechaInicio
         )}
       </p>
+      {lote.fechaLiberacion && <p className="text-xs text-neutral-500 mt-1">Liberada por {lote.usuarioLiberacionNombre} el {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium", timeStyle: "short" }).format(lote.fechaLiberacion)}</p>}
 
       <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 mt-6">
         <Dato etiqueta="Kg objetivo" valor={formatNumero(lote.kgObjetivo, 2)} />
         <Dato
           etiqueta="Kg producidos"
-          valor={lote.estado === "EN_PROCESO" ? "—" : formatNumero(lote.kgProducidos, 2)}
+          valor={["PLANIFICADO", "EN_PROCESO"].includes(lote.estado) ? "—" : formatNumero(lote.kgProducidos, 2)}
         />
         <Dato
           etiqueta="Merma (kg)"
-          valor={lote.estado === "EN_PROCESO" ? "—" : formatNumero(lote.mermaKg, 2)}
+          valor={["PLANIFICADO", "EN_PROCESO"].includes(lote.estado) ? "—" : formatNumero(lote.mermaKg, 2)}
         />
         <Dato etiqueta="Granel disponible" valor={formatNumero(lote.kgDisponibles, 2)} />
         <Dato
           etiqueta="Costo por kg"
-          valor={lote.estado === "EN_PROCESO" ? "—" : `S/ ${formatNumero(lote.costoKg, 2)}`}
+          valor={["PLANIFICADO", "EN_PROCESO"].includes(lote.estado) ? "—" : `S/ ${formatNumero(lote.costoKg, 2)}`}
         />
       </div>
 
-      {lote.estado !== "EN_PROCESO" && (
+      {!(["PLANIFICADO", "EN_PROCESO"] as string[]).includes(lote.estado) && (
         <p className="text-xs text-neutral-500 mt-2">
           Costo insumos: S/ {formatNumero(lote.costoInsumos, 2)} + Reproceso: S/ {formatNumero(lote.costoReproceso, 2)} + Mano de obra:{" "}
           {formatNumero(lote.horasManoObra, 2)} h × S/{" "}
@@ -181,6 +184,8 @@ export default async function DetalleLotePage({
           ))}
         </p>
       )}
+
+      {lote.estado === "PLANIFICADO" && <section className="mt-8 border border-blue-200 dark:border-blue-900 rounded-lg p-4"><h2 className="font-medium">Liberar orden de producción</h2><p className="text-sm text-neutral-500 mt-1">Valida stock, consume materiales por FIFO, registra trazabilidad y contabiliza el WIP en una sola transacción.</p><form action={liberarLote.bind(null, lote.id)} className="mt-3"><button className="boton-primario">Liberar y emitir materiales</button></form></section>}
 
       {lote.operaciones.length > 0 && <section className="mt-8">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Ruta y confirmaciones</h2>

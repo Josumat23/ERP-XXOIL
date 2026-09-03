@@ -45,6 +45,7 @@ import { calcularAplicacionCobro, calcularImportesFuncionales } from "@/lib/mult
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { normalizarRutaProduccion, puedeIniciarOperacion } from "@/lib/rutasProduccion";
 import { cargaPlanOperacion, programarCapacidadFinita } from "@/lib/planificacionCapacidad";
+import { puedeEjecutarOrden, puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
@@ -2234,4 +2235,11 @@ test("planificación finita respeta capacidad, calendario y precedencia", () => 
   ], [{ centroTrabajoId: "ct", capacidadEfectivaHoras: 8, horasSemana: [0, 8, 8, 8, 8, 8, 0], diasNoLaborables: new Set(["2026-09-08"]) }]);
   assert.deepEqual(programacion.map((item) => [item.id, item.fechaPlanInicio.getDate(), item.fechaPlanFin.getDate()]), [["op-1", 7, 9], ["op-2", 9, 9]]);
   assert.equal(cargaPlanOperacion(1, 4, 6), 7);
+});
+
+test("orden de producción separa planificación, liberación y ejecución", () => {
+  assert.equal(puedeLiberarOrden("PLANIFICADO"), true);
+  assert.equal(puedeLiberarOrden("EN_PROCESO"), false);
+  assert.equal(puedeEjecutarOrden("PLANIFICADO"), false);
+  assert.equal(puedeEjecutarOrden("EN_PROCESO"), true);
 });

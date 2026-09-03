@@ -60,6 +60,7 @@ export const ETIQUETA_ESTADO_DESPACHO: Record<$Enums.EstadoDespacho, string> = {
 };
 
 export const ETIQUETA_ESTADO_LOTE: Record<$Enums.EstadoLote, string> = {
+  PLANIFICADO: "Planificado",
   EN_PROCESO: "En proceso",
   PENDIENTE_CALIDAD: "Pendiente de calidad",
   APROBADO: "Aprobado",

@@ -591,6 +591,7 @@ model FormulaOperacion {
 }
 
 enum EstadoLote {
+  PLANIFICADO
   EN_PROCESO
   PENDIENTE_CALIDAD
   APROBADO
@@ -636,7 +637,11 @@ model LoteGranel {
   variacionTotal           Decimal? // costo real - estándar permitido
   estado                   EstadoLote                @default(EN_PROCESO)
   observaciones            String?
+  fechaCreacion            DateTime?
   fechaInicio              DateTime                  @default(now())
+  fechaLiberacion          DateTime?
+  usuarioLiberacionId      String?
+  usuarioLiberacionNombre  String?
   fechaFin                 DateTime?
   usuarioId                String
   disposicionRechazo       DisposicionLoteRechazado?
