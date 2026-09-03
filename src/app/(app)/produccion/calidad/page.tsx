@@ -19,7 +19,7 @@ export default async function CalidadPage({
   const { q, resultado } = await searchParams;
   const filtroResultado = resultado === "APROBADO" || resultado === "RECHAZADO" ? resultado : undefined;
 
-  const [pendientes, evaluados, causas] = await Promise.all([
+  const [pendientes, evaluados, causas, planes] = await Promise.all([
     prisma.loteGranel.findMany({
       where: { estado: "PENDIENTE_CALIDAD" },
       include: { formula: { include: { producto: true } } },
@@ -30,11 +30,12 @@ export default async function CalidadPage({
         ...(filtroResultado ? { resultado: filtroResultado } : {}),
         ...(q ? { loteGranel: { OR: [{ codigo: { contains: q } }, { formula: { producto: { nombre: { contains: q } } } }] } } : {}),
       },
-      include: { loteGranel: { include: { formula: { include: { producto: true } } } }, causa: true },
+      include: { loteGranel: { include: { formula: { include: { producto: true } } } }, causa: true, resultadosCaracteristica: { orderBy: { secuencia: "asc" } } },
       orderBy: { fecha: "desc" },
       take: 20,
     }),
     prisma.causaCalidad.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.planInspeccionCalidad.findMany({ where: { empresaId: usuario.empresaId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } }),
   ]);
 
   return (
@@ -51,6 +52,9 @@ export default async function CalidadPage({
       <div className="flex gap-4 mt-2 text-sm">
         <Link href="/produccion/calidad/causas" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           Catálogo de causas de calidad
+        </Link>
+        <Link href="/produccion/calidad/planes" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Planes de inspección
         </Link>
         <Link href="/produccion/calidad/reclamos" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           Reclamos de cliente
@@ -74,7 +78,7 @@ export default async function CalidadPage({
                   {formatNumero(l.mermaKg, 2)} kg
                 </p>
               </div>
-              <CalidadFormulario loteId={l.id} causas={causas} />
+              <CalidadFormulario loteId={l.id} causas={causas} plan={planes.find(p => p.productoId === l.formula.productoId) ?? null} />
             </div>
           ))}
           {pendientes.length === 0 && (
@@ -103,6 +107,7 @@ export default async function CalidadPage({
               <th>Lote</th>
               <th>Producto</th>
               <th>Resultado</th>
+              <th>Mediciones</th>
               <th>Observaciones</th>
               <th>Causa raíz / acción correctiva</th>
               <th>Evaluador</th>
@@ -129,6 +134,13 @@ export default async function CalidadPage({
                     {c.resultado === "APROBADO" ? "Aprobado" : "Rechazado"}
                   </span>
                 </td>
+                <td className="text-xs min-w-52">
+                  {c.resultadosCaracteristica.length > 0 ? c.resultadosCaracteristica.map(r => (
+                    <span key={r.id} className={`block ${r.conforme ? "text-green-700" : "text-red-600 font-medium"}`}>
+                      {r.nombre}: {r.valorMedido.toString()} {r.unidadMedida} {r.conforme ? "✓" : "Fuera de especificación"}
+                    </span>
+                  )) : "Evaluación heredada"}
+                </td>
                 <td className="text-sm text-neutral-500 max-w-56">{c.observaciones ?? "—"}</td>
                 <td className="text-xs text-neutral-500 max-w-64">
                   {c.causa || c.causaRaiz || c.accionCorrectiva ? (
@@ -151,7 +163,7 @@ export default async function CalidadPage({
             ))}
             {evaluados.length === 0 && (
               <tr>
-                <td colSpan={7} className="text-center text-neutral-500 py-4">
+                <td colSpan={8} className="text-center text-neutral-500 py-4">
                   Sin evaluaciones registradas.
                 </td>
               </tr>

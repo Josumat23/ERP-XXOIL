@@ -80,6 +80,7 @@ export const MODULOS: Modulo[] = [
       { href: "/produccion/centros-trabajo", etiqueta: "Centros de trabajo" },
       { href: "/produccion/capacidad", etiqueta: "Planificación de capacidad" },
       { href: "/produccion/calidad", etiqueta: "Control de calidad" },
+      { href: "/produccion/calidad/planes", etiqueta: "Planes de inspección" },
       { href: "/produccion/calidad/reclamos", etiqueta: "Reclamos de cliente" },
       { href: "/produccion/envasados", etiqueta: "Envasados" },
       { href: "/produccion/lotes/recall", etiqueta: "Trazabilidad / recall" },

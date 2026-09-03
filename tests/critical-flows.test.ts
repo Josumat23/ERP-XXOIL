@@ -48,6 +48,7 @@ import { cargaPlanOperacion, programarCapacidadFinita } from "@/lib/planificacio
 import { puedeCancelarOrden, puedeEjecutarOrden, puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
 import { calcularCompraNeta, calcularStockDisponibleInsumo } from "@/lib/reservasProduccion";
 import { costoInsumosAjustado, esCantidadAjusteMaterialValida } from "@/lib/ajustesMaterialProduccion";
+import { normalizarCaracteristicasPlan, normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
 import { normalizarDetallesFormula } from "@/lib/detallesFormula";
@@ -2260,4 +2261,15 @@ test("ajustes de material protegen cantidades y WIP negativo", () => {
   assert.equal(costoInsumosAjustado(100, 25, false), 125);
   assert.equal(costoInsumosAjustado(100, 25, true), 75);
   assert.equal(costoInsumosAjustado(10, 25, true), null);
+});
+
+test("planes de calidad validan especificaciones y mediciones", () => {
+  const caracteristicas = normalizarCaracteristicasPlan(JSON.stringify([
+    { nombre: "Viscosidad", unidadMedida: "cSt", limiteInferior: "90", limiteSuperior: "110", metodoEnsayo: "ASTM D445", obligatoria: true },
+  ]));
+  assert.deepEqual(caracteristicas[0], { secuencia: 1, nombre: "Viscosidad", unidadMedida: "cSt", limiteInferior: 90, limiteSuperior: 110, metodoEnsayo: "ASTM D445", obligatoria: true });
+  assert.deepEqual(normalizarLecturasCalidad('[{"caracteristicaId":"visc","valorMedido":"100.5"}]'), [{ caracteristicaId: "visc", valorMedido: 100.5 }]);
+  assert.equal(valorCumpleEspecificacion(100, 90, 110), true);
+  assert.equal(valorCumpleEspecificacion(111, 90, 110), false);
+  assert.throws(() => normalizarCaracteristicasPlan('[{"nombre":"Viscosidad","unidadMedida":"cSt"}]'), /al menos un límite/);
 });

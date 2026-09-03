@@ -234,9 +234,10 @@ model Producto {
   creadoEn         DateTime         @default(now())
   actualizadoEn    DateTime         @updatedAt
 
-  categoria      Categoria      @relation(fields: [categoriaId], references: [id])
-  presentaciones Presentacion[]
-  formulas       Formula[]
+  categoria        Categoria               @relation(fields: [categoriaId], references: [id])
+  presentaciones   Presentacion[]
+  formulas         Formula[]
+  planesInspeccion PlanInspeccionCalidad[]
 
   @@unique([empresaId, codigo])
   @@map("productos")
@@ -782,10 +783,72 @@ model ControlCalidad {
   usuarioId        String
   usuarioNombre    String
 
-  loteGranel LoteGranel    @relation(fields: [loteGranelId], references: [id])
-  causa      CausaCalidad? @relation(fields: [causaId], references: [id])
+  loteGranel               LoteGranel                       @relation(fields: [loteGranelId], references: [id])
+  causa                    CausaCalidad?                    @relation(fields: [causaId], references: [id])
+  planInspeccion           PlanInspeccionCalidad?           @relation(fields: [planInspeccionId], references: [id])
+  resultadosCaracteristica ResultadoCaracteristicaCalidad[]
+
+  planInspeccionId String?
+  planVersion      Int?
 
   @@map("controles_calidad")
+}
+
+model PlanInspeccionCalidad {
+  id            String    @id @default(cuid())
+  empresaId     String    @default("1")
+  productoId    String
+  version       Int
+  nombre        String
+  vigenteDesde  DateTime  @default(now())
+  vigenteHasta  DateTime?
+  activo        Boolean   @default(true)
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime  @default(now())
+
+  producto        Producto                    @relation(fields: [productoId], references: [id])
+  caracteristicas CaracteristicaPlanCalidad[]
+  controles       ControlCalidad[]
+
+  @@unique([productoId, version])
+  @@index([empresaId, activo])
+  @@map("planes_inspeccion_calidad")
+}
+
+model CaracteristicaPlanCalidad {
+  id             String   @id @default(cuid())
+  planId         String
+  secuencia      Int
+  nombre         String
+  unidadMedida   String
+  limiteInferior Decimal?
+  limiteSuperior Decimal?
+  metodoEnsayo   String?
+  obligatoria    Boolean  @default(true)
+
+  plan PlanInspeccionCalidad @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@unique([planId, secuencia])
+  @@map("caracteristicas_plan_calidad")
+}
+
+model ResultadoCaracteristicaCalidad {
+  id               String   @id @default(cuid())
+  controlCalidadId String
+  secuencia        Int
+  nombre           String
+  unidadMedida     String
+  limiteInferior   Decimal?
+  limiteSuperior   Decimal?
+  metodoEnsayo     String?
+  valorMedido      Decimal
+  conforme         Boolean
+
+  controlCalidad ControlCalidad @relation(fields: [controlCalidadId], references: [id], onDelete: Cascade)
+
+  @@unique([controlCalidadId, secuencia])
+  @@map("resultados_caracteristica_calidad")
 }
 
 // Catálogo formal de causas/defectos de calidad, reutilizable entre el
