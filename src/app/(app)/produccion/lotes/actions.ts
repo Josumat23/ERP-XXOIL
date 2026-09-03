@@ -11,7 +11,7 @@ import { siguienteCodigoLote } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { postearAsiento } from "@/lib/contabilidad";
 import { calcularVariacionProduccion } from "@/lib/costeoProduccion";
-import { puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
+import { puedeCancelarOrden, puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
 
 export type EstadoFormulario = { error?: string };
 
@@ -181,6 +181,29 @@ export async function liberarLote(id: string): Promise<void> {
   });
   revalidatePath("/produccion/lotes");
   revalidatePath(`/produccion/lotes/${id}`);
+}
+
+export async function cancelarLote(id: string, _prevState: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["PRODUCCION"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return { error: "Sin permiso para cancelar órdenes de producción." };
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (motivo.length < 5 || motivo.length > 500) return { error: "Ingrese un motivo de cancelación entre 5 y 500 caracteres." };
+  try {
+    await prisma.$transaction(async (tx) => {
+      const lote = await tx.loteGranel.findUnique({ where: { id }, select: { estado: true } });
+      if (!lote || !puedeCancelarOrden(lote.estado)) throw new Error("Solo se puede cancelar una orden planificada.");
+      const resultado = await tx.loteGranel.updateMany({ where: { id, estado: "PLANIFICADO" }, data: { estado: "CANCELADO", fechaCancelacion: new Date(), motivoCancelacion: motivo, usuarioCancelacionId: auth.usuario.id, usuarioCancelacionNombre: auth.usuario.nombre } });
+      if (resultado.count !== 1) throw new Error("La orden cambió mientras se cancelaba.");
+      await tx.reservaInsumoProduccion.deleteMany({ where: { loteGranelId: id } });
+    });
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "No se pudo cancelar la orden." };
+  }
+  revalidatePath("/produccion/lotes");
+  revalidatePath(`/produccion/lotes/${id}`);
+  revalidatePath("/logistica/mrp");
+  return {};
 }
 
 // Finalizar cocción: registra kg producidos y merma; pasa a control de calidad.

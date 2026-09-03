@@ -593,6 +593,7 @@ model FormulaOperacion {
 
 enum EstadoLote {
   PLANIFICADO
+  CANCELADO
   EN_PROCESO
   PENDIENTE_CALIDAD
   APROBADO
@@ -643,6 +644,10 @@ model LoteGranel {
   fechaLiberacion          DateTime?
   usuarioLiberacionId      String?
   usuarioLiberacionNombre  String?
+  fechaCancelacion         DateTime?
+  motivoCancelacion        String?
+  usuarioCancelacionId     String?
+  usuarioCancelacionNombre String?
   fechaFin                 DateTime?
   usuarioId                String
   disposicionRechazo       DisposicionLoteRechazado?
