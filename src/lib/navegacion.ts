@@ -87,6 +87,7 @@ export const MODULOS: Modulo[] = [
       { href: "/produccion/lotes/recall", etiqueta: "Trazabilidad / recall" },
       { href: "/produccion/equipos", etiqueta: "Equipos" },
       { href: "/produccion/mantenimiento", etiqueta: "Mantenimiento" },
+      { href: "/produccion/mantenimiento/avisos", etiqueta: "Avisos de mantenimiento" },
     ],
   },
   {

@@ -55,6 +55,7 @@ export async function crearOrdenMantenimiento(
   const fechaProgramadaRaw = String(formData.get("fechaProgramada") ?? "");
   const duracionDias = Number(formData.get("duracionDias") ?? 1);
   const centroCostoId = String(formData.get("centroCostoId") ?? "") || null;
+  const avisoId = String(formData.get("avisoId") ?? "") || null;
 
   if (!equipoId) return { error: "Seleccione el equipo." };
   if (!TIPOS_VALIDOS.includes(tipo)) return { error: "Seleccione el tipo de mantenimiento." };
@@ -69,6 +70,8 @@ export async function crearOrdenMantenimiento(
 
   await prisma.$transaction(async (tx) => {
     const equipo = await tx.equipo.findUniqueOrThrow({ where: { id: equipoId } });
+    const aviso = avisoId ? await tx.avisoMantenimiento.findFirst({ where: { id: avisoId, empresaId: auth.usuario.empresaId, equipoId, estado: "ABIERTO" } }) : null;
+    if (avisoId && !aviso) throw new Error("El aviso ya no está abierto o no corresponde al equipo.");
     const codigo = await siguienteCodigoOrdenMantenimiento(tx);
 
     await tx.ordenMantenimiento.create({
@@ -80,10 +83,12 @@ export async function crearOrdenMantenimiento(
         fechaProgramada,
         duracionDias,
         centroCostoId,
+        avisoMantenimientoId: aviso?.id ?? null,
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
       },
     });
+    if (aviso) await tx.avisoMantenimiento.update({ where: { id: aviso.id }, data: { estado: "CONVERTIDO" } });
 
     const calendario = await tx.calendarioProduccion.findUnique({
       where: { almacenId: equipo.almacenId },

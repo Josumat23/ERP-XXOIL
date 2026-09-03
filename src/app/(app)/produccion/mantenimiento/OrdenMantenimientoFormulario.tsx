@@ -13,6 +13,7 @@ type Props = {
   centrosCosto: CentroCosto[];
   equipoIdInicial?: string;
   textoBoton: string;
+  avisoId?: string;
 };
 
 export default function OrdenMantenimientoFormulario({
@@ -21,6 +22,7 @@ export default function OrdenMantenimientoFormulario({
   centrosCosto,
   equipoIdInicial,
   textoBoton,
+  avisoId,
 }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
   const equipoInicial = equipos.find((e) => e.id === equipoIdInicial);
@@ -28,6 +30,7 @@ export default function OrdenMantenimientoFormulario({
 
   return (
     <form action={formAction} className="flex flex-col gap-4 max-w-lg">
+      {avisoId && <input type="hidden" name="avisoId" value={avisoId} />}
       {estado.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
           {estado.error}
