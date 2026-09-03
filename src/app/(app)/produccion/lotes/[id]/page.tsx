@@ -37,7 +37,7 @@ export default async function DetalleLotePage({
       where: { id },
       include: {
         formula: { include: { producto: true, detalles: { include: { insumo: true } } } },
-        controlCalidad: true,
+        controlCalidad: { include: { resultadosCaracteristica: { select: { id: true } } } },
         envasados: { include: { presentacion: true } },
         loteOrigen: { include: { formula: { include: { producto: true } } } },
         reprocesos: { include: { formula: { include: { producto: true } } } },
@@ -270,6 +270,7 @@ export default async function DetalleLotePage({
                 lote.controlCalidad.fecha
               )}
             </p>
+            {lote.controlCalidad.resultado === "APROBADO" && lote.controlCalidad.resultadosCaracteristica.length > 0 && <Link href={`/produccion/calidad/certificados/${lote.id}`} className="boton-secundario inline-block mt-3 no-imprimir">Certificado de análisis</Link>}
           </div>
         </section>
       )}

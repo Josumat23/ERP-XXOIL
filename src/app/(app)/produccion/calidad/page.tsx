@@ -121,6 +121,7 @@ export default async function CalidadPage({
                   <Link href={`/produccion/lotes/${c.loteGranelId}`} className="hover:underline">
                     {c.loteGranel.codigo}
                   </Link>
+                  {c.resultado === "APROBADO" && c.resultadosCaracteristica.length > 0 && <Link href={`/produccion/calidad/certificados/${c.loteGranelId}`} className="block mt-1 text-blue-700 hover:underline">Certificado</Link>}
                 </td>
                 <td>{c.loteGranel.formula.producto.nombre}</td>
                 <td>
