@@ -15,6 +15,7 @@ import AprobarVacacionesFormulario from "../../vacaciones/AprobarVacacionesFormu
 import CambioSalarialFormulario from "./CambioSalarialFormulario";
 import { aprobarCambioSalarial } from "../actions";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import RechazarCambioSalarialFormulario from "./RechazarCambioSalarialFormulario";
 
 const ETIQUETA_CONTRATO: Record<string, string> = {
   PLAZO_FIJO: "Plazo fijo",
@@ -181,7 +182,7 @@ export default async function DetalleEmpleadoPage({
           <h2 className="mb-1 font-medium">Historial salarial</h2>
           <p className="mb-3 text-xs text-neutral-500">Los cambios requieren aprobación de una persona distinta al solicitante y conservan el valor anterior.</p>
           {empleado.estado === "ACTIVO" && <CambioSalarialFormulario empleadoId={empleado.id} />}
-          <table className="tabla mt-4"><thead><tr><th>Vigencia</th><th className="text-right">Anterior</th><th className="text-right">Nuevo</th><th>Motivo</th><th>Estado</th><th></th></tr></thead><tbody>{empleado.cambiosSalariales.map((cambio) => <tr key={cambio.id}><td>{formatFecha(cambio.vigenteDesde)}</td><td className="text-right">{formatMoneda(cambio.sueldoAnterior)}</td><td className="text-right">{formatMoneda(cambio.sueldoNuevo)}</td><td>{cambio.motivo}</td><td>{cambio.estado === "APROBADO" ? "Aprobado" : cambio.estado === "RECHAZADO" ? "Rechazado" : "Pendiente"}</td><td>{cambio.estado === "PENDIENTE" && cambio.usuarioId !== usuario.id && <form action={aprobarCambioSalarial.bind(null, cambio.id)}><button className="boton-secundario">Aprobar</button></form>}</td></tr>)}{empleado.cambiosSalariales.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-neutral-500">Sin cambios registrados.</td></tr>}</tbody></table>
+          <table className="tabla mt-4"><thead><tr><th>Vigencia</th><th className="text-right">Anterior</th><th className="text-right">Nuevo</th><th>Motivo</th><th>Estado</th><th></th></tr></thead><tbody>{empleado.cambiosSalariales.map((cambio) => <tr key={cambio.id}><td>{formatFecha(cambio.vigenteDesde)}</td><td className="text-right">{formatMoneda(cambio.sueldoAnterior)}</td><td className="text-right">{formatMoneda(cambio.sueldoNuevo)}</td><td>{cambio.motivo}{cambio.motivoRechazo && <span className="block text-xs text-red-600">Rechazo: {cambio.motivoRechazo}</span>}</td><td>{cambio.estado === "APROBADO" ? "Aprobado" : cambio.estado === "RECHAZADO" ? "Rechazado" : "Pendiente"}{cambio.resueltoPorNombre && <span className="block text-xs text-neutral-500">por {cambio.resueltoPorNombre}</span>}</td><td>{cambio.estado === "PENDIENTE" && cambio.usuarioId !== usuario.id && <div className="min-w-64"><form action={aprobarCambioSalarial.bind(null, cambio.id)}><button className="boton-secundario">Aprobar</button></form><RechazarCambioSalarialFormulario cambioId={cambio.id} /></div>}</td></tr>)}{empleado.cambiosSalariales.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-neutral-500">Sin cambios registrados.</td></tr>}</tbody></table>
         </section>
 
         <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4">
