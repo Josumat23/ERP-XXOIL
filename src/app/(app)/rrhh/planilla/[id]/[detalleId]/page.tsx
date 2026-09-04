@@ -93,6 +93,13 @@ export default async function BoletaPagoPage({
                       <td className="text-right">—</td>
                     </tr>
                   )}
+                  {detalle.importeSobretiempo.toNumber() > 0 && (
+                    <tr>
+                      <td>Sobretiempo aprobado ({Math.floor(detalle.minutosSobretiempo / 60)} h {detalle.minutosSobretiempo % 60} min)</td>
+                      <td className="text-right">{formatMoneda(detalle.importeSobretiempo)}</td>
+                      <td className="text-right">—</td>
+                    </tr>
+                  )}
                   <tr>
                     <td>{detalle.detallePension || "Pensión"}</td>
                     <td className="text-right">—</td>

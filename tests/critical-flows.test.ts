@@ -1836,6 +1836,13 @@ test("planilla usa parámetros versionados, excluye configuraciones incompletas 
     }),
   ]);
 
+  const politicaTiempo = await prisma.politicaTiempoTrabajo.create({
+    data: { vigenteDesde: new Date(2099, 2, 1), horasJornadaDiaria: 8, primerasHorasRecargo: 2, recargoPrimerTramo: 25, recargoSegundoTramo: 35, aplicarPagoSobretiempo: true, estado: "APROBADA", aprobadoEn: new Date(), aprobadoPorId: "aprobador-test", aprobadoPorNombre: "Aprobador Test", ...audit },
+  });
+  await prisma.registroAsistencia.create({
+    data: { empleadoId: empleados[0].id, fecha: new Date(2099, 2, 5), entrada: new Date(2099, 2, 5, 8), salida: new Date(2099, 2, 5, 19), minutosTrabajados: 600, minutosSobretiempo: 180, estado: "APROBADO", aprobadoEn: new Date(), aprobadoPorId: "aprobador-test", aprobadoPorNombre: "Aprobador Test", ...audit },
+  });
+
   const resultado = await prisma.$transaction((tx) =>
     generarPlanillaMensual(tx, { anio: 2099, mes: 3, ...audit })
   );
@@ -1861,10 +1868,12 @@ test("planilla usa parámetros versionados, excluye configuraciones incompletas 
       essalud: detalle.essaludPatronal.toNumber(),
       quinta: detalle.retencion5ta.toNumber(),
       neto: detalle.neto.toNumber(),
+      extra: detalle.importeSobretiempo.toNumber(),
+      politica: detalle.politicaTiempoTrabajoId,
     })),
     [
-      { sueldo: 2_000, familiar: 100, pension: 273, essalud: 189, quinta: 0, neto: 1_827 },
-      { sueldo: 3_000, familiar: 0, pension: 390, essalud: 270, quinta: 46.67, neto: 2_563.33 },
+      { sueldo: 2_000, familiar: 100, pension: 277.38, essalud: 192.03, quinta: 0, neto: 1_856.31, extra: 33.69, politica: politicaTiempo.id },
+      { sueldo: 3_000, familiar: 0, pension: 390, essalud: 270, quinta: 46.67, neto: 2_563.33, extra: 0, politica: politicaTiempo.id },
     ]
   );
   assert.ok(periodo.detalles.every((detalle) => detalle.asientoNumero));
@@ -1874,7 +1883,7 @@ test("planilla usa parámetros versionados, excluye configuraciones incompletas 
     include: { detalles: true },
   });
   comprobarCuadre(asiento);
-  assert.equal(asiento.detalles.reduce((total, linea) => total + linea.debe.toNumber(), 0), 5_559);
+  assert.equal(asiento.detalles.reduce((total, linea) => total + linea.debe.toNumber(), 0), 5_595.72);
 
   const duplicado = await prisma.$transaction((tx) =>
     generarPlanillaMensual(tx, { anio: 2099, mes: 3, ...audit })
@@ -1890,9 +1899,6 @@ test("MRP protege stock comprometido por pedidos", () => {
     calcularUnidadesAProducir({ demandaProyectada: 50, stock: 100, stockReservado: 0, stockMinimo: 10 }),
     0
   );
-  assert.equal(calcularJornada(new Date(2026, 8, 3, 8), new Date(2026, 8, 4, 8), {
-    inicioMinuto: 480, finMinuto: 1020, refrigerioMinuto: 60, toleranciaMinuto: 0,
-  }), null);
 });
 
 test("UBL usa la tasa congelada y rechaza una tasa ausente", () => {
@@ -2303,6 +2309,9 @@ test("asistencia valida horas y calcula turnos diurnos y nocturnos", () => {
     })?.minutosSobretiempo,
     0
   );
+  assert.equal(calcularJornada(new Date(2026, 8, 3, 8), new Date(2026, 8, 4, 8), {
+    inicioMinuto: 480, finMinuto: 1020, refrigerioMinuto: 60, toleranciaMinuto: 0,
+  }), null);
 });
 
 test("sobretiempo peruano aplica por día los tramos 25% y 35%", () => {

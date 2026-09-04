@@ -7,6 +7,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { generarPlanillaMensual, generarGratificacion, generarCts } from "@/lib/planilla";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -29,8 +30,9 @@ export async function crearPlanillaMensual(
 
   let periodoId: string;
   try {
+    const empresaId = await obtenerEmpresaActivaId();
     const resultado = await prisma.$transaction((tx) =>
-      generarPlanillaMensual(tx, { anio, mes, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre })
+      generarPlanillaMensual(tx, { anio, mes, empresaId, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre })
     );
     if (!resultado.ok) return { error: resultado.error };
     periodoId = resultado.periodoId;
