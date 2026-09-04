@@ -3589,6 +3589,34 @@ model ParametroPlanilla {
   @@map("parametros_planilla")
 }
 
+enum EstadoPoliticaTiempo {
+  BORRADOR
+  APROBADA
+  RETIRADA
+}
+
+model PoliticaTiempoTrabajo {
+  id                     String               @id @default(cuid())
+  empresaId              String               @default("1")
+  vigenteDesde           DateTime
+  horasJornadaDiaria     Decimal              @default(8)
+  primerasHorasRecargo   Decimal              @default(2)
+  recargoPrimerTramo     Decimal              @default(25)
+  recargoSegundoTramo    Decimal              @default(35)
+  aplicarPagoSobretiempo Boolean              @default(false)
+  estado                 EstadoPoliticaTiempo @default(BORRADOR)
+  usuarioId              String
+  usuarioNombre          String
+  aprobadoEn             DateTime?
+  aprobadoPorId          String?
+  aprobadoPorNombre      String?
+  creadoEn               DateTime             @default(now())
+
+  @@unique([empresaId, vigenteDesde])
+  @@index([empresaId, estado, vigenteDesde])
+  @@map("politicas_tiempo_trabajo")
+}
+
 enum TipoComisionAfp {
   FLUJO
   MIXTA
