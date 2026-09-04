@@ -8,6 +8,7 @@ import { esValorEnum } from "@/lib/enums";
 import { puedeRealizar } from "@/lib/permisos";
 import { esPorcentajePlanillaValido } from "@/lib/planilla";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -101,4 +102,35 @@ export async function crearTasaAfp(
 
   revalidatePath("/rrhh/planilla/parametros");
   return { ok: true };
+}
+
+export async function crearPoliticaTiempo(_prevState: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
+  const auth = await requerirRol([...ROLES_RRHH]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "crear"))) return { error: "No tiene permiso para crear políticas de tiempo." };
+  const empresaId = await obtenerEmpresaActivaId();
+  const vigenteDesde = crearFechaCalendarioLocal(String(formData.get("vigenteDesde") ?? ""));
+  const horasJornadaDiaria = Number(formData.get("horasJornadaDiaria"));
+  const primerasHorasRecargo = Number(formData.get("primerasHorasRecargo"));
+  const recargoPrimerTramo = Number(formData.get("recargoPrimerTramo"));
+  const recargoSegundoTramo = Number(formData.get("recargoSegundoTramo"));
+  if (!vigenteDesde) return { error: "Ingrese una fecha de vigencia válida." };
+  if (!Number.isFinite(horasJornadaDiaria) || horasJornadaDiaria <= 0 || horasJornadaDiaria > 12) return { error: "La jornada diaria debe estar entre 1 y 12 horas." };
+  if (!Number.isFinite(primerasHorasRecargo) || primerasHorasRecargo < 0 || primerasHorasRecargo > 8) return { error: "El primer tramo debe estar entre 0 y 8 horas." };
+  if (!Number.isFinite(recargoPrimerTramo) || recargoPrimerTramo < 25 || recargoPrimerTramo > 200 || !Number.isFinite(recargoSegundoTramo) || recargoSegundoTramo < 35 || recargoSegundoTramo > 200) return { error: "Los recargos deben respetar los mínimos de 25% y 35% y no superar 200%." };
+  try {
+    await prisma.politicaTiempoTrabajo.create({ data: { empresaId, vigenteDesde, horasJornadaDiaria, primerasHorasRecargo, recargoPrimerTramo, recargoSegundoTramo, aplicarPagoSobretiempo: formData.get("aplicarPagoSobretiempo") === "on", usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre } });
+  } catch { return { error: "Ya existe una política con esa fecha de vigencia." }; }
+  revalidatePath("/rrhh/planilla/parametros");
+  return { ok: true };
+}
+
+export async function aprobarPoliticaTiempo(id: string): Promise<void> {
+  const auth = await requerirRol([...ROLES_RRHH]);
+  if ("error" in auth || !(await puedeRealizar(auth.usuario, "rrhh", "aprobar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
+  const politica = await prisma.politicaTiempoTrabajo.findFirst({ where: { id, empresaId, estado: "BORRADOR" }, select: { usuarioId: true } });
+  if (!politica || politica.usuarioId === auth.usuario.id) return;
+  await prisma.politicaTiempoTrabajo.updateMany({ where: { id, empresaId, estado: "BORRADOR" }, data: { estado: "APROBADA", aprobadoEn: new Date(), aprobadoPorId: auth.usuario.id, aprobadoPorNombre: auth.usuario.nombre } });
+  revalidatePath("/rrhh/planilla/parametros");
 }

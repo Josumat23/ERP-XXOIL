@@ -1,6 +1,8 @@
 # HCM — Nómina básica peruana: investigación normativa y propuesta de diseño
 
-**Estado: investigación completada, diseño propuesto, código NO iniciado.** Este documento existe para que el usuario confirme el alcance antes de programar, siguiendo el mismo criterio que se usó con SUNAT/PLE: no se debe inventar una fórmula de cálculo de planilla sin verificar la norma vigente.
+**Estado actualizado 2026-09-04:** nómina base, beneficios, asistencia y snapshot de tiempos ya implementados. La política monetaria de sobretiempo se administra por versión, exige aprobación segregada y permanece desactivada hasta que una versión aprobada indique expresamente su aplicación.
+
+Fuentes oficiales revisadas para sobretiempo: [guía del MTPE](https://www.gob.pe/institucion/mtpe/informes-publicaciones/6199835-como-calcular-las-horas-extras), [orientación SUNAFIL](https://www.gob.pe/institucion/sunafil/noticias/1100081-conoce-las-diferencias-entre-trabajo-forzoso-y-trabajo-en-sobretiempo) y TUO aprobado por D.S. 007-2002-TR. Estas fuentes sustentan el cálculo diario, el mínimo de 25% para las dos primeras horas y 35% para las posteriores, además del carácter voluntario y la obligación de registro.
 
 ---
 
