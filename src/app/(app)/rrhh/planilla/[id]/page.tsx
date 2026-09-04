@@ -207,10 +207,12 @@ export default async function DetallePlanillaPage({
       </table>
 
       {esMensual && (
-        <p className="text-xs text-neutral-400 mt-4">
-          Gasto patronal EsSalud del período (no descontado al trabajador): {formatMoneda(totales.essaludPatronal)}.
-          Fecha de referencia para las tasas: {new Intl.DateTimeFormat("es-PE", { dateStyle: "long" }).format(fechaPeriodo)}.
-        </p>
+        <div className="mt-5">
+          <h2 className="mb-2 font-semibold">Snapshot de asistencia aprobada</h2>
+          <p className="mb-3 text-xs text-neutral-500">Evidencia congelada al generar la planilla. Es informativa: no modifica remuneraciones hasta configurar una política laboral autorizada.</p>
+          <table className="tabla"><thead><tr><th>Empleado</th><th className="text-right">Días asistidos</th><th className="text-right">Ausencias justificadas</th><th className="text-right">Tardanza</th><th className="text-right">Sobretiempo</th></tr></thead><tbody>{periodo.detalles.map((detalle) => <tr key={detalle.id}><td>{detalle.empleado.nombres} {detalle.empleado.apellidos}</td><td className="text-right">{detalle.diasAsistenciaAprobada}</td><td className="text-right">{detalle.diasAusenciaJustificada}</td><td className="text-right">{Math.floor(detalle.minutosTardanza / 60)} h {detalle.minutosTardanza % 60} min</td><td className="text-right">{Math.floor(detalle.minutosSobretiempo / 60)} h {detalle.minutosSobretiempo % 60} min</td></tr>)}</tbody></table>
+          <p className="mt-4 text-xs text-neutral-400">Gasto patronal EsSalud del período (no descontado al trabajador): {formatMoneda(totales.essaludPatronal)}. Fecha de referencia para las tasas: {new Intl.DateTimeFormat("es-PE", { dateStyle: "long" }).format(fechaPeriodo)}.</p>
+        </div>
       )}
       {periodo.tipo.startsWith("CTS") && (
         <p className="text-xs text-neutral-400 mt-4">

@@ -80,6 +80,10 @@ export type LineaCalculoPlanilla = {
   essaludPatronal: number;
   retencion5ta: number;
   neto: number;
+  diasAsistenciaAprobada: number;
+  diasAusenciaJustificada: number;
+  minutosTardanza: number;
+  minutosSobretiempo: number;
 };
 
 export type ResultadoCalculoPlanilla =
@@ -107,6 +111,11 @@ export async function calcularPlanillaMensual(
 
   const lineas: LineaCalculoPlanilla[] = [];
   const advertencias: string[] = [];
+  const finPeriodo = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 1);
+  const registrosAsistencia = await tx.registroAsistencia.findMany({
+    where: { fecha: { gte: fecha, lt: finPeriodo } },
+    select: { empleadoId: true, estado: true, ausenciaJustificada: true, minutosTardanza: true, minutosSobretiempo: true },
+  });
 
   for (const e of empleados) {
     if (!e.sistemaPension) {
@@ -152,6 +161,12 @@ export async function calcularPlanillaMensual(
       Math.round(remuneracionComputable * (parametro.tasaEsSalud.toNumber() / 100) * 100) / 100;
     const retencion5ta = calcularRetencion5taMensual(remuneracionComputable, parametro.uit.toNumber());
     const neto = Math.round((remuneracionComputable - descuentoPension - retencion5ta) * 100) / 100;
+    const asistenciaEmpleado = registrosAsistencia.filter((registro) => registro.empleadoId === e.id);
+    const aprobados = asistenciaEmpleado.filter((registro) => registro.estado === "APROBADO");
+    const borradores = asistenciaEmpleado.length - aprobados.length;
+    if (borradores > 0) {
+      advertencias.push(`${e.nombres} ${e.apellidos} (${e.codigo}) tiene ${borradores} registro(s) de asistencia pendiente(s) de aprobación; no se incluyen en el snapshot.`);
+    }
 
     lineas.push({
       empleadoId: e.id,
@@ -165,6 +180,10 @@ export async function calcularPlanillaMensual(
       essaludPatronal,
       retencion5ta,
       neto,
+      diasAsistenciaAprobada: aprobados.filter((registro) => !registro.ausenciaJustificada).length,
+      diasAusenciaJustificada: aprobados.filter((registro) => registro.ausenciaJustificada).length,
+      minutosTardanza: aprobados.reduce((total, registro) => total + registro.minutosTardanza, 0),
+      minutosSobretiempo: aprobados.reduce((total, registro) => total + registro.minutosSobretiempo, 0),
     });
   }
 
@@ -228,6 +247,10 @@ export async function generarPlanillaMensual(
       detallePension: l.detallePension,
       essaludPatronal: l.essaludPatronal,
       retencion5ta: l.retencion5ta,
+      diasAsistenciaAprobada: l.diasAsistenciaAprobada,
+      diasAusenciaJustificada: l.diasAusenciaJustificada,
+      minutosTardanza: l.minutosTardanza,
+      minutosSobretiempo: l.minutosSobretiempo,
       neto: l.neto,
       asientoNumero: asiento.ok ? asiento.numero : null,
     })),
