@@ -106,6 +106,11 @@ const CATEGORIAS: Categoria[] = [
         titulo: "Headcount y costo por área",
         descripcion: "Trabajadores activos y costo base mensual, agrupados por área.",
       },
+      {
+        href: "/rrhh/asistencia/indicadores",
+        titulo: "Asistencia y puntualidad",
+        descripcion: "Días asistidos, ausencias justificadas, tardanza, sobretiempo y registros pendientes.",
+      },
     ],
   },
   {

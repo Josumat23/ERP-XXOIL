@@ -53,6 +53,7 @@ import { transicionCapaPermitida } from "@/lib/noConformidades";
 import { calcularJornada, minutosHora } from "@/lib/asistencia";
 import { calcularPagoSobretiempoDiario } from "@/lib/politicaTiempo";
 import { esCambioSalarialValido } from "@/lib/cambiosSalariales";
+import { resumirAsistencia } from "@/lib/indicadoresAsistencia";
 import { EstadoNoConformidad } from "@/generated/prisma/client";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
@@ -2324,4 +2325,9 @@ test("cambios salariales rechazan importes inválidos o sin variación", () => {
   assert.equal(esCambioSalarialValido(2000, 2300), true);
   assert.equal(esCambioSalarialValido(2000, 2000), false);
   assert.equal(esCambioSalarialValido(2000, Number.NaN), false);
+});
+
+test("indicadores de asistencia separan aprobados de borradores", () => {
+  const resumen = resumirAsistencia([{ empleadoId: "e1", estado: "APROBADO", ausenciaJustificada: false, minutosTardanza: 15, minutosSobretiempo: 30 }, { empleadoId: "e1", estado: "APROBADO", ausenciaJustificada: true, minutosTardanza: 0, minutosSobretiempo: 0 }, { empleadoId: "e1", estado: "BORRADOR", ausenciaJustificada: false, minutosTardanza: 10, minutosSobretiempo: 20 }]);
+  assert.deepEqual(resumen.get("e1"), { diasAsistidos: 1, ausenciasJustificadas: 1, minutosTardanza: 15, minutosSobretiempo: 30, pendientes: 1 });
 });
