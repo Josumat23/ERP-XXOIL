@@ -50,6 +50,7 @@ import { calcularCompraNeta, calcularStockDisponibleInsumo } from "@/lib/reserva
 import { costoInsumosAjustado, esCantidadAjusteMaterialValida } from "@/lib/ajustesMaterialProduccion";
 import { normalizarCaracteristicasPlan, normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
 import { transicionCapaPermitida } from "@/lib/noConformidades";
+import { calcularJornada, minutosHora } from "@/lib/asistencia";
 import { EstadoNoConformidad } from "@/generated/prisma/client";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
@@ -1888,6 +1889,9 @@ test("MRP protege stock comprometido por pedidos", () => {
     calcularUnidadesAProducir({ demandaProyectada: 50, stock: 100, stockReservado: 0, stockMinimo: 10 }),
     0
   );
+  assert.equal(calcularJornada(new Date(2026, 8, 3, 8), new Date(2026, 8, 4, 8), {
+    inicioMinuto: 480, finMinuto: 1020, refrigerioMinuto: 60, toleranciaMinuto: 0,
+  }), null);
 });
 
 test("UBL usa la tasa congelada y rechaza una tasa ausente", () => {
@@ -2281,4 +2285,21 @@ test("CAPA exige una secuencia controlada y permite reabrir una verificación in
   assert.equal(transicionCapaPermitida(EstadoNoConformidad.ABIERTA, EstadoNoConformidad.CERRADA), false);
   assert.equal(transicionCapaPermitida(EstadoNoConformidad.VERIFICACION, EstadoNoConformidad.IMPLEMENTACION), true);
   assert.equal(transicionCapaPermitida(EstadoNoConformidad.CERRADA, EstadoNoConformidad.ABIERTA), false);
+});
+
+test("asistencia valida horas y calcula turnos diurnos y nocturnos", () => {
+  assert.equal(minutosHora("08:30"), 510);
+  assert.equal(minutosHora("24:00"), null);
+  assert.deepEqual(
+    calcularJornada(new Date(2026, 8, 3, 8, 12), new Date(2026, 8, 3, 18), {
+      inicioMinuto: 480, finMinuto: 1020, refrigerioMinuto: 60, toleranciaMinuto: 10,
+    }),
+    { minutosTrabajados: 528, minutosTardanza: 2, minutosSobretiempo: 48 }
+  );
+  assert.equal(
+    calcularJornada(new Date(2026, 8, 3, 22), new Date(2026, 8, 4, 6), {
+      inicioMinuto: 1320, finMinuto: 360, refrigerioMinuto: 30, toleranciaMinuto: 0,
+    })?.minutosSobretiempo,
+    0
+  );
 });

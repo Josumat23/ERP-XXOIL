@@ -1,0 +1,7 @@
+"use client";
+import { useActionState } from "react";
+import { crearTurno, type EstadoFormulario } from "../actions";
+export default function TurnoFormulario() {
+  const [estado, accion, enviando] = useActionState<EstadoFormulario, FormData>(crearTurno, {});
+  return <form action={accion} className="tarjeta mb-5 grid gap-3 p-4 md:grid-cols-6"><h2 className="font-semibold md:col-span-6">Nuevo turno</h2>{estado.error && <p className="text-sm text-red-600 md:col-span-6">{estado.error}</p>}{estado.exito && <p className="text-sm text-green-700 md:col-span-6">{estado.exito}</p>}<label className="text-sm">Código<input required name="codigo" className="campo-input mt-1 w-full" maxLength={20} /></label><label className="text-sm md:col-span-2">Nombre<input required name="nombre" className="campo-input mt-1 w-full" maxLength={80} /></label><label className="text-sm">Inicio<input required name="inicio" type="time" className="campo-input mt-1 w-full" /></label><label className="text-sm">Fin<input required name="fin" type="time" className="campo-input mt-1 w-full" /></label><label className="text-sm">Refrigerio (min)<input required name="refrigerioMinuto" type="number" min="0" max="240" defaultValue="60" className="campo-input mt-1 w-full" /></label><label className="text-sm">Tolerancia (min)<input required name="toleranciaMinuto" type="number" min="0" max="120" defaultValue="10" className="campo-input mt-1 w-full" /></label><button disabled={enviando} className="boton-primario self-end">{enviando ? "Creando…" : "Crear turno"}</button></form>;
+}
