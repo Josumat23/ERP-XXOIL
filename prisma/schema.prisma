@@ -3479,10 +3479,63 @@ model Empleado {
   liquidacion            LiquidacionDesvinculacion?
   proyectosResponsable   Proyecto[]
   actividadesResponsable ActividadProyecto[]
+  turnoTrabajo           TurnoTrabajo?              @relation(fields: [turnoTrabajoId], references: [id])
+  asistencias            RegistroAsistencia[]
+  turnoTrabajoId         String?
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, dni])
   @@map("empleados")
+}
+
+model TurnoTrabajo {
+  id               String   @id @default(cuid())
+  empresaId        String   @default("1")
+  codigo           String
+  nombre           String
+  inicioMinuto     Int
+  finMinuto        Int
+  refrigerioMinuto Int      @default(60)
+  toleranciaMinuto Int      @default(0)
+  activo           Boolean  @default(true)
+  creadoEn         DateTime @default(now())
+
+  empleados Empleado[]
+
+  @@unique([empresaId, codigo])
+  @@map("turnos_trabajo")
+}
+
+enum EstadoRegistroAsistencia {
+  BORRADOR
+  APROBADO
+}
+
+model RegistroAsistencia {
+  id                  String                   @id @default(cuid())
+  empresaId           String                   @default("1")
+  empleadoId          String
+  fecha               DateTime
+  entrada             DateTime?
+  salida              DateTime?
+  minutosTrabajados   Int                      @default(0)
+  minutosTardanza     Int                      @default(0)
+  minutosSobretiempo  Int                      @default(0)
+  ausenciaJustificada Boolean                  @default(false)
+  observacion         String?
+  estado              EstadoRegistroAsistencia @default(BORRADOR)
+  usuarioId           String
+  usuarioNombre       String
+  aprobadoEn          DateTime?
+  aprobadoPorId       String?
+  aprobadoPorNombre   String?
+  creadoEn            DateTime                 @default(now())
+
+  empleado Empleado @relation(fields: [empleadoId], references: [id])
+
+  @@unique([empleadoId, fecha])
+  @@index([empresaId, fecha, estado])
+  @@map("registros_asistencia")
 }
 
 enum EstadoSolicitudVacaciones {
