@@ -3683,6 +3683,8 @@ model PlanillaDetalle {
   diasAusenciaJustificada    Int      @default(0)
   minutosTardanza            Int      @default(0)
   minutosSobretiempo         Int      @default(0)
+  importeSobretiempo         Decimal  @default(0)
+  politicaTiempoTrabajoId    String?
   // Solo gratificación/CTS: meses computados en el período y bono Ley 30334
   // (gratificación). Gratificación y CTS están inafectas a ONP/AFP/EsSalud/5ta
   // categoría (hasta 2 UIT en el caso de renta) — no usan descuentoPension ni

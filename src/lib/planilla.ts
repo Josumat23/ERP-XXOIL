@@ -1,6 +1,7 @@
 import type { Tx } from "@/lib/inventario";
 import { postearPlanilla, postearGratificacion, postearCts, postearLiquidacion } from "@/lib/contabilidad";
 import { saldoVacaciones } from "@/lib/vacaciones";
+import { calcularPagoSobretiempoDiario } from "@/lib/politicaTiempo";
 
 // ---------------------------------------------------------------------------
 // Motor de cálculo de planilla (HCM — Fase 1: solo período mensual regular).
@@ -84,6 +85,8 @@ export type LineaCalculoPlanilla = {
   diasAusenciaJustificada: number;
   minutosTardanza: number;
   minutosSobretiempo: number;
+  importeSobretiempo: number;
+  politicaTiempoTrabajoId: string | null;
 };
 
 export type ResultadoCalculoPlanilla =
@@ -97,7 +100,8 @@ export type ResultadoCalculoPlanilla =
 // en vez de asumir un valor por defecto sobre dinero real.
 export async function calcularPlanillaMensual(
   tx: Tx,
-  fecha: Date
+  fecha: Date,
+  empresaId = "1"
 ): Promise<ResultadoCalculoPlanilla & { advertencias?: string[] }> {
   const parametro = await obtenerParametroVigente(tx, fecha);
   if (!parametro) {
@@ -105,7 +109,7 @@ export async function calcularPlanillaMensual(
   }
 
   const empleados = await tx.empleado.findMany({
-    where: { estado: "ACTIVO", tipoContrato: { not: "LOCACION_SERVICIOS" } },
+    where: { empresaId, estado: "ACTIVO", tipoContrato: { not: "LOCACION_SERVICIOS" } },
     orderBy: { codigo: "asc" },
   });
 
@@ -113,8 +117,12 @@ export async function calcularPlanillaMensual(
   const advertencias: string[] = [];
   const finPeriodo = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 1);
   const registrosAsistencia = await tx.registroAsistencia.findMany({
-    where: { fecha: { gte: fecha, lt: finPeriodo } },
+    where: { empresaId, fecha: { gte: fecha, lt: finPeriodo } },
     select: { empleadoId: true, estado: true, ausenciaJustificada: true, minutosTardanza: true, minutosSobretiempo: true },
+  });
+  const politicaTiempo = await tx.politicaTiempoTrabajo.findFirst({
+    where: { empresaId, estado: "APROBADA", vigenteDesde: { lte: fecha } },
+    orderBy: { vigenteDesde: "desc" },
   });
 
   for (const e of empleados) {
@@ -127,7 +135,26 @@ export async function calcularPlanillaMensual(
 
     const sueldoBasico = e.sueldoBasico.toNumber();
     const asignacionFamiliar = e.asignacionFamiliar ? parametro.rmv.toNumber() * 0.1 : 0;
-    const remuneracionComputable = sueldoBasico + asignacionFamiliar;
+    const remuneracionOrdinaria = sueldoBasico + asignacionFamiliar;
+    const asistenciaEmpleado = registrosAsistencia.filter((registro) => registro.empleadoId === e.id);
+    const aprobados = asistenciaEmpleado.filter((registro) => registro.estado === "APROBADO");
+    const minutosSobretiempo = aprobados.reduce((total, registro) => total + registro.minutosSobretiempo, 0);
+    let importeSobretiempo = 0;
+    if (minutosSobretiempo > 0 && politicaTiempo?.aplicarPagoSobretiempo) {
+      importeSobretiempo = aprobados.reduce((total, registro) => {
+        const calculo = calcularPagoSobretiempoDiario(remuneracionOrdinaria, registro.minutosSobretiempo, {
+          horasJornadaDiaria: politicaTiempo.horasJornadaDiaria.toNumber(),
+          primerasHorasRecargo: politicaTiempo.primerasHorasRecargo.toNumber(),
+          recargoPrimerTramo: politicaTiempo.recargoPrimerTramo.toNumber(),
+          recargoSegundoTramo: politicaTiempo.recargoSegundoTramo.toNumber(),
+        });
+        return total + (calculo?.total ?? 0);
+      }, 0);
+      importeSobretiempo = Math.round(importeSobretiempo * 100) / 100;
+    } else if (minutosSobretiempo > 0) {
+      return { ok: false, error: `${e.nombres} ${e.apellidos} (${e.codigo}) tiene sobretiempo aprobado, pero no existe una política aprobada, vigente y activada para pagarlo. Regularice la política antes de generar la planilla.` };
+    }
+    const remuneracionComputable = remuneracionOrdinaria + importeSobretiempo;
 
     let descuentoPension = 0;
     let detallePension = "";
@@ -161,8 +188,6 @@ export async function calcularPlanillaMensual(
       Math.round(remuneracionComputable * (parametro.tasaEsSalud.toNumber() / 100) * 100) / 100;
     const retencion5ta = calcularRetencion5taMensual(remuneracionComputable, parametro.uit.toNumber());
     const neto = Math.round((remuneracionComputable - descuentoPension - retencion5ta) * 100) / 100;
-    const asistenciaEmpleado = registrosAsistencia.filter((registro) => registro.empleadoId === e.id);
-    const aprobados = asistenciaEmpleado.filter((registro) => registro.estado === "APROBADO");
     const borradores = asistenciaEmpleado.length - aprobados.length;
     if (borradores > 0) {
       advertencias.push(`${e.nombres} ${e.apellidos} (${e.codigo}) tiene ${borradores} registro(s) de asistencia pendiente(s) de aprobación; no se incluyen en el snapshot.`);
@@ -183,7 +208,9 @@ export async function calcularPlanillaMensual(
       diasAsistenciaAprobada: aprobados.filter((registro) => !registro.ausenciaJustificada).length,
       diasAusenciaJustificada: aprobados.filter((registro) => registro.ausenciaJustificada).length,
       minutosTardanza: aprobados.reduce((total, registro) => total + registro.minutosTardanza, 0),
-      minutosSobretiempo: aprobados.reduce((total, registro) => total + registro.minutosSobretiempo, 0),
+      minutosSobretiempo,
+      importeSobretiempo,
+      politicaTiempoTrabajoId: politicaTiempo?.aplicarPagoSobretiempo ? politicaTiempo.id : null,
     });
   }
 
@@ -192,17 +219,17 @@ export async function calcularPlanillaMensual(
 
 export async function generarPlanillaMensual(
   tx: Tx,
-  params: { anio: number; mes: number; usuarioId: string; usuarioNombre: string }
+  params: { anio: number; mes: number; usuarioId: string; usuarioNombre: string; empresaId?: string }
 ): Promise<{ ok: true; periodoId: string; advertencias?: string[] } | { ok: false; error: string }> {
   const existente = await tx.planillaPeriodo.findUnique({
-    where: { empresaId_anio_mes_tipo: { empresaId: "1", anio: params.anio, mes: params.mes, tipo: "MENSUAL" } },
+    where: { empresaId_anio_mes_tipo: { empresaId: params.empresaId ?? "1", anio: params.anio, mes: params.mes, tipo: "MENSUAL" } },
   });
   if (existente) {
     return { ok: false, error: `Ya existe una planilla mensual para ${params.mes}/${params.anio}.` };
   }
 
   const fecha = new Date(params.anio, params.mes - 1, 1);
-  const resultado = await calcularPlanillaMensual(tx, fecha);
+  const resultado = await calcularPlanillaMensual(tx, fecha, params.empresaId);
   if (!resultado.ok) return resultado;
   if (resultado.lineas.length === 0) {
     return { ok: false, error: "No hay empleados elegibles para esta corrida (revise sistema de pensión configurado)." };
@@ -213,6 +240,7 @@ export async function generarPlanillaMensual(
       anio: params.anio,
       mes: params.mes,
       tipo: "MENSUAL",
+      empresaId: params.empresaId ?? "1",
       usuarioId: params.usuarioId,
       usuarioNombre: params.usuarioNombre,
     },
@@ -251,6 +279,8 @@ export async function generarPlanillaMensual(
       diasAusenciaJustificada: l.diasAusenciaJustificada,
       minutosTardanza: l.minutosTardanza,
       minutosSobretiempo: l.minutosSobretiempo,
+      importeSobretiempo: l.importeSobretiempo,
+      politicaTiempoTrabajoId: l.politicaTiempoTrabajoId,
       neto: l.neto,
       asientoNumero: asiento.ok ? asiento.numero : null,
     })),
