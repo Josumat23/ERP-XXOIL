@@ -12,6 +12,9 @@ import PanelContactos from "@/components/PanelContactos";
 import VacacionesFormulario from "./VacacionesFormulario";
 import BajaEmpleadoFormulario from "./BajaEmpleadoFormulario";
 import AprobarVacacionesFormulario from "../../vacaciones/AprobarVacacionesFormulario";
+import CambioSalarialFormulario from "./CambioSalarialFormulario";
+import { aprobarCambioSalarial } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_CONTRATO: Record<string, string> = {
   PLAZO_FIJO: "Plazo fijo",
@@ -48,18 +51,20 @@ export default async function DetalleEmpleadoPage({
   if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [empleado, empleados] = await Promise.all([
-    prisma.empleado.findUnique({
-      where: { id },
+    prisma.empleado.findFirst({
+      where: { id, empresaId },
       include: {
         almacen: true,
         centroCosto: true,
         vacaciones: { orderBy: { fechaInicio: "desc" } },
         liquidacion: true,
+        cambiosSalariales: { orderBy: { vigenteDesde: "desc" } },
       },
     }),
-    prisma.empleado.findMany({ orderBy: { creadoEn: "desc" } }),
+    prisma.empleado.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
   ]);
   if (!empleado) notFound();
 
@@ -171,6 +176,13 @@ export default async function DetalleEmpleadoPage({
             )}
           </section>
         )}
+
+        <section className="mt-8 rounded-lg border border-black/10 p-4 dark:border-white/10">
+          <h2 className="mb-1 font-medium">Historial salarial</h2>
+          <p className="mb-3 text-xs text-neutral-500">Los cambios requieren aprobación de una persona distinta al solicitante y conservan el valor anterior.</p>
+          {empleado.estado === "ACTIVO" && <CambioSalarialFormulario empleadoId={empleado.id} />}
+          <table className="tabla mt-4"><thead><tr><th>Vigencia</th><th className="text-right">Anterior</th><th className="text-right">Nuevo</th><th>Motivo</th><th>Estado</th><th></th></tr></thead><tbody>{empleado.cambiosSalariales.map((cambio) => <tr key={cambio.id}><td>{formatFecha(cambio.vigenteDesde)}</td><td className="text-right">{formatMoneda(cambio.sueldoAnterior)}</td><td className="text-right">{formatMoneda(cambio.sueldoNuevo)}</td><td>{cambio.motivo}</td><td>{cambio.estado === "APROBADO" ? "Aprobado" : cambio.estado === "RECHAZADO" ? "Rechazado" : "Pendiente"}</td><td>{cambio.estado === "PENDIENTE" && cambio.usuarioId !== usuario.id && <form action={aprobarCambioSalarial.bind(null, cambio.id)}><button className="boton-secundario">Aprobar</button></form>}</td></tr>)}{empleado.cambiosSalariales.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-neutral-500">Sin cambios registrados.</td></tr>}</tbody></table>
+        </section>
 
         <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4">
           <div className="flex items-center justify-between mb-1">

@@ -3481,11 +3481,40 @@ model Empleado {
   actividadesResponsable ActividadProyecto[]
   turnoTrabajo           TurnoTrabajo?              @relation(fields: [turnoTrabajoId], references: [id])
   asistencias            RegistroAsistencia[]
+  cambiosSalariales      CambioSalarial[]
   turnoTrabajoId         String?
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, dni])
   @@map("empleados")
+}
+
+enum EstadoCambioSalarial {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
+model CambioSalarial {
+  id                String               @id @default(cuid())
+  empleadoId        String
+  sueldoAnterior    Decimal
+  sueldoNuevo       Decimal
+  vigenteDesde      DateTime
+  motivo            String
+  estado            EstadoCambioSalarial @default(PENDIENTE)
+  usuarioId         String
+  usuarioNombre     String
+  resueltoEn        DateTime?
+  resueltoPorId     String?
+  resueltoPorNombre String?
+  motivoRechazo     String?
+  creadoEn          DateTime             @default(now())
+
+  empleado Empleado @relation(fields: [empleadoId], references: [id])
+
+  @@index([empleadoId, vigenteDesde])
+  @@map("cambios_salariales")
 }
 
 model TurnoTrabajo {
