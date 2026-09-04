@@ -10,6 +10,8 @@ import { siguienteCodigoEmpleado } from "@/lib/correlativos";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { saldoVacaciones } from "@/lib/vacaciones";
 import { generarLiquidacion } from "@/lib/planilla";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { esCambioSalarialValido } from "@/lib/cambiosSalariales";
 
 export type EstadoFormulario = { error?: string };
 
@@ -332,4 +334,40 @@ export async function rechazarVacaciones(
   revalidatePath(`/rrhh/empleados/${solicitud.empleadoId}`);
   revalidatePath("/rrhh/vacaciones");
   return {};
+}
+
+export async function solicitarCambioSalarial(empleadoId: string, _estado: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
+  const auth = await requerirRol([...ROLES_RRHH]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "editar"))) return { error: "No tiene permiso para solicitar cambios salariales." };
+  const sueldoNuevo = Number(formData.get("sueldoNuevo"));
+  const vigenteDesde = crearFechaCalendarioLocal(String(formData.get("vigenteDesde") ?? ""));
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  const empresaId = await obtenerEmpresaActivaId();
+  if (!Number.isFinite(sueldoNuevo) || sueldoNuevo <= 0) return { error: "El nuevo sueldo debe ser positivo." };
+  if (!vigenteDesde || vigenteDesde > new Date()) return { error: "La fecha de vigencia debe ser válida y no futura." };
+  if (!motivo) return { error: "El motivo es obligatorio." };
+  const empleado = await prisma.empleado.findFirst({ where: { id: empleadoId, empresaId, estado: "ACTIVO" }, select: { sueldoBasico: true, cambiosSalariales: { where: { estado: "PENDIENTE" }, select: { id: true }, take: 1 } } });
+  if (!empleado) return { error: "El empleado activo no existe." };
+  if (empleado.cambiosSalariales.length > 0) return { error: "Ya existe un cambio salarial pendiente." };
+  if (!esCambioSalarialValido(empleado.sueldoBasico.toNumber(), sueldoNuevo)) return { error: "El nuevo sueldo debe ser distinto al vigente." };
+  await prisma.cambioSalarial.create({ data: { empleadoId, sueldoAnterior: empleado.sueldoBasico, sueldoNuevo, vigenteDesde, motivo, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre } });
+  revalidatePath(`/rrhh/empleados/${empleadoId}`);
+  return {};
+}
+
+export async function aprobarCambioSalarial(id: string): Promise<void> {
+  const auth = await requerirRol([...ROLES_RRHH]);
+  if ("error" in auth || !(await puedeRealizar(auth.usuario, "rrhh", "aprobar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
+  await prisma.$transaction(async (tx) => {
+    const cambio = await tx.cambioSalarial.findUnique({ where: { id }, include: { empleado: true } });
+    if (!cambio || cambio.empleado.empresaId !== empresaId || cambio.estado !== "PENDIENTE" || cambio.usuarioId === auth.usuario.id) return;
+    if (!cambio.empleado.sueldoBasico.equals(cambio.sueldoAnterior)) throw new Error("El sueldo vigente cambió; genere una nueva solicitud.");
+    const reclamo = await tx.cambioSalarial.updateMany({ where: { id, estado: "PENDIENTE" }, data: { estado: "APROBADO", resueltoEn: new Date(), resueltoPorId: auth.usuario.id, resueltoPorNombre: auth.usuario.nombre } });
+    if (reclamo.count !== 1) return;
+    await tx.empleado.update({ where: { id: cambio.empleadoId }, data: { sueldoBasico: cambio.sueldoNuevo } });
+  });
+  revalidatePath("/rrhh/empleados");
+  revalidatePath("/rrhh/planilla");
 }

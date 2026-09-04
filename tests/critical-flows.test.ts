@@ -52,6 +52,7 @@ import { normalizarCaracteristicasPlan, normalizarLecturasCalidad, valorCumpleEs
 import { transicionCapaPermitida } from "@/lib/noConformidades";
 import { calcularJornada, minutosHora } from "@/lib/asistencia";
 import { calcularPagoSobretiempoDiario } from "@/lib/politicaTiempo";
+import { esCambioSalarialValido } from "@/lib/cambiosSalariales";
 import { EstadoNoConformidad } from "@/generated/prisma/client";
 import { normalizarVisitasRuta } from "@/lib/visitasRuta";
 import { normalizarLineasConteo } from "@/lib/lineasConteo";
@@ -2317,4 +2318,10 @@ test("asistencia valida horas y calcula turnos diurnos y nocturnos", () => {
 test("sobretiempo peruano aplica por día los tramos 25% y 35%", () => {
   assert.deepEqual(calcularPagoSobretiempoDiario(2400, 180, { horasJornadaDiaria: 8, primerasHorasRecargo: 2, recargoPrimerTramo: 25, recargoSegundoTramo: 35 }), { minutos: 180, minutosPrimerTramo: 120, minutosSegundoTramo: 60, importePrimerTramo: 25, importeSegundoTramo: 13.5, total: 38.5 });
   assert.equal(calcularPagoSobretiempoDiario(0, 60, { horasJornadaDiaria: 8, primerasHorasRecargo: 2, recargoPrimerTramo: 25, recargoSegundoTramo: 35 }), null);
+});
+
+test("cambios salariales rechazan importes inválidos o sin variación", () => {
+  assert.equal(esCambioSalarialValido(2000, 2300), true);
+  assert.equal(esCambioSalarialValido(2000, 2000), false);
+  assert.equal(esCambioSalarialValido(2000, Number.NaN), false);
 });
