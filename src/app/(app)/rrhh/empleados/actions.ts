@@ -371,3 +371,19 @@ export async function aprobarCambioSalarial(id: string): Promise<void> {
   revalidatePath("/rrhh/empleados");
   revalidatePath("/rrhh/planilla");
 }
+
+export async function rechazarCambioSalarial(id: string, _estado: EstadoFormulario, formData: FormData): Promise<EstadoFormulario> {
+  const auth = await requerirRol([...ROLES_RRHH]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "aprobar"))) return { error: "No tiene permiso para resolver cambios salariales." };
+  const motivoRechazo = String(formData.get("motivo") ?? "").trim();
+  if (!motivoRechazo) return { error: "El motivo del rechazo es obligatorio." };
+  const empresaId = await obtenerEmpresaActivaId();
+  const cambio = await prisma.cambioSalarial.findUnique({ where: { id }, include: { empleado: { select: { empresaId: true } } } });
+  if (!cambio || cambio.empleado.empresaId !== empresaId) return { error: "La solicitud no existe en la compañía activa." };
+  if (cambio.usuarioId === auth.usuario.id) return { error: "El solicitante no puede resolver su propio cambio salarial." };
+  const reclamo = await prisma.cambioSalarial.updateMany({ where: { id, estado: "PENDIENTE" }, data: { estado: "RECHAZADO", motivoRechazo, resueltoEn: new Date(), resueltoPorId: auth.usuario.id, resueltoPorNombre: auth.usuario.nombre } });
+  if (reclamo.count !== 1) return { error: "La solicitud ya fue resuelta." };
+  revalidatePath(`/rrhh/empleados/${cambio.empleadoId}`);
+  return {};
+}
