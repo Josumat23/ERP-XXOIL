@@ -3651,6 +3651,10 @@ model PlanillaDetalle {
   detallePension             String? // texto legible del desglose, para la boleta
   essaludPatronal            Decimal  @default(0) // gasto del empleador, no se descuenta al trabajador
   retencion5ta               Decimal  @default(0) // método simplificado — ver docs/gobernanza/04-hcm-*.md
+  diasAsistenciaAprobada     Int      @default(0)
+  diasAusenciaJustificada    Int      @default(0)
+  minutosTardanza            Int      @default(0)
+  minutosSobretiempo         Int      @default(0)
   // Solo gratificación/CTS: meses computados en el período y bono Ley 30334
   // (gratificación). Gratificación y CTS están inafectas a ONP/AFP/EsSalud/5ta
   // categoría (hasta 2 UIT en el caso de renta) — no usan descuentoPension ni
