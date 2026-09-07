@@ -6,14 +6,16 @@ import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import CentroCostoFormulario from "../CentroCostoFormulario";
 import { crearCentroCosto } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevoCentroCostoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [almacenes, centros] = await Promise.all([
-    prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.centroCosto.findMany({ orderBy: { codigo: "asc" } }),
+    prisma.almacen.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.centroCosto.findMany({ where: { empresaId }, orderBy: { codigo: "asc" } }),
   ]);
 
   return (
@@ -40,7 +42,7 @@ export default async function NuevoCentroCostoPage() {
         }))}
       >
       <div className="max-w-lg">
-        <CentroCostoFormulario accion={crearCentroCosto} almacenes={almacenes} />
+        <CentroCostoFormulario accion={crearCentroCosto} almacenes={almacenes} centros={centros} />
       </div>
       </PanelMaestroDetalle>
     </div>

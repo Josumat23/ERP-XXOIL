@@ -8,6 +8,8 @@ import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { alternarActivoCentroCosto } from "./actions";
+import { sumarSubarbolCentroCosto } from "@/lib/jerarquiaCentrosCosto";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_TIPO: Record<string, string> = {
   PRODUCCION: "Producción",
@@ -29,6 +31,7 @@ export default async function CentrosCostoPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const hoy = new Date();
   const { anio: anioParam, mes: mesParam } = await searchParams;
@@ -39,15 +42,16 @@ export default async function CentrosCostoPage({
   const mes = periodoValido ? mesIngresado : hoy.getMonth() + 1;
 
   const centros = await prisma.centroCosto.findMany({
-    include: { almacen: true },
+    where: { empresaId },
+    include: { almacen: true, parent: true },
     orderBy: { codigo: "asc" },
   });
 
   const [presupuestos, agregadosReal] = await Promise.all([
-    prisma.presupuestoCentroCosto.findMany({ where: { anio, mes } }),
+    prisma.presupuestoCentroCosto.findMany({ where: { anio, mes, centroCosto: { empresaId } } }),
     prisma.asientoDetalle.groupBy({
       by: ["centroCostoId"],
-      where: { centroCostoId: { not: null }, asiento: { anio, mes } },
+      where: { centroCostoId: { not: null }, centroCosto: { empresaId }, asiento: { anio, mes, empresaId } },
       _sum: { debe: true, haber: true },
     }),
   ]);
@@ -60,8 +64,10 @@ export default async function CentrosCostoPage({
     ])
   );
 
-  const totalPresupuestado = centros.reduce((acc, c) => acc + (presupuestoPorCentro.get(c.id) ?? 0), 0);
-  const totalReal = centros.reduce((acc, c) => acc + (realPorCentro.get(c.id) ?? 0), 0);
+  const nodos = centros.map((centro) => ({ id: centro.id, parentId: centro.parentId }));
+  const raices = centros.filter((centro) => !centro.parentId);
+  const totalPresupuestado = raices.reduce((acc, centro) => acc + sumarSubarbolCentroCosto(centro.id, nodos, presupuestoPorCentro), 0);
+  const totalReal = raices.reduce((acc, centro) => acc + sumarSubarbolCentroCosto(centro.id, nodos, realPorCentro), 0);
 
   return (
     <div>
@@ -135,6 +141,7 @@ export default async function CentrosCostoPage({
             <th>Nombre</th>
             <th>Tipo</th>
             <th>Almacén / planta</th>
+            <th>Centro superior</th>
             <th className="text-right">Presupuestado</th>
             <th className="text-right">Real</th>
             <th className="text-right">Variación</th>
@@ -144,8 +151,8 @@ export default async function CentrosCostoPage({
         </thead>
         <tbody>
           {centros.map((c) => {
-            const presupuestado = presupuestoPorCentro.get(c.id) ?? 0;
-            const real = realPorCentro.get(c.id) ?? 0;
+            const presupuestado = sumarSubarbolCentroCosto(c.id, nodos, presupuestoPorCentro);
+            const real = sumarSubarbolCentroCosto(c.id, nodos, realPorCentro);
             const variacion = real - presupuestado;
             return (
               <tr key={c.id}>
@@ -157,6 +164,7 @@ export default async function CentrosCostoPage({
                 <td>{c.nombre}</td>
                 <td>{ETIQUETA_TIPO[c.tipo]}</td>
                 <td>{c.almacen?.nombre ?? "—"}</td>
+                <td>{c.parent ? `${c.parent.codigo} — ${c.parent.nombre}` : "Raíz"}</td>
                 <td className="text-right">{formatMoneda(presupuestado)}</td>
                 <td className="text-right">{formatMoneda(real)}</td>
                 <td
@@ -202,7 +210,7 @@ export default async function CentrosCostoPage({
           })}
           {centros.length === 0 && (
             <tr>
-              <td colSpan={9} className="text-center text-neutral-500 py-6">
+              <td colSpan={10} className="text-center text-neutral-500 py-6">
                 No hay centros de costo registrados todavía.
               </td>
             </tr>

@@ -13,6 +13,8 @@ import {
   normalizarDestinoControlCosto,
   normalizarLineasReglaAsignacion,
 } from "@/lib/reglasAsignacionCosto";
+import { creariaCicloCentroCosto } from "@/lib/jerarquiaCentrosCosto";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -30,17 +32,35 @@ export async function crearCentroCosto(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return auth;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const codigo = String(formData.get("codigo") ?? "").trim().toUpperCase();
   const nombre = String(formData.get("nombre") ?? "").trim();
   const tipo = String(formData.get("tipo") ?? "") as $Enums.TipoCentroCosto;
   const almacenId = String(formData.get("almacenId") ?? "") || null;
+  const parentId = String(formData.get("parentId") ?? "") || null;
 
   if (!codigo || !nombre) return { error: "Código y nombre son obligatorios." };
   if (!TIPOS_VALIDOS.includes(tipo)) return { error: "Seleccione un tipo válido." };
 
+  if (almacenId) {
+    const almacen = await prisma.almacen.findFirst({
+      where: { id: almacenId, empresaId },
+      select: { id: true },
+    });
+    if (!almacen) return { error: "El almacén no existe en la compañía activa." };
+  }
+
+  if (parentId) {
+    const parent = await prisma.centroCosto.findFirst({
+      where: { id: parentId, empresaId },
+      select: { id: true },
+    });
+    if (!parent) return { error: "El centro superior no existe en la compañía activa." };
+  }
+
   try {
-    await prisma.centroCosto.create({ data: { codigo, nombre, tipo, almacenId } });
+    await prisma.centroCosto.create({ data: { empresaId, codigo, nombre, tipo, almacenId, parentId } });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: `Ya existe un centro de costo con el código "${codigo}".` };
@@ -50,6 +70,39 @@ export async function crearCentroCosto(
 
   revalidatePath("/finanzas/centros-costo");
   redirect("/finanzas/centros-costo");
+}
+
+export async function guardarPadreCentroCosto(
+  centroId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData,
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol([]);
+  if ("error" in auth) return auth;
+  const empresaId = await obtenerEmpresaActivaId();
+  const parentId = String(formData.get("parentId") ?? "") || null;
+
+  const error = await prisma.$transaction(async (tx) => {
+    const centros = await tx.centroCosto.findMany({
+      where: { empresaId },
+      select: { id: true, parentId: true },
+    });
+    if (!centros.some((centro) => centro.id === centroId)) {
+      return "El centro de costo no existe en la compañía activa.";
+    }
+    if (parentId && !centros.some((centro) => centro.id === parentId)) {
+      return "El centro superior no existe en la compañía activa.";
+    }
+    if (creariaCicloCentroCosto(centroId, parentId, centros)) {
+      return "La jerarquía no puede contener ciclos ni autorreferencias.";
+    }
+    await tx.centroCosto.update({ where: { id: centroId }, data: { parentId } });
+    return null;
+  });
+  if (error) return { error };
+  revalidatePath(`/finanzas/centros-costo/${centroId}`);
+  revalidatePath("/finanzas/centros-costo");
+  return {};
 }
 
 export async function alternarActivoCentroCosto(id: string, activo: boolean) {
