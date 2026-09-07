@@ -22,7 +22,10 @@ const databaseUrl = "file:" + baseDatos.replaceAll("\\", "/");
 const entorno = { ...process.env, DATABASE_URL: databaseUrl, NODE_ENV: "test" };
 
 const tsxCli = resolve(workspace, "node_modules/tsx/dist/cli.mjs");
-const archivoPruebas = resolve(workspace, "tests/critical-flows.test.ts");
+const archivosPruebas = readdirSync(resolve(workspace, "tests"))
+  .filter((nombre) => nombre.endsWith(".test.ts"))
+  .sort()
+  .map((nombre) => resolve(workspace, "tests", nombre));
 function aplicarMigraciones() {
   const directorio = resolve(workspace, "prisma/migrations");
   const db = new Database(baseDatos);
@@ -62,7 +65,7 @@ try {
     "tsx",
     "--test",
     "--test-concurrency=1",
-    archivoPruebas,
+    ...archivosPruebas,
   ]);
 } finally {
   const resuelto = resolve(temporal);

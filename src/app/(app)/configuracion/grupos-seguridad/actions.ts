@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { MODULOS } from "./modulos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { evaluarConflictosSoD } from "@/lib/segregacionFunciones";
 
 export type EstadoFormulario = { error?: string };
 
@@ -44,21 +45,46 @@ export async function actualizarPermiso(
   permisoId: string,
   campo: "puedeVer" | "puedeCrear" | "puedeEditar" | "puedeAprobar",
   valor: boolean
-) {
+): Promise<
+  | { ok: true }
+  | { ok: false; codigo: string; mensaje: string }
+> {
   const auth = await requerirRol([]);
-  if ("error" in auth) return;
+  if ("error" in auth) {
+    return { ok: false, codigo: "AUTH-RECHAZADA", mensaje: auth.error };
+  }
 
-  const permiso = await prisma.permisoGrupo.findUnique({
-    where: { id: permisoId },
-    include: { grupo: true },
-  });
-  if (!permiso || permiso.grupo.esPredefinido) return; // los predefinidos son de solo lectura
+  const camposPermitidos = new Set(["puedeVer", "puedeCrear", "puedeEditar", "puedeAprobar"]);
+  if (!camposPermitidos.has(campo) || typeof valor !== "boolean") {
+    return { ok: false, codigo: "PERMISO-ENTRADA-INVALIDA", mensaje: "El cambio solicitado no es válido." };
+  }
 
-  await prisma.$transaction(async (tx) => {
+  const resultado = await prisma.$transaction(async (tx) => {
+    const permiso = await tx.permisoGrupo.findUnique({
+      where: { id: permisoId },
+      include: { grupo: { include: { permisos: true } } },
+    });
+    if (!permiso) {
+      return { ok: false as const, codigo: "PERMISO-NO-EXISTE", mensaje: "El permiso ya no existe. Recargue la pantalla." };
+    }
+    if (permiso.grupo.esPredefinido) {
+      return { ok: false as const, codigo: "GRUPO-PREDEFINIDO", mensaje: "Los grupos predefinidos son de solo lectura." };
+    }
+
+    const permisosPropuestos = permiso.grupo.permisos.map((actual) =>
+      actual.id === permisoId ? { ...actual, [campo]: valor } : actual
+    );
+    const [conflicto] = evaluarConflictosSoD(permisosPropuestos);
+    if (conflicto) {
+      return { ok: false as const, codigo: conflicto.codigo, mensaje: conflicto.descripcion };
+    }
+
     const despues = await tx.permisoGrupo.update({ where: { id: permisoId }, data: { [campo]: valor } });
     await registrarAuditoriaMaestro(tx, { entidad: "GrupoSeguridad", registroId: permiso.grupoId, accion: "ACTUALIZAR", antes: permiso, despues, usuario: auth.usuario });
+    return { ok: true as const };
   });
   revalidatePath("/configuracion/grupos-seguridad");
+  return resultado;
 }
 
 export async function alternarActivoGrupo(id: string, activo: boolean) {
