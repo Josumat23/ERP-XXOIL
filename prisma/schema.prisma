@@ -3483,9 +3483,14 @@ model Empleado {
   asistencias            RegistroAsistencia[]
   cambiosSalariales      CambioSalarial[]
   turnoTrabajoId         String?
+  jefeDirectoId          String?
+
+  jefeDirecto   Empleado?  @relation("JerarquiaEmpleado", fields: [jefeDirectoId], references: [id], onDelete: SetNull)
+  colaboradores Empleado[] @relation("JerarquiaEmpleado")
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, dni])
+  @@index([jefeDirectoId])
   @@map("empleados")
 }
 

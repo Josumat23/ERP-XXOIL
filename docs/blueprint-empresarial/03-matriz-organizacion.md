@@ -96,7 +96,7 @@
 | Área de personal (equivalente a planta para RR.HH.) | `Empleado.almacenId String?` (`prisma/schema.prisma:2568`, opcional) — asocia al empleado a un almacén/planta física, sin modelo propio de "área de personal". | **Parcial**, vía reutilización del modelo `Almacen`. |
 | Centro de costo del empleado | `Empleado.centroCostoId String?` (2569) — el costo de planilla puede pesar en el centro de costo correcto. | **Verificado completo.** |
 | Grupo de empleados / tipo de contrato | `enum TipoContrato` (PLAZO_FIJO / PLAZO_INDETERMINADO / LOCACION_SERVICIOS, líneas 2516-2520). | **Verificado completo**, mapeo simple sin sub-grupos (ej. sin distinción obrero/empleado tipo antiguo régimen laboral peruano, aunque eso ya no es relevante en la práctica moderna). |
-| Estructura organizativa jerárquica de reporte (organigrama) | No existe — `Empleado.cargo` y `Empleado.area` son campos de texto libre, sin relación jerárquica jefe→reporte ni catálogo estructurado de puestos/áreas. | **Ausente.** |
+| Estructura organizativa jerárquica de reporte (organigrama) | Construida parcialmente: relación jefe→reporte por compañía, prevención de ciclos y organigrama navegable; `cargo` y `area` continúan como texto libre. | **Parcial — falta catálogo/versionado de posiciones y unidades.** |
 | Multi-sociedad en RR.HH. (empleados de distintas entidades legales) | `Empleado.empresaId` sigue el mismo patrón de tag no-FK de la sección 1 — no filtra de verdad (no está en la lista de los 2 módulos que sí filtran). | **Parcial / heredado del gap de sociedad.** |
 
 ---

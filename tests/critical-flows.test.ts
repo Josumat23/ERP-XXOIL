@@ -78,6 +78,7 @@ import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolv
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
+import { creariaCicloJerarquico } from "@/lib/jerarquiaEmpleados";
 import { calcularRetencion5taMensual, esPorcentajePlanillaValido, generarPlanillaMensual } from "@/lib/planilla";
 import { asignarLoteVenta, liberarAsignacionesLote } from "@/lib/trazabilidad";
 import {
@@ -539,6 +540,18 @@ test("tasas de planilla aceptan únicamente porcentajes finitos entre 0 y 100", 
   assert.equal(esPorcentajePlanillaValido(100.01), false);
   assert.equal(esPorcentajePlanillaValido(Number.NaN), false);
   assert.equal(esPorcentajePlanillaValido(Number.POSITIVE_INFINITY), false);
+});
+
+test("jerarquía de empleados impide autorreporte y ciclos indirectos", () => {
+  const relaciones = [
+    { id: "gerencia", jefeDirectoId: null },
+    { id: "jefatura", jefeDirectoId: "gerencia" },
+    { id: "operario", jefeDirectoId: "jefatura" },
+  ];
+  assert.equal(creariaCicloJerarquico("gerencia", "gerencia", relaciones), true);
+  assert.equal(creariaCicloJerarquico("gerencia", "operario", relaciones), true);
+  assert.equal(creariaCicloJerarquico("operario", "gerencia", relaciones), false);
+  assert.equal(creariaCicloJerarquico("operario", null, relaciones), false);
 });
 
 test("un registro maestro solo pertenece a su compañía activa", () => {

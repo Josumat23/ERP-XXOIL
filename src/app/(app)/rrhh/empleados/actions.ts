@@ -12,6 +12,7 @@ import { saldoVacaciones } from "@/lib/vacaciones";
 import { generarLiquidacion } from "@/lib/planilla";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { esCambioSalarialValido } from "@/lib/cambiosSalariales";
+import { creariaCicloJerarquico } from "@/lib/jerarquiaEmpleados";
 
 export type EstadoFormulario = { error?: string };
 
@@ -398,5 +399,51 @@ export async function rechazarCambioSalarial(id: string, _estado: EstadoFormular
   const reclamo = await prisma.cambioSalarial.updateMany({ where: { id, estado: "PENDIENTE" }, data: { estado: "RECHAZADO", motivoRechazo, resueltoEn: new Date(), resueltoPorId: auth.usuario.id, resueltoPorNombre: auth.usuario.nombre } });
   if (reclamo.count !== 1) return { error: "La solicitud ya fue resuelta." };
   revalidatePath(`/rrhh/empleados/${cambio.empleadoId}`);
+  return {};
+}
+
+export async function asignarJefeDirecto(
+  empleadoId: string,
+  _estado: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol([...ROLES_RRHH]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "rrhh", "editar"))) {
+    return { error: "No tiene permiso para modificar la estructura organizativa." };
+  }
+
+  const jefeDirectoId = String(formData.get("jefeDirectoId") ?? "").trim() || null;
+  const empresaId = await obtenerEmpresaActivaId();
+
+  const resultado = await prisma.$transaction(async (tx) => {
+    const empleados = await tx.empleado.findMany({
+      where: { empresaId },
+      select: { id: true, jefeDirectoId: true, estado: true },
+    });
+    const empleado = empleados.find((fila) => fila.id === empleadoId);
+    if (!empleado) return "El empleado no existe en la compañía activa.";
+    if (empleado.estado !== "ACTIVO") return "No se puede modificar la jefatura de un empleado cesado.";
+
+    if (jefeDirectoId) {
+      const jefe = empleados.find((fila) => fila.id === jefeDirectoId);
+      if (!jefe || jefe.estado !== "ACTIVO") {
+        return "El jefe directo debe ser un empleado activo de la misma compañía.";
+      }
+    }
+    if (creariaCicloJerarquico(empleadoId, jefeDirectoId, empleados)) {
+      return "La asignación produciría un ciclo en la estructura organizativa.";
+    }
+
+    const actualizado = await tx.empleado.updateMany({
+      where: { id: empleadoId, empresaId, estado: "ACTIVO" },
+      data: { jefeDirectoId },
+    });
+    return actualizado.count === 1 ? null : "El empleado cambió mientras se procesaba la asignación.";
+  });
+
+  if (resultado) return { error: resultado };
+  revalidatePath(`/rrhh/empleados/${empleadoId}`);
+  revalidatePath("/rrhh/organigrama");
   return {};
 }

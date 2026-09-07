@@ -16,6 +16,8 @@ import CambioSalarialFormulario from "./CambioSalarialFormulario";
 import { aprobarCambioSalarial } from "../actions";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import RechazarCambioSalarialFormulario from "./RechazarCambioSalarialFormulario";
+import JefaturaFormulario from "./JefaturaFormulario";
+import { creariaCicloJerarquico } from "@/lib/jerarquiaEmpleados";
 
 const ETIQUETA_CONTRATO: Record<string, string> = {
   PLAZO_FIJO: "Plazo fijo",
@@ -63,6 +65,8 @@ export default async function DetalleEmpleadoPage({
         vacaciones: { orderBy: { fechaInicio: "desc" } },
         liquidacion: true,
         cambiosSalariales: { orderBy: { vigenteDesde: "desc" } },
+        jefeDirecto: true,
+        colaboradores: { where: { estado: "ACTIVO" }, orderBy: [{ apellidos: "asc" }, { nombres: "asc" }] },
       },
     }),
     prisma.empleado.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
@@ -177,6 +181,31 @@ export default async function DetalleEmpleadoPage({
             )}
           </section>
         )}
+
+        <section className="mt-8 rounded-lg border border-black/10 p-4 dark:border-white/10">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-medium">Estructura organizativa</h2>
+              <p className="text-xs text-neutral-500">Línea formal de reporte dentro de la compañía activa.</p>
+            </div>
+            <Link href="/rrhh/organigrama" className="text-sm hover:underline">Ver organigrama</Link>
+          </div>
+          {empleado.estado === "ACTIVO" && (
+            <JefaturaFormulario
+              empleadoId={empleado.id}
+              jefeDirectoId={empleado.jefeDirectoId}
+              opciones={empleados.filter((fila) => fila.estado === "ACTIVO" && !creariaCicloJerarquico(empleado.id, fila.id, empleados)).map((fila) => ({
+                id: fila.id,
+                etiqueta: `${fila.codigo} · ${fila.apellidos}, ${fila.nombres} — ${fila.cargo}`,
+              }))}
+            />
+          )}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div><span className="text-xs text-neutral-500">Reporta a</span><p>{empleado.jefeDirecto ? <Link href={`/rrhh/empleados/${empleado.jefeDirecto.id}`} className="hover:underline">{empleado.jefeDirecto.nombres} {empleado.jefeDirecto.apellidos}</Link> : "Nivel raíz"}</p></div>
+            <div><span className="text-xs text-neutral-500">Reportes directos</span><p>{empleado.colaboradores.length}</p></div>
+          </div>
+          {empleado.colaboradores.length > 0 && <ul className="mt-3 grid gap-2 sm:grid-cols-2">{empleado.colaboradores.map((fila) => <li key={fila.id}><Link href={`/rrhh/empleados/${fila.id}`} className="block rounded-md border border-black/10 px-3 py-2 text-sm hover:bg-black/5 dark:border-white/10 dark:hover:bg-white/5"><strong>{fila.nombres} {fila.apellidos}</strong><span className="block text-xs text-neutral-500">{fila.cargo} · {fila.area}</span></Link></li>)}</ul>}
+        </section>
 
         <section className="mt-8 rounded-lg border border-black/10 p-4 dark:border-white/10">
           <h2 className="mb-1 font-medium">Historial salarial</h2>
