@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import type { EstadoFormulario } from "./actions";
 
 type Almacen = { id: string; nombre: string };
+type Centro = { id: string; codigo: string; nombre: string };
 
 const OPCIONES_TIPO = [
   { valor: "PRODUCCION", etiqueta: "Producción" },
@@ -16,9 +17,10 @@ const OPCIONES_TIPO = [
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   almacenes: Almacen[];
+  centros: Centro[];
 };
 
-export default function CentroCostoFormulario({ accion, almacenes }: Props) {
+export default function CentroCostoFormulario({ accion, almacenes, centros }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
 
   return (
@@ -67,6 +69,16 @@ export default function CentroCostoFormulario({ accion, almacenes }: Props) {
           </select>
         </label>
       </div>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium text-neutral-700 dark:text-neutral-300">Centro superior (opcional)</span>
+        <select name="parentId" defaultValue="" className="campo-input">
+          <option value="">Nivel raíz</option>
+          {centros.map((centro) => (
+            <option key={centro.id} value={centro.id}>{centro.codigo} — {centro.nombre}</option>
+          ))}
+        </select>
+      </label>
 
       <button type="submit" disabled={enviando} className="boton-primario self-start">
         {enviando ? "Guardando..." : "Crear centro de costo"}

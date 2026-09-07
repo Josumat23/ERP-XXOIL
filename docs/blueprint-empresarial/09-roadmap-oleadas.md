@@ -70,7 +70,7 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 
 | Ítem | Dependencias | Criterio de aceptación (resumen) | Prioridad |
 |---|---|---|---|
-| Jerarquía de centro de costo (`parentId`, mismo patrón que `EdtProyecto`) | 0.2, 0.3 | Reportes de presupuesto vs. real se pueden agregar por grupo de centros (ej. "toda la Planta X") | P1 |
+| ~~Jerarquía de centro de costo (`parentId`, mismo patrón que `EdtProyecto`)~~ | 0.2, 0.3 | **Completado:** reportes presupuesto vs. real agregan cada grupo y sus descendientes, con ciclos y cruces de compañía bloqueados | **P1 completado** |
 | Verificación de crédito bloqueante en `crearPedido` | ninguna | Un pedido que superaría el límite de crédito del cliente se rechaza o requiere aprobación antes de crearse, no solo al facturar | P1 |
 | RFQ / comparación de proveedores antes de la OC | ninguna | Una OC puede referenciar una comparación de 2+ cotizaciones de proveedor | P1 |
 | Esquema de liberación de compras multi-nivel | 0.2, 0.3 (si es por organización de compras/planta) | Aprobación de OC configurable por monto Y por planta/organización, no un solo umbral global | P1 |

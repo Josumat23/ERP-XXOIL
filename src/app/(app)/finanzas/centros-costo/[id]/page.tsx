@@ -6,7 +6,9 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PresupuestoFormulario from "../PresupuestoFormulario";
-import { guardarPresupuesto } from "../actions";
+import { guardarPadreCentroCosto, guardarPresupuesto } from "../actions";
+import JerarquiaFormulario from "../JerarquiaFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_TIPO: Record<string, string> = {
   PRODUCCION: "Producción",
@@ -28,13 +30,14 @@ export default async function DetalleCentroCostoPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { id } = await params;
   const hoy = new Date();
 
   const [centro, centros] = await Promise.all([
-    prisma.centroCosto.findUnique({ where: { id }, include: { almacen: true } }),
-    prisma.centroCosto.findMany({ orderBy: { codigo: "asc" } }),
+    prisma.centroCosto.findFirst({ where: { id, empresaId }, include: { almacen: true, parent: true } }),
+    prisma.centroCosto.findMany({ where: { empresaId }, orderBy: { codigo: "asc" } }),
   ]);
   if (!centro) notFound();
 
@@ -102,6 +105,16 @@ export default async function DetalleCentroCostoPage({
           {centro.codigo} · {ETIQUETA_TIPO[centro.tipo]}
           {centro.almacen ? ` · ${centro.almacen.nombre}` : ""}
         </p>
+
+        <section className="mt-6 border border-black/10 dark:border-white/10 rounded-lg p-4">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">Jerarquía</h2>
+          <JerarquiaFormulario
+            accion={guardarPadreCentroCosto.bind(null, id)}
+            centroId={id}
+            parentId={centro.parentId}
+            centros={centros}
+          />
+        </section>
 
         <section className="mt-8 border border-black/10 dark:border-white/10 rounded-lg p-4">
           <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">

@@ -2739,10 +2739,13 @@ model CentroCosto {
   nombre    String
   tipo      TipoCentroCosto
   almacenId String? // opcional: si el centro corresponde a una planta/almacén físico
+  parentId  String?
   activo    Boolean         @default(true)
   creadoEn  DateTime        @default(now())
 
   almacen              Almacen?                      @relation(fields: [almacenId], references: [id])
+  parent               CentroCosto?                  @relation("CentroCostoJerarquia", fields: [parentId], references: [id])
+  hijos                CentroCosto[]                 @relation("CentroCostoJerarquia")
   presupuestos         PresupuestoCentroCosto[]
   asientos             AsientoDetalle[]
   controles            CentroCostoControl[]
@@ -2757,6 +2760,7 @@ model CentroCosto {
   centrosTrabajo       CentroTrabajo[]
 
   @@unique([empresaId, codigo])
+  @@index([parentId])
   @@map("centros_costo")
 }
 
