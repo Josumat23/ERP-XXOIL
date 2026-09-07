@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PlanillaFormulario from "./PlanillaFormulario";
 import GratificacionFormulario from "./GratificacionFormulario";
 import CtsFormulario from "./CtsFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_TIPO: Record<string, string> = {
   MENSUAL: "Mensual",
@@ -21,7 +22,9 @@ export default async function PlanillaPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
   if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
   const periodos = await prisma.planillaPeriodo.findMany({
+    where: { empresaId },
     include: { detalles: true },
     orderBy: [{ anio: "desc" }, { mes: "desc" }],
   });

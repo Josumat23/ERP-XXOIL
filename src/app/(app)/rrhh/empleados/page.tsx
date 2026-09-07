@@ -7,6 +7,7 @@ import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_CONTRATO: Record<string, string> = {
   PLAZO_FIJO: "Plazo fijo",
@@ -24,9 +25,11 @@ export default async function EmpleadosPage({
   if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
 
   const { q, estado } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const empleados = await prisma.empleado.findMany({
     where: {
+      empresaId,
       ...(estado === "activo" ? { estado: "ACTIVO" } : estado === "cesado" ? { estado: "CESADO" } : {}),
       ...(q
         ? {

@@ -30,6 +30,7 @@ export async function crearParametroPlanilla(
   const tasaOnp = Number(formData.get("tasaOnp") ?? 13);
   const vigenteDesdeRaw = String(formData.get("vigenteDesde") ?? "");
   const vigenteDesde = crearFechaCalendarioLocal(vigenteDesdeRaw);
+  const empresaId = await obtenerEmpresaActivaId();
 
   if (!Number.isFinite(rmv) || rmv <= 0) return { error: "La RMV debe ser un número válido." };
   if (!Number.isFinite(uit) || uit <= 0) return { error: "La UIT debe ser un número válido." };
@@ -45,6 +46,7 @@ export async function crearParametroPlanilla(
 
   await prisma.parametroPlanilla.create({
     data: {
+      empresaId,
       rmv,
       uit,
       tasaEsSalud,

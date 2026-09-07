@@ -6,6 +6,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const NOMBRE_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -30,12 +31,13 @@ export default async function BoletaPagoPage({
   if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
 
   const { id, detalleId } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const detalle = await prisma.planillaDetalle.findUnique({
     where: { id: detalleId },
     include: { empleado: true, planillaPeriodo: true },
   });
-  if (!detalle || detalle.planillaPeriodoId !== id) notFound();
+  if (!detalle || detalle.planillaPeriodoId !== id || detalle.planillaPeriodo.empresaId !== empresaId) notFound();
 
   const p = detalle.planillaPeriodo;
   const esMensual = p.tipo === "MENSUAL";

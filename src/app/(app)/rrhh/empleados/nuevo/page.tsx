@@ -5,16 +5,18 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import EmpleadoFormulario from "../EmpleadoFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevoEmpleadoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
   if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
 
+  const empresaId = await obtenerEmpresaActivaId();
   const [almacenes, centrosCosto, empleados] = await Promise.all([
-    prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
-    prisma.empleado.findMany({ orderBy: { creadoEn: "desc" } }),
+    prisma.almacen.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.centroCosto.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.empleado.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
   ]);
 
   return (

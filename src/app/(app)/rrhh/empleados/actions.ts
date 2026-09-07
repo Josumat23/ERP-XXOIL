@@ -66,6 +66,7 @@ export async function crearEmpleado(
       ? (afpRaw as $Enums.Afp)
       : null;
   const asignacionFamiliar = formData.get("asignacionFamiliar") === "on";
+  const empresaId = await obtenerEmpresaActivaId();
 
   if (!nombres || !apellidos) return { error: "Nombres y apellidos son obligatorios." };
   if (!tipoDocumentoIdentidad) {
@@ -95,9 +96,16 @@ export async function crearEmpleado(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const codigo = await siguienteCodigoEmpleado(tx);
+      if (almacenId && !(await tx.almacen.findFirst({ where: { id: almacenId, empresaId }, select: { id: true } }))) {
+        throw new Error("El almacén no pertenece a la compañía activa.");
+      }
+      if (centroCostoId && !(await tx.centroCosto.findFirst({ where: { id: centroCostoId, empresaId }, select: { id: true } }))) {
+        throw new Error("El centro de costo no pertenece a la compañía activa.");
+      }
+      const codigo = await siguienteCodigoEmpleado(tx, empresaId);
       await tx.empleado.create({
         data: {
+          empresaId,
           codigo,
           nombres,
           apellidos,
@@ -130,6 +138,7 @@ export async function crearEmpleado(
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: "Ya existe un empleado con ese DNI o código." };
     }
+    if (e instanceof Error) return { error: e.message };
     throw e;
   }
 
@@ -152,11 +161,12 @@ export async function darDeBajaEmpleado(
   if (!motivoCese) return { error: "El motivo del cese es obligatorio." };
 
   const fechaCese = new Date();
+  const empresaId = await obtenerEmpresaActivaId();
   let advertenciaLiquidacion: string | null = null;
   try {
     await prisma.$transaction(async (tx) => {
       const reclamo = await tx.empleado.updateMany({
-        where: { id, estado: "ACTIVO" },
+        where: { id, empresaId, estado: "ACTIVO" },
         data: { estado: "CESADO", fechaCese, motivoCese },
       });
       if (reclamo.count !== 1) {
@@ -218,9 +228,10 @@ export async function solicitarVacaciones(
     return { error: "La fecha de fin no puede ser anterior a la de inicio." };
   }
   const diasSolicitados = Math.round((fechaFin.getTime() - fechaInicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const empresaId = await obtenerEmpresaActivaId();
 
-  const empleado = await prisma.empleado.findUnique({
-    where: { id: empleadoId },
+  const empleado = await prisma.empleado.findFirst({
+    where: { id: empleadoId, empresaId },
     include: { vacaciones: { where: { estado: "APROBADA" } } },
   });
   if (!empleado) return { error: "El empleado no existe." };
@@ -263,7 +274,8 @@ export async function aprobarVacaciones(
     return { error: "Su grupo de seguridad no permite resolver solicitudes de vacaciones." };
   }
 
-  const pendiente = await prisma.solicitudVacaciones.findUnique({ where: { id }, select: { empleadoId: true } });
+  const empresaId = await obtenerEmpresaActivaId();
+  const pendiente = await prisma.solicitudVacaciones.findFirst({ where: { id, empleado: { empresaId } }, select: { empleadoId: true } });
   if (!pendiente) return { error: "La solicitud no existe." };
 
   try {
@@ -316,7 +328,8 @@ export async function rechazarVacaciones(
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
 
-  const solicitud = await prisma.solicitudVacaciones.findUnique({ where: { id } });
+  const empresaId = await obtenerEmpresaActivaId();
+  const solicitud = await prisma.solicitudVacaciones.findFirst({ where: { id, empleado: { empresaId } } });
   if (!solicitud) return { error: "La solicitud no existe." };
   if (solicitud.estado !== "PENDIENTE") return { error: "Esta solicitud ya fue resuelta." };
 
