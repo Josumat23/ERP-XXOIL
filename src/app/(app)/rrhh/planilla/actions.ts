@@ -65,8 +65,9 @@ export async function crearGratificacion(
 
   let periodoId: string;
   try {
+    const empresaId = await obtenerEmpresaActivaId();
     const resultado = await prisma.$transaction((tx) =>
-      generarGratificacion(tx, { anio, mitad, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre })
+      generarGratificacion(tx, { anio, mitad, empresaId, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre })
     );
     if (!resultado.ok) return { error: resultado.error };
     periodoId = resultado.periodoId;
@@ -99,8 +100,9 @@ export async function crearCts(
 
   let periodoId: string;
   try {
+    const empresaId = await obtenerEmpresaActivaId();
     const resultado = await prisma.$transaction((tx) =>
-      generarCts(tx, { anio, mitad, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre })
+      generarCts(tx, { anio, mitad, empresaId, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre })
     );
     if (!resultado.ok) return { error: resultado.error };
     periodoId = resultado.periodoId;

@@ -5,6 +5,7 @@ import { formatMoneda } from "@/lib/format";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const NOMBRE_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -29,9 +30,10 @@ export default async function DetallePlanillaPage({
   if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
-  const periodo = await prisma.planillaPeriodo.findUnique({
-    where: { id },
+  const periodo = await prisma.planillaPeriodo.findFirst({
+    where: { id, empresaId },
     include: { detalles: { include: { empleado: true }, orderBy: { empleado: { codigo: "asc" } } } },
   });
   if (!periodo) notFound();
@@ -40,6 +42,7 @@ export default async function DetallePlanillaPage({
   const idsIncluidos = periodo.detalles.map((d) => d.empleadoId);
   const excluidos = await prisma.empleado.findMany({
     where: {
+      empresaId,
       estado: "ACTIVO",
       tipoContrato: { not: "LOCACION_SERVICIOS" },
       id: { notIn: idsIncluidos.length > 0 ? idsIncluidos : undefined },

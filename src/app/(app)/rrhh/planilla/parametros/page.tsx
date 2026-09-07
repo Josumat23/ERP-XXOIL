@@ -24,7 +24,7 @@ export default async function ParametrosPlanillaPage() {
   if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
   const empresaId = await obtenerEmpresaActivaId();
   const [parametros, tasasAfp, politicasTiempo] = await Promise.all([
-    prisma.parametroPlanilla.findMany({ orderBy: { vigenteDesde: "desc" } }),
+    prisma.parametroPlanilla.findMany({ where: { empresaId }, orderBy: { vigenteDesde: "desc" } }),
     prisma.tasaAfp.findMany({ orderBy: [{ afp: "asc" }, { vigenteDesde: "desc" }] }),
     prisma.politicaTiempoTrabajo.findMany({ where: { empresaId }, orderBy: { vigenteDesde: "desc" } }),
   ]);

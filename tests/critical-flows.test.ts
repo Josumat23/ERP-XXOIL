@@ -1743,7 +1743,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   assert.equal(asientosPlan.length, 0);
   assert.equal(movimientosPlan.length, 0);
 });
-test("planilla usa parámetros versionados, excluye configuraciones incompletas y contabiliza", async () => {
+test("planilla aísla compañías, usa parámetros versionados, excluye configuraciones incompletas y contabiliza", async () => {
   const audit = await auditoria();
   const vigenteDesde = new Date("2098-01-01T00:00:00.000Z");
   const plan = await prisma.planCuentas.findFirstOrThrow();
@@ -1838,6 +1838,24 @@ test("planilla usa parámetros versionados, excluye configuraciones incompletas 
     }),
   ]);
 
+  const otraEmpresa = await prisma.empresa.create({
+    data: { razonSocial: "Compañía ajena a la corrida", ruc: "20999999991" },
+  });
+  const empleadoOtraEmpresa = await prisma.empleado.create({
+    data: {
+      empresaId: otraEmpresa.id,
+      codigo: "EMP-TEST-ONP",
+      nombres: "Diana",
+      apellidos: "Otra compañía",
+      fechaIngreso: new Date("2098-01-01"),
+      cargo: "Supervisora",
+      area: "Producción",
+      tipoContrato: "PLAZO_INDETERMINADO",
+      sueldoBasico: 9_000,
+      sistemaPension: "ONP",
+    },
+  });
+
   const politicaTiempo = await prisma.politicaTiempoTrabajo.create({
     data: { vigenteDesde: new Date(2099, 2, 1), horasJornadaDiaria: 8, primerasHorasRecargo: 2, recargoPrimerTramo: 25, recargoSegundoTramo: 35, aplicarPagoSobretiempo: true, estado: "APROBADA", aprobadoEn: new Date(), aprobadoPorId: "aprobador-test", aprobadoPorNombre: "Aprobador Test", ...audit },
   });
@@ -1862,6 +1880,7 @@ test("planilla usa parámetros versionados, excluye configuraciones incompletas 
     periodo.detalles.map((detalle) => detalle.empleadoId).sort(),
     empleados.slice(0, 2).map((empleado) => empleado.id).sort()
   );
+  assert.ok(periodo.detalles.every((detalle) => detalle.empleadoId !== empleadoOtraEmpresa.id));
   assert.deepEqual(
     periodo.detalles.map((detalle) => ({
       sueldo: detalle.sueldoBasico.toNumber(),

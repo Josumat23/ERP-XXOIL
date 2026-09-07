@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { escaparCeldaCsv } from "@/lib/csv";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 // Exportador GENÉRICO de archivo de pago de haberes — NO es el formato exacto
 // de carga masiva de ningún banco (BBVA u otro). Contiene los datos mínimos
@@ -26,8 +27,9 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   }
 
   const { id } = await params;
-  const periodo = await prisma.planillaPeriodo.findUnique({
-    where: { id },
+  const empresaId = await obtenerEmpresaActivaId();
+  const periodo = await prisma.planillaPeriodo.findFirst({
+    where: { id, empresaId },
     include: { detalles: { include: { empleado: true }, orderBy: { empleado: { codigo: "asc" } } } },
   });
   if (!periodo) return NextResponse.json({ error: "El período no existe." }, { status: 404 });

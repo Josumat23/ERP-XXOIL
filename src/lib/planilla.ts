@@ -17,9 +17,9 @@ export function esPorcentajePlanillaValido(valor: number): boolean {
   return Number.isFinite(valor) && valor >= 0 && valor <= 100;
 }
 
-export async function obtenerParametroVigente(tx: Tx, fecha: Date) {
+export async function obtenerParametroVigente(tx: Tx, fecha: Date, empresaId = "1") {
   return tx.parametroPlanilla.findFirst({
-    where: { vigenteDesde: { lte: fecha } },
+    where: { empresaId, vigenteDesde: { lte: fecha } },
     orderBy: { vigenteDesde: "desc" },
   });
 }
@@ -103,7 +103,7 @@ export async function calcularPlanillaMensual(
   fecha: Date,
   empresaId = "1"
 ): Promise<ResultadoCalculoPlanilla & { advertencias?: string[] }> {
-  const parametro = await obtenerParametroVigente(tx, fecha);
+  const parametro = await obtenerParametroVigente(tx, fecha, empresaId);
   if (!parametro) {
     return { ok: false, error: "No hay parámetros de planilla (RMV/UIT) configurados para esta fecha." };
   }
@@ -340,22 +340,22 @@ async function ultimaSextaGratificacion(tx: Tx, empleadoId: string, antesDe: Dat
 
 export async function generarGratificacion(
   tx: Tx,
-  params: { anio: number; mitad: "JULIO" | "DICIEMBRE"; usuarioId: string; usuarioNombre: string }
+  params: { anio: number; mitad: "JULIO" | "DICIEMBRE"; usuarioId: string; usuarioNombre: string; empresaId?: string }
 ): Promise<{ ok: true; periodoId: string } | { ok: false; error: string }> {
   const tipo = params.mitad === "JULIO" ? "GRATIFICACION_JULIO" : "GRATIFICACION_DICIEMBRE";
   const mes = params.mitad === "JULIO" ? 7 : 12;
 
   const existente = await tx.planillaPeriodo.findUnique({
-    where: { empresaId_anio_mes_tipo: { empresaId: "1", anio: params.anio, mes, tipo } },
+    where: { empresaId_anio_mes_tipo: { empresaId: params.empresaId ?? "1", anio: params.anio, mes, tipo } },
   });
   if (existente) return { ok: false, error: `Ya existe una gratificación de ${params.mitad.toLowerCase()} ${params.anio}.` };
 
-  const parametro = await obtenerParametroVigente(tx, new Date(params.anio, mes - 1, 1));
+  const parametro = await obtenerParametroVigente(tx, new Date(params.anio, mes - 1, 1), params.empresaId);
   if (!parametro) return { ok: false, error: "No hay parámetros de planilla configurados." };
 
   const { inicio, fin } = rangoGratificacion(params.anio, params.mitad);
   const empleados = await tx.empleado.findMany({
-    where: { estado: "ACTIVO", tipoContrato: { not: "LOCACION_SERVICIOS" }, fechaIngreso: { lte: fin } },
+    where: { empresaId: params.empresaId ?? "1", estado: "ACTIVO", tipoContrato: { not: "LOCACION_SERVICIOS" }, fechaIngreso: { lte: fin } },
     orderBy: { codigo: "asc" },
   });
 
@@ -385,7 +385,7 @@ export async function generarGratificacion(
   if (lineas.length === 0) return { ok: false, error: "No hay empleados elegibles para esta corrida." };
 
   const periodo = await tx.planillaPeriodo.create({
-    data: { anio: params.anio, mes, tipo, usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre },
+    data: { empresaId: params.empresaId ?? "1", anio: params.anio, mes, tipo, usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre },
   });
 
   const asiento = await postearGratificacion(
@@ -417,22 +417,22 @@ export async function generarGratificacion(
 
 export async function generarCts(
   tx: Tx,
-  params: { anio: number; mitad: "MAYO" | "NOVIEMBRE"; usuarioId: string; usuarioNombre: string }
+  params: { anio: number; mitad: "MAYO" | "NOVIEMBRE"; usuarioId: string; usuarioNombre: string; empresaId?: string }
 ): Promise<{ ok: true; periodoId: string } | { ok: false; error: string }> {
   const tipo = params.mitad === "MAYO" ? "CTS_MAYO" : "CTS_NOVIEMBRE";
   const mes = params.mitad === "MAYO" ? 5 : 11;
 
   const existente = await tx.planillaPeriodo.findUnique({
-    where: { empresaId_anio_mes_tipo: { empresaId: "1", anio: params.anio, mes, tipo } },
+    where: { empresaId_anio_mes_tipo: { empresaId: params.empresaId ?? "1", anio: params.anio, mes, tipo } },
   });
   if (existente) return { ok: false, error: `Ya existe una CTS de ${params.mitad.toLowerCase()} ${params.anio}.` };
 
   const { inicio, fin } = rangoCts(params.anio, params.mitad);
-  const parametro = await obtenerParametroVigente(tx, fin);
+  const parametro = await obtenerParametroVigente(tx, fin, params.empresaId);
   if (!parametro) return { ok: false, error: "No hay parámetros de planilla configurados." };
 
   const empleados = await tx.empleado.findMany({
-    where: { estado: "ACTIVO", tipoContrato: { not: "LOCACION_SERVICIOS" }, fechaIngreso: { lte: fin } },
+    where: { empresaId: params.empresaId ?? "1", estado: "ACTIVO", tipoContrato: { not: "LOCACION_SERVICIOS" }, fechaIngreso: { lte: fin } },
     orderBy: { codigo: "asc" },
   });
 
@@ -459,7 +459,7 @@ export async function generarCts(
   if (lineas.length === 0) return { ok: false, error: "No hay empleados elegibles para esta corrida." };
 
   const periodo = await tx.planillaPeriodo.create({
-    data: { anio: params.anio, mes, tipo, usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre },
+    data: { empresaId: params.empresaId ?? "1", anio: params.anio, mes, tipo, usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre },
   });
 
   const asiento = await postearCts(
@@ -496,7 +496,7 @@ export async function generarLiquidacion(
   const e = await tx.empleado.findUnique({ where: { id: params.empleadoId } });
   if (!e) return { ok: false, error: "El empleado no existe." };
 
-  const parametro = await obtenerParametroVigente(tx, params.fechaCese);
+  const parametro = await obtenerParametroVigente(tx, params.fechaCese, e.empresaId);
   if (!parametro) return { ok: false, error: "No hay parámetros de planilla configurados." };
 
   const asignacionFamiliar = e.asignacionFamiliar ? parametro.rmv.toNumber() * 0.1 : 0;

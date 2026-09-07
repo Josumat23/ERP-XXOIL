@@ -104,9 +104,12 @@ export async function siguienteCodigoOrdenMantenimiento(tx: Tx): Promise<string>
   return siguiente("OM", ultimo?.codigo ?? null);
 }
 
-export async function siguienteCodigoEmpleado(tx: Tx): Promise<string> {
+export async function siguienteCodigoEmpleado(tx: Tx, empresaId: string): Promise<string> {
   await reservarCorrelativo(tx);
-  const ultimo = await tx.empleado.findFirst({ orderBy: { codigo: "desc" } });
+  const ultimo = await tx.empleado.findFirst({
+    where: { empresaId },
+    orderBy: { codigo: "desc" },
+  });
   return siguiente("EMP", ultimo?.codigo ?? null);
 }
 

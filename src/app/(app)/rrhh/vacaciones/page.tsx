@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatFecha } from "@/lib/format";
 import AprobarVacacionesFormulario from "./AprobarVacacionesFormulario";
 import RechazarVacacionesFormulario from "./RechazarVacacionesFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   PENDIENTE: "Pendiente",
@@ -24,7 +25,9 @@ export default async function VacacionesPage() {
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
   if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
 
+  const empresaId = await obtenerEmpresaActivaId();
   const solicitudes = await prisma.solicitudVacaciones.findMany({
+    where: { empleado: { empresaId } },
     include: { empleado: true },
     orderBy: [{ estado: "asc" }, { fechaInicio: "desc" }],
     take: 100,
