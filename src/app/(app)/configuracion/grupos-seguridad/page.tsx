@@ -7,6 +7,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import GrupoFormulario from "./GrupoFormulario";
 import PermisoCheckbox from "./PermisoCheckbox";
 import { alternarActivoGrupo } from "./actions";
+import { evaluarConflictosSoD } from "@/lib/segregacionFunciones";
 
 export default async function GruposSeguridadPage() {
   const usuario = await obtenerUsuario();
@@ -52,7 +53,9 @@ export default async function GruposSeguridadPage() {
       </div>
 
       <div className="mt-6 flex flex-col gap-4">
-        {grupos.map((g) => (
+        {grupos.map((g) => {
+          const conflictos = g.esPredefinido ? [] : evaluarConflictosSoD(g.permisos);
+          return (
           <div key={g.id} id={`grupo-${g.id}`} className="border border-black/10 dark:border-white/10 rounded-lg p-4 scroll-mt-4">
             <div className="flex items-center justify-between">
               <p className="font-medium text-neutral-900 dark:text-neutral-100">
@@ -92,6 +95,32 @@ export default async function GruposSeguridadPage() {
                 )}
               </div>
             </div>
+
+            {!g.esPredefinido && (
+              <div
+                className={`mt-3 rounded-md px-3 py-2 text-sm ${
+                  conflictos.length > 0
+                    ? "bg-red-50 text-red-800 dark:bg-red-950/40 dark:text-red-300"
+                    : "bg-green-50 text-green-800 dark:bg-green-950/40 dark:text-green-300"
+                }`}
+                role={conflictos.length > 0 ? "alert" : "status"}
+              >
+                {conflictos.length === 0 ? (
+                  "Sin conflictos SoD críticos."
+                ) : (
+                  <>
+                    <p className="font-medium">{conflictos.length} conflicto(s) SoD existente(s):</p>
+                    <ul className="mt-1 list-disc pl-5">
+                      {conflictos.map((conflicto) => (
+                        <li key={conflicto.codigo}>
+                          <span className="font-mono">{conflicto.codigo}</span>: {conflicto.descripcion}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
 
             <table className="tabla mt-3">
               <thead>
@@ -152,7 +181,8 @@ export default async function GruposSeguridadPage() {
               </tbody>
             </table>
           </div>
-        ))}
+          );
+        })}
       </div>
       </div>
       </PanelMaestroDetalle>

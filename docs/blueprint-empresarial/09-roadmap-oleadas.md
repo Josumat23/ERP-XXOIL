@@ -77,7 +77,7 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 | Certificado de análisis QM (valores medidos por parámetro) | ninguna | `ControlCalidad` puede registrar valores medidos (viscosidad, punto de goteo, etc.) y generar un certificado imprimible | P1 |
 | Jerarquía de ubicación técnica de mantenimiento | 0.3 | Un equipo puede pertenecer a una ubicación técnica multinivel (planta→línea→equipo) | P1 |
 | Estructura organizativa jerárquica RR.HH. (`jefeDirectoId`/posición) | ninguna | **Parcialmente construida:** jefe directo, prevención de ciclos y organigrama por compañía. Pendiente una fase de posiciones versionadas y aprobación jefe→reporte. | P1 parcial |
-| Motor de conflictos de SoD (GRC) | ninguna | Asignar un permiso que viole una regla conocida (ej. "crea y aprueba la misma OC") genera una advertencia o bloqueo | P1 |
+| ~~Motor de conflictos de SoD (GRC)~~ | ninguna | **Completado:** asignar crear/editar junto con aprobar en Materiales, Finanzas, Ventas o RR.HH. se bloquea atómicamente, con código explicativo, reversión de UI y pruebas en la suite normal | **P1 completado** |
 | Bloqueo de cuenta / rate limiting en login | migración para persistir intentos/ventana/bloqueo | **Parcial**: PR #70 uniformó el costo `scrypt`, evitó enumeración temporal y limitó entradas; el bloqueo temporal persistente sigue pendiente y no debe implementarse en memoria volátil | P1 parcial |
 | Cookie de sesión con flag `secure` en producción | ninguna | **Completado**: sesión y empresa activa usan `secure` cuando `NODE_ENV=production` (PR #65) | P1 completado |
 | Change log genérico para catálogos editables | ninguna | Editar `Cliente.limiteCredito` (u otro campo sensible) deja un registro de valor anterior/nuevo/usuario/fecha | P1 |
