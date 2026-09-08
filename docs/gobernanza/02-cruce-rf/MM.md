@@ -20,7 +20,7 @@ Regla de filtrado del usuario: prioriza datos maestros de materia prima química
 | RF-MM-019 (creación/modificación/liberación de OC) | Sí (ya hecho) | `OrdenCompra`+`OrdenCompraDetalle` | **Obligatorio (ya hecho)** | M11 |
 | RF-MM-020 (aprobación de OC por monto) | Sí (ya hecho) | `OrdenCompra.estadoAprobacion` | **Obligatorio (ya hecho)** | M11 |
 | RF-MM-021 (contratos marco, programas de suministro) | Sí (ya hecho) | `AcuerdoSuministro` con liberaciones parciales trazadas a OC | **Completado** | Entrega 2026-09-09 |
-| RF-MM-022 (determinación automática de fuente de aprovisionamiento) | No | Bajo volumen de proveedores por insumo — se elige manual | — | No aplica |
+| RF-MM-022 (determinación automática de fuente de aprovisionamiento) | Sí (ya hecho) | El MRP elige el acuerdo vigente de menor costo normalizado con saldo suficiente y conserva el proveedor maestro como respaldo | **Completado** | Entrega 2026-09-09 |
 | RF-MM-023 (estado de OC: pendiente/parcial/cerrada/bloqueada) | Sí (ya hecho) | `OrdenCompra.estado` | **Obligatorio (ya hecho)** | M11 |
 | RF-MM-024 (envío de OC al proveedor por correo/EDI) | No | Se comunica fuera del sistema (WhatsApp/correo manual) — bajo volumen no justifica automatizarlo | Fase 3+ | No existe |
 | RF-MM-025 (condiciones de precio/descuento/impuesto a nivel de posición) | Sí (ya hecho) | `OrdenCompraDetalle.costoUnitario` con multi-moneda | **Obligatorio (ya hecho)** | M11 |

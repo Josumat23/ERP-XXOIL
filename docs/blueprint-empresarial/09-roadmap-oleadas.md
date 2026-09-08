@@ -1,6 +1,8 @@
 # 09 — Roadmap por oleadas
 
 > **Entregado 2026-09-09:** acuerdos marco de suministro con consumo parcial y control transaccional de saldo.
+>
+> **Entregado 2026-09-09:** determinación automática de fuente en MRP por costo normalizado y cobertura contractual, con trazabilidad a la orden de compra.
 
 > **Entregado 2026-09-08 (valoración):** reporte de inventario valorizado a fecha de corte con snapshot de costo y aislamiento multiempresa.
 

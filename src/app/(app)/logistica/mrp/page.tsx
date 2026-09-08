@@ -7,6 +7,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { calcularDemanda, calcularOperaciones, type DetalleCalculado } from "@/lib/proyecciones";
 import { crearOrdenCompraDesdeDatos } from "@/lib/ordenesCompra";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { seleccionarFuenteAprovisionamiento, type FuenteAcuerdo } from "@/lib/fuentesAprovisionamiento";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
 
@@ -85,23 +86,58 @@ export default async function MrpPage({
 
   const insumosAComprar = operaciones.insumos.filter((i) => i.aComprar > 0);
   const insumosConProveedor = await prisma.insumo.findMany({
-    where: { id: { in: insumosAComprar.map((i) => i.insumoId) } },
-    include: { proveedor: true },
+    where: { empresaId, id: { in: insumosAComprar.map((i) => i.insumoId) } },
+    include: {
+      proveedor: true,
+      lineasAcuerdo: {
+        where: {
+          acuerdo: {
+            empresaId,
+            estado: "ACTIVO",
+            vigenteDesde: { lte: new Date() },
+            vigenteHasta: { gte: new Date() },
+          },
+        },
+        include: { acuerdo: { include: { proveedor: true } } },
+      },
+    },
   });
-  const proveedorPorInsumo = new Map(insumosConProveedor.map((i) => [i.id, i.proveedor]));
+  const insumoPorId = new Map(insumosConProveedor.map((i) => [i.id, i]));
 
   type GrupoProveedor = {
     proveedorId: string | null;
     proveedorNombre: string;
-    lineas: { insumoId: string; nombre: string; unidadMedida: string; cantidad: number; costoUnitario: number }[];
+    acuerdoId: string | null;
+    fuente: string;
+    moneda: "PEN" | "USD";
+    tipoCambio: number;
+    lineas: { insumoId: string; nombre: string; unidadMedida: string; cantidad: number; costoUnitario: number; acuerdoLineaId?: string }[];
   };
   const grupos = new Map<string, GrupoProveedor>();
   for (const i of insumosAComprar) {
-    const proveedor = proveedorPorInsumo.get(i.insumoId) ?? null;
-    const clave = proveedor?.id ?? "sin-proveedor";
+    const insumo = insumoPorId.get(i.insumoId);
+    const candidatas: FuenteAcuerdo[] = (insumo?.lineasAcuerdo ?? [])
+      .filter((linea) => linea.acuerdo.moneda === "PEN" || linea.acuerdo.moneda === "USD")
+      .map((linea) => ({
+        acuerdoId: linea.acuerdoId,
+        acuerdoLineaId: linea.id,
+        proveedorId: linea.acuerdo.proveedorId,
+        proveedorNombre: linea.acuerdo.proveedor.razonSocial,
+        precioUnitario: linea.precioUnitario.toNumber(),
+        moneda: linea.acuerdo.moneda as "PEN" | "USD",
+        tipoCambio: linea.acuerdo.tipoCambio.toNumber(),
+        saldo: linea.cantidadComprometida.minus(linea.cantidadLiberada).toNumber(),
+      }));
+    const fuente = seleccionarFuenteAprovisionamiento(i.aComprar, candidatas);
+    const proveedor = fuente ? null : insumo?.proveedor ?? null;
+    const clave = fuente ? `acuerdo:${fuente.acuerdoId}` : proveedor?.id ?? "sin-proveedor";
     const grupo = grupos.get(clave) ?? {
-      proveedorId: proveedor?.id ?? null,
-      proveedorNombre: proveedor?.razonSocial ?? "Sin proveedor asignado",
+      proveedorId: fuente?.proveedorId ?? proveedor?.id ?? null,
+      proveedorNombre: fuente?.proveedorNombre ?? proveedor?.razonSocial ?? "Sin proveedor asignado",
+      acuerdoId: fuente?.acuerdoId ?? null,
+      fuente: fuente ? "Acuerdo vigente seleccionado por menor costo normalizado" : "Proveedor predeterminado del material",
+      moneda: fuente?.moneda ?? "PEN",
+      tipoCambio: fuente?.tipoCambio ?? 1,
       lineas: [],
     };
     grupo.lineas.push({
@@ -109,7 +145,8 @@ export default async function MrpPage({
       nombre: i.nombre,
       unidadMedida: i.unidadMedida,
       cantidad: i.aComprar,
-      costoUnitario: i.costoUnitario,
+      costoUnitario: fuente?.precioUnitario ?? i.costoUnitario,
+      ...(fuente ? { acuerdoLineaId: fuente.acuerdoLineaId } : {}),
     });
     grupos.set(clave, grupo);
   }
@@ -208,13 +245,22 @@ export default async function MrpPage({
                             proveedorId: grupo.proveedorId!,
                             almacenId: null,
                             notas: `Sugerida por MRP — ${NOMBRE_TRIMESTRE[proyeccionCompleta.trimestre]} ${proyeccionCompleta.anio}`,
-                            moneda: "PEN",
-                            tipoCambio: 1,
+                            moneda: grupo.moneda,
+                            tipoCambio: grupo.tipoCambio,
+                            acuerdoId: grupo.acuerdoId,
                             lineas: grupo.lineas.map((l) => ({
                               insumoId: l.insumoId,
                               cantidad: l.cantidad,
                               costoUnitario: l.costoUnitario,
                             })),
+                            lineasAcuerdo: grupo.acuerdoId
+                              ? grupo.lineas.map((l) => ({
+                                  insumoId: l.insumoId,
+                                  cantidad: l.cantidad,
+                                  costoUnitario: l.costoUnitario,
+                                  acuerdoLineaId: l.acuerdoLineaId!,
+                                }))
+                              : undefined,
                           },
                           { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: auth.usuario.empresaId }
                         );
@@ -227,6 +273,10 @@ export default async function MrpPage({
                     </form>
                   )}
                 </div>
+                <p className="mb-2 text-xs text-neutral-500">
+                  {grupo.fuente}
+                  {grupo.acuerdoId ? ` · ${grupo.moneda}${grupo.moneda === "USD" ? ` · TC ${grupo.tipoCambio}` : ""}` : ""}
+                </p>
                 <table className="tabla">
                   <thead>
                     <tr>
@@ -243,15 +293,15 @@ export default async function MrpPage({
                         <td className="text-right">
                           {formatNumero(l.cantidad, 0)} {l.unidadMedida}
                         </td>
-                        <td className="text-right">{formatMoneda(l.costoUnitario)}</td>
-                        <td className="text-right">{formatMoneda(l.cantidad * l.costoUnitario)}</td>
+                        <td className="text-right">{formatMoneda(l.costoUnitario, grupo.moneda)}</td>
+                        <td className="text-right">{formatMoneda(l.cantidad * l.costoUnitario, grupo.moneda)}</td>
                       </tr>
                     ))}
                     <tr>
                       <td colSpan={3} className="text-right font-semibold">
                         Subtotal
                       </td>
-                      <td className="text-right font-semibold">{formatMoneda(subtotalGrupo)}</td>
+                      <td className="text-right font-semibold">{formatMoneda(subtotalGrupo, grupo.moneda)}</td>
                     </tr>
                   </tbody>
                 </table>
