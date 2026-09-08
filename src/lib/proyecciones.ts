@@ -149,16 +149,37 @@ export type ResultadoOperaciones = {
   capacidadPorAlmacen: ResumenCalendario[];
   insumos: NecesidadInsumo[];
   presentacionesSinFormula: string[];
+  demandaNeteada: DemandaNeteadaPresentacion[];
 };
 
+export type DemandaNeteadaPresentacion = {
+  presentacionId: string;
+  nombre: string;
+  pronostico: number;
+  pedidosFirmes: number;
+  demandaPlanificada: number;
+};
+
+export function calcularDemandaPlanificada(pronostico: number, pedidosFirmes: number): number {
+  return Math.max(0, pronostico, pedidosFirmes);
+}
+
+export function calcularSaldoPedido(
+  cantidadPedida: number,
+  facturas: readonly { cantidad: number; anulada: boolean }[],
+): number {
+  const facturadoVigente = facturas
+    .filter((factura) => !factura.anulada)
+    .reduce((total, factura) => total + factura.cantidad, 0);
+  return Math.max(0, cantidadPedida - facturadoVigente);
+}
+
 export function calcularUnidadesAProducir(detalle: {
-  demandaProyectada: number;
+  demandaPlanificada: number;
   stock: number;
-  stockReservado: number;
   stockMinimo: number;
 }): number {
-  const stockDisponible = detalle.stock - detalle.stockReservado;
-  return Math.max(0, detalle.demandaProyectada + detalle.stockMinimo - stockDisponible);
+  return Math.max(0, detalle.demandaPlanificada + detalle.stockMinimo - detalle.stock);
 }
 
 /**
@@ -171,16 +192,76 @@ export function calcularUnidadesAProducir(detalle: {
 export async function calcularOperaciones(
   detalles: DetalleCalculado[],
   anio: number,
-  trimestre: number
+  trimestre: number,
+  empresaId: string,
 ): Promise<ResultadoOperaciones> {
   const { inicio, fin } = rangoTrimestre(anio, trimestre);
   const { total: horasHombreDisponibles, porAlmacen: capacidadPorAlmacen } = await horasDisponiblesEnRango(
     inicio,
     fin
   );
-  const productoIds = [...new Set(detalles.map((d) => d.productoId))];
+  const backlog = await prisma.pedidoDetalle.findMany({
+    where: {
+      pedido: {
+        empresaId,
+        estado: { in: ["PENDIENTE", "PARCIAL"] },
+        OR: [{ fechaEntregaSolicitada: null }, { fechaEntregaSolicitada: { lt: fin } }],
+      },
+    },
+    include: {
+      presentacion: { include: { producto: true } },
+      facturaDetalles: { include: { factura: { select: { estado: true } } } },
+    },
+  });
+  const pedidosFirmesPorPresentacion = new Map<string, number>();
+  const detallePorPresentacion = new Map(detalles.map((detalle) => [detalle.presentacionId, detalle]));
+  for (const linea of backlog) {
+    const pendiente = calcularSaldoPedido(
+      linea.cantidad,
+      linea.facturaDetalles.map((detalle) => ({
+        cantidad: detalle.cantidad,
+        anulada: detalle.factura.estado === "ANULADA",
+      })),
+    );
+    pedidosFirmesPorPresentacion.set(
+      linea.presentacionId,
+      (pedidosFirmesPorPresentacion.get(linea.presentacionId) ?? 0) + pendiente,
+    );
+    if (!detallePorPresentacion.has(linea.presentacionId)) {
+      detallePorPresentacion.set(linea.presentacionId, {
+        presentacionId: linea.presentacionId,
+        nombre: `${linea.presentacion.producto.nombre} — ${linea.presentacion.nombre}`,
+        productoId: linea.presentacion.productoId,
+        contenidoKg: linea.presentacion.contenidoKg.toNumber(),
+        precio: linea.presentacion.precio.toNumber(),
+        costoPromedio: linea.presentacion.costoPromedio.toNumber(),
+        stock: linea.presentacion.stock.toNumber(),
+        stockReservado: linea.presentacion.stockReservado.toNumber(),
+        stockMinimo: linea.presentacion.stockMinimo.toNumber(),
+        ventasBase: 0,
+        indiceEstacionalidad: 1,
+        sinHistorico: true,
+        ajusteCualitativoPct: 0,
+        demandaProyectada: 0,
+        ventasProyectadas: 0,
+      });
+    }
+  }
+  const detallesPlanificacion = [...detallePorPresentacion.values()];
+  const demandaNeteada = detallesPlanificacion.map((detalle) => {
+    const pedidosFirmes = pedidosFirmesPorPresentacion.get(detalle.presentacionId) ?? 0;
+    return {
+      presentacionId: detalle.presentacionId,
+      nombre: detalle.nombre,
+      pronostico: detalle.demandaProyectada,
+      pedidosFirmes,
+      demandaPlanificada: calcularDemandaPlanificada(detalle.demandaProyectada, pedidosFirmes),
+    };
+  });
+  const demandaPorPresentacion = new Map(demandaNeteada.map((demanda) => [demanda.presentacionId, demanda]));
+  const todosProductoIds = [...new Set(detallesPlanificacion.map((d) => d.productoId))];
   const formulas = await prisma.formula.findMany({
-    where: { productoId: { in: productoIds }, activo: true },
+    where: { empresaId, productoId: { in: todosProductoIds }, activo: true },
     include: { detalles: { include: { insumo: true } } },
     orderBy: { version: "desc" },
   });
@@ -204,9 +285,14 @@ export async function calcularOperaciones(
   const consumoPorInsumo = new Map<string, { insumo: (typeof formulas)[number]["detalles"][number]["insumo"]; cantidad: number }>();
   const presentacionesSinFormula: string[] = [];
 
-  for (const d of detalles) {
-    if (d.demandaProyectada <= 0) continue;
-    const unidadesAProducir = calcularUnidadesAProducir(d);
+  for (const d of detallesPlanificacion) {
+    const demandaPlanificada = demandaPorPresentacion.get(d.presentacionId)?.demandaPlanificada ?? 0;
+    if (demandaPlanificada <= 0) continue;
+    const unidadesAProducir = calcularUnidadesAProducir({
+      demandaPlanificada,
+      stock: d.stock,
+      stockMinimo: d.stockMinimo,
+    });
     if (unidadesAProducir <= 0) continue;
     const kgGranel = unidadesAProducir * d.contenidoKg;
 
@@ -246,6 +332,7 @@ export async function calcularOperaciones(
     capacidadPorAlmacen,
     insumos,
     presentacionesSinFormula,
+    demandaNeteada,
   };
 }
 

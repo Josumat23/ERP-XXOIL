@@ -6,6 +6,7 @@ import { obtenerUsuario, requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { calcularDemanda, calcularOperaciones, type DetalleCalculado } from "@/lib/proyecciones";
 import { crearOrdenCompraDesdeDatos } from "@/lib/ordenesCompra";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
 
@@ -17,10 +18,12 @@ export default async function MrpPage({
   const usuario = await obtenerUsuario();
   if (!usuario) redirect("/");
   if (!(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { proyeccionId } = await searchParams;
 
   const proyecciones = await prisma.proyeccion.findMany({
+    where: { empresaId },
     orderBy: [{ anio: "desc" }, { trimestre: "desc" }],
   });
 
@@ -76,7 +79,8 @@ export default async function MrpPage({
   const operaciones = await calcularOperaciones(
     detalles,
     proyeccionCompleta.anio,
-    proyeccionCompleta.trimestre
+    proyeccionCompleta.trimestre,
+    empresaId,
   );
 
   const insumosAComprar = operaciones.insumos.filter((i) => i.aComprar > 0);
@@ -146,6 +150,27 @@ export default async function MrpPage({
           Ver proyección completa →
         </Link>
       </form>
+
+      <section className="mb-6">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Neteo de demanda</h2>
+        <p className="mb-2 text-xs text-neutral-500">
+          Se planifica el mayor valor entre pronóstico y pedidos firmes pendientes; así el backlog consume el
+          pronóstico sin contarse dos veces. Los pedidos vencidos o sin fecha también se incluyen.
+        </p>
+        <table className="tabla">
+          <thead><tr><th>Presentación</th><th className="text-right">Pronóstico</th><th className="text-right">Pedidos firmes</th><th className="text-right">Demanda planificada</th></tr></thead>
+          <tbody>
+            {operaciones.demandaNeteada.map((demanda) => (
+              <tr key={demanda.presentacionId}>
+                <td>{demanda.nombre}</td>
+                <td className="text-right">{formatNumero(demanda.pronostico, 0)}</td>
+                <td className="text-right">{formatNumero(demanda.pedidosFirmes, 0)}</td>
+                <td className="text-right font-medium">{formatNumero(demanda.demandaPlanificada, 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
 
       {operaciones.presentacionesSinFormula.length > 0 && (
         <p className="text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2 mb-4">

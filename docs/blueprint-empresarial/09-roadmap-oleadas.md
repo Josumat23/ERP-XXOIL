@@ -18,13 +18,9 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 - **Rollback**: revertir el commit — sin efecto en datos, es solo una guarda de acceso.
 - **Prioridad**: **crítica, esfuerzo mínimo — hacer antes que cualquier otra cosa de este documento.**
 
-### 0.1b — Corregir el MRP para descontar stock ya reservado por pedidos reales
-- **Qué**: en `calcularOperaciones()` (`src/lib/proyecciones.ts:182`), restar `Presentacion.stockReservado` al calcular `unidadesAProducir`, igual que ya hace la pantalla ATP (`comercial/atp/page.tsx:19`) para el mismo campo — hoy el MRP trata como "disponible" stock que ya está comprometido con pedidos pendientes de facturar.
-- **Dependencias**: ninguna — corrección aislada de una línea de cálculo.
-- **Criterio de aceptación**: con un pedido pendiente que reserva N unidades de una presentación, el MRP sugiere comprar/producir N unidades más que antes de la corrección, para el mismo nivel de demanda proyectada.
-- **Prueba**: crear un pedido pendiente real, comparar la sugerencia de MRP antes/después del cambio para la misma proyección.
-- **Rollback**: revertir el commit — no cambia ningún dato persistido, solo el cálculo de la sugerencia (que nunca se guarda, se muestra en vivo).
-- **Prioridad**: **alta, esfuerzo mínimo — candidata a corregirse junto con 0.1, no requiere esperar a ninguna oleada estructural.**
+### 0.1b — ~~Corregir el MRP para incorporar pedidos reales~~ — completado
+- **Resultado**: el MRP calcula saldo pendiente por presentación, consume el pronóstico con `max(pronóstico, backlog)` y muestra el neteo. Incluye pedidos parciales, vencidos/sin fecha y productos ausentes del pronóstico, sin doble conteo de `stockReservado`.
+- **Verificación**: funciones puras en la suite normal, consultas aisladas por compañía y visualización en MRP/Proyecciones.
 
 ### 0.2 — Multi-empresa real: FK completa en el grafo transaccional
 - **Qué**: agregar relación real `empresa Empresa @relation(fields: [empresaId], references: [id])` a los modelos transaccionales que hoy solo tienen `empresaId` como string suelto (`Pedido`, `Factura`, `OrdenCompra`, `MovimientoKardex`, `AsientoContable`, `Insumo`, `Producto`, etc. — lista completa en Blueprint 05), y filtrar por `obtenerEmpresaActivaId()` en cada `actions.ts` que hoy no lo hace (confirmado ausente en 7 de 8 módulos muestreados, Blueprint 08).

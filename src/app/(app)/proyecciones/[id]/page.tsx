@@ -15,6 +15,7 @@ import { actualizarDetalleProyeccion, refrescarFactorMacro } from "../actions";
 import SupuestosMarketingFormulario from "./SupuestosMarketingFormulario";
 import CajaMinimaFormulario from "./CajaMinimaFormulario";
 import SimuladorPrecios from "./SimuladorPrecios";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
 
@@ -30,11 +31,12 @@ export default async function DetalleProyeccionPage({
   ) {
     redirect("/");
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { id } = await params;
 
   const proyeccion = await prisma.proyeccion.findUnique({
-    where: { id },
+    where: { id, empresaId },
     include: { detalles: { include: { presentacion: { include: { producto: true } } } } },
   });
   if (!proyeccion) notFound();
@@ -74,7 +76,7 @@ export default async function DetalleProyeccionPage({
   }));
 
   const [operaciones, finanzas] = await Promise.all([
-    calcularOperaciones(detalles, proyeccion.anio, proyeccion.trimestre),
+    calcularOperaciones(detalles, proyeccion.anio, proyeccion.trimestre, empresaId),
     calcularFinanzas(
       detalles,
       proyeccion.presupuestoPublicidad.toNumber(),
@@ -200,6 +202,26 @@ export default async function DetalleProyeccionPage({
 
   const contenidoOperaciones = (
     <div className="flex flex-col gap-6">
+      <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Demanda operativa neteada</h2>
+        <p className="mt-1 text-xs text-neutral-500">
+          Para producción se usa el mayor valor entre pronóstico y pedidos firmes pendientes. El backlog
+          consume el pronóstico del trimestre y no se suma una segunda vez.
+        </p>
+        <table className="tabla mt-3">
+          <thead><tr><th>Presentación</th><th className="text-right">Pronóstico</th><th className="text-right">Pedidos firmes</th><th className="text-right">Planificado</th></tr></thead>
+          <tbody>
+            {operaciones.demandaNeteada.map((demanda) => (
+              <tr key={demanda.presentacionId}>
+                <td>{demanda.nombre}</td>
+                <td className="text-right">{formatNumero(demanda.pronostico, 0)}</td>
+                <td className="text-right">{formatNumero(demanda.pedidosFirmes, 0)}</td>
+                <td className="text-right font-medium">{formatNumero(demanda.demandaPlanificada, 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </section>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Kpi etiqueta="Kg de granel a producir" valor={`${formatNumero(operaciones.kgGranelTotal, 0)} kg`} />
         <Kpi etiqueta="Costo de producción proy." valor={formatMoneda(operaciones.costoProduccionProyectado)} />
