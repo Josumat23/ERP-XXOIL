@@ -52,6 +52,7 @@ export default async function DetalleOrdenCompraPage({
         cuentasPorPagar: true,
         pasosAprobacion: { orderBy: { orden: "asc" } },
         rfq: true,
+        acuerdo: true,
       },
     }),
     prisma.ordenCompra.findMany({ where: { empresaId: usuario.empresaId }, include: { proveedor: true }, orderBy: { fecha: "desc" } }),
@@ -135,6 +136,7 @@ export default async function DetalleOrdenCompraPage({
         </p>
         {oc.notas && <p className="text-sm text-neutral-500 mt-1">Notas: {oc.notas}</p>}
         {oc.rfq && <p className="text-sm mt-1"><Link className="hover:underline" href={`/logistica/rfq/${oc.rfq.id}`}>Origen: {oc.rfq.numero}</Link></p>}
+        {oc.acuerdo && <p className="text-sm mt-1"><Link className="hover:underline" href={`/logistica/acuerdos-suministro/${oc.acuerdo.id}`}>Acuerdo: {oc.acuerdo.numero}</Link></p>}
         {oc.estado === "ANULADA" && (
           <p className="mt-3 text-sm text-red-600 dark:text-red-400">
             Anulada. Motivo: {oc.motivoAnulacion}
