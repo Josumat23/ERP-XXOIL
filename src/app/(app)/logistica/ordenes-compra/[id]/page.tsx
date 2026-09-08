@@ -39,8 +39,8 @@ export default async function DetalleOrdenCompraPage({
   const { id } = await params;
 
   const [oc, ordenes] = await Promise.all([
-    prisma.ordenCompra.findUnique({
-      where: { id },
+    prisma.ordenCompra.findFirst({
+      where: { id, empresaId: usuario.empresaId },
       include: {
         proveedor: true,
         almacen: true,
@@ -50,9 +50,11 @@ export default async function DetalleOrdenCompraPage({
           orderBy: { fecha: "asc" },
         },
         cuentasPorPagar: true,
+        pasosAprobacion: { orderBy: { orden: "asc" } },
+        rfq: true,
       },
     }),
-    prisma.ordenCompra.findMany({ include: { proveedor: true }, orderBy: { fecha: "desc" } }),
+    prisma.ordenCompra.findMany({ where: { empresaId: usuario.empresaId }, include: { proveedor: true }, orderBy: { fecha: "desc" } }),
   ]);
   if (!oc) notFound();
 
@@ -80,7 +82,8 @@ export default async function DetalleOrdenCompraPage({
       .filter((d) => d.disponible > 1e-9)
   );
 
-  const puedeAprobar = usuario?.rol === "GERENCIA" || usuario?.rol === "ADMIN";
+  const pasoPendiente = oc.pasosAprobacion.find((p) => p.estado === "PENDIENTE");
+  const puedeAprobar = (usuario?.rol === "GERENCIA" || usuario?.rol === "ADMIN") && (pasoPendiente?.rolAprobador !== "ADMIN" || usuario.rol === "ADMIN");
   const admiteRecepcion =
     (oc.estado === "PENDIENTE" || oc.estado === "PARCIAL") &&
     oc.estadoAprobacion !== "PENDIENTE" &&
@@ -131,6 +134,7 @@ export default async function DetalleOrdenCompraPage({
           {oc.almacen ? ` · Destino: ${oc.almacen.nombre}` : ""}
         </p>
         {oc.notas && <p className="text-sm text-neutral-500 mt-1">Notas: {oc.notas}</p>}
+        {oc.rfq && <p className="text-sm mt-1"><Link className="hover:underline" href={`/logistica/rfq/${oc.rfq.id}`}>Origen: {oc.rfq.numero}</Link></p>}
         {oc.estado === "ANULADA" && (
           <p className="mt-3 text-sm text-red-600 dark:text-red-400">
             Anulada. Motivo: {oc.motivoAnulacion}
@@ -189,9 +193,8 @@ export default async function DetalleOrdenCompraPage({
             Pendiente de aprobación
           </h2>
           <p className="text-sm text-neutral-500 mb-3">
-            Esta orden ({formatMoneda(oc.total.toNumber() * oc.tipoCambio.toNumber())}) supera el
-            monto configurado en Configuración → Empresa y no se puede recepcionar hasta que Gerencia
-            la apruebe.
+            Esta orden ({formatMoneda(oc.total.toNumber() * oc.tipoCambio.toNumber())}) no se puede
+            recepcionar hasta completar {pasoPendiente?.nombre ?? "la aprobación pendiente"}.
           </p>
           {puedeAprobar ? (
             <div className="flex flex-wrap items-center gap-3">
@@ -208,10 +211,11 @@ export default async function DetalleOrdenCompraPage({
               <RechazarOCFormulario ordenCompraId={oc.id} />
             </div>
           ) : (
-            <p className="text-xs text-neutral-400">Solo Gerencia o un Administrador puede resolverla.</p>
+            <p className="text-xs text-neutral-400">El nivel actual requiere {pasoPendiente?.rolAprobador === "ADMIN" ? "un Administrador" : "Gerencia o Administración"} y una persona distinta del creador.</p>
           )}
         </section>
       )}
+      {oc.pasosAprobacion.length > 0 && <section className="mt-8"><h2 className="font-medium mb-2">Historial de liberación</h2><ol className="space-y-2">{oc.pasosAprobacion.map((paso) => <li key={paso.id} className="border rounded-md px-3 py-2 text-sm"><strong>{paso.orden}. {paso.nombre}</strong> · {paso.rolAprobador} · {paso.estado}{paso.resueltoPorNombre ? ` por ${paso.resueltoPorNombre}` : ""}{paso.motivo ? ` — ${paso.motivo}` : ""}</li>)}</ol></section>}
       {oc.estadoAprobacion === "RECHAZADA" && (
         <section className="mt-8 border border-red-200 dark:border-red-900 rounded-lg p-4 no-imprimir">
           <h2 className="font-medium text-red-700 dark:text-red-400 mb-1">Rechazada por Gerencia</h2>

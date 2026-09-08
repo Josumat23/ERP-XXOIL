@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Entregado 2026-09-08 (liberación):** aprobación multinivel de compras con rechazo motivado y bloqueo de recepción.
+
 > **Entregado 2026-09-08:** RFQ y comparación de proveedores con trazabilidad a la orden de compra.
 
 > **Actualización 2026-08-12:** los ítems 0.1 (autorización SUNAT), 0.1b (stock reservado en MRP, PR #62, merge b524c24), cookie `secure` en producción (PR #65, merge 7bab3f6) y framework de pruebas + CI (PR #64/#66, merges 6509cdd/d5bd652) están completados. El resto requiere las dependencias y decisiones indicadas; no autoriza cambios de esquema.

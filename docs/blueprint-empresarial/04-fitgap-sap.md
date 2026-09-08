@@ -1,5 +1,7 @@
 # 04 — Matriz fit/gap por dominio SAP
 
+> **Actualización 2026-09-08 (liberación):** Compras dispone de niveles configurables por monto y rol, secuencia congelada por OC, segregación solicitante/adjudicador/aprobador e historial de decisiones.
+
 > **Cierre parcial 2026-09-08:** implementado RFQ → ofertas → comparación → adjudicación → OC. La liberación multinivel específica de RFQ queda diferida.
 
 > **Actualización 2026-08-12:** la inconsistencia MRP descrita en este documento fue corregida por PR #62 (merge b524c24). Para la comparación orientada a SAP Business One, localización vigente y estrategia UX, ver Blueprint 11.

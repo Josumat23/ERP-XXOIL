@@ -119,6 +119,13 @@ import {
   verificarPasswordUniforme,
 } from "@/lib/auth";
 import { normalizarLineasOfertaRfq, normalizarLineasRfq, totalOfertaEnPen } from "@/lib/rfq";
+import { validarNivelesCompra } from "@/lib/aprobacionesCompra";
+
+test("aprobaciones de compra validan niveles ordenados y roles restringidos", () => {
+  assert.equal(validarNivelesCompra([{ orden: 1, nombre: "Gerencia", montoDesdePen: 5000, rolAprobador: "GERENCIA" }]), true);
+  assert.equal(validarNivelesCompra([{ orden: 1, nombre: "Gerencia", montoDesdePen: 5000, rolAprobador: "GERENCIA" }, { orden: 1, nombre: "Dirección", montoDesdePen: 20000, rolAprobador: "ADMIN" }]), false);
+  assert.equal(validarNivelesCompra([{ orden: 2, nombre: "XX", montoDesdePen: -1, rolAprobador: "ADMIN" }]), false);
+});
 
 test("RFQ normaliza solicitudes y ofertas completas sin duplicados", () => {
   assert.deepEqual(normalizarLineasRfq([{ insumoId: " ins-1 ", cantidad: 12.5 }]), [{ insumoId: "ins-1", cantidad: 12.5 }]);

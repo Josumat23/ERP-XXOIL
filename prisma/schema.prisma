@@ -122,6 +122,12 @@ enum EstadoAprobacion {
   RECHAZADA
 }
 
+enum EstadoPasoAprobacion {
+  PENDIENTE
+  APROBADO
+  RECHAZADO
+}
+
 model Usuario {
   id                     String     @id @default(cuid())
   empresaId              String     @default("1")
@@ -1857,16 +1863,51 @@ model OrdenCompra {
   edtId      String?
   rfqId      String? @unique
 
-  proveedor       Proveedor            @relation(fields: [proveedorId], references: [id])
-  almacen         Almacen?             @relation(fields: [almacenId], references: [id])
+  proveedor       Proveedor              @relation(fields: [proveedorId], references: [id])
+  almacen         Almacen?               @relation(fields: [almacenId], references: [id])
   detalles        OrdenCompraDetalle[]
   recepciones     RecepcionCompra[]
   cuentasPorPagar CuentaPorPagar[]
-  proyecto        Proyecto?            @relation(fields: [proyectoId], references: [id])
-  edt             EdtProyecto?         @relation(fields: [edtId], references: [id])
-  rfq             RfqCompra?           @relation(fields: [rfqId], references: [id])
+  proyecto        Proyecto?              @relation(fields: [proyectoId], references: [id])
+  edt             EdtProyecto?           @relation(fields: [edtId], references: [id])
+  rfq             RfqCompra?             @relation(fields: [rfqId], references: [id])
+  pasosAprobacion PasoAprobacionCompra[]
 
   @@map("ordenes_compra")
+}
+
+model NivelAprobacionCompra {
+  id            String     @id @default(cuid())
+  empresaId     String     @default("1")
+  orden         Int
+  nombre        String
+  montoDesdePen Decimal
+  rolAprobador  RolUsuario @default(GERENCIA)
+  activo        Boolean    @default(true)
+  creadoEn      DateTime   @default(now())
+
+  @@unique([empresaId, orden])
+  @@map("niveles_aprobacion_compra")
+}
+
+model PasoAprobacionCompra {
+  id                String               @id @default(cuid())
+  ordenCompraId     String
+  orden             Int
+  nombre            String
+  montoDesdePen     Decimal
+  rolAprobador      RolUsuario
+  estado            EstadoPasoAprobacion @default(PENDIENTE)
+  resueltoPorId     String?
+  resueltoPorNombre String?
+  resueltoEn        DateTime?
+  motivo            String?
+  creadoEn          DateTime             @default(now())
+
+  ordenCompra OrdenCompra @relation(fields: [ordenCompraId], references: [id], onDelete: Cascade)
+
+  @@unique([ordenCompraId, orden])
+  @@map("pasos_aprobacion_compra")
 }
 
 model OrdenCompraDetalle {
