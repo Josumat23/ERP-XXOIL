@@ -159,6 +159,7 @@ export const MODULOS: Modulo[] = [
     icono: "✦",
     enlaces: [
       { href: "/configuracion/empresa", etiqueta: "Empresa", roles: ["ADMIN"] },
+      { href: "/configuracion/aprobaciones-compras", etiqueta: "Aprobaciones de compras", roles: ["ADMIN"] },
       { href: "/configuracion/empresas", etiqueta: "Compañías (multi-empresa)", roles: ["ADMIN"] },
       { href: "/configuracion/usuarios", etiqueta: "Usuarios", roles: ["ADMIN"] },
       { href: "/configuracion/series", etiqueta: "Series de documentos", roles: ["ADMIN"] },

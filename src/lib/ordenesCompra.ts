@@ -6,6 +6,7 @@ import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { convertirAPen } from "@/lib/tipoCambio";
 import { edtPerteneceAProyecto } from "@/lib/proyectos";
 import type { LineaOrdenCompraNormalizada, MonedaOrdenCompra } from "@/lib/lineasOrdenCompra";
+import { pasosAplicablesCompra } from "@/lib/aprobacionesCompra";
 
 export async function crearOrdenCompraDesdeDatos(
   datos: {
@@ -18,7 +19,7 @@ export async function crearOrdenCompraDesdeDatos(
     proyectoId?: string | null;
     edtId?: string | null;
   },
-  actor: { usuarioId: string; usuarioNombre: string }
+  actor: { usuarioId: string; usuarioNombre: string; empresaId: string }
 ): Promise<string> {
   const { montoAprobacionCompras } = await obtenerConfiguracionEmpresa();
 
@@ -38,9 +39,11 @@ export async function crearOrdenCompraDesdeDatos(
     const numero = await siguienteNumeroOrdenCompra(tx);
     const total = datos.lineas.reduce((acc, l) => acc + l.cantidad * l.costoUnitario, 0);
     const totalPen = convertirAPen(total, datos.moneda, datos.tipoCambio);
+    const pasos = await pasosAplicablesCompra(tx, actor.empresaId, totalPen, montoAprobacionCompras.toNumber());
     const oc = await tx.ordenCompra.create({
       data: {
         numero,
+        empresaId: actor.empresaId,
         proveedorId: datos.proveedorId,
         almacenId: datos.almacenId,
         moneda: datos.moneda,
@@ -49,7 +52,7 @@ export async function crearOrdenCompraDesdeDatos(
         notas: datos.notas,
         proyectoId: datos.proyectoId ?? null,
         edtId: datos.edtId ?? null,
-        estadoAprobacion: totalPen >= montoAprobacionCompras.toNumber() ? "PENDIENTE" : "NO_REQUERIDA",
+        estadoAprobacion: pasos.length ? "PENDIENTE" : "NO_REQUERIDA",
         usuarioId: actor.usuarioId,
         usuarioNombre: actor.usuarioNombre,
         detalles: {
@@ -61,6 +64,7 @@ export async function crearOrdenCompraDesdeDatos(
             fechaEntregaEsperada: l.fechaEntregaEsperada ?? null,
           })),
         },
+        pasosAprobacion: { create: pasos },
       },
     });
     ocId = oc.id;

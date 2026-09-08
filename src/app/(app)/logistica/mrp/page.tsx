@@ -216,7 +216,7 @@ export default async function MrpPage({
                               costoUnitario: l.costoUnitario,
                             })),
                           },
-                          { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+                          { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: auth.usuario.empresaId }
                         );
                         redirect(`/logistica/ordenes-compra/${ocId}`);
                       }}

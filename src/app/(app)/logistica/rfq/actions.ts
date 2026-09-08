@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteNumeroOrdenCompra, siguienteNumeroRfq } from "@/lib/correlativos";
 import { normalizarLineasOfertaRfq, normalizarLineasRfq } from "@/lib/rfq";
+import { pasosAplicablesCompra } from "@/lib/aprobacionesCompra";
 
 export type EstadoRfqFormulario = { error?: string };
 
@@ -87,17 +88,20 @@ export async function adjudicarOferta(rfqId: string, ofertaId: string, _estado: 
       if (rfq.ofertas.length < 2) throw new Error("Registre ofertas de al menos dos proveedores antes de adjudicar.");
       const ganadora = rfq.ofertas.find((o) => o.id === ofertaId);
       if (!ganadora) throw new Error("La oferta elegida no pertenece al RFQ.");
+      if (rfq.usuarioId === auth.usuario.id) throw new Error("La persona que solicitó el RFQ no puede adjudicarlo.");
       await tx.ofertaRfq.updateMany({ where: { rfqId }, data: { estado: "NO_SELECCIONADA" } });
       await tx.ofertaRfq.update({ where: { id: ganadora.id }, data: { estado: "ADJUDICADA" } });
       const numero = await siguienteNumeroOrdenCompra(tx);
       const configuracion = await tx.configuracionEmpresa.findUniqueOrThrow({ where: { id: "1" } });
       const totalPen = ganadora.moneda === "USD" ? ganadora.total.toNumber() * ganadora.tipoCambio.toNumber() : ganadora.total.toNumber();
+      const pasos = await pasosAplicablesCompra(tx, auth.usuario.empresaId, totalPen, configuracion.montoAprobacionCompras.toNumber());
       const fechaEntrega = new Date(); fechaEntrega.setDate(fechaEntrega.getDate() + ganadora.plazoEntregaDias);
       const orden = await tx.ordenCompra.create({ data: { empresaId: auth.usuario.empresaId, numero, proveedorId: ganadora.proveedorId,
         moneda: ganadora.moneda, tipoCambio: ganadora.tipoCambio, total: ganadora.total, rfqId,
-        notas: `Generada desde ${rfq.numero}. ${justificacion}`, estadoAprobacion: totalPen >= configuracion.montoAprobacionCompras.toNumber() ? "PENDIENTE" : "NO_REQUERIDA",
+        notas: `Generada desde ${rfq.numero}. ${justificacion}`, estadoAprobacion: pasos.length ? "PENDIENTE" : "NO_REQUERIDA",
         usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre,
-        detalles: { create: ganadora.lineas.map((l) => ({ insumoId: l.rfqLinea.insumoId, cantidad: l.rfqLinea.cantidad, costoUnitario: l.costoUnitario, subtotal: l.subtotal, fechaEntregaEsperada: fechaEntrega })) } } });
+        detalles: { create: ganadora.lineas.map((l) => ({ insumoId: l.rfqLinea.insumoId, cantidad: l.rfqLinea.cantidad, costoUnitario: l.costoUnitario, subtotal: l.subtotal, fechaEntregaEsperada: fechaEntrega })) },
+        pasosAprobacion: { create: pasos } } });
       await tx.rfqCompra.update({ where: { id: rfqId }, data: { estado: "ADJUDICADO", justificacionAdjudicacion: justificacion, adjudicadaEn: new Date(), adjudicadaPorId: auth.usuario.id, adjudicadaPorNombre: auth.usuario.nombre } });
       ordenId = orden.id;
     });

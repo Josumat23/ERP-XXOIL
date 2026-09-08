@@ -73,7 +73,7 @@ export async function crearOrdenCompra(
   try {
     ocId = await crearOrdenCompraDesdeDatos(
       { proveedorId, almacenId, notas, moneda, tipoCambio, lineas, proyectoId, edtId },
-      { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: auth.usuario.empresaId }
     );
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
@@ -371,20 +371,23 @@ export async function aprobarOrdenCompra(id: string) {
     return { error: "Su grupo de seguridad no permite aprobar órdenes de compra." };
   }
 
-  const oc = await prisma.ordenCompra.findUnique({ where: { id } });
-  if (!oc) return { error: "La orden no existe." };
-  if (!puedeResolverSolicitud(oc.usuarioId, auth.usuario.id)) {
-    return { error: "La persona que creó la orden no puede aprobarla." };
-  }
-  if (oc.estadoAprobacion !== "PENDIENTE") {
-    return { error: "Esta orden no está pendiente de aprobación." };
-  }
-
-  const resultado = await prisma.ordenCompra.updateMany({
-    where: { id, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
-    data: { estadoAprobacion: "APROBADA", aprobadaPor: auth.usuario.nombre, aprobadaEn: new Date() },
-  });
-  if (resultado.count !== 1) return { error: "La orden ya fue resuelta por otro usuario." };
+  try {
+    await prisma.$transaction(async (tx) => {
+      const oc = await tx.ordenCompra.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, include: { pasosAprobacion: { orderBy: { orden: "asc" } } } });
+      if (!oc || oc.estadoAprobacion !== "PENDIENTE") throw new Error("Esta orden no está pendiente de aprobación.");
+      if (!puedeResolverSolicitud(oc.usuarioId, auth.usuario.id)) throw new Error("La persona que creó la orden no puede aprobarla.");
+      const paso = oc.pasosAprobacion.find((p) => p.estado === "PENDIENTE");
+      if (!paso) {
+        await tx.ordenCompra.update({ where: { id }, data: { estadoAprobacion: "APROBADA", aprobadaPor: auth.usuario.nombre, aprobadaEn: new Date() } });
+        return;
+      }
+      if (paso.rolAprobador === "ADMIN" && auth.usuario.rol !== "ADMIN") throw new Error("El siguiente nivel requiere un Administrador.");
+      const actualizado = await tx.pasoAprobacionCompra.updateMany({ where: { id: paso.id, estado: "PENDIENTE" }, data: { estado: "APROBADO", resueltoPorId: auth.usuario.id, resueltoPorNombre: auth.usuario.nombre, resueltoEn: new Date() } });
+      if (actualizado.count !== 1) throw new Error("El nivel ya fue resuelto por otro usuario.");
+      const quedan = oc.pasosAprobacion.some((p) => p.id !== paso.id && p.estado === "PENDIENTE");
+      if (!quedan) await tx.ordenCompra.update({ where: { id }, data: { estadoAprobacion: "APROBADA", aprobadaPor: auth.usuario.nombre, aprobadaEn: new Date() } });
+    });
+  } catch (e) { return { error: e instanceof Error ? e.message : "No se pudo aprobar la orden." }; }
 
   revalidatePath("/logistica/ordenes-compra");
   revalidatePath(`/logistica/ordenes-compra/${id}`);
@@ -405,25 +408,20 @@ export async function rechazarOrdenCompra(
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
 
-  const oc = await prisma.ordenCompra.findUnique({ where: { id } });
-  if (!oc) return { error: "La orden no existe." };
-  if (!puedeResolverSolicitud(oc.usuarioId, auth.usuario.id)) {
-    return { error: "La persona que creó la orden no puede rechazarla." };
-  }
-  if (oc.estadoAprobacion !== "PENDIENTE") {
-    return { error: "Esta orden no está pendiente de aprobación." };
-  }
-
-  const resultado = await prisma.ordenCompra.updateMany({
-    where: { id, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
-    data: {
-      estadoAprobacion: "RECHAZADA",
-      aprobadaPor: auth.usuario.nombre,
-      aprobadaEn: new Date(),
-      motivoRechazo: motivo,
-    },
-  });
-  if (resultado.count !== 1) return { error: "La orden ya fue resuelta por otro usuario." };
+  try {
+    await prisma.$transaction(async (tx) => {
+      const oc = await tx.ordenCompra.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, include: { pasosAprobacion: { orderBy: { orden: "asc" } } } });
+      if (!oc || oc.estadoAprobacion !== "PENDIENTE") throw new Error("Esta orden no está pendiente de aprobación.");
+      if (!puedeResolverSolicitud(oc.usuarioId, auth.usuario.id)) throw new Error("La persona que creó la orden no puede rechazarla.");
+      const paso = oc.pasosAprobacion.find((p) => p.estado === "PENDIENTE");
+      if (paso?.rolAprobador === "ADMIN" && auth.usuario.rol !== "ADMIN") throw new Error("El siguiente nivel requiere un Administrador.");
+      if (paso) {
+        const actualizado = await tx.pasoAprobacionCompra.updateMany({ where: { id: paso.id, estado: "PENDIENTE" }, data: { estado: "RECHAZADO", resueltoPorId: auth.usuario.id, resueltoPorNombre: auth.usuario.nombre, resueltoEn: new Date(), motivo } });
+        if (actualizado.count !== 1) throw new Error("El nivel ya fue resuelto por otro usuario.");
+      }
+      await tx.ordenCompra.update({ where: { id }, data: { estadoAprobacion: "RECHAZADA", aprobadaPor: auth.usuario.nombre, aprobadaEn: new Date(), motivoRechazo: motivo } });
+    });
+  } catch (e) { return { error: e instanceof Error ? e.message : "No se pudo rechazar la orden." }; }
 
   revalidatePath("/logistica/ordenes-compra");
   revalidatePath(`/logistica/ordenes-compra/${id}`);
