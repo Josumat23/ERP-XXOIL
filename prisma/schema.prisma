@@ -1749,37 +1749,37 @@ enum EstadoOfertaRfq {
 }
 
 model RfqCompra {
-  id                         String          @id @default(cuid())
-  empresaId                  String          @default("1")
-  numero                     String
-  titulo                     String
-  fechaLimite                DateTime?
-  estado                     EstadoRfqCompra @default(ABIERTO)
-  justificacionAdjudicacion  String?
-  adjudicadaEn               DateTime?
-  adjudicadaPorId            String?
-  adjudicadaPorNombre        String?
-  usuarioId                  String
-  usuarioNombre              String
-  creadoEn                   DateTime        @default(now())
-  actualizadoEn              DateTime        @updatedAt
+  id                        String          @id @default(cuid())
+  empresaId                 String          @default("1")
+  numero                    String
+  titulo                    String
+  fechaLimite               DateTime?
+  estado                    EstadoRfqCompra @default(ABIERTO)
+  justificacionAdjudicacion String?
+  adjudicadaEn              DateTime?
+  adjudicadaPorId           String?
+  adjudicadaPorNombre       String?
+  usuarioId                 String
+  usuarioNombre             String
+  creadoEn                  DateTime        @default(now())
+  actualizadoEn             DateTime        @updatedAt
 
-  lineas        RfqCompraLinea[]
-  ofertas       OfertaRfq[]
-  ordenCompra   OrdenCompra?
+  lineas      RfqCompraLinea[]
+  ofertas     OfertaRfq[]
+  ordenCompra OrdenCompra?
 
   @@unique([empresaId, numero])
   @@map("rfq_compras")
 }
 
 model RfqCompraLinea {
-  id         String  @id @default(cuid())
-  rfqId      String
-  insumoId   String
-  cantidad   Decimal
+  id       String  @id @default(cuid())
+  rfqId    String
+  insumoId String
+  cantidad Decimal
 
-  rfq             RfqCompra       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  insumo          Insumo           @relation(fields: [insumoId], references: [id])
+  rfq            RfqCompra        @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  insumo         Insumo           @relation(fields: [insumoId], references: [id])
   detallesOferta OfertaRfqLinea[]
 
   @@unique([rfqId, insumoId])
@@ -1801,8 +1801,8 @@ model OfertaRfq {
   usuarioNombre     String
   creadoEn          DateTime        @default(now())
 
-  rfq       RfqCompra       @relation(fields: [rfqId], references: [id], onDelete: Cascade)
-  proveedor Proveedor       @relation(fields: [proveedorId], references: [id])
+  rfq       RfqCompra        @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  proveedor Proveedor        @relation(fields: [proveedorId], references: [id])
   lineas    OfertaRfqLinea[]
 
   @@unique([rfqId, proveedorId])
@@ -1810,11 +1810,11 @@ model OfertaRfq {
 }
 
 model OfertaRfqLinea {
-  id              String  @id @default(cuid())
-  ofertaId        String
-  rfqLineaId      String
-  costoUnitario   Decimal
-  subtotal        Decimal
+  id            String  @id @default(cuid())
+  ofertaId      String
+  rfqLineaId    String
+  costoUnitario Decimal
+  subtotal      Decimal
 
   oferta   OfertaRfq      @relation(fields: [ofertaId], references: [id], onDelete: Cascade)
   rfqLinea RfqCompraLinea @relation(fields: [rfqLineaId], references: [id])
