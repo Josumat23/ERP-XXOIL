@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { calcularCompraNeta } from "@/lib/reservasProduccion";
+import { ajustarCantidadCompra, calcularCompraNeta } from "@/lib/reservasProduccion";
 import { horasDisponiblesEnRango, type ResumenCalendario } from "@/lib/calendarioProduccion";
 
 // ---------------------------------------------------------------------------
@@ -138,7 +138,11 @@ export type NecesidadInsumo = {
   stockMinimo: number;
   stockReservadoProduccion: number;
   consumoProyectado: number;
+  necesidadNeta: number;
   aComprar: number;
+  plazoEntregaDias: number;
+  cantidadMinimaCompra: number;
+  multiploCompra: number;
 };
 
 export type ResultadoOperaciones = {
@@ -312,17 +316,24 @@ export async function calcularOperaciones(
     }
   }
 
-  const insumos: NecesidadInsumo[] = [...consumoPorInsumo.values()].map(({ insumo, cantidad }) => ({
-    insumoId: insumo.id,
-    nombre: insumo.nombre,
-    unidadMedida: insumo.unidadMedida,
-    costoUnitario: insumo.costoUnitario.toNumber(),
-    stock: insumo.stock.toNumber(),
-    stockMinimo: insumo.stockMinimo.toNumber(),
-    stockReservadoProduccion: reservaPorInsumo.get(insumo.id) ?? 0,
-    consumoProyectado: cantidad,
-    aComprar: calcularCompraNeta(cantidad, insumo.stockMinimo.toNumber(), insumo.stock.toNumber(), reservaPorInsumo.get(insumo.id) ?? 0),
-  }));
+  const insumos: NecesidadInsumo[] = [...consumoPorInsumo.values()].map(({ insumo, cantidad }) => {
+    const necesidadNeta = calcularCompraNeta(cantidad, insumo.stockMinimo.toNumber(), insumo.stock.toNumber(), reservaPorInsumo.get(insumo.id) ?? 0);
+    return {
+      insumoId: insumo.id,
+      nombre: insumo.nombre,
+      unidadMedida: insumo.unidadMedida,
+      costoUnitario: insumo.costoUnitario.toNumber(),
+      stock: insumo.stock.toNumber(),
+      stockMinimo: insumo.stockMinimo.toNumber(),
+      stockReservadoProduccion: reservaPorInsumo.get(insumo.id) ?? 0,
+      consumoProyectado: cantidad,
+      necesidadNeta,
+      plazoEntregaDias: insumo.plazoEntregaDias,
+      cantidadMinimaCompra: insumo.cantidadMinimaCompra.toNumber(),
+      multiploCompra: insumo.multiploCompra.toNumber(),
+      aComprar: ajustarCantidadCompra(necesidadNeta, insumo.cantidadMinimaCompra.toNumber(), insumo.multiploCompra.toNumber()),
+    };
+  });
 
   return {
     kgGranelTotal,

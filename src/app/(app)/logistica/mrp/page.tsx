@@ -1,13 +1,14 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { formatMoneda, formatNumero } from "@/lib/format";
+import { formatFecha, formatMoneda, formatNumero } from "@/lib/format";
 import { obtenerUsuario, requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { calcularDemanda, calcularOperaciones, type DetalleCalculado } from "@/lib/proyecciones";
 import { crearOrdenCompraDesdeDatos } from "@/lib/ordenesCompra";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { seleccionarFuenteAprovisionamiento, type FuenteAcuerdo } from "@/lib/fuentesAprovisionamiento";
+import { calcularFechaEntrega } from "@/lib/reservasProduccion";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
 
@@ -106,12 +107,13 @@ export default async function MrpPage({
 
   type GrupoProveedor = {
     proveedorId: string | null;
+    clave: string;
     proveedorNombre: string;
     acuerdoId: string | null;
     fuente: string;
     moneda: "PEN" | "USD";
     tipoCambio: number;
-    lineas: { insumoId: string; nombre: string; unidadMedida: string; cantidad: number; costoUnitario: number; acuerdoLineaId?: string }[];
+    lineas: { insumoId: string; nombre: string; unidadMedida: string; necesidadNeta: number; cantidad: number; costoUnitario: number; fechaEntregaEsperada: Date; plazoEntregaDias: number; acuerdoLineaId?: string }[];
   };
   const grupos = new Map<string, GrupoProveedor>();
   for (const i of insumosAComprar) {
@@ -133,6 +135,7 @@ export default async function MrpPage({
     const clave = fuente ? `acuerdo:${fuente.acuerdoId}` : proveedor?.id ?? "sin-proveedor";
     const grupo = grupos.get(clave) ?? {
       proveedorId: fuente?.proveedorId ?? proveedor?.id ?? null,
+      clave,
       proveedorNombre: fuente?.proveedorNombre ?? proveedor?.razonSocial ?? "Sin proveedor asignado",
       acuerdoId: fuente?.acuerdoId ?? null,
       fuente: fuente ? "Acuerdo vigente seleccionado por menor costo normalizado" : "Proveedor predeterminado del material",
@@ -144,8 +147,11 @@ export default async function MrpPage({
       insumoId: i.insumoId,
       nombre: i.nombre,
       unidadMedida: i.unidadMedida,
+      necesidadNeta: i.necesidadNeta,
       cantidad: i.aComprar,
       costoUnitario: fuente?.precioUnitario ?? i.costoUnitario,
+      plazoEntregaDias: i.plazoEntregaDias,
+      fechaEntregaEsperada: calcularFechaEntrega(new Date(), i.plazoEntregaDias),
       ...(fuente ? { acuerdoLineaId: fuente.acuerdoLineaId } : {}),
     });
     grupos.set(clave, grupo);
@@ -225,7 +231,7 @@ export default async function MrpPage({
             const subtotalGrupo = grupo.lineas.reduce((acc, l) => acc + l.cantidad * l.costoUnitario, 0);
             return (
               <section
-                key={grupo.proveedorId ?? "sin-proveedor"}
+                key={grupo.clave}
                 className="border border-black/10 dark:border-white/10 rounded-lg p-4"
               >
                 <div className="flex items-center justify-between mb-3">
@@ -252,12 +258,14 @@ export default async function MrpPage({
                               insumoId: l.insumoId,
                               cantidad: l.cantidad,
                               costoUnitario: l.costoUnitario,
+                              fechaEntregaEsperada: l.fechaEntregaEsperada,
                             })),
                             lineasAcuerdo: grupo.acuerdoId
                               ? grupo.lineas.map((l) => ({
                                   insumoId: l.insumoId,
                                   cantidad: l.cantidad,
                                   costoUnitario: l.costoUnitario,
+                                  fechaEntregaEsperada: l.fechaEntregaEsperada,
                                   acuerdoLineaId: l.acuerdoLineaId!,
                                 }))
                               : undefined,
@@ -282,6 +290,8 @@ export default async function MrpPage({
                     <tr>
                       <th>Insumo</th>
                       <th className="text-right">A comprar</th>
+                      <th className="text-right">Necesidad neta</th>
+                      <th>Entrega estimada</th>
                       <th className="text-right">Costo unit.</th>
                       <th className="text-right">Subtotal</th>
                     </tr>
@@ -293,12 +303,14 @@ export default async function MrpPage({
                         <td className="text-right">
                           {formatNumero(l.cantidad, 0)} {l.unidadMedida}
                         </td>
+                        <td className="text-right">{formatNumero(l.necesidadNeta, 0)}</td>
+                        <td>{formatFecha(l.fechaEntregaEsperada)} · {l.plazoEntregaDias} días</td>
                         <td className="text-right">{formatMoneda(l.costoUnitario, grupo.moneda)}</td>
                         <td className="text-right">{formatMoneda(l.cantidad * l.costoUnitario, grupo.moneda)}</td>
                       </tr>
                     ))}
                     <tr>
-                      <td colSpan={3} className="text-right font-semibold">
+                      <td colSpan={5} className="text-right font-semibold">
                         Subtotal
                       </td>
                       <td className="text-right font-semibold">{formatMoneda(subtotalGrupo, grupo.moneda)}</td>

@@ -27,6 +27,9 @@ type Props = {
     stock: number;
     stockMinimo: number;
     costoUnitario: number;
+    plazoEntregaDias: number;
+    cantidadMinimaCompra: number;
+    multiploCompra: number;
     codigoProveedor: string | null;
     zonaAlmacenId: string | null;
     notas: string | null;
@@ -118,6 +121,22 @@ export default function InsumoFormulario({
             ))}
           </select>
         </Campo>
+      </div>
+
+      <div className="border border-black/10 dark:border-white/10 rounded-lg p-4">
+        <h2 className="font-medium mb-3">Parámetros de aprovisionamiento MRP</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Campo etiqueta="Plazo (días)">
+            <input name="plazoEntregaDias" type="number" step="1" min="0" max="3650" defaultValue={valoresIniciales?.plazoEntregaDias ?? 0} className="campo-input" />
+          </Campo>
+          <Campo etiqueta="Compra mínima">
+            <input name="cantidadMinimaCompra" type="number" step="0.001" min="0" defaultValue={valoresIniciales?.cantidadMinimaCompra ?? 0} className="campo-input" />
+          </Campo>
+          <Campo etiqueta="Múltiplo de compra">
+            <input name="multiploCompra" type="number" step="0.001" min="0" defaultValue={valoresIniciales?.multiploCompra ?? 0} className="campo-input" />
+          </Campo>
+        </div>
+        <p className="text-xs text-neutral-500 mt-2">El MRP eleva la necesidad al mínimo y la redondea al siguiente múltiplo. Cero desactiva la regla.</p>
       </div>
 
       <Campo etiqueta="Proveedor (opcional)">
