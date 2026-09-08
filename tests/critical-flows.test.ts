@@ -16,7 +16,7 @@ import {
   postearSalidaMercancia,
   postearVenta,
 } from "@/lib/contabilidad";
-import { calcularUnidadesAProducir, esPeriodoProyeccionValido } from "@/lib/proyecciones";
+import { calcularDemandaPlanificada, calcularSaldoPedido, calcularUnidadesAProducir, esPeriodoProyeccionValido } from "@/lib/proyecciones";
 import { validarLineasSimulacion } from "@/lib/simuladorPrecios";
 import { construirFacturaUBL } from "@/lib/sunatUbl";
 import { esPeriodoPLEValido, generarArchivoPLE, sanitizarCampoPLE } from "@/lib/ple";
@@ -1924,15 +1924,25 @@ test("planilla aísla compañías, usa parámetros versionados, excluye configur
   );
   assert.deepEqual(duplicado, { ok: false, error: "Ya existe una planilla mensual para 3/2099." });
 });
-test("MRP protege stock comprometido por pedidos", () => {
+test("MRP consume el pronóstico con pedidos firmes sin duplicar demanda", () => {
+  assert.equal(calcularDemandaPlanificada(50, 30), 50);
+  assert.equal(calcularDemandaPlanificada(50, 80), 80);
   assert.equal(
-    calcularUnidadesAProducir({ demandaProyectada: 50, stock: 100, stockReservado: 80, stockMinimo: 10 }),
-    40
-  );
-  assert.equal(
-    calcularUnidadesAProducir({ demandaProyectada: 50, stock: 100, stockReservado: 0, stockMinimo: 10 }),
+    calcularUnidadesAProducir({ demandaPlanificada: 80, stock: 100, stockMinimo: 10 }),
     0
   );
+  assert.equal(
+    calcularUnidadesAProducir({ demandaPlanificada: 120, stock: 100, stockMinimo: 10 }),
+    30
+  );
+});
+
+test("MRP calcula backlog parcial sin consumir facturas anuladas", () => {
+  assert.equal(calcularSaldoPedido(100, [
+    { cantidad: 30, anulada: false },
+    { cantidad: 20, anulada: true },
+  ]), 70);
+  assert.equal(calcularSaldoPedido(100, [{ cantidad: 100, anulada: false }]), 0);
 });
 
 test("UBL usa la tasa congelada y rechaza una tasa ausente", () => {
