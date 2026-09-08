@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Entregado 2026-09-08 (valoración):** reporte de inventario valorizado a fecha de corte con snapshot de costo y aislamiento multiempresa.
+
 > **Entregado 2026-09-08 (tres vías):** bloqueo efectivo de pago por discrepancia OC–recepción–factura y liberación excepcional auditada.
 
 > **Entregado 2026-09-08 (proveedores):** score ponderado y clasificación automática con aislamiento multiempresa.

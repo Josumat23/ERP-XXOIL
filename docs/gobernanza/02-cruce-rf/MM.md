@@ -42,7 +42,7 @@ Regla de filtrado del usuario: prioriza datos maestros de materia prima química
 | RF-MM-067, 068 (valoración estándar/media móvil, ejecución periódica de determinación de precio) | Sí (ya hecho) | Costo promedio ponderado (media móvil) por insumo | **Obligatorio (ya hecho)** | M11 |
 | RF-MM-069 (registro contable automático de todo movimiento que afecte valor de inventario) | Sí (ya hecho) | `src/lib/contabilidad.ts` | **Obligatorio (ya hecho)** | M11 |
 | RF-MM-070 (Material Ledger para valoración multi-moneda) | No | XXOil ya resuelve multi-moneda de forma más simple (conversión a PEN al momento de la transacción vía `TipoCambio`), sin necesitar un ledger paralelo por moneda | — | `TipoCambio`, conversión directa (M1) |
-| RF-MM-071 (reporte de valorización de inventario a fecha de corte) | Deseable | Bajo esfuerzo sobre `SaldoAlmacen`/costo promedio existentes | Media | No existe como reporte dedicado |
+| RF-MM-071 (reporte de valorización de inventario a fecha de corte) | Sí (ya hecho) | Snapshot de costo en `MovimientoKardex` y reporte `/inventario/valorizacion` | **Deseable completado** | Entrega 2026-09-08 |
 | RF-MM-072 a 076 (integración FI, CO, PP, SD, PM) | Sí (ya hecho) | Todo integrado vía el motor de asientos único | **Obligatorio (ya hecho)** | M11 |
 | RF-MM-077 a 081 (transversales: SoD, trazabilidad solicitud→pago, no eliminación física, extracción BI, multi-moneda/idioma) | Sí (ya hecho, salvo BI) | El patrón general aplica; multi-moneda ya existe en compras | **Obligatorio (ya hecho)** | M11 |
 

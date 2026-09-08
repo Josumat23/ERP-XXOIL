@@ -54,6 +54,7 @@ export const MODULOS: Modulo[] = [
           { href: "/inventario/conteos", etiqueta: "Conteo cíclico", roles: ["ADMIN", "ALMACEN"] },
           { href: "/inventario/rotacion-abc", etiqueta: "Rotación y ABC" },
           { href: "/inventario/exactitud", etiqueta: "Exactitud de inventario" },
+          { href: "/inventario/valorizacion", etiqueta: "Valorización a fecha de corte" },
         ],
       },
       {

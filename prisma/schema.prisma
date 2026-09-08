@@ -471,6 +471,7 @@ model MovimientoKardex {
   cantidad       Decimal // siempre positiva; el signo lo da tipoMovimiento
   saldoAnterior  Decimal // saldo DEL ALMACÉN indicado (no el total de la empresa)
   saldoNuevo     Decimal
+  costoUnitario  Decimal          @default(0) // costo promedio vigente tras el movimiento; congela la valorización histórica
   motivo         String? // obligatorio cuando origen = AJUSTE
   referencia     String? // código de lote, envasado, factura, traslado, etc.
   usuarioId      String

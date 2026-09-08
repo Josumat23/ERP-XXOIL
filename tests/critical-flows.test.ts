@@ -122,6 +122,17 @@ import { normalizarLineasOfertaRfq, normalizarLineasRfq, totalOfertaEnPen } from
 import { validarNivelesCompra } from "@/lib/aprobacionesCompra";
 import { calcularPuntajeProveedor } from "@/lib/evaluacionProveedores";
 import { evaluarVerificacionFactura } from "@/lib/verificacionFacturaProveedor";
+import { construirValorizacionInventario } from "@/lib/valorizacionInventario";
+
+test("valorización usa el último saldo y costo por artículo y almacén", () => {
+  const resultado = construirValorizacionInventario([
+    { almacenId: "a1", itemId: "i1", tipoItem: "INSUMO", saldoNuevo: 8, costoUnitario: 12 },
+    { almacenId: "a1", itemId: "i1", tipoItem: "INSUMO", saldoNuevo: 10, costoUnitario: 10 },
+    { almacenId: "a2", itemId: "i1", tipoItem: "INSUMO", saldoNuevo: 2, costoUnitario: 12 },
+    { almacenId: "a1", itemId: "p1", tipoItem: "PRESENTACION", saldoNuevo: 3, costoUnitario: 0 },
+  ]);
+  assert.equal(resultado.filas.length, 3); assert.equal(resultado.valorTotal, 120); assert.equal(resultado.filasSinCosto, 1);
+});
 
 test("verificación de factura bloquea solo diferencias superiores al cinco por ciento", () => {
   assert.deepEqual(evaluarVerificacionFactura(0.05), { estadoVerificacion: "COINCIDE", discrepanciaPrecioPct: null });
