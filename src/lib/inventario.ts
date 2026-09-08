@@ -131,16 +131,22 @@ export async function registrarMovimiento(
 
   let nombreItem: string;
   let stockAgregado: Prisma.Decimal;
+  let costoUnitario: Prisma.Decimal;
+  let empresaId: string;
   if (tipoItem === "PRESENTACION") {
     const item = await tx.presentacion.findUnique({ where: { id: presentacionId } });
     if (!item) return { ok: false, error: "La presentación no existe." };
     nombreItem = item.nombre;
     stockAgregado = item.stock;
+    costoUnitario = item.costoPromedio;
+    empresaId = item.empresaId;
   } else {
     const item = await tx.insumo.findUnique({ where: { id: insumoId } });
     if (!item) return { ok: false, error: "El insumo no existe." };
     nombreItem = item.nombre;
     stockAgregado = item.stock;
+    costoUnitario = item.costoUnitario;
+    empresaId = item.empresaId;
   }
 
   // findFirst (no findUnique) a propósito: el índice compuesto
@@ -219,6 +225,8 @@ export async function registrarMovimiento(
       cantidad,
       saldoAnterior,
       saldoNuevo,
+      costoUnitario,
+      empresaId,
       motivo: motivo?.trim() || null,
       referencia: referencia ?? null,
       usuarioId,
