@@ -120,6 +120,15 @@ import {
 } from "@/lib/auth";
 import { normalizarLineasOfertaRfq, normalizarLineasRfq, totalOfertaEnPen } from "@/lib/rfq";
 import { validarNivelesCompra } from "@/lib/aprobacionesCompra";
+import { calcularPuntajeProveedor } from "@/lib/evaluacionProveedores";
+
+test("evaluación de proveedores pondera calidad, entrega y precio", () => {
+  assert.deepEqual(calcularPuntajeProveedor({ tasaCalidad: null, retrasoPromedioDias: null, discrepanciaPrecioPromedioPct: null, muestras: 0 }), { puntaje: null, categoria: "SIN_DATOS", confianza: "SIN_DATOS" });
+  const excelente = calcularPuntajeProveedor({ tasaCalidad: 1, retrasoPromedioDias: 0, discrepanciaPrecioPromedioPct: 0, muestras: 12 });
+  assert.equal(excelente.puntaje, 100); assert.equal(excelente.categoria, "A"); assert.equal(excelente.confianza, "ALTA");
+  const riesgoso = calcularPuntajeProveedor({ tasaCalidad: 0.5, retrasoPromedioDias: 10, discrepanciaPrecioPromedioPct: 20, muestras: 4 });
+  assert.ok(riesgoso.puntaje !== null && riesgoso.puntaje < 60); assert.equal(riesgoso.categoria, "D"); assert.equal(riesgoso.confianza, "MEDIA");
+});
 
 test("aprobaciones de compra validan niveles ordenados y roles restringidos", () => {
   assert.equal(validarNivelesCompra([{ orden: 1, nombre: "Gerencia", montoDesdePen: 5000, rolAprobador: "GERENCIA" }]), true);

@@ -5,6 +5,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import { calcularPuntajeProveedor } from "@/lib/evaluacionProveedores";
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
 
@@ -23,9 +24,9 @@ export default async function EvaluacionProveedoresPage() {
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const [proveedores, inspecciones, cuentasConDiscrepancia, recepciones] = await Promise.all([
-    prisma.proveedor.findMany({ where: { activo: true } }),
+    prisma.proveedor.findMany({ where: { empresaId: usuario.empresaId, activo: true } }),
     prisma.inspeccionCompra.findMany({
-      where: { resultado: { not: "PENDIENTE" } },
+      where: { resultado: { not: "PENDIENTE" }, recepcionDetalle: { recepcion: { empresaId: usuario.empresaId } } },
       include: {
         recepcionDetalle: {
           include: { recepcion: { include: { ordenCompra: { select: { proveedorId: true } } } } },
@@ -33,11 +34,12 @@ export default async function EvaluacionProveedoresPage() {
       },
     }),
     prisma.cuentaPorPagar.findMany({
-      where: { discrepanciaPrecioPct: { not: null } },
+      where: { empresaId: usuario.empresaId },
       select: { proveedorId: true, discrepanciaPrecioPct: true },
     }),
     prisma.recepcionCompra.findMany({
-      include: { ordenCompra: { include: { detalles: true } } },
+      where: { empresaId: usuario.empresaId },
+      include: { detalles: true, ordenCompra: { include: { detalles: true } } },
     }),
   ]);
 
@@ -58,11 +60,13 @@ export default async function EvaluacionProveedoresPage() {
 
   for (const c of cuentasConDiscrepancia) {
     const fila = mapa.get(c.proveedorId);
-    if (fila && c.discrepanciaPrecioPct) fila.discrepancias.push(c.discrepanciaPrecioPct.toNumber());
+    if (fila) fila.discrepancias.push(c.discrepanciaPrecioPct?.toNumber() ?? 0);
   }
 
   for (const r of recepciones) {
+    const insumosRecibidos = new Set(r.detalles.map((detalle) => detalle.insumoId));
     const fechasEsperadas = r.ordenCompra.detalles
+      .filter((detalle) => insumosRecibidos.has(detalle.insumoId))
       .map((d) => d.fechaEntregaEsperada)
       .filter((f): f is Date => f !== null);
     if (fechasEsperadas.length === 0) continue;
@@ -74,14 +78,14 @@ export default async function EvaluacionProveedoresPage() {
   }
 
   const filas = Array.from(mapa.values())
-    .map((f) => ({
-      ...f,
-      tasaAprobacion: f.inspecciones > 0 ? f.aprobadas / f.inspecciones : null,
-      discrepanciaPromedio: f.discrepancias.length > 0 ? f.discrepancias.reduce((a, b) => a + b, 0) / f.discrepancias.length : null,
-      retrasoPromedio: f.retrasos.length > 0 ? f.retrasos.reduce((a, b) => a + b, 0) / f.retrasos.length : null,
-    }))
+    .map((f) => {
+      const tasaAprobacion = f.inspecciones > 0 ? f.aprobadas / f.inspecciones : null;
+      const discrepanciaPromedio = f.discrepancias.length > 0 ? f.discrepancias.reduce((a, b) => a + b, 0) / f.discrepancias.length : null;
+      const retrasoPromedio = f.retrasos.length > 0 ? f.retrasos.reduce((a, b) => a + b, 0) / f.retrasos.length : null;
+      return { ...f, tasaAprobacion, discrepanciaPromedio, retrasoPromedio, ...calcularPuntajeProveedor({ tasaCalidad: tasaAprobacion, discrepanciaPrecioPromedioPct: discrepanciaPromedio, retrasoPromedioDias: retrasoPromedio, muestras: f.inspecciones + f.discrepancias.length + f.retrasos.length }) };
+    })
     .filter((f) => f.inspecciones > 0 || f.discrepancias.length > 0 || f.retrasos.length > 0)
-    .sort((a, b) => (a.tasaAprobacion ?? 1) - (b.tasaAprobacion ?? 1));
+    .sort((a, b) => (b.puntaje ?? -1) - (a.puntaje ?? -1));
 
   return (
     <div className="max-w-5xl">
@@ -104,6 +108,7 @@ export default async function EvaluacionProveedoresPage() {
         <thead>
           <tr>
             <th>Proveedor</th>
+            <th className="text-right">Puntaje</th>
             <th className="text-right">Inspecciones</th>
             <th className="text-right">Aprobación</th>
             <th className="text-right">Discrepancia de precio</th>
@@ -118,6 +123,7 @@ export default async function EvaluacionProveedoresPage() {
                   {f.razonSocial}
                 </Link>
               </td>
+              <td className="text-right"><strong>{f.puntaje !== null ? formatNumero(f.puntaje, 1) : "—"}</strong><span className="block text-xs text-neutral-500">Categoría {f.categoria} · confianza {f.confianza.toLowerCase()}</span></td>
               <td className="text-right">{f.inspecciones}</td>
               <td
                 className={`text-right ${
@@ -148,7 +154,7 @@ export default async function EvaluacionProveedoresPage() {
           ))}
           {filas.length === 0 && (
             <tr>
-              <td colSpan={5} className="text-center text-neutral-500 py-6">
+              <td colSpan={6} className="text-center text-neutral-500 py-6">
                 No hay suficiente historial de inspecciones, discrepancias o entregas todavía.
               </td>
             </tr>

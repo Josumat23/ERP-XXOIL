@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Entregado 2026-09-08 (proveedores):** score ponderado y clasificación automática con aislamiento multiempresa.
+
 > **Entregado 2026-09-08 (liberación):** aprobación multinivel de compras con rechazo motivado y bloqueo de recepción.
 
 > **Entregado 2026-09-08:** RFQ y comparación de proveedores con trazabilidad a la orden de compra.
