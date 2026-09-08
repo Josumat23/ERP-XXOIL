@@ -336,6 +336,7 @@ model Proveedor {
   ordenesCompra     OrdenCompra[]
   cuentasPorPagar   CuentaPorPagar[]
   creditosProveedor CreditoProveedor[]
+  ofertasRfq        OfertaRfq[]
 
   @@unique([empresaId, ruc])
   @@map("proveedores")
@@ -392,6 +393,7 @@ model Insumo {
   reservasProduccion     ReservaInsumoProduccion[]
   movimientosProduccion  MovimientoMaterialProduccion[]
   planesInspeccion       PlanInspeccionInsumo[]
+  lineasRfq              RfqCompraLinea[]
 
   @@unique([empresaId, codigo])
   @@map("insumos")
@@ -1734,6 +1736,93 @@ enum EstadoOrdenCompra {
   ANULADA
 }
 
+enum EstadoRfqCompra {
+  ABIERTO
+  ADJUDICADO
+  CANCELADO
+}
+
+enum EstadoOfertaRfq {
+  PRESENTADA
+  ADJUDICADA
+  NO_SELECCIONADA
+}
+
+model RfqCompra {
+  id                        String          @id @default(cuid())
+  empresaId                 String          @default("1")
+  numero                    String
+  titulo                    String
+  fechaLimite               DateTime?
+  estado                    EstadoRfqCompra @default(ABIERTO)
+  justificacionAdjudicacion String?
+  adjudicadaEn              DateTime?
+  adjudicadaPorId           String?
+  adjudicadaPorNombre       String?
+  usuarioId                 String
+  usuarioNombre             String
+  creadoEn                  DateTime        @default(now())
+  actualizadoEn             DateTime        @updatedAt
+
+  lineas      RfqCompraLinea[]
+  ofertas     OfertaRfq[]
+  ordenCompra OrdenCompra?
+
+  @@unique([empresaId, numero])
+  @@map("rfq_compras")
+}
+
+model RfqCompraLinea {
+  id       String  @id @default(cuid())
+  rfqId    String
+  insumoId String
+  cantidad Decimal
+
+  rfq            RfqCompra        @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  insumo         Insumo           @relation(fields: [insumoId], references: [id])
+  detallesOferta OfertaRfqLinea[]
+
+  @@unique([rfqId, insumoId])
+  @@map("rfq_compra_lineas")
+}
+
+model OfertaRfq {
+  id                String          @id @default(cuid())
+  rfqId             String
+  proveedorId       String
+  moneda            String          @default("PEN")
+  tipoCambio        Decimal         @default(1)
+  condicionPagoDias Int             @default(0)
+  plazoEntregaDias  Int
+  total             Decimal
+  estado            EstadoOfertaRfq @default(PRESENTADA)
+  notas             String?
+  usuarioId         String
+  usuarioNombre     String
+  creadoEn          DateTime        @default(now())
+
+  rfq       RfqCompra        @relation(fields: [rfqId], references: [id], onDelete: Cascade)
+  proveedor Proveedor        @relation(fields: [proveedorId], references: [id])
+  lineas    OfertaRfqLinea[]
+
+  @@unique([rfqId, proveedorId])
+  @@map("ofertas_rfq")
+}
+
+model OfertaRfqLinea {
+  id            String  @id @default(cuid())
+  ofertaId      String
+  rfqLineaId    String
+  costoUnitario Decimal
+  subtotal      Decimal
+
+  oferta   OfertaRfq      @relation(fields: [ofertaId], references: [id], onDelete: Cascade)
+  rfqLinea RfqCompraLinea @relation(fields: [rfqLineaId], references: [id])
+
+  @@unique([ofertaId, rfqLineaId])
+  @@map("oferta_rfq_lineas")
+}
+
 model OrdenCompra {
   id              String            @id @default(cuid())
   empresaId       String            @default("1")
@@ -1766,6 +1855,7 @@ model OrdenCompra {
   // CostoProyecto, sin doble registro.
   proyectoId String?
   edtId      String?
+  rfqId      String? @unique
 
   proveedor       Proveedor            @relation(fields: [proveedorId], references: [id])
   almacen         Almacen?             @relation(fields: [almacenId], references: [id])
@@ -1774,6 +1864,7 @@ model OrdenCompra {
   cuentasPorPagar CuentaPorPagar[]
   proyecto        Proyecto?            @relation(fields: [proyectoId], references: [id])
   edt             EdtProyecto?         @relation(fields: [edtId], references: [id])
+  rfq             RfqCompra?           @relation(fields: [rfqId], references: [id])
 
   @@map("ordenes_compra")
 }

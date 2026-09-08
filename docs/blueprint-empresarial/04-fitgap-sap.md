@@ -1,5 +1,7 @@
 # 04 — Matriz fit/gap por dominio SAP
 
+> **Cierre parcial 2026-09-08:** implementado RFQ → ofertas → comparación → adjudicación → OC. La liberación multinivel específica de RFQ queda diferida.
+
 > **Actualización 2026-08-12:** la inconsistencia MRP descrita en este documento fue corregida por PR #62 (merge b524c24). Para la comparación orientada a SAP Business One, localización vigente y estrategia UX, ver Blueprint 11.
 
 **Cómo leer este documento**: cada dominio SAP S/4HANA tiene una tabla con: requisito de referencia · **aplicabilidad** a la escala objetivo (fabricante grande, varias plantas, varios almacenes, varias compañías, canales múltiples, alto volumen) · evidencia en código (ruta:línea/función) · **estado** (verificado completo / parcial / solo UI / solo documentación / ausente / no aplicable justificado) · riesgo de dejarlo así · solución recomendada (estándar SAP / configuración / extensión propia / integración) · prioridad.
