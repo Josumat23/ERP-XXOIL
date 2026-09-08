@@ -1,5 +1,7 @@
 # 02 — Catálogo de procesos L0-L4 de una fabricante de lubricantes
 
+> **Actualización 2026-09-08:** Compras incorpora RFQ multiinsumo, comparación de ofertas, adjudicación justificada y conversión transaccional a orden de compra.
+
 **Metodología**: L0 = empresa. L1 = cadena de valor (Order-to-Cash, Procure-to-Pay, Plan-to-Produce, etc., nomenclatura estándar de referencia SAP/APQC). L2 = subproceso. L3 = paso de proceso, mapeado a una pantalla/estado real del sistema. L4 = actividad/transacción concreta, mapeada a una función de servidor (`actions.ts`) o a un cálculo (`src/lib/*.ts`) con evidencia de archivo:línea cuando aplica. Donde un nivel L3/L4 estándar de un fabricante de lubricantes **no existe** en el repositorio, se marca explícitamente `[GAP]` — esto alimenta directamente la matriz fit/gap (Blueprint 04).
 
 ---

@@ -118,6 +118,20 @@ import {
   registrarIntentoFallidoLogin,
   verificarPasswordUniforme,
 } from "@/lib/auth";
+import { normalizarLineasOfertaRfq, normalizarLineasRfq, totalOfertaEnPen } from "@/lib/rfq";
+
+test("RFQ normaliza solicitudes y ofertas completas sin duplicados", () => {
+  assert.deepEqual(normalizarLineasRfq([{ insumoId: " ins-1 ", cantidad: 12.5 }]), [{ insumoId: "ins-1", cantidad: 12.5 }]);
+  assert.equal(normalizarLineasRfq([{ insumoId: "ins-1", cantidad: 1 }, { insumoId: "ins-1", cantidad: 2 }]), null);
+  assert.deepEqual(normalizarLineasOfertaRfq([{ rfqLineaId: "lin-1", costoUnitario: 4.25 }]), [{ rfqLineaId: "lin-1", costoUnitario: 4.25 }]);
+  assert.equal(normalizarLineasOfertaRfq([{ rfqLineaId: "lin-1", costoUnitario: -1 }]), null);
+});
+
+test("RFQ convierte ofertas a PEN para una comparación homogénea", () => {
+  assert.equal(totalOfertaEnPen(100, "PEN", 99), 100);
+  assert.equal(totalOfertaEnPen(100, "USD", 3.75), 375);
+  assert.throws(() => totalOfertaEnPen(100, "EUR", 4), /moneda/);
+});
 
 test("períodos operativos aceptan solo años y meses enteros dentro del rango", () => {
   assert.equal(esAnioOperativoValido(2000), true);
