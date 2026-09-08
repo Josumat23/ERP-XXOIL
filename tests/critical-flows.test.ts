@@ -123,6 +123,13 @@ import { validarNivelesCompra } from "@/lib/aprobacionesCompra";
 import { calcularPuntajeProveedor } from "@/lib/evaluacionProveedores";
 import { evaluarVerificacionFactura } from "@/lib/verificacionFacturaProveedor";
 import { construirValorizacionInventario } from "@/lib/valorizacionInventario";
+import { cantidadLiberable, normalizarLineasAcuerdo } from "@/lib/acuerdosSuministro";
+
+test("acuerdos de suministro validan líneas y saldo contractual", () => {
+  assert.deepEqual(normalizarLineasAcuerdo([{ insumoId: " ins-1 ", cantidadComprometida: 100, precioUnitario: 8.5 }]), [{ insumoId: "ins-1", cantidadComprometida: 100, precioUnitario: 8.5 }]);
+  assert.equal(normalizarLineasAcuerdo([{ insumoId: "i", cantidadComprometida: 1, precioUnitario: 2 }, { insumoId: "i", cantidadComprometida: 2, precioUnitario: 2 }]), null);
+  assert.equal(cantidadLiberable(100, 60, 40), true); assert.equal(cantidadLiberable(100, 60, 40.001), false);
+});
 
 test("valorización usa el último saldo y costo por artículo y almacén", () => {
   const resultado = construirValorizacionInventario([

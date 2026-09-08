@@ -1,5 +1,7 @@
 # 04 — Matriz fit/gap por dominio SAP
 
+> **Actualización 2026-09-09 (acuerdos):** contratos marco controlan vigencia, precio, cantidad comprometida/liberada y generan OC trazables sujetas a liberación multinivel.
+
 > **Actualización 2026-09-08 (valoración):** el kardex congela costo promedio por movimiento y permite reportar existencias valorizadas por fecha y almacén sin aplicar costos actuales retroactivamente.
 
 > **Actualización 2026-09-08 (factura proveedor):** diferencias de precio superiores al 5% bloquean el pago y solo se liberan por excepción segregada, motivada y auditable.

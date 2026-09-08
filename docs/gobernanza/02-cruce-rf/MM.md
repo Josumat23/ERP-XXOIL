@@ -19,7 +19,7 @@ Regla de filtrado del usuario: prioriza datos maestros de materia prima química
 | RF-MM-018 (RFQ y comparación de ofertas) | No | XXOil no cotiza formalmente a varios proveedores en el sistema — se negocia fuera del sistema y se registra la OC ya decidida | Fase 3+ | No existe |
 | RF-MM-019 (creación/modificación/liberación de OC) | Sí (ya hecho) | `OrdenCompra`+`OrdenCompraDetalle` | **Obligatorio (ya hecho)** | M11 |
 | RF-MM-020 (aprobación de OC por monto) | Sí (ya hecho) | `OrdenCompra.estadoAprobacion` | **Obligatorio (ya hecho)** | M11 |
-| RF-MM-021 (contratos marco, programas de suministro) | No | XXOil no maneja contratos marco de compra con proveedores | Fase 3+ | No existe |
+| RF-MM-021 (contratos marco, programas de suministro) | Sí (ya hecho) | `AcuerdoSuministro` con liberaciones parciales trazadas a OC | **Completado** | Entrega 2026-09-09 |
 | RF-MM-022 (determinación automática de fuente de aprovisionamiento) | No | Bajo volumen de proveedores por insumo — se elige manual | — | No aplica |
 | RF-MM-023 (estado de OC: pendiente/parcial/cerrada/bloqueada) | Sí (ya hecho) | `OrdenCompra.estado` | **Obligatorio (ya hecho)** | M11 |
 | RF-MM-024 (envío de OC al proveedor por correo/EDI) | No | Se comunica fuera del sistema (WhatsApp/correo manual) — bajo volumen no justifica automatizarlo | Fase 3+ | No existe |

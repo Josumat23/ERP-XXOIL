@@ -338,11 +338,12 @@ model Proveedor {
   activo              Boolean             @default(true)
   creadoEn            DateTime            @default(now())
 
-  insumos           Insumo[]
-  ordenesCompra     OrdenCompra[]
-  cuentasPorPagar   CuentaPorPagar[]
-  creditosProveedor CreditoProveedor[]
-  ofertasRfq        OfertaRfq[]
+  insumos            Insumo[]
+  ordenesCompra      OrdenCompra[]
+  cuentasPorPagar    CuentaPorPagar[]
+  creditosProveedor  CreditoProveedor[]
+  ofertasRfq         OfertaRfq[]
+  acuerdosSuministro AcuerdoSuministro[]
 
   @@unique([empresaId, ruc])
   @@map("proveedores")
@@ -400,6 +401,7 @@ model Insumo {
   movimientosProduccion  MovimientoMaterialProduccion[]
   planesInspeccion       PlanInspeccionInsumo[]
   lineasRfq              RfqCompraLinea[]
+  lineasAcuerdo          AcuerdoSuministroLinea[]
 
   @@unique([empresaId, codigo])
   @@map("insumos")
@@ -1743,6 +1745,51 @@ enum EstadoOrdenCompra {
   ANULADA
 }
 
+enum EstadoAcuerdoSuministro {
+  ACTIVO
+  CERRADO
+  CANCELADO
+}
+
+model AcuerdoSuministro {
+  id            String                  @id @default(cuid())
+  empresaId     String                  @default("1")
+  numero        String
+  proveedorId   String
+  titulo        String
+  moneda        String                  @default("PEN")
+  tipoCambio    Decimal                 @default(1)
+  vigenteDesde  DateTime
+  vigenteHasta  DateTime
+  estado        EstadoAcuerdoSuministro @default(ACTIVO)
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime                @default(now())
+
+  proveedor     Proveedor                @relation(fields: [proveedorId], references: [id])
+  lineas        AcuerdoSuministroLinea[]
+  ordenesCompra OrdenCompra[]
+
+  @@unique([empresaId, numero])
+  @@map("acuerdos_suministro")
+}
+
+model AcuerdoSuministroLinea {
+  id                   String  @id @default(cuid())
+  acuerdoId            String
+  insumoId             String
+  cantidadComprometida Decimal
+  cantidadLiberada     Decimal @default(0)
+  precioUnitario       Decimal
+
+  acuerdo       AcuerdoSuministro    @relation(fields: [acuerdoId], references: [id], onDelete: Cascade)
+  insumo        Insumo               @relation(fields: [insumoId], references: [id])
+  detallesOrden OrdenCompraDetalle[]
+
+  @@unique([acuerdoId, insumoId])
+  @@map("acuerdo_suministro_lineas")
+}
+
 enum EstadoRfqCompra {
   ABIERTO
   ADJUDICADO
@@ -1863,6 +1910,7 @@ model OrdenCompra {
   proyectoId String?
   edtId      String?
   rfqId      String? @unique
+  acuerdoId  String?
 
   proveedor       Proveedor              @relation(fields: [proveedorId], references: [id])
   almacen         Almacen?               @relation(fields: [almacenId], references: [id])
@@ -1873,6 +1921,7 @@ model OrdenCompra {
   edt             EdtProyecto?           @relation(fields: [edtId], references: [id])
   rfq             RfqCompra?             @relation(fields: [rfqId], references: [id])
   pasosAprobacion PasoAprobacionCompra[]
+  acuerdo         AcuerdoSuministro?     @relation(fields: [acuerdoId], references: [id])
 
   @@map("ordenes_compra")
 }
@@ -1920,9 +1969,11 @@ model OrdenCompraDetalle {
   subtotal             Decimal
   cantidadRecibida     Decimal   @default(0)
   fechaEntregaEsperada DateTime? // fecha pactada con el proveedor para esta línea
+  acuerdoLineaId       String?
 
-  ordenCompra OrdenCompra @relation(fields: [ordenCompraId], references: [id])
-  insumo      Insumo      @relation(fields: [insumoId], references: [id])
+  ordenCompra  OrdenCompra             @relation(fields: [ordenCompraId], references: [id])
+  insumo       Insumo                  @relation(fields: [insumoId], references: [id])
+  acuerdoLinea AcuerdoSuministroLinea? @relation(fields: [acuerdoLineaId], references: [id])
 
   @@map("orden_compra_detalles")
 }

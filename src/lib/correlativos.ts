@@ -52,6 +52,12 @@ export async function siguienteNumeroRfq(tx: Tx, empresaId: string): Promise<str
   return siguiente("RFQ", ultimo?.numero ?? null);
 }
 
+export async function siguienteNumeroAcuerdoSuministro(tx: Tx, empresaId: string): Promise<string> {
+  await reservarCorrelativo(tx);
+  const ultimo = await tx.acuerdoSuministro.findFirst({ where: { empresaId }, orderBy: { numero: "desc" } });
+  return siguiente("AS", ultimo?.numero ?? null);
+}
+
 export async function siguienteNumeroRecepcion(tx: Tx): Promise<string> {
   await reservarCorrelativo(tx);
   const ultimo = await tx.recepcionCompra.findFirst({ orderBy: { numero: "desc" } });
