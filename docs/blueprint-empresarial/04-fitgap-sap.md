@@ -1,5 +1,7 @@
 # 04 — Matriz fit/gap por dominio SAP
 
+> **Actualización 2026-09-08 (factura proveedor):** diferencias de precio superiores al 5% bloquean el pago y solo se liberan por excepción segregada, motivada y auditable.
+
 > **Actualización 2026-09-08 (proveedores):** el desempeño de proveedores se puntúa automáticamente por calidad, entrega y precio, con categoría y nivel de confianza por volumen de evidencia.
 
 > **Actualización 2026-09-08 (liberación):** Compras dispone de niveles configurables por monto y rol, secuencia congelada por OC, segregación solicitante/adjudicador/aprobador e historial de decisiones.

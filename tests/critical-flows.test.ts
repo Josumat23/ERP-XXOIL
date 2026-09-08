@@ -121,6 +121,13 @@ import {
 import { normalizarLineasOfertaRfq, normalizarLineasRfq, totalOfertaEnPen } from "@/lib/rfq";
 import { validarNivelesCompra } from "@/lib/aprobacionesCompra";
 import { calcularPuntajeProveedor } from "@/lib/evaluacionProveedores";
+import { evaluarVerificacionFactura } from "@/lib/verificacionFacturaProveedor";
+
+test("verificación de factura bloquea solo diferencias superiores al cinco por ciento", () => {
+  assert.deepEqual(evaluarVerificacionFactura(0.05), { estadoVerificacion: "COINCIDE", discrepanciaPrecioPct: null });
+  assert.deepEqual(evaluarVerificacionFactura(0.075), { estadoVerificacion: "BLOQUEADA", discrepanciaPrecioPct: 7.5 });
+  assert.throws(() => evaluarVerificacionFactura(-0.01), /inválida/);
+});
 
 test("evaluación de proveedores pondera calidad, entrega y precio", () => {
   assert.deepEqual(calcularPuntajeProveedor({ tasaCalidad: null, retrasoPromedioDias: null, discrepanciaPrecioPromedioPct: null, muestras: 0 }), { puntaje: null, categoria: "SIN_DATOS", confianza: "SIN_DATOS" });

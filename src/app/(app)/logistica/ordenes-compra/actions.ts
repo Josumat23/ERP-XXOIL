@@ -23,6 +23,7 @@ import {
 } from "@/lib/lineasOrdenCompra";
 import { crearOrdenCompraDesdeDatos } from "@/lib/ordenesCompra";
 import { calcularDistribucionDevolucionProveedor } from "@/lib/creditosProveedor";
+import { evaluarVerificacionFactura } from "@/lib/verificacionFacturaProveedor";
 
 export type EstadoFormulario = { error?: string };
 
@@ -318,7 +319,7 @@ export async function registrarRecepcion(
         diasCredito > 0
           ? new Date(Date.now() + diasCredito * 24 * 60 * 60 * 1000)
           : null;
-      const TOLERANCIA_DISCREPANCIA = 0.05; // 5%
+      const verificacion = evaluarVerificacionFactura(maxVariacionPct);
       await tx.cuentaPorPagar.create({
         data: {
           proveedorId: oc.proveedorId,
@@ -333,7 +334,8 @@ export async function registrarRecepcion(
           ...(oc.moneda !== "PEN"
             ? { montoOriginal: totalRecepcion, monedaOriginal: oc.moneda, tipoCambio: oc.tipoCambio }
             : {}),
-          discrepanciaPrecioPct: maxVariacionPct > TOLERANCIA_DISCREPANCIA ? maxVariacionPct * 100 : null,
+          discrepanciaPrecioPct: verificacion.discrepanciaPrecioPct,
+          estadoVerificacion: verificacion.estadoVerificacion,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
         },

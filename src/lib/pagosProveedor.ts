@@ -32,6 +32,9 @@ export async function ejecutarPagoProveedor(
     include: { proveedor: true, pagos: true },
   });
   if (!cuenta) return { ok: false, error: "La cuenta por pagar no existe." };
+  if (cuenta.estadoVerificacion === "BLOQUEADA") {
+    return { ok: false, error: `${cuenta.proveedor.razonSocial}: la factura está bloqueada por una discrepancia de precio.` };
+  }
   if (cuenta.pagos.some((p) => p.estadoAprobacion === "PENDIENTE")) {
     return { ok: false, error: `${cuenta.proveedor.razonSocial}: ya hay un pago pendiente de aprobación.` };
   }
