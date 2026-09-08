@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Entregado 2026-09-09:** MRP con plazo de abastecimiento, compra mínima, múltiplo y fecha esperada en la orden sugerida.
+
 > **Entregado 2026-09-09:** acuerdos marco de suministro con consumo parcial y control transaccional de saldo.
 >
 > **Entregado 2026-09-09:** determinación automática de fuente en MRP por costo normalizado y cobertura contractual, con trazabilidad a la orden de compra.

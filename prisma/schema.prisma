@@ -356,35 +356,38 @@ enum TipoInsumo {
 }
 
 model Insumo {
-  id                 String     @id @default(cuid())
-  empresaId          String     @default("1")
-  proveedorId        String?
-  codigo             String
-  nombre             String
-  tipo               TipoInsumo
-  unidadMedida       String
+  id                   String     @id @default(cuid())
+  empresaId            String     @default("1")
+  proveedorId          String?
+  codigo               String
+  nombre               String
+  tipo                 TipoInsumo
+  unidadMedida         String
   // Envases retornables (ej. tambor metálico de 55 gal): el cliente paga un
   // depósito y lo recupera al devolver el casco vacío. Solo aplica cuando
   // tipo = ENVASE. El control de cascos pendientes por cliente es manual por
   // ahora (no hay todavía un módulo de seguimiento automático).
-  esRetornable       Boolean    @default(false)
-  montoDeposito      Decimal?
-  stock              Decimal    @default(0)
-  stockMinimo        Decimal    @default(0)
-  costoUnitario      Decimal    @default(0)
-  moneda             String     @default("PEN")
-  codigoProveedor    String? // código del artículo en el catálogo del proveedor
-  zonaAlmacenId      String? // ubicación estructurada (Almacen > ZonaAlmacen)
-  notas              String?
-  requiereInspeccion Boolean    @default(false) // si true, cada recepción queda pendiente de calidad antes de sumar stock
+  esRetornable         Boolean    @default(false)
+  montoDeposito        Decimal?
+  stock                Decimal    @default(0)
+  stockMinimo          Decimal    @default(0)
+  costoUnitario        Decimal    @default(0)
+  plazoEntregaDias     Int        @default(0)
+  cantidadMinimaCompra Decimal    @default(0)
+  multiploCompra       Decimal    @default(0)
+  moneda               String     @default("PEN")
+  codigoProveedor      String? // código del artículo en el catálogo del proveedor
+  zonaAlmacenId        String? // ubicación estructurada (Almacen > ZonaAlmacen)
+  notas                String?
+  requiereInspeccion   Boolean    @default(false) // si true, cada recepción queda pendiente de calidad antes de sumar stock
   // Catálogo formal de sustancia peligrosa (EHS): a diferencia de Producto
   // (hojaSeguridadUrl), la SDS/MSDS del insumo se adjunta vía el DMS genérico
   // (modelo Adjunto, entidadTipo="Insumo") en vez de un campo URL suelto.
-  esPeligroso        Boolean    @default(false)
-  claseGhs           String? // clasificación de peligro GHS, ej. "H315, H319 - Irritante cutáneo/ocular"
-  activo             Boolean    @default(true)
-  creadoEn           DateTime   @default(now())
-  actualizadoEn      DateTime   @updatedAt
+  esPeligroso          Boolean    @default(false)
+  claseGhs             String? // clasificación de peligro GHS, ej. "H315, H319 - Irritante cutáneo/ocular"
+  activo               Boolean    @default(true)
+  creadoEn             DateTime   @default(now())
+  actualizadoEn        DateTime   @updatedAt
 
   proveedor              Proveedor?                     @relation(fields: [proveedorId], references: [id])
   zonaAlmacen            ZonaAlmacen?                   @relation(fields: [zonaAlmacenId], references: [id])

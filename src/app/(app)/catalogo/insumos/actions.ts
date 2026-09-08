@@ -25,6 +25,9 @@ function leerDatos(formData: FormData) {
   const proveedorId = String(formData.get("proveedorId") ?? "") || null;
   const stockMinimo = Number(formData.get("stockMinimo") ?? 0);
   const costoUnitario = Number(formData.get("costoUnitario") ?? 0);
+  const plazoEntregaDias = Number(formData.get("plazoEntregaDias") ?? 0);
+  const cantidadMinimaCompra = Number(formData.get("cantidadMinimaCompra") ?? 0);
+  const multiploCompra = Number(formData.get("multiploCompra") ?? 0);
   const codigoProveedor = String(formData.get("codigoProveedor") ?? "").trim() || null;
   const zonaAlmacenId = String(formData.get("zonaAlmacenId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
@@ -44,6 +47,12 @@ function leerDatos(formData: FormData) {
   if (!Number.isFinite(costoUnitario) || costoUnitario < 0) {
     return { error: "El costo unitario debe ser un número válido." } as const;
   }
+  if (!Number.isInteger(plazoEntregaDias) || plazoEntregaDias < 0 || plazoEntregaDias > 3650) {
+    return { error: "El plazo de entrega debe ser un número entero entre 0 y 3650 días." } as const;
+  }
+  if (!Number.isFinite(cantidadMinimaCompra) || cantidadMinimaCompra < 0 || !Number.isFinite(multiploCompra) || multiploCompra < 0) {
+    return { error: "La compra mínima y el múltiplo deben ser números válidos no negativos." } as const;
+  }
   if (montoDeposito !== null && (!Number.isFinite(montoDeposito) || montoDeposito < 0)) {
     return { error: "El monto del depósito debe ser un número válido." } as const;
   }
@@ -57,6 +66,9 @@ function leerDatos(formData: FormData) {
       proveedorId,
       stockMinimo,
       costoUnitario,
+      plazoEntregaDias,
+      cantidadMinimaCompra,
+      multiploCompra,
       codigoProveedor,
       zonaAlmacenId,
       notas,
