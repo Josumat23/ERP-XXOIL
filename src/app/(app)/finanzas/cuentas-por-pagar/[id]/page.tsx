@@ -9,6 +9,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PagoFormulario from "./PagoFormulario";
 import { aprobarPagoProveedor } from "../actions";
 import RechazarPagoFormulario from "./RechazarPagoFormulario";
+import LiberarFacturaFormulario from "./LiberarFacturaFormulario";
 
 const COLOR_APROBACION: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -27,15 +28,15 @@ export default async function DetalleCuentaPorPagarPage({
   const { id } = await params;
 
   const [cuenta, cuentas] = await Promise.all([
-    prisma.cuentaPorPagar.findUnique({
-      where: { id },
+    prisma.cuentaPorPagar.findFirst({
+      where: { id, empresaId: usuario.empresaId },
       include: {
         proveedor: true,
         ordenCompra: true,
         pagos: { orderBy: { fecha: "asc" } },
       },
     }),
-    prisma.cuentaPorPagar.findMany({ include: { proveedor: true }, orderBy: { fechaEmision: "desc" } }),
+    prisma.cuentaPorPagar.findMany({ where: { empresaId: usuario.empresaId }, include: { proveedor: true }, orderBy: { fechaEmision: "desc" } }),
   ]);
   if (!cuenta) notFound();
 
@@ -109,6 +110,8 @@ export default async function DetalleCuentaPorPagarPage({
           cambio {cuenta.tipoCambio.toFixed(3)}
         </p>
       )}
+      {cuenta.estadoVerificacion === "BLOQUEADA" && <section className="mt-6 border border-red-300 bg-red-50 dark:bg-red-950/30 rounded-lg p-4"><h2 className="font-medium text-red-700 dark:text-red-400">Pago bloqueado por verificación en tres vías</h2><p className="text-sm text-neutral-600 mt-1">La diferencia de precio supera la tolerancia del 5%. Gerencia debe revisar OC, recepción y factura antes de permitir el pago.</p>{puedeAprobar ? <LiberarFacturaFormulario cuentaId={cuenta.id} /> : <p className="text-xs text-neutral-500 mt-2">Pendiente de Gerencia o Administración.</p>}</section>}
+      {cuenta.estadoVerificacion === "APROBADA_EXCEPCION" && <section className="mt-6 border border-amber-300 rounded-lg p-4 text-sm"><strong>Diferencia aprobada por excepción.</strong> {cuenta.motivoExcepcion} — {cuenta.verificacionResueltaPorNombre}</section>}
 
       <section className="mt-8">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Pagos realizados</h2>
@@ -181,7 +184,7 @@ export default async function DetalleCuentaPorPagarPage({
               </div>
             ))}
 
-        {cuenta.saldo.toNumber() > 0 && (
+        {cuenta.saldo.toNumber() > 0 && cuenta.estadoVerificacion !== "BLOQUEADA" && (
           <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 mt-4">
             <PagoFormulario cuentaId={cuenta.id} saldo={cuenta.saldo.toNumber()} />
           </div>

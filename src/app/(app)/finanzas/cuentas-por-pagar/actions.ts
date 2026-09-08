@@ -84,6 +84,7 @@ export async function aprobarPagoProveedor(pagoId: string) {
         include: { cuentaPorPagar: { include: { proveedor: true } } },
       });
       if (!pago) throw new Error("El pago no existe.");
+      if (pago.cuentaPorPagar.estadoVerificacion === "BLOQUEADA") throw new Error("La factura está bloqueada por una discrepancia y no puede pagarse.");
       if (pago.estadoAprobacion !== "PENDIENTE") {
         throw new Error("Este pago no está pendiente de aprobación.");
       }
@@ -135,6 +136,24 @@ export async function aprobarPagoProveedor(pagoId: string) {
   revalidatePath("/finanzas/cuentas-por-pagar");
   revalidatePath("/finanzas/caja");
   return {};
+}
+
+export async function liberarFacturaProveedor(
+  cuentaId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["GERENCIA"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "finanzas", "aprobar"))) return { error: "No tiene permiso para liberar facturas." };
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  if (motivo.length < 12) return { error: "Documente el motivo de la excepción con al menos 12 caracteres." };
+  const resultado = await prisma.cuentaPorPagar.updateMany({
+    where: { id: cuentaId, empresaId: auth.usuario.empresaId, estadoVerificacion: "BLOQUEADA", usuarioId: { not: auth.usuario.id } },
+    data: { estadoVerificacion: "APROBADA_EXCEPCION", verificacionResueltaPorId: auth.usuario.id, verificacionResueltaPorNombre: auth.usuario.nombre, verificacionResueltaEn: new Date(), motivoExcepcion: motivo },
+  });
+  if (resultado.count !== 1) return { error: "La factura ya fue resuelta, no pertenece a la empresa o fue registrada por usted." };
+  revalidatePath("/finanzas/cuentas-por-pagar"); revalidatePath(`/finanzas/cuentas-por-pagar/${cuentaId}`); return {};
 }
 
 export async function rechazarPagoProveedor(

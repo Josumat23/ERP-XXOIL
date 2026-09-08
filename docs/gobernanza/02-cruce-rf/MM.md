@@ -1,6 +1,6 @@
 # Cruce RF genérico → XXOil: MM (Gestión de Materiales — general)
 
-**Fuente:** `Requerimientos_Funcionales_SAP_MM.md` (81 RF). Las secciones 4 (MM-IM), 5 (MM-WM) y 7 (MRP) de este catálogo se cruzan en `MM-IM.md`, `WM-EWM.md` y `MRP.md` respectivamente, para no duplicar — aquí solo MM-MD (datos maestros), MM-PUR (compras), MM-IV (verificación de facturas), MM-SRV (servicios) y Valoración. **Resultado de estas secciones: 24 Obligatorio (20 ya construidos), 5 Deseable, 22 No aplica.**
+**Fuente:** `Requerimientos_Funcionales_SAP_MM.md` (81 RF). Las secciones 4 (MM-IM), 5 (MM-WM) y 7 (MRP) de este catálogo se cruzan en `MM-IM.md`, `WM-EWM.md` y `MRP.md` respectivamente. **Actualización 2026-09-08:** RFQ, liberación multinivel, evaluación de proveedores y bloqueo por verificación en tres vías quedaron implementados.
 
 Regla de filtrado del usuario: prioriza datos maestros de materia prima química, control de lotes, vencimiento, y verificación de facturas de proveedores; descarta manufactura discreta compleja. Verificado: el ciclo de compras (OC con aprobación por monto → recepción con costo promedio ponderado → cuenta por pagar → pago) está completo y es de los módulos más maduros del sistema. El gap real es la **verificación de facturas en 3 vías** (RF-MM-050, MM-IV) — hoy la cuenta por pagar se genera directo desde la recepción, sin un paso separado de "verificar la factura del proveedor contra lo pedido y lo recibido" cuando llega después.
 

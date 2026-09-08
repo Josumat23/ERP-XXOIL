@@ -2281,38 +2281,49 @@ enum EstadoCuentaPorPagar {
   PAGADA
 }
 
+enum EstadoVerificacionFacturaProveedor {
+  COINCIDE
+  BLOQUEADA
+  APROBADA_EXCEPCION
+}
+
 model CuentaPorPagar {
-  id                    String               @id @default(cuid())
-  empresaId             String               @default("1")
-  proveedorId           String
-  ordenCompraId         String?
-  recepcionCompraId     String? // recepción que originó esta CxP (para poder aplicar devoluciones)
-  numeroDocumento       String // factura del proveedor, formato "serie-número" (ej. F001-123)
+  id                            String                             @id @default(cuid())
+  empresaId                     String                             @default("1")
+  proveedorId                   String
+  ordenCompraId                 String?
+  recepcionCompraId             String? // recepción que originó esta CxP (para poder aplicar devoluciones)
+  numeroDocumento               String // factura del proveedor, formato "serie-número" (ej. F001-123)
   // Código de Tabla 10 de SUNAT (01 Factura, 03 Boleta, 04 Liquidación de
   // compra, 91 comprobante de no domiciliado, etc.) — para el Registro de
   // Compras Electrónico (PLE). Default Factura, el caso normal en compras B2B.
-  tipoComprobante       String               @default("01")
-  fechaEmision          DateTime             @default(now())
-  fechaVencimiento      DateTime?
-  moneda                String               @default("PEN")
-  total                 Decimal // siempre en PEN (moneda funcional)
-  saldo                 Decimal // siempre en PEN
+  tipoComprobante               String                             @default("01")
+  fechaEmision                  DateTime                           @default(now())
+  fechaVencimiento              DateTime?
+  moneda                        String                             @default("PEN")
+  total                         Decimal // siempre en PEN (moneda funcional)
+  saldo                         Decimal // siempre en PEN
   // Referencia informativa cuando la compra original fue en otra moneda
   // (ej. USD): monto/moneda tal como llegó la factura del proveedor, y el
   // tipo de cambio usado para convertir total/saldo a PEN. null si ya nació
   // en PEN — no es una revaluación, solo trazabilidad.
-  montoOriginal         Decimal?
-  monedaOriginal        String?
-  tipoCambio            Decimal?
+  montoOriginal                 Decimal?
+  monedaOriginal                String?
+  tipoCambio                    Decimal?
   // % de variación entre el costo unitario registrado en la recepción y el
   // costo pactado en la orden de compra (verificación de factura en 3 vías:
   // orden↔recepción↔lo que se está por pagar). null = sin discrepancia
   // detectada o por debajo de la tolerancia (5%). No bloquea el pago — solo
   // lo señala, porque el sistema no debe ser rígido ante regularizaciones.
-  discrepanciaPrecioPct Decimal?
-  estado                EstadoCuentaPorPagar @default(PENDIENTE)
-  usuarioId             String
-  usuarioNombre         String
+  discrepanciaPrecioPct         Decimal?
+  estadoVerificacion            EstadoVerificacionFacturaProveedor @default(COINCIDE)
+  verificacionResueltaPorId     String?
+  verificacionResueltaPorNombre String?
+  verificacionResueltaEn        DateTime?
+  motivoExcepcion               String?
+  estado                        EstadoCuentaPorPagar               @default(PENDIENTE)
+  usuarioId                     String
+  usuarioNombre                 String
 
   proveedor           Proveedor                    @relation(fields: [proveedorId], references: [id])
   ordenCompra         OrdenCompra?                 @relation(fields: [ordenCompraId], references: [id])
