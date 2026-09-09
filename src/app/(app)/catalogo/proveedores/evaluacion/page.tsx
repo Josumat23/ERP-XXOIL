@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import { calcularPuntajeProveedor } from "@/lib/evaluacionProveedores";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
 
@@ -22,11 +23,12 @@ type Fila = {
 export default async function EvaluacionProveedoresPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [proveedores, inspecciones, cuentasConDiscrepancia, recepciones] = await Promise.all([
-    prisma.proveedor.findMany({ where: { empresaId: usuario.empresaId, activo: true } }),
+    prisma.proveedor.findMany({ where: { empresaId, activo: true } }),
     prisma.inspeccionCompra.findMany({
-      where: { resultado: { not: "PENDIENTE" }, recepcionDetalle: { recepcion: { empresaId: usuario.empresaId } } },
+      where: { resultado: { not: "PENDIENTE" }, recepcionDetalle: { recepcion: { empresaId } } },
       include: {
         recepcionDetalle: {
           include: { recepcion: { include: { ordenCompra: { select: { proveedorId: true } } } } },
@@ -34,11 +36,11 @@ export default async function EvaluacionProveedoresPage() {
       },
     }),
     prisma.cuentaPorPagar.findMany({
-      where: { empresaId: usuario.empresaId },
+      where: { empresaId },
       select: { proveedorId: true, discrepanciaPrecioPct: true },
     }),
     prisma.recepcionCompra.findMany({
-      where: { empresaId: usuario.empresaId },
+      where: { empresaId },
       include: { detalles: true, ordenCompra: { include: { detalles: true } } },
     }),
   ]);
