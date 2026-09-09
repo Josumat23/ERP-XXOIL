@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Entregado 2026-09-09:** aislamiento multiempresa de órdenes de compra, recepciones, devoluciones a proveedor e inspecciones de entrada; selección de compañía activa aplicada también a RFQ.
+
 > **Entregado 2026-09-09:** migración y aislamiento multiempresa real de descuentos por canal y movimientos de envases retornables.
 
 > **Entregado 2026-09-09:** aislamiento multiempresa de guías de remisión, despacho, devoluciones de clientes, backlog, comisiones, series legales y ledger de comprobantes electrónicos.

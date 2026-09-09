@@ -24,6 +24,7 @@ import {
 import { crearOrdenCompraDesdeDatos } from "@/lib/ordenesCompra";
 import { calcularDistribucionDevolucionProveedor } from "@/lib/creditosProveedor";
 import { evaluarVerificacionFactura } from "@/lib/verificacionFacturaProveedor";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -72,9 +73,10 @@ export async function crearOrdenCompra(
 
   let ocId: string;
   try {
+    const empresaId = await obtenerEmpresaActivaId();
     ocId = await crearOrdenCompraDesdeDatos(
       { proveedorId, almacenId, notas, moneda, tipoCambio, lineas, proyectoId, edtId },
-      { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: auth.usuario.empresaId }
+      { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId }
     );
   } catch (e) {
     if (e instanceof Error) return { error: e.message };
@@ -99,11 +101,12 @@ export async function anularOrdenCompra(
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo de anulación es obligatorio." };
 
-  const existe = await prisma.ordenCompra.findUnique({ where: { id }, select: { id: true } });
+  const empresaId = await obtenerEmpresaActivaId();
+  const existe = await prisma.ordenCompra.findFirst({ where: { id, empresaId }, select: { id: true } });
   if (!existe) return { error: "La orden no existe." };
 
   const resultado = await prisma.ordenCompra.updateMany({
-    where: { id, estado: "PENDIENTE", recepciones: { none: {} } },
+    where: { id, empresaId, estado: "PENDIENTE", recepciones: { none: {} } },
     data: { estado: "ANULADA", motivoAnulacion: motivo },
   });
   if (resultado.count !== 1) {
@@ -157,11 +160,12 @@ export async function registrarRecepcion(
   if (lineas.length === 0) {
     return { error: "Ingrese al menos una cantidad recibida mayor a 0." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const oc = await tx.ordenCompra.findUnique({
-        where: { id: ordenCompraId },
+      const oc = await tx.ordenCompra.findFirst({
+        where: { id: ordenCompraId, empresaId },
         include: { detalles: { include: { insumo: true } }, proveedor: true },
       });
       if (!oc) throw new Error("La orden de compra no existe.");
@@ -177,7 +181,7 @@ export async function registrarRecepcion(
 
       if (oc.estado === "PENDIENTE") {
         const reclamo = await tx.ordenCompra.updateMany({
-          where: { id: ordenCompraId, estado: "PENDIENTE" },
+          where: { id: ordenCompraId, empresaId, estado: "PENDIENTE" },
           data: { estado: "PARCIAL" },
         });
         if (reclamo.count !== 1) {
@@ -214,6 +218,7 @@ export async function registrarRecepcion(
       const recepcion = await tx.recepcionCompra.create({
         data: {
           numero,
+          empresaId,
           ordenCompraId,
           notas,
           usuarioId: auth.usuario.id,
@@ -322,6 +327,7 @@ export async function registrarRecepcion(
       const verificacion = evaluarVerificacionFactura(maxVariacionPct);
       await tx.cuentaPorPagar.create({
         data: {
+          empresaId,
           proveedorId: oc.proveedorId,
           ordenCompraId,
           recepcionCompraId: recepcion.id,
@@ -374,8 +380,9 @@ export async function aprobarOrdenCompra(id: string) {
   }
 
   try {
+    const empresaId = await obtenerEmpresaActivaId();
     await prisma.$transaction(async (tx) => {
-      const oc = await tx.ordenCompra.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, include: { pasosAprobacion: { orderBy: { orden: "asc" } } } });
+      const oc = await tx.ordenCompra.findFirst({ where: { id, empresaId }, include: { pasosAprobacion: { orderBy: { orden: "asc" } } } });
       if (!oc || oc.estadoAprobacion !== "PENDIENTE") throw new Error("Esta orden no está pendiente de aprobación.");
       if (!puedeResolverSolicitud(oc.usuarioId, auth.usuario.id)) throw new Error("La persona que creó la orden no puede aprobarla.");
       const paso = oc.pasosAprobacion.find((p) => p.estado === "PENDIENTE");
@@ -411,8 +418,9 @@ export async function rechazarOrdenCompra(
   if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
 
   try {
+    const empresaId = await obtenerEmpresaActivaId();
     await prisma.$transaction(async (tx) => {
-      const oc = await tx.ordenCompra.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, include: { pasosAprobacion: { orderBy: { orden: "asc" } } } });
+      const oc = await tx.ordenCompra.findFirst({ where: { id, empresaId }, include: { pasosAprobacion: { orderBy: { orden: "asc" } } } });
       if (!oc || oc.estadoAprobacion !== "PENDIENTE") throw new Error("Esta orden no está pendiente de aprobación.");
       if (!puedeResolverSolicitud(oc.usuarioId, auth.usuario.id)) throw new Error("La persona que creó la orden no puede rechazarla.");
       const paso = oc.pasosAprobacion.find((p) => p.estado === "PENDIENTE");
@@ -454,17 +462,18 @@ export async function registrarDevolucionProveedor(
     return { error: "La cantidad debe ser mayor a 0." };
   }
   if (!motivo) return { error: "El motivo es obligatorio." };
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
       const bloqueo = await tx.recepcionCompraDetalle.updateMany({
-        where: { id: recepcionCompraDetalleId },
+        where: { id: recepcionCompraDetalleId, recepcion: { ordenCompra: { id: ordenCompraId, empresaId } } },
         data: { cantidad: { increment: 0 } },
       });
       if (bloqueo.count !== 1) throw new Error("La línea recibida no existe.");
 
-      const detalle = await tx.recepcionCompraDetalle.findUnique({
-        where: { id: recepcionCompraDetalleId },
+      const detalle = await tx.recepcionCompraDetalle.findFirst({
+        where: { id: recepcionCompraDetalleId, recepcion: { ordenCompra: { id: ordenCompraId, empresaId } } },
         include: {
           insumo: true,
           devoluciones: true,
@@ -501,7 +510,7 @@ export async function registrarDevolucionProveedor(
       const montoCredito = cantidad * detalle.costoUnitario.toNumber();
       const montoFuncional = convertirAPen(montoCredito, oc.moneda, oc.tipoCambio.toNumber());
       const cxp = await tx.cuentaPorPagar.findFirst({
-        where: { recepcionCompraId: detalle.recepcion.id },
+        where: { empresaId, recepcionCompraId: detalle.recepcion.id },
       });
       const distribucion = calcularDistribucionDevolucionProveedor({
         montoFuncional,
@@ -509,6 +518,7 @@ export async function registrarDevolucionProveedor(
       });
       const devolucion = await tx.devolucionCompra.create({
         data: {
+          empresaId,
           recepcionCompraDetalleId,
           cantidad,
           motivo,
@@ -521,7 +531,7 @@ export async function registrarDevolucionProveedor(
 
       if (cxp && distribucion.montoCxp > 0) {
         const actualizada = await tx.cuentaPorPagar.updateMany({
-          where: { id: cxp.id, saldo: cxp.saldo, estado: cxp.estado },
+          where: { id: cxp.id, empresaId, saldo: cxp.saldo, estado: cxp.estado },
           data: {
             saldo: distribucion.nuevoSaldoCxp,
             estado: distribucion.nuevoSaldoCxp <= 1e-9 ? "PAGADA" : "PENDIENTE",

@@ -8,6 +8,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { siguienteNumeroOrdenCompra, siguienteNumeroRfq } from "@/lib/correlativos";
 import { normalizarLineasOfertaRfq, normalizarLineasRfq } from "@/lib/rfq";
 import { pasosAplicablesCompra } from "@/lib/aprobacionesCompra";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoRfqFormulario = { error?: string };
 
@@ -24,7 +25,7 @@ export async function crearRfq(_estado: EstadoRfqFormulario, formData: FormData)
   const lineas = normalizarLineasRfq(jsonFormulario(formData, "lineas"));
   if (titulo.length < 4) return { error: "Ingrese un título de al menos 4 caracteres." };
   if (!lineas?.length) return { error: "Agregue líneas válidas, sin insumos repetidos." };
-  const empresaId = auth.usuario.empresaId;
+  const empresaId = await obtenerEmpresaActivaId();
   let id = "";
   try {
     await prisma.$transaction(async (tx) => {
@@ -57,11 +58,12 @@ export async function registrarOferta(rfqId: string, _estado: EstadoRfqFormulari
   if (!proveedorId || !lineas?.length) return { error: "Complete el proveedor y todos los precios." };
   if (!(["PEN", "USD"].includes(moneda)) || !Number.isFinite(tipoCambio) || tipoCambio <= 0) return { error: "Moneda o tipo de cambio inválido." };
   if (!Number.isInteger(condicionPagoDias) || condicionPagoDias < 0 || !Number.isInteger(plazoEntregaDias) || plazoEntregaDias < 0) return { error: "Los plazos deben ser días enteros no negativos." };
+  const empresaId = await obtenerEmpresaActivaId();
   try {
     await prisma.$transaction(async (tx) => {
-      const rfq = await tx.rfqCompra.findFirst({ where: { id: rfqId, empresaId: auth.usuario.empresaId, estado: "ABIERTO" }, include: { lineas: true } });
+      const rfq = await tx.rfqCompra.findFirst({ where: { id: rfqId, empresaId, estado: "ABIERTO" }, include: { lineas: true } });
       if (!rfq) throw new Error("El RFQ no está abierto o no pertenece a la empresa activa.");
-      const proveedor = await tx.proveedor.findFirst({ where: { id: proveedorId, empresaId: auth.usuario.empresaId, activo: true } });
+      const proveedor = await tx.proveedor.findFirst({ where: { id: proveedorId, empresaId, activo: true } });
       if (!proveedor) throw new Error("Seleccione un proveedor activo de la empresa.");
       const mapa = new Map(lineas.map((l) => [l.rfqLineaId, l.costoUnitario]));
       if (mapa.size !== rfq.lineas.length || rfq.lineas.some((l) => !mapa.has(l.id))) throw new Error("Cotice todas las líneas del RFQ una sola vez.");
@@ -81,9 +83,10 @@ export async function adjudicarOferta(rfqId: string, ofertaId: string, _estado: 
   const justificacion = String(formData.get("justificacion") ?? "").trim();
   if (justificacion.length < 12) return { error: "La justificación de adjudicación debe tener al menos 12 caracteres." };
   let ordenId = "";
+  const empresaId = await obtenerEmpresaActivaId();
   try {
     await prisma.$transaction(async (tx) => {
-      const rfq = await tx.rfqCompra.findFirst({ where: { id: rfqId, empresaId: auth.usuario.empresaId, estado: "ABIERTO" }, include: { ofertas: { include: { lineas: { include: { rfqLinea: true } } } } } });
+      const rfq = await tx.rfqCompra.findFirst({ where: { id: rfqId, empresaId, estado: "ABIERTO" }, include: { ofertas: { include: { lineas: { include: { rfqLinea: true } } } } } });
       if (!rfq) throw new Error("El RFQ ya no está disponible para adjudicar.");
       if (rfq.ofertas.length < 2) throw new Error("Registre ofertas de al menos dos proveedores antes de adjudicar.");
       const ganadora = rfq.ofertas.find((o) => o.id === ofertaId);
@@ -94,9 +97,9 @@ export async function adjudicarOferta(rfqId: string, ofertaId: string, _estado: 
       const numero = await siguienteNumeroOrdenCompra(tx);
       const configuracion = await tx.configuracionEmpresa.findUniqueOrThrow({ where: { id: "1" } });
       const totalPen = ganadora.moneda === "USD" ? ganadora.total.toNumber() * ganadora.tipoCambio.toNumber() : ganadora.total.toNumber();
-      const pasos = await pasosAplicablesCompra(tx, auth.usuario.empresaId, totalPen, configuracion.montoAprobacionCompras.toNumber());
+      const pasos = await pasosAplicablesCompra(tx, empresaId, totalPen, configuracion.montoAprobacionCompras.toNumber());
       const fechaEntrega = new Date(); fechaEntrega.setDate(fechaEntrega.getDate() + ganadora.plazoEntregaDias);
-      const orden = await tx.ordenCompra.create({ data: { empresaId: auth.usuario.empresaId, numero, proveedorId: ganadora.proveedorId,
+      const orden = await tx.ordenCompra.create({ data: { empresaId, numero, proveedorId: ganadora.proveedorId,
         moneda: ganadora.moneda, tipoCambio: ganadora.tipoCambio, total: ganadora.total, rfqId,
         notas: `Generada desde ${rfq.numero}. ${justificacion}`, estadoAprobacion: pasos.length ? "PENDIENTE" : "NO_REQUERIDA",
         usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre,

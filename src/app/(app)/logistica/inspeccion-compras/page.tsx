@@ -7,6 +7,7 @@ import { formatNumero } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { ResultadoInspeccion } from "@/generated/prisma/client";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_RESULTADO: Record<ResultadoInspeccion, string> = {
   PENDIENTE: "Pendiente",
@@ -32,11 +33,12 @@ export default async function InspeccionesCompraPage({
 
   const { q, resultado } = await searchParams;
   const filtroResultado = RESULTADOS.find((r) => r === resultado);
+  const empresaId = await obtenerEmpresaActivaId();
 
   const inspecciones = await prisma.inspeccionCompra.findMany({
     where: {
+      recepcionDetalle: { recepcion: { ordenCompra: { empresaId } }, ...(q ? { insumo: { nombre: { contains: q } } } : {}) },
       ...(filtroResultado ? { resultado: filtroResultado } : {}),
-      ...(q ? { recepcionDetalle: { insumo: { nombre: { contains: q } } } } : {}),
     },
     include: {
       recepcionDetalle: {

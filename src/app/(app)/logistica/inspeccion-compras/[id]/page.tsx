@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ResolverInspeccionFormulario from "../ResolverInspeccionFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_RESULTADO: Record<string, string> = {
   PENDIENTE: "Pendiente",
@@ -22,10 +23,11 @@ export default async function DetalleInspeccionCompraPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [inspeccion, inspecciones] = await Promise.all([
-    prisma.inspeccionCompra.findUnique({
-      where: { id },
+    prisma.inspeccionCompra.findFirst({
+      where: { id, recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } } },
       include: {
         mediciones: { orderBy: { secuencia: "asc" } },
         recepcionDetalle: {
@@ -37,12 +39,13 @@ export default async function DetalleInspeccionCompraPage({
       },
     }),
     prisma.inspeccionCompra.findMany({
+      where: { recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } } },
       include: { recepcionDetalle: { include: { insumo: true } } },
       orderBy: [{ resultado: "asc" }, { creadoEn: "desc" }],
     }),
   ]);
   if (!inspeccion) notFound();
-  const plan = inspeccion.resultado === "PENDIENTE" ? await prisma.planInspeccionInsumo.findFirst({ where: { empresaId: usuario.empresaId, insumoId: inspeccion.recepcionDetalle.insumoId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } }) : null;
+  const plan = inspeccion.resultado === "PENDIENTE" ? await prisma.planInspeccionInsumo.findFirst({ where: { empresaId, insumoId: inspeccion.recepcionDetalle.insumoId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } }) : null;
 
   const detalle = inspeccion.recepcionDetalle;
 
