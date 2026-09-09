@@ -7,6 +7,7 @@ import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -42,10 +43,12 @@ export async function crearVendedor(
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
+  const empresaId = await obtenerEmpresaActivaId();
 
   await prisma.$transaction(async (tx) => {
-    const vendedor = await tx.vendedor.create({ data: resultado.datos });
-    await registrarAuditoriaMaestro(tx, { entidad: "Vendedor", registroId: vendedor.id, accion: "CREAR", despues: vendedor, usuario: auth.usuario });
+    if (resultado.datos.zonaId && await tx.zona.count({ where: { id: resultado.datos.zonaId, empresaId, activo: true } }) !== 1) throw new Error("La zona no pertenece a la empresa activa.");
+    const vendedor = await tx.vendedor.create({ data: { ...resultado.datos, empresaId } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Vendedor", registroId: vendedor.id, accion: "CREAR", despues: vendedor, usuario: auth.usuario });
   });
 
   revalidatePath("/comercial/vendedores");
@@ -65,12 +68,14 @@ export async function actualizarVendedor(
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
+  const empresaId = await obtenerEmpresaActivaId();
 
   // La tasa nueva aplica solo a comisiones futuras: las generadas guardan su propia tasa.
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.vendedor.findUniqueOrThrow({ where: { id } });
-    const despues = await tx.vendedor.update({ where: { id }, data: resultado.datos });
-    await registrarAuditoriaMaestro(tx, { entidad: "Vendedor", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+    const antes = await tx.vendedor.findFirstOrThrow({ where: { id, empresaId } });
+    if (resultado.datos.zonaId && await tx.zona.count({ where: { id: resultado.datos.zonaId, empresaId, activo: true } }) !== 1) throw new Error("La zona no pertenece a la empresa activa.");
+    const despues = await tx.vendedor.update({ where: { id, empresaId }, data: resultado.datos });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Vendedor", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
   });
 
   revalidatePath("/comercial/vendedores");
@@ -81,10 +86,11 @@ export async function alternarActivoVendedor(id: string, activo: boolean) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.vendedor.findUniqueOrThrow({ where: { id } });
-    const despues = await tx.vendedor.update({ where: { id }, data: { activo } });
-    await registrarAuditoriaMaestro(tx, { entidad: "Vendedor", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+    const antes = await tx.vendedor.findFirstOrThrow({ where: { id, empresaId } });
+    const despues = await tx.vendedor.update({ where: { id, empresaId }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Vendedor", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/comercial/vendedores");
 }

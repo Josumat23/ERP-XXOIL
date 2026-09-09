@@ -7,6 +7,7 @@ import { ETIQUETA_TIPO_VENDEDOR } from "@/lib/etiquetas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import VendedorFormulario from "../VendedorFormulario";
 import { actualizarVendedor } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function EditarVendedorPage({
   params,
@@ -17,11 +18,12 @@ export default async function EditarVendedorPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [vendedor, vendedores, zonas] = await Promise.all([
-    prisma.vendedor.findUnique({ where: { id } }),
-    prisma.vendedor.findMany({ orderBy: { nombre: "asc" } }),
-    prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.vendedor.findFirst({ where: { id, empresaId } }),
+    prisma.vendedor.findMany({ where: { empresaId }, orderBy: { nombre: "asc" } }),
+    prisma.zona.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
   ]);
   if (!vendedor) notFound();
 

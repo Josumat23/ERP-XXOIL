@@ -14,8 +14,8 @@ export default async function NuevoClientePage() {
 
   const empresaId = await obtenerEmpresaActivaId();
   const [zonas, vendedores, clientes] = await Promise.all([
-    prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.zona.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.cliente.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
   ]);
 

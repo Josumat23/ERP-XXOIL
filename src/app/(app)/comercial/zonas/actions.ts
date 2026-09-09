@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -21,11 +22,12 @@ export async function crearZona(
 
   const nombre = String(formData.get("nombre") ?? "").trim();
   if (!nombre) return { error: "El nombre es obligatorio." };
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const zona = await tx.zona.create({ data: { nombre } });
-      await registrarAuditoriaMaestro(tx, { entidad: "Zona", registroId: zona.id, accion: "CREAR", despues: zona, usuario: auth.usuario });
+      const zona = await tx.zona.create({ data: { nombre, empresaId } });
+      await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Zona", registroId: zona.id, accion: "CREAR", despues: zona, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -51,12 +53,13 @@ export async function actualizarZona(
 
   const nombre = String(formData.get("nombre") ?? "").trim();
   if (!nombre) return { error: "El nombre es obligatorio." };
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const antes = await tx.zona.findUniqueOrThrow({ where: { id } });
-      const despues = await tx.zona.update({ where: { id }, data: { nombre } });
-      await registrarAuditoriaMaestro(tx, { entidad: "Zona", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+      const antes = await tx.zona.findFirstOrThrow({ where: { id, empresaId } });
+      const despues = await tx.zona.update({ where: { id, empresaId }, data: { nombre } });
+      await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Zona", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -74,10 +77,11 @@ export async function alternarActivoZona(id: string, activo: boolean) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.zona.findUniqueOrThrow({ where: { id } });
-    const despues = await tx.zona.update({ where: { id }, data: { activo } });
-    await registrarAuditoriaMaestro(tx, { entidad: "Zona", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+    const antes = await tx.zona.findFirstOrThrow({ where: { id, empresaId } });
+    const despues = await tx.zona.update({ where: { id, empresaId }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Zona", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/comercial/zonas");
 }
