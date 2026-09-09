@@ -5,19 +5,21 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import HojaRutaFormulario from "../HojaRutaFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevaHojaRutaPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [vendedores, clientes, hojas] = await Promise.all([
-    prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.cliente.findMany({
-      where: { activo: true },
+      where: { empresaId, activo: true },
       include: { zona: true },
       orderBy: { razonSocial: "asc" },
     }),
-    prisma.hojaRuta.findMany({ include: { vendedor: true }, orderBy: { fecha: "desc" } }),
+    prisma.hojaRuta.findMany({ where: { empresaId }, include: { vendedor: true }, orderBy: { fecha: "desc" } }),
   ]);
 
   return (

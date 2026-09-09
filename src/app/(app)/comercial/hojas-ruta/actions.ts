@@ -8,6 +8,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { siguienteNumeroHojaRuta } from "@/lib/correlativos";
 import { normalizarVisitasRuta, type VisitaRutaNormalizada } from "@/lib/visitasRuta";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -41,13 +42,17 @@ export async function crearHojaRuta(
   const fechaRuta = crearFechaCalendarioLocal(fecha);
   if (!fechaRuta) return { error: "La fecha de la ruta es inválida." };
   if (visitas.length === 0) return { error: "Agregue al menos un cliente a visitar." };
+  const empresaId = await obtenerEmpresaActivaId();
 
   let hojaId = "";
   await prisma.$transaction(async (tx) => {
+    if (await tx.vendedor.count({ where: { id: vendedorId, empresaId, activo: true } }) !== 1) throw new Error("El vendedor no pertenece a la empresa activa.");
+    if (await tx.cliente.count({ where: { id: { in: visitas.map((visita) => visita.clienteId) }, empresaId, activo: true } }) !== visitas.length) throw new Error("Un cliente no pertenece a la empresa activa.");
     const numero = await siguienteNumeroHojaRuta(tx);
     const hoja = await tx.hojaRuta.create({
       data: {
         numero,
+        empresaId,
         vendedorId,
         fecha: fechaRuta,
         notas,
@@ -80,9 +85,10 @@ export async function cerrarHojaRuta(
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
-  const hoja = await prisma.hojaRuta.findUnique({
-    where: { id: hojaId },
+  const hoja = await prisma.hojaRuta.findFirst({
+    where: { id: hojaId, empresaId },
     include: { visitas: true },
   });
   if (!hoja) return { error: "La hoja de ruta no existe." };
@@ -90,7 +96,7 @@ export async function cerrarHojaRuta(
 
   const cerrada = await prisma.$transaction(async (tx) => {
     const reclamo = await tx.hojaRuta.updateMany({
-      where: { id: hojaId, estado: "PLANIFICADA" },
+      where: { id: hojaId, empresaId, estado: "PLANIFICADA" },
       data: { estado: "COMPLETADA" },
     });
     if (reclamo.count !== 1) return false;

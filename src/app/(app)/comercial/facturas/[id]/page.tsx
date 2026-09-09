@@ -29,6 +29,7 @@ import {
   enviarComprobanteFactura,
   enviarComprobanteNotaCredito,
 } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 function DatoRetorno({ etiqueta, valor }: { etiqueta: string; valor: string | number }) {
   return (
@@ -59,10 +60,11 @@ export default async function DetalleFacturaPage({
   if (!puedeVerVentas) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [factura, facturas, config, almacenes] = await Promise.all([
-    prisma.factura.findUnique({
-      where: { id },
+    prisma.factura.findFirst({
+      where: { id, empresaId },
       include: {
         cliente: true,
         vendedor: true,
@@ -92,14 +94,15 @@ export default async function DetalleFacturaPage({
         },
       },
     }),
-    prisma.factura.findMany({ include: { cliente: true }, orderBy: { fechaEmision: "desc" } }),
+    prisma.factura.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fechaEmision: "desc" } }),
     prisma.configuracionEmpresa.findUnique({ where: { id: "1" } }),
-    prisma.almacen.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.almacen.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
   ]);
   if (!factura) notFound();
 
   const comprobantes = await prisma.comprobanteElectronico.findMany({
     where: {
+      empresaId,
       OR: [
         { tipoDocumento: "FACTURA", documentoId: id },
         { tipoDocumento: "NOTA_CREDITO", documentoId: { in: factura.notasCredito.map((nc) => nc.id) } },

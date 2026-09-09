@@ -7,6 +7,7 @@ import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import { diasVencidos, nivelSugerido, ETIQUETA_NIVEL } from "@/lib/cobranza";
 import { registrarAvisoCobranza, alternarBloqueoCliente } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function CobranzaPage() {
   const usuario = await obtenerUsuario();
@@ -19,9 +20,10 @@ export default async function CobranzaPage() {
   }
 
   const hoy = new Date();
+  const empresaId = await obtenerEmpresaActivaId();
 
   const facturas = await prisma.factura.findMany({
-    where: { estado: "PENDIENTE", fechaVencimiento: { lt: hoy } },
+    where: { empresaId, estado: "PENDIENTE", fechaVencimiento: { lt: hoy } },
     include: {
       cliente: true,
       avisosCobranza: { orderBy: { fecha: "desc" }, take: 1 },

@@ -7,6 +7,7 @@ import { ETIQUETA_ESTADO_HR } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function HojasRutaPage({
   searchParams,
@@ -18,11 +19,13 @@ export default async function HojasRutaPage({
 
   const { q, vendedorId, estado } = await searchParams;
   const filtroEstado = estado === "PLANIFICADA" || estado === "COMPLETADA" ? estado : undefined;
+  const empresaId = await obtenerEmpresaActivaId();
 
-  const vendedores = await prisma.vendedor.findMany({ orderBy: { nombre: "asc" } });
+  const vendedores = await prisma.vendedor.findMany({ where: { empresaId }, orderBy: { nombre: "asc" } });
 
   const hojas = await prisma.hojaRuta.findMany({
     where: {
+      empresaId,
       ...(vendedorId ? { vendedorId } : {}),
       ...(filtroEstado ? { estado: filtroEstado } : {}),
       ...(q ? { numero: { contains: q } } : {}),
