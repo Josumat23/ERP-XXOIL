@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoPresentacion } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function PresentacionesPage({
   searchParams,
@@ -18,9 +19,11 @@ export default async function PresentacionesPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { q, estado } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const presentaciones = await prisma.presentacion.findMany({
     where: {
+      empresaId,
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
       ...(q
         ? {

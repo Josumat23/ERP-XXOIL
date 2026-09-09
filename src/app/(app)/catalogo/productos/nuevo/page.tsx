@@ -7,15 +7,17 @@ import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ProductoFormulario from "../ProductoFormulario";
 import { crearProducto } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevoProductoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [categorias, unidadesMedida, productos] = await Promise.all([
-    prisma.categoria.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.categoria.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     unidadesMedidaParaSelect(),
-    prisma.producto.findMany({ orderBy: { creadoEn: "desc" } }),
+    prisma.producto.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
   ]);
 
   return (

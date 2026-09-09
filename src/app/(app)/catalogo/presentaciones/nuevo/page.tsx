@@ -7,6 +7,7 @@ import { zonasAlmacenParaSelect } from "@/lib/almacenes";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PresentacionFormulario from "../PresentacionFormulario";
 import { crearPresentacion } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevaPresentacionPage({
   searchParams,
@@ -15,13 +16,14 @@ export default async function NuevaPresentacionPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { productoId } = await searchParams;
 
   const [productos, zonasAlmacen, presentaciones] = await Promise.all([
-    prisma.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    zonasAlmacenParaSelect(),
-    prisma.presentacion.findMany({ include: { producto: true }, orderBy: { creadoEn: "desc" } }),
+    prisma.producto.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    zonasAlmacenParaSelect(empresaId),
+    prisma.presentacion.findMany({ where: { empresaId }, include: { producto: true }, orderBy: { creadoEn: "desc" } }),
   ]);
 
   return (

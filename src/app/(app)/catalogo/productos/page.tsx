@@ -8,6 +8,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { ETIQUETA_SEGMENTO_MERCADO } from "@/lib/etiquetas";
 import { alternarActivoProducto } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function ProductosPage({
   searchParams,
@@ -18,13 +19,15 @@ export default async function ProductosPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { q, categoriaId, segmentoMercado } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
   const segmentos = Object.keys(ETIQUETA_SEGMENTO_MERCADO) as (keyof typeof ETIQUETA_SEGMENTO_MERCADO)[];
   const filtroSegmento = segmentos.find((s) => s === segmentoMercado);
 
-  const categorias = await prisma.categoria.findMany({ orderBy: { nombre: "asc" } });
+  const categorias = await prisma.categoria.findMany({ where: { empresaId }, orderBy: { nombre: "asc" } });
 
   const productos = await prisma.producto.findMany({
     where: {
+      empresaId,
       ...(categoriaId ? { categoriaId } : {}),
       ...(filtroSegmento ? { segmentoMercado: filtroSegmento } : {}),
       ...(q
