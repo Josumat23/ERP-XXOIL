@@ -5,6 +5,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 type Resultado = {
   ventasBrutas: number;
@@ -36,20 +37,20 @@ const baseFactura = (f: {
     ? f.subtotalFuncional.toNumber()
     : f.totalFuncional.toNumber();
 
-async function calcularResultados(inicio: Date, fin: Date): Promise<Resultado> {
+async function calcularResultados(inicio: Date, fin: Date, empresaId: string): Promise<Resultado> {
   const [facturas, notasCredito, comisiones, movimientosManuales] = await Promise.all([
     prisma.factura.findMany({
-      where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicio, lt: fin } },
+      where: { empresaId, estado: { not: "ANULADA" }, fechaEmision: { gte: inicio, lt: fin } },
       include: { detalles: true, cliente: true },
       orderBy: { fechaEmision: "asc" },
     }),
     prisma.notaCredito.findMany({
-      where: { fecha: { gte: inicio, lt: fin }, factura: { estado: { not: "ANULADA" } } },
+      where: { empresaId, fecha: { gte: inicio, lt: fin }, factura: { estado: { not: "ANULADA" } } },
       include: { factura: true },
     }),
-    prisma.comision.findMany({ where: { creadoEn: { gte: inicio, lt: fin } } }),
+    prisma.comision.findMany({ where: { empresaId, creadoEn: { gte: inicio, lt: fin } } }),
     prisma.movimientoCaja.findMany({
-      where: { fecha: { gte: inicio, lt: fin }, referencia: null },
+      where: { empresaId, fecha: { gte: inicio, lt: fin }, referencia: null },
     }),
   ]);
 
@@ -119,6 +120,7 @@ export default async function ResultadosPage({
 
   const { mes, comparar } = await searchParams;
   const modoComparacion = comparar === "anio" ? "anio" : "mes";
+  const empresaId = await obtenerEmpresaActivaId();
 
   const hoy = new Date();
   let anio = hoy.getFullYear();
@@ -145,9 +147,9 @@ export default async function ResultadosPage({
     modoComparacion === "anio" ? new Date(anio - 1, mesIdx + 1, 1) : new Date(anio, mesIdx, 1);
 
   const [actual, anterior, controlesGL] = await Promise.all([
-    calcularResultados(inicio, fin),
-    calcularResultados(inicioComparacion, finComparacion),
-    prisma.controlContable.findMany({ where: { clave: { in: ["VENTAS", "COSTO_VENTAS"] } } }),
+    calcularResultados(inicio, fin, empresaId),
+    calcularResultados(inicioComparacion, finComparacion, empresaId),
+    prisma.controlContable.findMany({ where: { empresaId, clave: { in: ["VENTAS", "COSTO_VENTAS"] } } }),
   ]);
 
   // Verificación cruzada contra el libro mayor: si los controles VENTAS/
@@ -161,7 +163,7 @@ export default async function ResultadosPage({
     const detallesGL = await prisma.asientoDetalle.findMany({
       where: {
         cuentaId: { in: [cuentaVentasId, cuentaCostoId].filter((x): x is string => !!x) },
-        asiento: { anio, mes: mesIdx + 1 },
+        asiento: { empresaId, anio, mes: mesIdx + 1 },
       },
     });
     const ventasGL = detallesGL

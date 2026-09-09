@@ -10,6 +10,7 @@ import PagoFormulario from "./PagoFormulario";
 import { aprobarPagoProveedor } from "../actions";
 import RechazarPagoFormulario from "./RechazarPagoFormulario";
 import LiberarFacturaFormulario from "./LiberarFacturaFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const COLOR_APROBACION: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -26,17 +27,18 @@ export default async function DetalleCuentaPorPagarPage({
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [cuenta, cuentas] = await Promise.all([
     prisma.cuentaPorPagar.findFirst({
-      where: { id, empresaId: usuario.empresaId },
+      where: { id, empresaId },
       include: {
         proveedor: true,
         ordenCompra: true,
         pagos: { orderBy: { fecha: "asc" } },
       },
     }),
-    prisma.cuentaPorPagar.findMany({ where: { empresaId: usuario.empresaId }, include: { proveedor: true }, orderBy: { fechaEmision: "desc" } }),
+    prisma.cuentaPorPagar.findMany({ where: { empresaId }, include: { proveedor: true }, orderBy: { fechaEmision: "desc" } }),
   ]);
   if (!cuenta) notFound();
 

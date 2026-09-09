@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -38,9 +39,11 @@ export async function crearMovimientoCaja(
   if (!concepto) return { error: "El concepto es obligatorio." };
   if (!Number.isFinite(monto) || monto <= 0) return { error: "El monto debe ser mayor a 0." };
   if (!MEDIOS_VALIDOS.includes(medioPago)) return { error: "Seleccione el medio de pago." };
+  const empresaId = await obtenerEmpresaActivaId();
 
   await prisma.movimientoCaja.create({
     data: {
+      empresaId,
       tipo,
       concepto,
       monto,

@@ -5,13 +5,16 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatFecha, formatMoneda } from "@/lib/format";
 import { ETIQUETA_MEDIO_PAGO } from "@/lib/etiquetas";
 import { OperacionesCreditoProveedor } from "./FormulariosCreditoProveedor";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function SaldosFavorProveedoresPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
   const puedeEditar = await puedeRealizar(usuario, "finanzas", "editar");
+  const empresaId = await obtenerEmpresaActivaId();
   const [creditos, cuentasPendientes] = await Promise.all([
     prisma.creditoProveedor.findMany({
+      where: { empresaId },
       include: {
         proveedor: true,
         devolucion: { include: { recepcionCompraDetalle: { include: { recepcion: true, insumo: true } } } },
@@ -21,7 +24,7 @@ export default async function SaldosFavorProveedoresPage() {
       orderBy: [{ estado: "asc" }, { creadoEn: "desc" }],
     }),
     prisma.cuentaPorPagar.findMany({
-      where: { estado: "PENDIENTE", saldo: { gt: 0 } },
+      where: { empresaId, estado: "PENDIENTE", saldo: { gt: 0 } },
       select: { id: true, empresaId: true, proveedorId: true, numeroDocumento: true, saldo: true },
       orderBy: { fechaEmision: "asc" },
     }),

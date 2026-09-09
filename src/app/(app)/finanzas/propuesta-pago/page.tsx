@@ -6,6 +6,7 @@ import { formatMoneda } from "@/lib/format";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PropuestaPagoFormulario from "./PropuestaPagoFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 // Propuesta de pago a proveedores (equivalente reducido al programa de pago
 // automático F110 de SAP): en vez de registrar cada pago uno por uno, se
@@ -29,9 +30,11 @@ export default async function PropuestaPagoPage({
   const { hasta: hastaParam } = await searchParams;
   const hoy = new Date();
   const hasta = (hastaParam ? crearFechaCalendarioLocal(hastaParam) : null) ?? hoy;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const cuentas = await prisma.cuentaPorPagar.findMany({
     where: {
+      empresaId,
       estado: "PENDIENTE",
       OR: [{ fechaVencimiento: null }, { fechaVencimiento: { lte: hasta } }],
     },

@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import CajaFormulario from "./CajaFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const MEDIOS = Object.keys(ETIQUETA_MEDIO_PAGO) as (keyof typeof ETIQUETA_MEDIO_PAGO)[];
 
@@ -21,9 +22,11 @@ export default async function CajaPage({
   const { q, tipo, medioPago } = await searchParams;
   const filtroTipo = tipo === "INGRESO" || tipo === "EGRESO" ? tipo : undefined;
   const filtroMedio = MEDIOS.find((m) => m === medioPago);
+  const empresaId = await obtenerEmpresaActivaId();
 
   const movimientos = await prisma.movimientoCaja.findMany({
     where: {
+      empresaId,
       ...(filtroTipo ? { tipo: filtroTipo } : {}),
       ...(filtroMedio ? { medioPago: filtroMedio } : {}),
       ...(q ? { concepto: { contains: q } } : {}),
@@ -34,6 +37,7 @@ export default async function CajaPage({
 
   const totales = await prisma.movimientoCaja.groupBy({
     by: ["tipo"],
+    where: { empresaId },
     _sum: { monto: true },
   });
   const ingresos = totales.find((t) => t.tipo === "INGRESO")?._sum.monto?.toNumber() ?? 0;

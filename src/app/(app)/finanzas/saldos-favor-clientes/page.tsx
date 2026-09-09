@@ -9,6 +9,7 @@ import {
   RechazarReembolsoFormulario,
 } from "./FormulariosCredito";
 import { aprobarReembolso } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const COLOR_ESTADO = {
   DISPONIBLE: "bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300",
@@ -22,9 +23,11 @@ export default async function SaldosFavorClientesPage() {
     puedeRealizar(usuario, "finanzas", "editar"),
     puedeRealizar(usuario, "finanzas", "aprobar"),
   ]);
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [creditos, facturasPendientes] = await Promise.all([
     prisma.creditoCliente.findMany({
+      where: { empresaId },
       include: {
         cliente: true,
         notaCredito: { include: { factura: true } },
@@ -34,7 +37,7 @@ export default async function SaldosFavorClientesPage() {
       orderBy: [{ estado: "asc" }, { creadoEn: "desc" }],
     }),
     prisma.factura.findMany({
-      where: { estado: "PENDIENTE", saldo: { gt: 0 } },
+      where: { empresaId, estado: "PENDIENTE", saldo: { gt: 0 } },
       select: { id: true, clienteId: true, moneda: true, numero: true, saldo: true },
       orderBy: { fechaEmision: "asc" },
     }),

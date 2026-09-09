@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { aplicarCreditoProveedor, registrarReembolsoProveedor } from "@/lib/creditosProveedor";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormularioCreditoProveedor = { error?: string; exito?: string };
 
@@ -32,6 +33,12 @@ export async function compensarCreditoProveedor(
   const cuentaPorPagarId = String(formData.get("cuentaPorPagarId") ?? "");
   const montoFuncional = Number(formData.get("montoFuncional"));
   if (!cuentaPorPagarId) return { error: "Seleccione una cuenta por pagar." };
+  const empresaId = await obtenerEmpresaActivaId();
+  const [creditoValido, cuentaValida] = await Promise.all([
+    prisma.creditoProveedor.count({ where: { id: creditoId, empresaId } }),
+    prisma.cuentaPorPagar.count({ where: { id: cuentaPorPagarId, empresaId } }),
+  ]);
+  if (creditoValido !== 1 || cuentaValida !== 1) return { error: "El crédito o la cuenta no pertenece a la empresa activa." };
   try {
     await prisma.$transaction((tx) =>
       aplicarCreditoProveedor(
@@ -62,6 +69,10 @@ export async function registrarReembolsoRecibido(
   const medioPago = String(formData.get("medioPago") ?? "") as $Enums.MedioPago;
   const referencia = String(formData.get("referencia") ?? "").trim();
   if (!MEDIOS_VALIDOS.includes(medioPago)) return { error: "Seleccione el medio de recepción." };
+  const empresaId = await obtenerEmpresaActivaId();
+  if (await prisma.creditoProveedor.count({ where: { id: creditoId, empresaId } }) !== 1) {
+    return { error: "El crédito no pertenece a la empresa activa." };
+  }
   try {
     await prisma.$transaction((tx) =>
       registrarReembolsoProveedor(
