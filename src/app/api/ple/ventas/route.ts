@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { codigoTipoDocumento, esPeriodoPLEValido, generarArchivoPLE, generarLineaVenta, periodoAAAAMM, separarSerieNumero } from "@/lib/ple";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export async function GET(req: NextRequest) {
   const usuario = await obtenerUsuario();
@@ -15,6 +16,7 @@ export async function GET(req: NextRequest) {
   ) {
     return NextResponse.json({ error: "Acceso denegado." }, { status: 403 });
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const anio = Number(req.nextUrl.searchParams.get("anio"));
   const mes = Number(req.nextUrl.searchParams.get("mes"));
@@ -27,12 +29,12 @@ export async function GET(req: NextRequest) {
 
   const [facturas, notasCredito] = await Promise.all([
     prisma.factura.findMany({
-      where: { fechaEmision: { gte: desde, lt: hasta } },
+      where: { empresaId, fechaEmision: { gte: desde, lt: hasta } },
       include: { cliente: true },
       orderBy: { fechaEmision: "asc" },
     }),
     prisma.notaCredito.findMany({
-      where: { fecha: { gte: desde, lt: hasta } },
+      where: { empresaId, fecha: { gte: desde, lt: hasta } },
       include: { factura: { include: { cliente: true } } },
       orderBy: { fecha: "asc" },
     }),

@@ -355,7 +355,7 @@ export async function registrarRecepcion(
           proveedor: oc.proveedor.razonSocial,
           total: totalRecepcionPen,
         },
-        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: oc.empresaId }
       );
     });
   } catch (e) {
@@ -563,7 +563,7 @@ export async function registrarDevolucionProveedor(
           montoCxp: distribucion.montoCxp,
           montoSaldoFavor: distribucion.montoSaldoFavor,
         },
-        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: oc.empresaId }
       );
     });
   } catch (e) {

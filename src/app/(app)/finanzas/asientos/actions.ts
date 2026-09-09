@@ -10,10 +10,10 @@ import { reservarCorrelativo } from "@/lib/correlativos";
 import {
   crearFechaAsientoManual,
   cuentasAsientoPertenecenAEmpresa,
-  EMPRESA_CONTABLE_PRINCIPAL_ID,
   normalizarLineasAsientoManual,
   type LineaAsientoManual,
 } from "@/lib/asientosManuales";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -30,6 +30,7 @@ export async function crearAsientoManual(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return auth;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const glosa = String(formData.get("glosa") ?? "").trim();
   const fechaStr = String(formData.get("fecha") ?? "");
@@ -72,7 +73,7 @@ export async function crearAsientoManual(
   const mes = fecha.getMonth() + 1;
 
   const periodo = await prisma.periodoFiscal.findUnique({
-    where: { empresaId_anio_mes: { empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID, anio, mes } },
+    where: { empresaId_anio_mes: { empresaId, anio, mes } },
   });
   if (periodo?.estado === "CERRADO") {
     return { error: `El período fiscal ${mes}/${anio} está cerrado. Reábralo en Configuración → Calendario fiscal.` };
@@ -86,24 +87,24 @@ export async function crearAsientoManual(
       !(await cuentasAsientoPertenecenAEmpresa(
         tx,
         lineas.map((linea) => linea.cuentaId),
-        EMPRESA_CONTABLE_PRINCIPAL_ID
+        empresaId
       ))
     ) {
       cuentasValidas = false;
       return;
     }
-    if (!(await reclamarPeriodoAbierto(tx, fecha))) {
+    if (!(await reclamarPeriodoAbierto(tx, fecha, empresaId))) {
       periodoAbierto = false;
       return;
     }
 
     const libro =
       (await tx.libro.findFirst({
-        where: { empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID, codigo: "DIARIO" },
+        where: { empresaId, codigo: "DIARIO" },
       })) ??
       (await tx.libro.create({
         data: {
-          empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID,
+          empresaId,
           codigo: "DIARIO",
           nombre: "Libro diario",
         },
@@ -112,7 +113,7 @@ export async function crearAsientoManual(
 
     const asiento = await tx.asientoContable.create({
       data: {
-        empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID,
+        empresaId,
         libroId: libro.id,
         numero,
         fecha,
@@ -154,6 +155,7 @@ export async function reversarAsiento(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([]);
   if ("error" in auth) return auth;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo del reverso es obligatorio." };
@@ -162,7 +164,7 @@ export async function reversarAsiento(
   try {
     await prisma.$transaction(async (tx) => {
       const original = await tx.asientoContable.findFirst({
-        where: { id, empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID },
+        where: { id, empresaId },
         include: { detalles: true },
       });
       if (!original) throw new Error("El asiento no existe.");
@@ -176,13 +178,13 @@ export async function reversarAsiento(
       const hoy = new Date();
       const anio = hoy.getFullYear();
       const mes = hoy.getMonth() + 1;
-      if (!(await reclamarPeriodoAbierto(tx, hoy))) {
+      if (!(await reclamarPeriodoAbierto(tx, hoy, empresaId))) {
         throw new Error(`El período fiscal ${mes}/${anio} está cerrado.`);
       }
 
       const numero = await siguienteNumeroAsiento(tx);
       const reclamo = await tx.asientoContable.updateMany({
-        where: { id, empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID, reversadoPor: null, origen: { not: "REVERSO" } },
+        where: { id, empresaId, reversadoPor: null, origen: { not: "REVERSO" } },
         data: { reversadoPor: numero },
       });
       if (reclamo.count !== 1) {
@@ -191,7 +193,7 @@ export async function reversarAsiento(
 
       const reverso = await tx.asientoContable.create({
         data: {
-          empresaId: EMPRESA_CONTABLE_PRINCIPAL_ID,
+          empresaId,
           libroId: original.libroId,
           numero,
           fecha: hoy,

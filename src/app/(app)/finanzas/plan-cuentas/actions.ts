@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { esClaveControlValida } from "@/lib/reglasAsignacionCosto";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -16,11 +17,11 @@ const TIPOS_VALIDOS: $Enums.TipoCuenta[] = [
   "GASTO",
 ];
 
-async function planMaestro() {
-  const existente = await prisma.planCuentas.findFirst({ where: { esMaestro: true } });
+async function planMaestro(empresaId: string) {
+  const existente = await prisma.planCuentas.findFirst({ where: { empresaId, esMaestro: true } });
   if (existente) return existente;
   return prisma.planCuentas.create({
-    data: { codigo: "PCGE", nombre: "Plan Contable General Empresarial", esMaestro: true },
+    data: { empresaId, codigo: "PCGE", nombre: "Plan Contable General Empresarial", esMaestro: true },
   });
 }
 
@@ -30,6 +31,7 @@ export async function crearCuentaContable(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return auth;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const codigo = String(formData.get("codigo") ?? "").trim();
   const nombre = String(formData.get("nombre") ?? "").trim();
@@ -41,7 +43,7 @@ export async function crearCuentaContable(
   if (!nombre) return { error: "El nombre es obligatorio." };
   if (!TIPOS_VALIDOS.includes(tipo)) return { error: "Seleccione el tipo de cuenta." };
 
-  const plan = await planMaestro();
+  const plan = await planMaestro(empresaId);
 
   try {
     await prisma.cuentaContable.create({
@@ -61,7 +63,11 @@ export async function crearCuentaContable(
 export async function alternarActivoCuenta(id: string, activo: boolean) {
   const auth = await requerirRol([]);
   if ("error" in auth) return;
-  await prisma.cuentaContable.update({ where: { id }, data: { activo } });
+  const empresaId = await obtenerEmpresaActivaId();
+  await prisma.cuentaContable.updateMany({
+    where: { id, planCuentas: { empresaId } },
+    data: { activo },
+  });
   revalidatePath("/finanzas/plan-cuentas");
 }
 
@@ -71,6 +77,7 @@ export async function asignarControlContable(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([]);
   if ("error" in auth) return auth;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const clave = String(formData.get("clave") ?? "");
   const cuentaId = String(formData.get("cuentaId") ?? "");
@@ -82,7 +89,7 @@ export async function asignarControlContable(
     where: {
       id: cuentaId,
       activo: true,
-      planCuentas: { empresaId: "1", esMaestro: true },
+      planCuentas: { empresaId, esMaestro: true },
     },
     select: { id: true },
   });
@@ -91,9 +98,9 @@ export async function asignarControlContable(
   }
 
   await prisma.controlContable.upsert({
-    where: { empresaId_clave: { empresaId: "1", clave } },
+    where: { empresaId_clave: { empresaId, clave } },
     update: { cuentaId },
-    create: { clave, cuentaId },
+    create: { empresaId, clave, cuentaId },
   });
 
   revalidatePath("/finanzas/plan-cuentas");

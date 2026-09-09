@@ -152,3 +152,6 @@ Confirmado por el propio repositorio como buena práctica ya establecida (`docs/
 Desde los PR #64 y #66 existe una base permanente de pruebas automatizadas y CI. Cada ítem de este roadmap que toque kardex, contabilidad, planilla o documentos debe ampliar esa suite con el caso afectado; un script manual reproducible sigue siendo útil para exploración, pero ya no sustituye una prueba automatizada de regresión.
 
 Para el rollback de cambios de esquema: el patrón ya establecido en este repositorio (agregar campos/modelos nuevos como opcionales, nunca eliminar ni renombrar en la misma migración que se agrega la funcionalidad) debe mantenerse en todo este roadmap — es consistente con el principio de diseño ya documentado en `prisma/schema.prisma:5-7` ("la historia nunca se edita ni se borra") y reduce el riesgo de cada oleada.
+# Actualización: contabilidad general multiempresa
+
+Se aisló por empresa activa el plan de cuentas, los controles, períodos, libros, asientos, balance y exportaciones PLE. Los posteos automáticos ahora pueden transportar la empresa de la transacción hasta el motor contable. Véase `docs/aislamiento-multiempresa-contabilidad-general.md`.

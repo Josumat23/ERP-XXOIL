@@ -1,7 +1,5 @@
 import type { Tx } from "@/lib/inventario";
 
-export const EMPRESA_CONTABLE_PRINCIPAL_ID = "1";
-
 export type LineaAsientoManual = {
   cuentaId: string;
   glosa: string;

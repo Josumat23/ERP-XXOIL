@@ -152,6 +152,7 @@ export async function desecharLote(
       const costo = lote.costoInsumos.toNumber() + lote.costoReproceso.toNumber() + lote.costoManoObra.toNumber();
       if (costo > 0) {
         await postearAsiento(tx, {
+          empresaId: lote.empresaId,
           origen: "DESECHO_PRODUCCION",
           glosa: `Descarte del lote rechazado ${lote.codigo}: ${motivo}`,
           referencia: lote.codigo,

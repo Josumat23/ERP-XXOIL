@@ -194,7 +194,7 @@ export async function venderActivoFijo(
           montoIgv,
           centroCostoId: activo.centroCostoId,
         },
-        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: activo.empresaId }
       );
     });
   } catch (e) {

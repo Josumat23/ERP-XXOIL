@@ -304,7 +304,7 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
         await postearSalidaMercancia(
           tx,
           { numeroGuia: guia.numero, pedido: guia.pedido.numero, costoTotal },
-          { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+          { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: guia.empresaId }
         );
       }
     });
