@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Entregado 2026-09-09:** aislamiento multiempresa de pedidos, cotizaciones, pipeline y ATP asociado.
+
 > **Entregado 2026-09-09:** aislamiento multiempresa de clientes, vendedores y zonas comerciales.
 
 > **Entregado 2026-09-09:** aislamiento multiempresa de categorías, proveedores y evaluación de desempeño.

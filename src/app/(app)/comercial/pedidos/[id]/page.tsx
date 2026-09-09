@@ -10,6 +10,7 @@ import FacturarFormulario from "./FacturarFormulario";
 import ResolverCreditoFormulario from "./ResolverCreditoFormulario";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -27,10 +28,11 @@ export default async function DetallePedidoPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [pedido, pedidos] = await Promise.all([
     prisma.pedido.findUnique({
-      where: { id },
+      where: { id, empresaId },
       include: {
         cliente: true,
         vendedor: true,
@@ -46,7 +48,7 @@ export default async function DetallePedidoPage({
         },
       },
     }),
-    prisma.pedido.findMany({ include: { cliente: true }, orderBy: { fecha: "desc" } }),
+    prisma.pedido.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fecha: "desc" } }),
   ]);
   if (!pedido) notFound();
 

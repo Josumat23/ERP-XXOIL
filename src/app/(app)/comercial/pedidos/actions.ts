@@ -26,6 +26,7 @@ import { esValorEnum } from "@/lib/enums";
 import { calcularImportesFuncionales, convertirAMonedaFuncional } from "@/lib/multimoneda";
 import { calcularSaldoFacturable, calcularTotalesFacturaParcial } from "@/lib/facturacionParcial";
 import { asignarEntregasFifo } from "@/lib/cumplimientoVentas";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -90,10 +91,11 @@ export async function crearPedido(
     return { error: "La referencia del cliente no puede superar 100 caracteres." };
   }
 
+  const empresaId = await obtenerEmpresaActivaId();
   const [cliente, vendedor, almacen] = await Promise.all([
-    prisma.cliente.findFirst({ where: { id: clienteId, activo: true } }),
-    prisma.vendedor.findFirst({ where: { id: vendedorId, activo: true } }),
-    prisma.almacen.findFirst({ where: { id: almacenId, activo: true } }),
+    prisma.cliente.findFirst({ where: { id: clienteId, empresaId, activo: true } }),
+    prisma.vendedor.findFirst({ where: { id: vendedorId, empresaId, activo: true } }),
+    prisma.almacen.findFirst({ where: { id: almacenId, empresaId, activo: true } }),
   ]);
   if (!cliente) return { error: "El cliente no existe o está inactivo." };
   if (!vendedor) return { error: "El vendedor no existe o está inactivo." };
@@ -164,7 +166,7 @@ export async function crearPedido(
           // ATP informativo: no cambia el bloqueo (solo se reserva stock real),
           // pero le dice al vendedor si hay producción en camino antes de
           // rechazar la venta sin más contexto.
-          const atp = await calcularAtpProducto(tx, presentacion.productoId);
+          const atp = await calcularAtpProducto(tx, presentacion.productoId, empresaId);
           const contenidoKg = presentacion.contenidoKg.toNumber();
           const enCamino =
             unidadesEquivalentes(atp.granelSinEnvasarKg, contenidoKg) +
@@ -242,13 +244,14 @@ export async function anularPedido(id: string) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
 
   await prisma.$transaction(async (tx) => {
-    const pedido = await tx.pedido.findUnique({ where: { id }, include: { detalles: true } });
+    const pedido = await tx.pedido.findFirst({ where: { id, empresaId }, include: { detalles: true } });
     if (!pedido || pedido.estado !== "PENDIENTE") return;
 
     const reclamo = await tx.pedido.updateMany({
-      where: { id, estado: "PENDIENTE" },
+      where: { id, empresaId, estado: "PENDIENTE" },
       data: { estado: "ANULADO" },
     });
     if (reclamo.count !== 1) return;
@@ -278,6 +281,7 @@ export async function facturarPedido(
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
   const condicionPago = String(formData.get("condicionPago") ?? "") as $Enums.CondicionPago;
@@ -293,8 +297,8 @@ export async function facturarPedido(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const pedido = await tx.pedido.findUnique({
-        where: { id },
+      const pedido = await tx.pedido.findFirst({
+        where: { id, empresaId },
         include: {
           detalles: {
             include: {
@@ -621,7 +625,8 @@ export async function aprobarCreditoPedido(id: string): Promise<EstadoFormulario
   if (!(await puedeRealizar(auth.usuario, "ventas", "aprobar"))) {
     return { error: "Su grupo de seguridad no permite aprobar excepciones de crédito." };
   }
-  const pedido = await prisma.pedido.findUnique({ where: { id } });
+  const empresaId = await obtenerEmpresaActivaId();
+  const pedido = await prisma.pedido.findFirst({ where: { id, empresaId } });
   if (!pedido || (pedido.estado !== "PENDIENTE" && pedido.estado !== "PARCIAL")) return { error: "El pedido no tiene saldo pendiente." };
   if (!puedeResolverSolicitud(pedido.usuarioId, auth.usuario.id)) {
     return { error: "La persona que creó el pedido no puede resolver su excepción de crédito." };
@@ -632,6 +637,7 @@ export async function aprobarCreditoPedido(id: string): Promise<EstadoFormulario
   const resultado = await prisma.pedido.updateMany({
     where: {
       id,
+      empresaId,
       estado: { in: ["PENDIENTE", "PARCIAL"] },
       estadoAprobacionCredito: "PENDIENTE",
       usuarioId: { not: auth.usuario.id },
@@ -658,10 +664,11 @@ export async function rechazarCreditoPedido(
   if (!(await puedeRealizar(auth.usuario, "ventas", "aprobar"))) {
     return { error: "Su grupo de seguridad no permite resolver excepciones de crédito." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
   if (motivo.length > 500) return { error: "El motivo no puede superar 500 caracteres." };
-  const pedido = await prisma.pedido.findUnique({ where: { id } });
+  const pedido = await prisma.pedido.findFirst({ where: { id, empresaId } });
   if (!pedido || (pedido.estado !== "PENDIENTE" && pedido.estado !== "PARCIAL")) return { error: "El pedido no tiene saldo pendiente." };
   if (!puedeResolverSolicitud(pedido.usuarioId, auth.usuario.id)) {
     return { error: "La persona que creó el pedido no puede resolver su excepción de crédito." };
@@ -672,6 +679,7 @@ export async function rechazarCreditoPedido(
   const resultado = await prisma.pedido.updateMany({
     where: {
       id,
+      empresaId,
       estado: { in: ["PENDIENTE", "PARCIAL"] },
       estadoAprobacionCredito: "PENDIENTE",
       usuarioId: { not: auth.usuario.id },
