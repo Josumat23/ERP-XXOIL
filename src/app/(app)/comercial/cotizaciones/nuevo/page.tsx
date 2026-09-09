@@ -21,7 +21,7 @@ export default async function NuevaCotizacionPage() {
       orderBy: { sku: "asc" },
     }),
     prisma.cotizacion.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fecha: "desc" } }),
-    prisma.descuentoCanal.findMany(),
+    prisma.descuentoCanal.findMany({ where: { empresaId } }),
   ]);
   const descuentoPorCanal = Object.fromEntries(
     descuentosCanal.map((d) => [d.canal, d.descuentoPct.toNumber()])

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -23,11 +24,12 @@ export async function guardarDescuentoCanal(
   if (!Number.isFinite(descuentoPct) || descuentoPct < 0 || descuentoPct > 100) {
     return { error: "El descuento debe ser un porcentaje entre 0 y 100." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   await prisma.descuentoCanal.upsert({
-    where: { canal },
+    where: { empresaId_canal: { empresaId, canal } },
     update: { descuentoPct },
-    create: { canal, descuentoPct },
+    create: { empresaId, canal, descuentoPct },
   });
 
   revalidatePath("/comercial/descuentos-canal");

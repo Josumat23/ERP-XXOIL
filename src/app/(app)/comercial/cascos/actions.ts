@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -34,19 +35,20 @@ export async function registrarMovimientoCasco(
   if (!Number.isInteger(cantidad) || cantidad <= 0) {
     return { error: "La cantidad debe ser un entero mayor a 0." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
       // Todos los movimientos del cliente comparten este bloqueo para que
       // dos devoluciones no validen simultáneamente contra el mismo saldo.
       const bloqueo = await tx.cliente.updateMany({
-        where: { id: clienteId },
+        where: { id: clienteId, empresaId },
         data: { limiteCredito: { increment: 0 } },
       });
       if (bloqueo.count !== 1) throw new Error("El cliente no existe.");
 
-      const insumo = await tx.insumo.findUnique({
-        where: { id: insumoId },
+      const insumo = await tx.insumo.findFirst({
+        where: { id: insumoId, empresaId },
         select: { esRetornable: true },
       });
       if (!insumo?.esRetornable) {
@@ -55,7 +57,7 @@ export async function registrarMovimientoCasco(
 
       if (tipo === "DEVUELTO") {
         const movimientos = await tx.movimientoCasco.findMany({
-          where: { clienteId, insumoId },
+          where: { empresaId, clienteId, insumoId },
           select: { tipo: true, cantidad: true },
         });
         const saldo = movimientos.reduce(
@@ -70,6 +72,7 @@ export async function registrarMovimientoCasco(
 
       await tx.movimientoCasco.create({
         data: {
+          empresaId,
           clienteId,
           insumoId,
           tipo,

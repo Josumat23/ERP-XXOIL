@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import CascoFormulario from "./CascoFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function CascosPage({
   searchParams,
@@ -13,12 +14,13 @@ export default async function CascosPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { clienteId } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [clientes, insumosRetornables, movimientos] = await Promise.all([
-    prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
-    prisma.insumo.findMany({ where: { esRetornable: true }, orderBy: { codigo: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.insumo.findMany({ where: { empresaId, esRetornable: true }, orderBy: { codigo: "asc" } }),
     prisma.movimientoCasco.findMany({
-      where: { ...(clienteId ? { clienteId } : {}) },
+      where: { empresaId, ...(clienteId ? { clienteId } : {}) },
       include: { cliente: true, insumo: true },
       orderBy: { fecha: "desc" },
     }),
