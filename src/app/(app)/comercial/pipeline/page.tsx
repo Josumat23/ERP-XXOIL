@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import BarraRanking from "@/components/BarraRanking";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 // Embudo de ventas simple (CRM-014 reducido): agrega las cotizaciones
 // PENDIENTE por probabilidad estimada de cierre y por vendedor. No es un
@@ -21,9 +22,10 @@ const BUCKETS = [
 export default async function PipelinePage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const cotizaciones = await prisma.cotizacion.findMany({
-    where: { estado: "PENDIENTE", validaHasta: { gte: new Date() } },
+    where: { empresaId, estado: "PENDIENTE", validaHasta: { gte: new Date() } },
     include: { cliente: true, vendedor: true },
     orderBy: { fecha: "desc" },
   });

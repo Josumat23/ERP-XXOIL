@@ -8,6 +8,7 @@ import { ETIQUETA_ESTADO_PEDIDO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -25,11 +26,13 @@ export default async function PedidosPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { q, estado } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
   const ESTADOS_VALIDOS = ["PENDIENTE", "PARCIAL", "FACTURADO", "ANULADO"] as const;
   const estadoFiltro = ESTADOS_VALIDOS.find((e) => e === estado);
 
   const pedidos = await prisma.pedido.findMany({
     where: {
+      empresaId,
       ...(estadoFiltro ? { estado: estadoFiltro } : {}),
       ...(q
         ? {

@@ -6,23 +6,25 @@ import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PedidoFormulario from "../PedidoFormulario";
 import { calcularAtpPorProducto, unidadesEquivalentes } from "@/lib/atp";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevoPedidoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [clientes, vendedores, almacenes, presentaciones, pedidos, descuentosCanal, atpPorProducto, configuracion] = await Promise.all([
-    prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
-    prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.almacen.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.almacen.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
     prisma.presentacion.findMany({
-      where: { activo: true },
+      where: { empresaId, activo: true },
       include: { producto: true, escalonesPrecio: { orderBy: { cantidadMinima: "asc" } } },
       orderBy: { sku: "asc" },
     }),
-    prisma.pedido.findMany({ include: { cliente: true }, orderBy: { fecha: "desc" } }),
+    prisma.pedido.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fecha: "desc" } }),
     prisma.descuentoCanal.findMany(),
-    calcularAtpPorProducto(),
+    calcularAtpPorProducto(prisma, empresaId),
     prisma.configuracionEmpresa.findUnique({ where: { id: "1" } }),
   ]);
   const descuentoPorCanal = Object.fromEntries(

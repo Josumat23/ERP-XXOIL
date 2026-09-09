@@ -5,20 +5,22 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import CotizacionFormulario from "../CotizacionFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevaCotizacionPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [clientes, vendedores, presentaciones, cotizaciones, descuentosCanal] = await Promise.all([
-    prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
-    prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.presentacion.findMany({
-      where: { activo: true },
+      where: { empresaId, activo: true },
       include: { producto: true },
       orderBy: { sku: "asc" },
     }),
-    prisma.cotizacion.findMany({ include: { cliente: true }, orderBy: { fecha: "desc" } }),
+    prisma.cotizacion.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fecha: "desc" } }),
     prisma.descuentoCanal.findMany(),
   ]);
   const descuentoPorCanal = Object.fromEntries(

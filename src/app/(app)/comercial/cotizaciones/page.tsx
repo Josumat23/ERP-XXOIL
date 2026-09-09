@@ -8,6 +8,7 @@ import type { $Enums } from "@/generated/prisma/client";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_ESTADO: Record<$Enums.EstadoCotizacion, string> = {
   PENDIENTE: "Pendiente",
@@ -36,10 +37,12 @@ export default async function CotizacionesPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { q, estado } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
   const filtroEstado = ESTADOS.find((e) => e === estado);
 
   const cotizaciones = await prisma.cotizacion.findMany({
     where: {
+      empresaId,
       ...(filtroEstado ? { estado: filtroEstado } : {}),
       ...(q
         ? {

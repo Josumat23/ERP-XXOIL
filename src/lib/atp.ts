@@ -15,9 +15,9 @@ export type AtpProducto = {
 
 const ATP_VACIO: AtpProducto = { granelSinEnvasarKg: 0, planificadoKg: 0, lotesPlanificados: 0 };
 
-export async function calcularAtpPorProducto(cliente: Tx = prisma): Promise<Map<string, AtpProducto>> {
+export async function calcularAtpPorProducto(cliente: Tx = prisma, empresaId?: string): Promise<Map<string, AtpProducto>> {
   const lotes = await cliente.loteGranel.findMany({
-    where: { estado: { in: ["APROBADO", "EN_PROCESO", "PENDIENTE_CALIDAD"] } },
+    where: { ...(empresaId ? { empresaId } : {}), estado: { in: ["APROBADO", "EN_PROCESO", "PENDIENTE_CALIDAD"] } },
     select: { estado: true, kgDisponibles: true, kgObjetivo: true, formula: { select: { productoId: true } } },
   });
 
@@ -36,8 +36,8 @@ export async function calcularAtpPorProducto(cliente: Tx = prisma): Promise<Map<
   return mapa;
 }
 
-export async function calcularAtpProducto(cliente: Tx, productoId: string): Promise<AtpProducto> {
-  const mapa = await calcularAtpPorProducto(cliente);
+export async function calcularAtpProducto(cliente: Tx, productoId: string, empresaId?: string): Promise<AtpProducto> {
+  const mapa = await calcularAtpPorProducto(cliente, empresaId);
   return mapa.get(productoId) ?? ATP_VACIO;
 }
 

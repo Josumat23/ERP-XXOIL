@@ -9,6 +9,7 @@ import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { marcarCotizacion, convertirCotizacionAPedido } from "../actions";
 import ProbabilidadFormulario from "../ProbabilidadFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   PENDIENTE: "Pendiente",
@@ -35,10 +36,11 @@ export default async function DetalleCotizacionPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [cotizacion, cotizaciones] = await Promise.all([
     prisma.cotizacion.findUnique({
-      where: { id },
+      where: { id, empresaId },
       include: {
         cliente: true,
         vendedor: true,
@@ -46,7 +48,7 @@ export default async function DetalleCotizacionPage({
         pedido: { include: { facturas: { orderBy: { fechaEmision: "desc" } } } },
       },
     }),
-    prisma.cotizacion.findMany({ include: { cliente: true }, orderBy: { fecha: "desc" } }),
+    prisma.cotizacion.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fecha: "desc" } }),
   ]);
   if (!cotizacion) notFound();
 
