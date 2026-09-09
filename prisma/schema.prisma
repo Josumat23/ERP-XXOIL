@@ -433,8 +433,8 @@ model MovimientoCasco {
   cliente Cliente @relation(fields: [clienteId], references: [id])
   insumo  Insumo  @relation(fields: [insumoId], references: [id])
 
-  @@map("movimientos_casco")
   @@index([empresaId, clienteId, insumoId])
+  @@map("movimientos_casco")
 }
 
 // ---------------------------------------------------------------------------
