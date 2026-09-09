@@ -420,6 +420,7 @@ enum TipoMovimientoCasco {
 // el cliente ya tiene). Pendiente por (cliente, insumo) = ENTREGADO − DEVUELTO.
 model MovimientoCasco {
   id            String              @id @default(cuid())
+  empresaId     String              @default("1")
   clienteId     String
   insumoId      String
   tipo          TipoMovimientoCasco
@@ -432,6 +433,7 @@ model MovimientoCasco {
   cliente Cliente @relation(fields: [clienteId], references: [id])
   insumo  Insumo  @relation(fields: [insumoId], references: [id])
 
+  @@index([empresaId, clienteId, insumoId])
   @@map("movimientos_casco")
 }
 
@@ -1114,9 +1116,11 @@ enum CanalCliente {
 // cantidad: precioFinal = precioEscalonOBase * (1 - descuentoPct/100).
 model DescuentoCanal {
   id           String       @id @default(cuid())
-  canal        CanalCliente @unique
+  empresaId    String       @default("1")
+  canal        CanalCliente
   descuentoPct Decimal      @default(0)
 
+  @@unique([empresaId, canal])
   @@map("descuentos_canal")
 }
 

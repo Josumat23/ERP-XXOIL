@@ -122,7 +122,7 @@ export async function crearPedido(
         (await tx.configuracionEmpresa.findUnique({ where: { id: "1" } })) ??
         (await tx.configuracionEmpresa.create({ data: { id: "1" } }));
       const descuentoCanal = cliente.canal
-        ? await tx.descuentoCanal.findUnique({ where: { canal: cliente.canal } })
+        ? await tx.descuentoCanal.findUnique({ where: { empresaId_canal: { empresaId, canal: cliente.canal } } })
         : null;
       const descuentoCanalPct = descuentoCanal?.descuentoPct.toNumber() ?? 0;
       const lineasConPrecio: Array<

@@ -23,7 +23,7 @@ export default async function NuevoPedidoPage() {
       orderBy: { sku: "asc" },
     }),
     prisma.pedido.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fecha: "desc" } }),
-    prisma.descuentoCanal.findMany(),
+    prisma.descuentoCanal.findMany({ where: { empresaId } }),
     calcularAtpPorProducto(prisma, empresaId),
     prisma.configuracionEmpresa.findUnique({ where: { id: "1" } }),
   ]);
