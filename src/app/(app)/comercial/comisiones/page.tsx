@@ -7,6 +7,7 @@ import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function ComisionesPage({
   searchParams,
@@ -17,11 +18,13 @@ export default async function ComisionesPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { q, vendedorId, estado } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
 
-  const vendedores = await prisma.vendedor.findMany({ orderBy: { nombre: "asc" } });
+  const vendedores = await prisma.vendedor.findMany({ where: { empresaId }, orderBy: { nombre: "asc" } });
 
   const comisiones = await prisma.comision.findMany({
     where: {
+      empresaId,
       ...(vendedorId ? { vendedorId } : {}),
       ...(estado === "pagada" ? { estado: "PAGADA" } : estado === "pendiente" ? { estado: "PENDIENTE" } : {}),
       ...(q ? { factura: { numero: { contains: q } } } : {}),

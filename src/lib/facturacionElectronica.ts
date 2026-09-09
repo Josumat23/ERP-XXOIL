@@ -352,6 +352,7 @@ const ADAPTADORES: Record<string, AdaptadorOse> = {
 // creó el documento comercial ya haya hecho commit (es una llamada de red,
 // no debe correr dentro de una transacción de Prisma). Nunca lanza.
 export async function enviarComprobanteElectronico(params: {
+  empresaId: string;
   tipoDocumento: $Enums.TipoComprobanteElectronico;
   documentoId: string;
   numeroDocumento: string;
@@ -365,13 +366,14 @@ export async function enviarComprobanteElectronico(params: {
     const registro = await prisma.comprobanteElectronico.upsert({
       where: {
         empresaId_tipoDocumento_documentoId: {
-          empresaId: "1",
+          empresaId: params.empresaId,
           tipoDocumento: params.tipoDocumento,
           documentoId: params.documentoId,
         },
       },
       update: {},
       create: {
+        empresaId: params.empresaId,
         tipoDocumento: params.tipoDocumento,
         documentoId: params.documentoId,
         numeroDocumento: params.numeroDocumento,
@@ -427,11 +429,12 @@ export async function enviarComprobanteElectronico(params: {
 // `enviarComprobanteElectronico`. Este helper solo lee el estado actual.
 export async function estadoComprobanteElectronico(
   tipoDocumento: $Enums.TipoComprobanteElectronico,
-  documentoId: string
+  documentoId: string,
+  empresaId = "1"
 ) {
   return prisma.comprobanteElectronico.findUnique({
     where: {
-      empresaId_tipoDocumento_documentoId: { empresaId: "1", tipoDocumento, documentoId },
+      empresaId_tipoDocumento_documentoId: { empresaId, tipoDocumento, documentoId },
     },
   });
 }

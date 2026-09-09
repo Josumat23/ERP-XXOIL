@@ -7,6 +7,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { ETIQUETA_ESTADO_DESPACHO } from "@/lib/etiquetas";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function GuiasRemisionPage({
   searchParams,
@@ -17,11 +18,13 @@ export default async function GuiasRemisionPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { q } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const guias = await prisma.guiaRemision.findMany({
-    where: q
-      ? { OR: [{ numero: { contains: q } }, { cliente: { razonSocial: { contains: q } } }] }
-      : {},
+    where: {
+      empresaId,
+      ...(q ? { OR: [{ numero: { contains: q } }, { cliente: { razonSocial: { contains: q } } }] } : {}),
+    },
     include: { cliente: true, factura: true, _count: { select: { detalles: true } } },
     orderBy: { creadoEn: "desc" },
   });

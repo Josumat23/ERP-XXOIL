@@ -9,9 +9,9 @@ export function formatearNumeroSerie(serie: string, correlativo: number): string
   return `${serie}-${String(correlativo).padStart(8, "0")}`;
 }
 
-export async function seriesActivas(tipoDocumento: $Enums.TipoDocumentoSerie) {
+export async function seriesActivas(tipoDocumento: $Enums.TipoDocumentoSerie, empresaId?: string) {
   return prisma.serieDocumento.findMany({
-    where: { tipoDocumento, activo: true },
+    where: { ...(empresaId ? { empresaId } : {}), tipoDocumento, activo: true },
     orderBy: { serie: "asc" },
   });
 }
@@ -19,10 +19,11 @@ export async function seriesActivas(tipoDocumento: $Enums.TipoDocumentoSerie) {
 // Incrementa el correlativo de la serie elegida dentro de la misma
 // transacción del documento. Si no se eligió serie (flujo libre/manual), no
 // hace nada.
-export async function avanzarSerie(tx: Tx, serieId: string | null): Promise<void> {
+export async function avanzarSerie(tx: Tx, serieId: string | null, empresaId?: string): Promise<void> {
   if (!serieId) return;
-  await tx.serieDocumento.update({
-    where: { id: serieId },
+  const actualizada = await tx.serieDocumento.updateMany({
+    where: { id: serieId, ...(empresaId ? { empresaId } : {}), activo: true },
     data: { correlativoActual: { increment: 1 } },
   });
+  if (actualizada.count !== 1) throw new Error("La serie no pertenece a la empresa activa o está inactiva.");
 }

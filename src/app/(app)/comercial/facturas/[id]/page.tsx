@@ -163,7 +163,7 @@ export default async function DetalleFacturaPage({
     (linea) => linea.maxAcreditable > 0
   );
   const puedeCrearNotaCredito = puedeOperar && hayLineasAcreditables;
-  const seriesNC = puedeCrearNotaCredito ? await seriesActivas("NOTA_CREDITO") : [];
+  const seriesNC = puedeCrearNotaCredito ? await seriesActivas("NOTA_CREDITO", empresaId) : [];
 
   // El documento de devolución es la fuente; lo retornado físicamente al
   // cliente vuelve a quedar disponible para una recepción posterior.

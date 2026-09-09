@@ -13,6 +13,7 @@ import { registrarMovimiento } from "@/lib/inventario";
 import { asignarLoteVenta } from "@/lib/trazabilidad";
 import { postearSalidaMercancia } from "@/lib/contabilidad";
 import { revertirDespacho } from "@/lib/reversaDespacho";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -27,6 +28,8 @@ export async function enviarComprobanteGuia(guiaId: string): Promise<void> {
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
     throw new Error("Su grupo de seguridad no permite editar registros en Materiales.");
   }
+  const empresaId = await obtenerEmpresaActivaId();
+  if (await prisma.guiaRemision.count({ where: { id: guiaId, empresaId } }) !== 1) return;
 
   await enviarComprobanteGuiaInterno(guiaId);
 }
@@ -120,13 +123,17 @@ export async function crearGuiaRemision(
     lineas.push({ pedidoDetalleId, presentacionId: candidata.presentacionId, cantidad: candidata.cantidad });
   }
   if (lineas.length === 0) return { error: "Agregue al menos una línea con cantidad válida." };
+  const empresaId = await obtenerEmpresaActivaId();
 
   let guiaId = "";
   try {
     await prisma.$transaction(async (tx) => {
+      if (await tx.cliente.count({ where: { id: clienteId, empresaId, activo: true } }) !== 1) throw new Error("El cliente no pertenece a la empresa activa.");
+      if (await tx.presentacion.count({ where: { id: { in: lineas.map((linea) => linea.presentacionId) }, empresaId, activo: true } }) !== lineas.length) throw new Error("Una presentación no pertenece a la empresa activa.");
+      if (equipoId && await tx.equipo.count({ where: { id: equipoId, empresaId, activo: true } }) !== 1) throw new Error("El equipo no pertenece a la empresa activa.");
       if (pedidoId) {
-        const pedido = await tx.pedido.findUnique({
-          where: { id: pedidoId },
+        const pedido = await tx.pedido.findFirst({
+          where: { id: pedidoId, empresaId },
           include: {
             detalles: {
               include: {
@@ -141,7 +148,7 @@ export async function crearGuiaRemision(
           throw new Error("Este pedido histórico usa el flujo de guía posterior a factura.");
         }
         const reclamoPedido = await tx.pedido.updateMany({
-          where: { id: pedido.id, fulfillmentVersion: pedido.fulfillmentVersion },
+          where: { id: pedido.id, empresaId, fulfillmentVersion: pedido.fulfillmentVersion },
           data: { fulfillmentVersion: { increment: 1 } },
         });
         if (reclamoPedido.count !== 1) {
@@ -164,13 +171,13 @@ export async function crearGuiaRemision(
         }
         if (facturaId) {
           const factura = await tx.factura.findFirst({
-            where: { id: facturaId, pedidoId: pedido.id, estado: { not: "ANULADA" } },
+            where: { id: facturaId, empresaId, pedidoId: pedido.id, estado: { not: "ANULADA" } },
           });
           if (!factura) throw new Error("La factura de referencia no pertenece al pedido o está anulada.");
         }
       } else if (facturaId) {
         const factura = await tx.factura.findFirst({
-          where: { id: facturaId, clienteId, estado: { not: "ANULADA" } },
+          where: { id: facturaId, empresaId, clienteId, estado: { not: "ANULADA" } },
         });
         if (!factura) throw new Error("La factura asociada no existe, está anulada o pertenece a otro cliente.");
       }
@@ -178,6 +185,7 @@ export async function crearGuiaRemision(
       const guia = await tx.guiaRemision.create({
         data: {
           numero,
+          empresaId,
           pedidoId,
           facturaId,
           clienteId,
@@ -207,7 +215,7 @@ export async function crearGuiaRemision(
         },
       });
       guiaId = guia.id;
-      await avanzarSerie(tx, serieId);
+      await avanzarSerie(tx, serieId, empresaId);
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -231,11 +239,12 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const guia = await tx.guiaRemision.findUnique({
-        where: { id: guiaId },
+      const guia = await tx.guiaRemision.findFirst({
+        where: { id: guiaId, empresaId },
         include: {
           pedido: true,
           detalles: { include: { pedidoDetalle: true, presentacion: true } },
@@ -247,7 +256,7 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
       }
 
       const reclamo = await tx.guiaRemision.updateMany({
-        where: { id: guiaId, estadoDespacho: "PLANIFICADO" },
+        where: { id: guiaId, empresaId, estadoDespacho: "PLANIFICADO" },
         data: { estadoDespacho: "EN_RUTA", fechaSalida: new Date() },
       });
       if (reclamo.count !== 1) {
@@ -274,7 +283,7 @@ export async function marcarSalidaGuia(guiaId: string): Promise<EstadoFormulario
           if (!movimiento.ok) throw new Error(movimiento.error);
 
           const reserva = await tx.presentacion.updateMany({
-            where: { id: detalle.presentacionId, stockReservado: { gte: detalle.cantidad } },
+            where: { id: detalle.presentacionId, empresaId, stockReservado: { gte: detalle.cantidad } },
             data: { stockReservado: { decrement: detalle.cantidad } },
           });
           if (reserva.count !== 1) {
@@ -322,6 +331,8 @@ export async function anularDespachoGuia(
   if (motivoNormalizado.length < 10) {
     return { error: "Explique el motivo de la anulación con al menos 10 caracteres." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
+  if (await prisma.guiaRemision.count({ where: { id: guiaId, empresaId } }) !== 1) return { error: "La guía no pertenece a la empresa activa." };
 
   let pedidoId: string | null = null;
   try {
@@ -349,15 +360,16 @@ export async function marcarEntregaGuia(guiaId: string): Promise<EstadoFormulari
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
-  const guia = await prisma.guiaRemision.findUnique({ where: { id: guiaId } });
+  const guia = await prisma.guiaRemision.findFirst({ where: { id: guiaId, empresaId } });
   if (!guia) return { error: "La guía no existe." };
   if (guia.estadoDespacho !== "EN_RUTA") {
     return { error: "Esta guía todavía no salió a ruta." };
   }
 
   const resultado = await prisma.guiaRemision.updateMany({
-    where: { id: guiaId, estadoDespacho: "EN_RUTA" },
+    where: { id: guiaId, empresaId, estadoDespacho: "EN_RUTA" },
     data: { estadoDespacho: "ENTREGADO", fechaEntrega: new Date() },
   });
   if (resultado.count !== 1) {

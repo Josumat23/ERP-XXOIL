@@ -585,7 +585,7 @@ export async function facturarPedido(
           monto: (importesFuncionales.subtotalFuncional * tasa) / 100,
         },
       });
-      await avanzarSerie(tx, serieId);
+      await avanzarSerie(tx, serieId, empresaId);
       await postearVenta(
         tx,
         {
