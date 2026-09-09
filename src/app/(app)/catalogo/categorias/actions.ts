@@ -6,6 +6,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -22,11 +23,12 @@ export async function crearCategoria(
   const nombre = String(formData.get("nombre") ?? "").trim();
   const descripcion = String(formData.get("descripcion") ?? "").trim() || null;
   if (!nombre) return { error: "El nombre es obligatorio." };
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const registro = await tx.categoria.create({ data: { nombre, descripcion } });
-      await registrarAuditoriaMaestro(tx, { entidad: "Categoria", registroId: registro.id, accion: "CREAR", despues: registro, usuario: auth.usuario });
+      const registro = await tx.categoria.create({ data: { nombre, descripcion, empresaId } });
+      await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Categoria", registroId: registro.id, accion: "CREAR", despues: registro, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -53,12 +55,13 @@ export async function actualizarCategoria(
   const nombre = String(formData.get("nombre") ?? "").trim();
   const descripcion = String(formData.get("descripcion") ?? "").trim() || null;
   if (!nombre) return { error: "El nombre es obligatorio." };
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const antes = await tx.categoria.findUniqueOrThrow({ where: { id } });
-      const despues = await tx.categoria.update({ where: { id }, data: { nombre, descripcion } });
-      await registrarAuditoriaMaestro(tx, { entidad: "Categoria", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+      const antes = await tx.categoria.findFirstOrThrow({ where: { id, empresaId } });
+      const despues = await tx.categoria.update({ where: { id, empresaId }, data: { nombre, descripcion } });
+      await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Categoria", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -76,10 +79,11 @@ export async function alternarActivoCategoria(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.categoria.findUniqueOrThrow({ where: { id } });
-    const despues = await tx.categoria.update({ where: { id }, data: { activo } });
-    await registrarAuditoriaMaestro(tx, { entidad: "Categoria", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+    const antes = await tx.categoria.findFirstOrThrow({ where: { id, empresaId } });
+    const despues = await tx.categoria.update({ where: { id, empresaId }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Categoria", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/catalogo/categorias");
 }

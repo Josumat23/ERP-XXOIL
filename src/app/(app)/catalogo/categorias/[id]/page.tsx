@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import CategoriaFormulario from "../CategoriaFormulario";
 import { actualizarCategoria } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function EditarCategoriaPage({
   params,
@@ -16,10 +17,11 @@ export default async function EditarCategoriaPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [categoria, categorias] = await Promise.all([
-    prisma.categoria.findUnique({ where: { id } }),
-    prisma.categoria.findMany({ orderBy: { nombre: "asc" } }),
+    prisma.categoria.findFirst({ where: { id, empresaId } }),
+    prisma.categoria.findMany({ where: { empresaId }, orderBy: { nombre: "asc" } }),
   ]);
   if (!categoria) notFound();
 

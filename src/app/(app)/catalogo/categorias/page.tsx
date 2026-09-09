@@ -7,12 +7,15 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import CategoriaFormulario from "./CategoriaFormulario";
 import { alternarActivoCategoria } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function CategoriasPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const categorias = await prisma.categoria.findMany({
+    where: { empresaId },
     include: { _count: { select: { productos: true } } },
     orderBy: { nombre: "asc" },
   });

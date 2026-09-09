@@ -22,7 +22,7 @@ export default async function EditarProveedorPage({
   const { id } = await params;
   const empresaId = await obtenerEmpresaActivaId();
   const [proveedor, proveedores] = await Promise.all([
-    prisma.proveedor.findUnique({ where: { id } }),
+    prisma.proveedor.findFirst({ where: { id, empresaId } }),
     prisma.proveedor.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
   ]);
   if (!perteneceAEmpresaActiva(proveedor, empresaId)) notFound();
