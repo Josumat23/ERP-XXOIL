@@ -4,6 +4,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatFecha } from "@/lib/format";
 import { InspeccionDevolucionFormulario } from "../../comercial/facturas/[id]/FormulariosFactura";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const COLOR_ESTADO = {
   PENDIENTE_INSPECCION: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300",
@@ -14,8 +15,10 @@ export default async function DevolucionesClientePage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
   const puedeInspeccionar = await puedeRealizar(usuario, "materiales", "editar");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const devoluciones = await prisma.devolucionCliente.findMany({
+    where: { empresaId },
     include: {
       factura: { include: { cliente: true } },
       almacen: true,

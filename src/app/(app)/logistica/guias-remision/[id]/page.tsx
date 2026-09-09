@@ -12,6 +12,7 @@ import EstadoDespachoFormulario from "./EstadoDespachoFormulario";
 import { ETIQUETA_ESTADO_DESPACHO, ETIQUETA_ESTADO_SUNAT, COLOR_ESTADO_SUNAT } from "@/lib/etiquetas";
 import { ETIQUETA_MODALIDAD_TRANSPORTE } from "@/lib/catalogosSunat";
 import { enviarComprobanteGuia } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function DetalleGuiaPage({
   params,
@@ -25,10 +26,11 @@ export default async function DetalleGuiaPage({
     (await puedeRealizar(usuario, "materiales", "editar"));
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [guia, guias] = await Promise.all([
-    prisma.guiaRemision.findUnique({
-      where: { id },
+    prisma.guiaRemision.findFirst({
+      where: { id, empresaId },
       include: {
         cliente: true,
         factura: true,
@@ -46,12 +48,12 @@ export default async function DetalleGuiaPage({
         },
       },
     }),
-    prisma.guiaRemision.findMany({ include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
+    prisma.guiaRemision.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
   ]);
   if (!guia) notFound();
 
   const comprobante = await prisma.comprobanteElectronico.findUnique({
-    where: { empresaId_tipoDocumento_documentoId: { empresaId: "1", tipoDocumento: "GUIA_REMISION", documentoId: id } },
+    where: { empresaId_tipoDocumento_documentoId: { empresaId, tipoDocumento: "GUIA_REMISION", documentoId: id } },
   });
 
   const totalKg = guia.detalles.reduce(

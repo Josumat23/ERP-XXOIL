@@ -21,6 +21,7 @@ export async function enviarComprobanteGuiaInterno(guiaId: string): Promise<void
   const numero = parseInt(numeroStr ?? "", 10);
 
   await enviarComprobanteElectronico({
+    empresaId: guia.empresaId,
     tipoDocumento: "GUIA_REMISION",
     documentoId: guia.id,
     numeroDocumento: guia.numero,

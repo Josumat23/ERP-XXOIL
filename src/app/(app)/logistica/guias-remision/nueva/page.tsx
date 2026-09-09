@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { seriesActivas } from "@/lib/series";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import GuiaFormulario from "../GuiaFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevaGuiaPage({
   searchParams,
@@ -15,10 +16,11 @@ export default async function NuevaGuiaPage({
   const { pedidoId: pedidoInicialId } = await searchParams;
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [pedidosRaw, facturas, clientes, presentaciones, equipos, series, guias, ubigeos] = await Promise.all([
     prisma.pedido.findMany({
-      where: { requiereEntrega: true, estado: { not: "ANULADO" } },
+      where: { empresaId, requiereEntrega: true, estado: { not: "ANULADO" } },
       include: {
         cliente: true,
         detalles: {
@@ -32,7 +34,7 @@ export default async function NuevaGuiaPage({
       take: 100,
     }),
     prisma.factura.findMany({
-      where: { estado: { not: "ANULADA" } },
+      where: { empresaId, estado: { not: "ANULADA" } },
       include: {
         cliente: true,
         detalles: true,
@@ -41,15 +43,15 @@ export default async function NuevaGuiaPage({
       orderBy: { fechaEmision: "desc" },
       take: 50,
     }),
-    prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
     prisma.presentacion.findMany({
-      where: { activo: true },
+      where: { empresaId, activo: true },
       include: { producto: true },
       orderBy: { sku: "asc" },
     }),
-    prisma.equipo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
-    seriesActivas("GUIA_REMISION"),
-    prisma.guiaRemision.findMany({ include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
+    prisma.equipo.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
+    seriesActivas("GUIA_REMISION", empresaId),
+    prisma.guiaRemision.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
     prisma.ubigeo.findMany({ orderBy: [{ departamento: "asc" }, { provincia: "asc" }, { distrito: "asc" }] }),
   ]);
 

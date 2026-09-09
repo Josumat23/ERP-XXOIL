@@ -51,6 +51,7 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
   const numero = parseInt(numeroStr ?? "", 10);
 
   await enviarComprobanteElectronico({
+    empresaId: factura.empresaId,
     tipoDocumento: "FACTURA",
     documentoId: factura.id,
     numeroDocumento: factura.numero,
@@ -105,6 +106,7 @@ export async function enviarComprobanteNotaCredito(notaCreditoId: string): Promi
   const montoIgv = nc.monto.toNumber() - montoBase;
 
   await enviarComprobanteElectronico({
+    empresaId: nc.empresaId,
     tipoDocumento: "NOTA_CREDITO",
     documentoId: nc.id,
     numeroDocumento: nc.numero,
@@ -520,7 +522,7 @@ export async function crearNotaCredito(
         });
       }
 
-      await avanzarSerie(tx, serieId);
+      await avanzarSerie(tx, serieId, empresaId);
 
       await postearNotaCredito(
         tx,

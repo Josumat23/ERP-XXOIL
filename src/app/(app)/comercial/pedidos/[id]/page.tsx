@@ -77,7 +77,7 @@ export default async function DetallePedidoPage({
   });  const puedeFacturar =
     (pedido.estado === "PENDIENTE" || pedido.estado === "PARCIAL") &&
     lineasFacturacion.some((linea) => linea.saldo > 0);
-  const series = puedeFacturar ? await seriesActivas("FACTURA") : [];
+  const series = puedeFacturar ? await seriesActivas("FACTURA", empresaId) : [];
   const puedeAprobarCredito =
     pedido.estadoAprobacionCredito === "PENDIENTE" &&
     usuario !== null &&
