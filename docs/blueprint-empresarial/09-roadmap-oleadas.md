@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Entregado 2026-09-09:** aislamiento multiempresa de productos, presentaciones, categorías relacionadas, ubicaciones y escalones de precio.
+
 > **Entregado 2026-09-09:** aislamiento multiempresa completo del catálogo de insumos y validación cruzada de proveedores/ubicaciones.
 
 > **Entregado 2026-09-09:** MRP con plazo de abastecimiento, compra mínima, múltiplo y fecha esperada en la orden sugerida.

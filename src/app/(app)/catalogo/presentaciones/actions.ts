@@ -8,6 +8,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { registrarMovimiento } from "@/lib/inventario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -96,6 +97,7 @@ export async function crearPresentacion(
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const stockInicial = Number(formData.get("stock") ?? 0);
   if (!Number.isFinite(stockInicial) || stockInicial < 0) {
@@ -104,7 +106,9 @@ export async function crearPresentacion(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const creada = await tx.presentacion.create({ data: resultado.datos });
+      if (await tx.producto.count({ where: { id: resultado.datos.productoId, empresaId, activo: true } }) !== 1) throw new Error("El producto no pertenece a la empresa activa.");
+      if (resultado.datos.zonaAlmacenId && await tx.zonaAlmacen.count({ where: { id: resultado.datos.zonaAlmacenId, almacen: { empresaId } } }) !== 1) throw new Error("La ubicación no pertenece a la empresa activa.");
+      const creada = await tx.presentacion.create({ data: { ...resultado.datos, empresaId } });
       await registrarAuditoriaMaestro(tx, { entidad: "Presentacion", registroId: creada.id, accion: "CREAR", despues: creada, usuario: auth.usuario });
       if (stockInicial > 0) {
         const mov = await registrarMovimiento(tx, {
@@ -146,11 +150,14 @@ export async function actualizarPresentacion(
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const antes = await tx.presentacion.findUniqueOrThrow({ where: { id } });
-      const despues = await tx.presentacion.update({ where: { id }, data: resultado.datos });
+      const antes = await tx.presentacion.findFirstOrThrow({ where: { id, empresaId } });
+      if (await tx.producto.count({ where: { id: resultado.datos.productoId, empresaId, activo: true } }) !== 1) throw new Error("El producto no pertenece a la empresa activa.");
+      if (resultado.datos.zonaAlmacenId && await tx.zonaAlmacen.count({ where: { id: resultado.datos.zonaAlmacenId, almacen: { empresaId } } }) !== 1) throw new Error("La ubicación no pertenece a la empresa activa.");
+      const despues = await tx.presentacion.update({ where: { id, empresaId }, data: resultado.datos });
       await registrarAuditoriaMaestro(tx, { entidad: "Presentacion", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     });
   } catch (e) {
@@ -169,9 +176,10 @@ export async function alternarActivoPresentacion(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.presentacion.findUniqueOrThrow({ where: { id } });
-    const despues = await tx.presentacion.update({ where: { id }, data: { activo } });
+    const antes = await tx.presentacion.findFirstOrThrow({ where: { id, empresaId } });
+    const despues = await tx.presentacion.update({ where: { id, empresaId }, data: { activo } });
     await registrarAuditoriaMaestro(tx, { entidad: "Presentacion", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/catalogo/presentaciones");
@@ -192,6 +200,7 @@ export async function crearEscalonPrecio(
 
   const cantidadMinima = Number(formData.get("cantidadMinima"));
   const precio = Number(formData.get("precio"));
+  const empresaId = await obtenerEmpresaActivaId();
 
   if (!Number.isInteger(cantidadMinima) || cantidadMinima <= 1) {
     return { error: "La cantidad mínima debe ser un entero mayor a 1 (para 1 unidad ya está el precio base)." };
@@ -201,6 +210,7 @@ export async function crearEscalonPrecio(
   }
 
   try {
+    if (await prisma.presentacion.count({ where: { id: presentacionId, empresaId } }) !== 1) return { error: "La presentación no pertenece a la empresa activa." };
     await prisma.escalonPrecio.create({ data: { presentacionId, cantidadMinima, precio } });
   } catch (e) {
     if (esErrorDuplicado(e)) {
@@ -218,7 +228,8 @@ export async function eliminarEscalonPrecio(id: string, presentacionId: string) 
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) return;
-  await prisma.escalonPrecio.delete({ where: { id } });
+  const empresaId = await obtenerEmpresaActivaId();
+  await prisma.escalonPrecio.deleteMany({ where: { id, presentacionId, presentacion: { empresaId } } });
   revalidatePath(`/catalogo/presentaciones/${presentacionId}`);
   revalidatePath("/comercial/pedidos/nuevo");
 }

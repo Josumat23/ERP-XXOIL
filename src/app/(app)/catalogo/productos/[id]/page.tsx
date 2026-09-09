@@ -8,6 +8,7 @@ import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ProductoFormulario from "../ProductoFormulario";
 import { actualizarProducto } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function EditarProductoPage({
   params,
@@ -18,14 +19,15 @@ export default async function EditarProductoPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [producto, productos, categorias, unidadesMedida] = await Promise.all([
     prisma.producto.findUnique({
-      where: { id },
+      where: { id, empresaId },
       include: { presentaciones: { orderBy: { creadoEn: "asc" } } },
     }),
-    prisma.producto.findMany({ orderBy: { creadoEn: "desc" } }),
-    prisma.categoria.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.producto.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
+    prisma.categoria.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     unidadesMedidaParaSelect(),
   ]);
 

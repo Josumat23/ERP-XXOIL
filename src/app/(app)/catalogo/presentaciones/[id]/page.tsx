@@ -9,6 +9,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PresentacionFormulario from "../PresentacionFormulario";
 import EscalonPrecioFormulario from "../EscalonPrecioFormulario";
 import { actualizarPresentacion, eliminarEscalonPrecio } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function EditarPresentacionPage({
   params,
@@ -19,13 +20,14 @@ export default async function EditarPresentacionPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [presentacion, presentaciones, productos, zonasAlmacen, escalones] = await Promise.all([
-    prisma.presentacion.findUnique({ where: { id } }),
-    prisma.presentacion.findMany({ include: { producto: true }, orderBy: { creadoEn: "desc" } }),
-    prisma.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    zonasAlmacenParaSelect(),
-    prisma.escalonPrecio.findMany({ where: { presentacionId: id }, orderBy: { cantidadMinima: "asc" } }),
+    prisma.presentacion.findFirst({ where: { id, empresaId } }),
+    prisma.presentacion.findMany({ where: { empresaId }, include: { producto: true }, orderBy: { creadoEn: "desc" } }),
+    prisma.producto.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    zonasAlmacenParaSelect(empresaId),
+    prisma.escalonPrecio.findMany({ where: { presentacionId: id, presentacion: { empresaId } }, orderBy: { cantidadMinima: "asc" } }),
   ]);
 
   if (!presentacion) notFound();

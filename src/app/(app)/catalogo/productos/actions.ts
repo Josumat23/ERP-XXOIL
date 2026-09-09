@@ -16,6 +16,7 @@ const SEGMENTOS_VALIDOS: $Enums.SegmentoMercado[] = [
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -83,10 +84,12 @@ export async function crearProducto(
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const registro = await tx.producto.create({ data: resultado.datos });
+      if (await tx.categoria.count({ where: { id: resultado.datos.categoriaId, empresaId, activo: true } }) !== 1) throw new Error("La categoría no pertenece a la empresa activa.");
+      const registro = await tx.producto.create({ data: { ...resultado.datos, empresaId } });
       await registrarAuditoriaMaestro(tx, { entidad: "Producto", registroId: registro.id, accion: "CREAR", despues: registro, usuario: auth.usuario });
     });
   } catch (e) {
@@ -113,11 +116,13 @@ export async function actualizarProducto(
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const antes = await tx.producto.findUniqueOrThrow({ where: { id } });
-      const despues = await tx.producto.update({ where: { id }, data: resultado.datos });
+      const antes = await tx.producto.findFirstOrThrow({ where: { id, empresaId } });
+      if (await tx.categoria.count({ where: { id: resultado.datos.categoriaId, empresaId, activo: true } }) !== 1) throw new Error("La categoría no pertenece a la empresa activa.");
+      const despues = await tx.producto.update({ where: { id, empresaId }, data: resultado.datos });
       await registrarAuditoriaMaestro(tx, { entidad: "Producto", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     });
   } catch (e) {
@@ -135,9 +140,11 @@ export async function actualizarProducto(
 export async function alternarActivoProducto(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.producto.findUniqueOrThrow({ where: { id } });
-    const despues = await tx.producto.update({ where: { id }, data: { activo } });
+    const antes = await tx.producto.findFirstOrThrow({ where: { id, empresaId } });
+    const despues = await tx.producto.update({ where: { id, empresaId }, data: { activo } });
     await registrarAuditoriaMaestro(tx, { entidad: "Producto", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/catalogo/productos");
