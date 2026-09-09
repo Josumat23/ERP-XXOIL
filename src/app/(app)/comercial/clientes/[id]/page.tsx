@@ -24,10 +24,10 @@ export default async function EditarClientePage({
   const empresaId = await obtenerEmpresaActivaId();
 
   const [cliente, clientes, zonas, vendedores, facturasPendientes] = await Promise.all([
-    prisma.cliente.findUnique({ where: { id } }),
+    prisma.cliente.findFirst({ where: { id, empresaId } }),
     prisma.cliente.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
-    prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.zona.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.factura.findMany({ where: { clienteId: id, empresaId, estado: "PENDIENTE" } }),
   ]);
   if (!perteneceAEmpresaActiva(cliente, empresaId)) notFound();

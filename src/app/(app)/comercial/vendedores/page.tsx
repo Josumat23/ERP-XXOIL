@@ -9,6 +9,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoVendedor } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function VendedoresPage({
   searchParams,
@@ -19,9 +20,11 @@ export default async function VendedoresPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { q, estado } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const vendedores = await prisma.vendedor.findMany({
     where: {
+      empresaId,
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
       ...(q ? { nombre: { contains: q } } : {}),
     },

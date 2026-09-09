@@ -7,14 +7,16 @@ import { ETIQUETA_TIPO_VENDEDOR } from "@/lib/etiquetas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import VendedorFormulario from "../VendedorFormulario";
 import { crearVendedor } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevoVendedorPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [zonas, vendedores] = await Promise.all([
-    prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.vendedor.findMany({ orderBy: { nombre: "asc" } }),
+    prisma.zona.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.vendedor.findMany({ where: { empresaId }, orderBy: { nombre: "asc" } }),
   ]);
 
   return (

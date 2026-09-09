@@ -7,12 +7,15 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ZonaFormulario from "./ZonaFormulario";
 import { alternarActivoZona } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function ZonasPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const zonas = await prisma.zona.findMany({
+    where: { empresaId },
     include: { _count: { select: { vendedores: true, clientes: true } } },
     orderBy: { nombre: "asc" },
   });

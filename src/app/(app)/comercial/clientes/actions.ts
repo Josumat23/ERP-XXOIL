@@ -107,6 +107,8 @@ export async function crearCliente(
   try {
     const empresaId = await obtenerEmpresaActivaId();
     await prisma.$transaction(async (tx) => {
+      if (resultado.datos.zonaId && await tx.zona.count({ where: { id: resultado.datos.zonaId, empresaId, activo: true } }) !== 1) throw new Error("La zona no pertenece a la empresa activa.");
+      if (resultado.datos.vendedorId && await tx.vendedor.count({ where: { id: resultado.datos.vendedorId, empresaId, activo: true } }) !== 1) throw new Error("El vendedor no pertenece a la empresa activa.");
       const codigo = await siguienteCodigoCliente(tx);
       const cliente = await tx.cliente.create({
         data: { ...resultado.datos, codigo, empresaId },
@@ -150,7 +152,9 @@ export async function actualizarCliente(
     const actualizado = await prisma.$transaction(async (tx) => {
       const antes = await tx.cliente.findUnique({ where: { id } });
       if (!perteneceAEmpresaActiva(antes, empresaId)) return false;
-      const despues = await tx.cliente.update({ where: { id }, data: resultado.datos });
+      if (resultado.datos.zonaId && await tx.zona.count({ where: { id: resultado.datos.zonaId, empresaId, activo: true } }) !== 1) throw new Error("La zona no pertenece a la empresa activa.");
+      if (resultado.datos.vendedorId && await tx.vendedor.count({ where: { id: resultado.datos.vendedorId, empresaId, activo: true } }) !== 1) throw new Error("El vendedor no pertenece a la empresa activa.");
+      const despues = await tx.cliente.update({ where: { id, empresaId }, data: resultado.datos });
       await registrarAuditoriaMaestro(tx, {
         empresaId: despues.empresaId,
         entidad: "Cliente",
@@ -182,7 +186,7 @@ export async function alternarActivoCliente(id: string, activo: boolean) {
   await prisma.$transaction(async (tx) => {
     const antes = await tx.cliente.findUnique({ where: { id } });
     if (!perteneceAEmpresaActiva(antes, empresaId)) return;
-    const despues = await tx.cliente.update({ where: { id }, data: { activo } });
+    const despues = await tx.cliente.update({ where: { id, empresaId }, data: { activo } });
     await registrarAuditoriaMaestro(tx, {
       empresaId: despues.empresaId,
       entidad: "Cliente",

@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ZonaFormulario from "../ZonaFormulario";
 import { actualizarZona } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function EditarZonaPage({
   params,
@@ -16,10 +17,11 @@ export default async function EditarZonaPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [zona, zonas] = await Promise.all([
-    prisma.zona.findUnique({ where: { id } }),
-    prisma.zona.findMany({ orderBy: { nombre: "asc" } }),
+    prisma.zona.findFirst({ where: { id, empresaId } }),
+    prisma.zona.findMany({ where: { empresaId }, orderBy: { nombre: "asc" } }),
   ]);
   if (!zona) notFound();
 
