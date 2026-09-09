@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { diasVencidos } from "@/lib/cobranza";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export async function registrarAvisoCobranza(facturaId: string) {
   const auth = await requerirRol(["VENTAS"]);
@@ -13,7 +14,8 @@ export async function registrarAvisoCobranza(facturaId: string) {
     return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
   }
 
-  const factura = await prisma.factura.findUnique({ where: { id: facturaId } });
+  const empresaId = await obtenerEmpresaActivaId();
+  const factura = await prisma.factura.findFirst({ where: { id: facturaId, empresaId } });
   if (!factura) return { error: "La factura no existe." };
   if (factura.saldo.toNumber() <= 1e-9) return { error: "Esta factura ya no tiene saldo pendiente." };
 
@@ -24,6 +26,7 @@ export async function registrarAvisoCobranza(facturaId: string) {
     data: {
       clienteId: factura.clienteId,
       facturaId,
+      empresaId,
       nivel,
       diasVencidos: dias,
       usuarioId: auth.usuario.id,
@@ -42,12 +45,14 @@ export async function alternarBloqueoCliente(clienteId: string, bloquear: boolea
     return { error: "Su grupo de seguridad no permite bloquear clientes por cobranza." };
   }
 
-  await prisma.cliente.update({
-    where: { id: clienteId },
+  const empresaId = await obtenerEmpresaActivaId();
+  const resultado = await prisma.cliente.updateMany({
+    where: { id: clienteId, empresaId },
     data: bloquear
       ? { bloqueadoCobranza: true, bloqueadoCobranzaEn: new Date(), bloqueadoCobranzaPor: auth.usuario.nombre }
       : { bloqueadoCobranza: false, bloqueadoCobranzaEn: null, bloqueadoCobranzaPor: null },
   });
+  if (resultado.count !== 1) return { error: "El cliente no existe en la empresa activa." };
 
   revalidatePath("/finanzas/cobranza");
   revalidatePath("/comercial/clientes");

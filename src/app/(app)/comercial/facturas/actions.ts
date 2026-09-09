@@ -23,6 +23,7 @@ import {
   calcularImportesFuncionales,
   validarTipoCambio,
 } from "@/lib/multimoneda";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -36,8 +37,9 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
     throw new Error("Su grupo de seguridad no permite editar registros en Ventas.");
   }
 
-  const factura = await prisma.factura.findUnique({
-    where: { id: facturaId },
+  const empresaId = await obtenerEmpresaActivaId();
+  const factura = await prisma.factura.findFirst({
+    where: { id: facturaId, empresaId },
     include: {
       cliente: true,
       detalles: { include: { presentacion: true } },
@@ -85,8 +87,9 @@ export async function enviarComprobanteNotaCredito(notaCreditoId: string): Promi
     throw new Error("Su grupo de seguridad no permite editar registros en Ventas.");
   }
 
-  const nc = await prisma.notaCredito.findUnique({
-    where: { id: notaCreditoId },
+  const empresaId = await obtenerEmpresaActivaId();
+  const nc = await prisma.notaCredito.findFirst({
+    where: { id: notaCreditoId, empresaId },
     include: {
       factura: { include: { cliente: true } },
       detalles: { include: { pedidoDetalle: { include: { presentacion: true } } } },
@@ -151,6 +154,7 @@ export async function registrarCobro(
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const monto = Number(formData.get("monto"));
   const tipoCambioIngresado = Number(formData.get("tipoCambio") ?? 1);
@@ -166,7 +170,7 @@ export async function registrarCobro(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const factura = await tx.factura.findUnique({ where: { id: facturaId } });
+      const factura = await tx.factura.findFirst({ where: { id: facturaId, empresaId } });
       if (!factura) throw new Error("La factura no existe.");
       if (factura.estado === "ANULADA") throw new Error("La factura está anulada.");
 
@@ -187,7 +191,7 @@ export async function registrarCobro(
       });
 
       const reclamo = await tx.factura.updateMany({
-        where: { id: facturaId, estado: factura.estado, saldo: factura.saldo, saldoFuncional: factura.saldoFuncional },
+        where: { id: facturaId, empresaId, estado: factura.estado, saldo: factura.saldo, saldoFuncional: factura.saldoFuncional },
         data: {
           saldo: aplicacion.nuevoSaldoDocumento,
           saldoFuncional: aplicacion.nuevoSaldoFuncional,
@@ -283,6 +287,7 @@ export async function crearNotaCredito(
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const numero = String(formData.get("numero") ?? "").trim().toUpperCase();
   const motivo = String(formData.get("motivo") ?? "").trim();
@@ -339,13 +344,13 @@ export async function crearNotaCredito(
   try {
     await prisma.$transaction(async (tx) => {
       const bloqueo = await tx.factura.updateMany({
-        where: { id: facturaId },
+        where: { id: facturaId, empresaId },
         data: { saldo: { increment: 0 } },
       });
       if (bloqueo.count !== 1) throw new Error("La factura no existe.");
 
-      const factura = await tx.factura.findUnique({
-        where: { id: facturaId },
+      const factura = await tx.factura.findFirst({
+        where: { id: facturaId, empresaId },
         include: { notasCredito: true, comisiones: true, detalles: true },
       });
       if (!factura) throw new Error("La factura no existe.");
@@ -483,6 +488,7 @@ export async function crearNotaCredito(
       const actualizada = await tx.factura.updateMany({
         where: {
           id: facturaId,
+          empresaId,
           estado: factura.estado,
           saldo: factura.saldo,
           saldoFuncional: factura.saldoFuncional,
@@ -557,14 +563,15 @@ export async function anularFactura(
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo de anulación es obligatorio." };
 
   try {
     await prisma.$transaction(async (tx) => {
-      const factura = await tx.factura.findUnique({
-        where: { id: facturaId },
+      const factura = await tx.factura.findFirst({
+        where: { id: facturaId, empresaId },
         include: {
           cobros: true,
           comisiones: true,
@@ -585,6 +592,7 @@ export async function anularFactura(
       const reclamo = await tx.factura.updateMany({
         where: {
           id: facturaId,
+          empresaId,
           estado: factura.estado,
           saldo: factura.saldo,
           saldoFuncional: factura.saldoFuncional,
@@ -707,6 +715,7 @@ export async function registrarDevolucion(
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
   const numero = String(formData.get("numeroDevolucion") ?? "").trim().toUpperCase();
   const almacenId = String(formData.get("almacenId") ?? "");
   const motivo = String(formData.get("motivo") ?? "").trim();
@@ -732,6 +741,11 @@ export async function registrarDevolucion(
   }
 
   try {
+    const [facturaValida, almacenValido] = await Promise.all([
+      prisma.factura.count({ where: { id: facturaId, empresaId } }),
+      prisma.almacen.count({ where: { id: almacenId, empresaId, activo: true } }),
+    ]);
+    if (facturaValida !== 1 || almacenValido !== 1) return { error: "La factura o el almacén no pertenece a la empresa activa." };
     await prisma.$transaction((tx) =>
       crearDocumentoDevolucion(tx, {
         numero,
@@ -764,6 +778,10 @@ export async function inspeccionarDevolucionDetalle(
   if ("error" in auth) return auth;
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
     return { error: "Su grupo de seguridad no permite decidir devoluciones." };
+  }
+  const empresaId = await obtenerEmpresaActivaId();
+  if (await prisma.devolucionClienteDetalle.count({ where: { id: detalleId, devolucion: { empresaId } } }) !== 1) {
+    return { error: "La devolución no pertenece a la empresa activa." };
   }
   const valores = {
     cantidadReingreso: Number(formData.get("cantidadReingreso")),
@@ -806,6 +824,10 @@ export async function aplicarRecargoMora(
   if ("error" in auth) return auth;
   if (!(await puedeRealizar(auth.usuario, "ventas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Ventas." };
+  }
+  const empresaId = await obtenerEmpresaActivaId();
+  if (await prisma.factura.count({ where: { id: facturaId, empresaId } }) !== 1) {
+    return { error: "La factura no pertenece a la empresa activa." };
   }
 
   try {

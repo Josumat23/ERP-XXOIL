@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Entregado 2026-09-09:** aislamiento multiempresa de facturación, cobranza y hojas de ruta, incluidas sus mutaciones financieras, devoluciones y reenvíos electrónicos.
+
 > **Entregado 2026-09-09:** aislamiento multiempresa de pedidos, cotizaciones, pipeline y ATP asociado.
 
 > **Entregado 2026-09-09:** aislamiento multiempresa de clientes, vendedores y zonas comerciales.

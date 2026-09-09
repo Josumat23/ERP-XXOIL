@@ -8,6 +8,7 @@ import { ETIQUETA_ESTADO_FACTURA, ETIQUETA_CONDICION_PAGO } from "@/lib/etiqueta
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -26,9 +27,11 @@ export default async function FacturasPage({
   const { q, estado } = await searchParams;
   const ESTADOS_VALIDOS = ["PENDIENTE", "PAGADA", "ANULADA"] as const;
   const estadoFiltro = ESTADOS_VALIDOS.find((e) => e === estado);
+  const empresaId = await obtenerEmpresaActivaId();
 
   const facturas = await prisma.factura.findMany({
     where: {
+      empresaId,
       ...(estadoFiltro ? { estado: estadoFiltro } : {}),
       ...(q
         ? {

@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import CerrarRutaFormulario from "./CerrarRutaFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function DetalleHojaRutaPage({
   params,
@@ -18,16 +19,17 @@ export default async function DetalleHojaRutaPage({
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [hoja, hojas] = await Promise.all([
-    prisma.hojaRuta.findUnique({
-      where: { id },
+    prisma.hojaRuta.findFirst({
+      where: { id, empresaId },
       include: {
         vendedor: { include: { zona: true } },
         visitas: { include: { cliente: true }, orderBy: { orden: "asc" } },
       },
     }),
-    prisma.hojaRuta.findMany({ include: { vendedor: true }, orderBy: { fecha: "desc" } }),
+    prisma.hojaRuta.findMany({ where: { empresaId }, include: { vendedor: true }, orderBy: { fecha: "desc" } }),
   ]);
   if (!hoja) notFound();
 
