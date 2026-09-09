@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
 
@@ -30,9 +31,11 @@ export default async function CuentasPorCobrarPage({
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
   const { q } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const facturas = await prisma.factura.findMany({
     where: {
+      empresaId,
       estado: "PENDIENTE",
       ...(q
         ? { OR: [{ numero: { contains: q } }, { cliente: { razonSocial: { contains: q } } }] }

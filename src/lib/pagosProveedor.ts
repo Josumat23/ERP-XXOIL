@@ -18,17 +18,18 @@ export async function ejecutarPagoProveedor(
     medioPago: string;
     referencia?: string | null;
     montoAprobacionPagos: number;
+    empresaId: string;
   },
   audit: Auditoria
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const bloqueo = await tx.cuentaPorPagar.updateMany({
-    where: { id: params.cuentaId },
+    where: { id: params.cuentaId, empresaId: params.empresaId },
     data: { saldo: { increment: 0 } },
   });
   if (bloqueo.count !== 1) return { ok: false, error: "La cuenta por pagar no existe." };
 
-  const cuenta = await tx.cuentaPorPagar.findUnique({
-    where: { id: params.cuentaId },
+  const cuenta = await tx.cuentaPorPagar.findFirst({
+    where: { id: params.cuentaId, empresaId: params.empresaId },
     include: { proveedor: true, pagos: true },
   });
   if (!cuenta) return { ok: false, error: "La cuenta por pagar no existe." };
@@ -51,6 +52,7 @@ export async function ejecutarPagoProveedor(
 
   await tx.pagoProveedor.create({
     data: {
+      empresaId: params.empresaId,
       cuentaPorPagarId: params.cuentaId,
       monto: params.monto,
       medioPago: params.medioPago as never,
@@ -67,6 +69,7 @@ export async function ejecutarPagoProveedor(
 
   await tx.movimientoCaja.create({
     data: {
+      empresaId: params.empresaId,
       tipo: "EGRESO",
       concepto: `Pago a ${cuenta.proveedor.razonSocial} (doc. ${cuenta.numeroDocumento})`,
       monto: params.monto,
@@ -79,7 +82,7 @@ export async function ejecutarPagoProveedor(
 
   const nuevoSaldo = saldo - params.monto;
   const saldoActualizado = await tx.cuentaPorPagar.updateMany({
-    where: { id: params.cuentaId, saldo: cuenta.saldo },
+    where: { id: params.cuentaId, empresaId: params.empresaId, saldo: cuenta.saldo },
     data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
   });
   if (saldoActualizado.count !== 1) {

@@ -9,6 +9,7 @@ import { postearPagoProveedor } from "@/lib/contabilidad";
 import { ejecutarPagoProveedor } from "@/lib/pagosProveedor";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -40,6 +41,7 @@ export async function registrarPagoProveedor(
   if (!MEDIOS_VALIDOS.includes(medioPago)) return { error: "Seleccione el medio de pago." };
 
   const { montoAprobacionPagos } = await obtenerConfiguracionEmpresa();
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -51,6 +53,7 @@ export async function registrarPagoProveedor(
           medioPago,
           referencia,
           montoAprobacionPagos: montoAprobacionPagos.toNumber(),
+          empresaId,
         },
         { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
       );
@@ -78,9 +81,10 @@ export async function aprobarPagoProveedor(pagoId: string) {
   }
 
   try {
+    const empresaId = await obtenerEmpresaActivaId();
     await prisma.$transaction(async (tx) => {
-      const pago = await tx.pagoProveedor.findUnique({
-        where: { id: pagoId },
+      const pago = await tx.pagoProveedor.findFirst({
+        where: { id: pagoId, empresaId },
         include: { cuentaPorPagar: { include: { proveedor: true } } },
       });
       if (!pago) throw new Error("El pago no existe.");
@@ -93,7 +97,7 @@ export async function aprobarPagoProveedor(pagoId: string) {
       }
 
       const reclamo = await tx.pagoProveedor.updateMany({
-        where: { id: pagoId, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
+        where: { id: pagoId, empresaId, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
         data: { estadoAprobacion: "APROBADA", aprobadoPor: auth.usuario.nombre, aprobadoEn: new Date() },
       });
       if (reclamo.count !== 1) throw new Error("Este pago ya fue resuelto.");
@@ -104,6 +108,7 @@ export async function aprobarPagoProveedor(pagoId: string) {
       await tx.movimientoCaja.create({
         data: {
           tipo: "EGRESO",
+          empresaId,
           concepto: `Pago a ${cuenta.proveedor.razonSocial} (doc. ${cuenta.numeroDocumento})`,
           monto,
           medioPago: pago.medioPago,
@@ -115,7 +120,7 @@ export async function aprobarPagoProveedor(pagoId: string) {
 
       const nuevoSaldo = cuenta.saldo.toNumber() - monto;
       const saldoActualizado = await tx.cuentaPorPagar.updateMany({
-        where: { id: cuenta.id, saldo: cuenta.saldo },
+        where: { id: cuenta.id, empresaId, saldo: cuenta.saldo },
         data: { saldo: nuevoSaldo, estado: nuevoSaldo <= 1e-9 ? "PAGADA" : "PENDIENTE" },
       });
       if (saldoActualizado.count !== 1 || nuevoSaldo < -1e-9) {
@@ -148,8 +153,9 @@ export async function liberarFacturaProveedor(
   if (!(await puedeRealizar(auth.usuario, "finanzas", "aprobar"))) return { error: "No tiene permiso para liberar facturas." };
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (motivo.length < 12) return { error: "Documente el motivo de la excepción con al menos 12 caracteres." };
+  const empresaId = await obtenerEmpresaActivaId();
   const resultado = await prisma.cuentaPorPagar.updateMany({
-    where: { id: cuentaId, empresaId: auth.usuario.empresaId, estadoVerificacion: "BLOQUEADA", usuarioId: { not: auth.usuario.id } },
+    where: { id: cuentaId, empresaId, estadoVerificacion: "BLOQUEADA", usuarioId: { not: auth.usuario.id } },
     data: { estadoVerificacion: "APROBADA_EXCEPCION", verificacionResueltaPorId: auth.usuario.id, verificacionResueltaPorNombre: auth.usuario.nombre, verificacionResueltaEn: new Date(), motivoExcepcion: motivo },
   });
   if (resultado.count !== 1) return { error: "La factura ya fue resuelta, no pertenece a la empresa o fue registrada por usted." };
@@ -170,7 +176,8 @@ export async function rechazarPagoProveedor(
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (!motivo) return { error: "El motivo del rechazo es obligatorio." };
 
-  const pago = await prisma.pagoProveedor.findUnique({ where: { id: pagoId } });
+  const empresaId = await obtenerEmpresaActivaId();
+  const pago = await prisma.pagoProveedor.findFirst({ where: { id: pagoId, empresaId } });
   if (!pago) return { error: "El pago no existe." };
   if (pago.estadoAprobacion !== "PENDIENTE") {
     return { error: "Este pago no está pendiente de aprobación." };
@@ -181,7 +188,7 @@ export async function rechazarPagoProveedor(
   }
 
   const reclamo = await prisma.pagoProveedor.updateMany({
-    where: { id: pagoId, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
+    where: { id: pagoId, empresaId, estadoAprobacion: "PENDIENTE", usuarioId: { not: auth.usuario.id } },
     data: {
       estadoAprobacion: "RECHAZADA",
       aprobadoPor: auth.usuario.nombre,

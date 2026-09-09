@@ -13,6 +13,7 @@ import {
   solicitarReembolsoCliente,
 } from "@/lib/creditosCliente";
 import { validarTipoCambio } from "@/lib/multimoneda";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormularioCredito = { error?: string; exito?: string };
 
@@ -45,6 +46,12 @@ export async function compensarCreditoCliente(
   const facturaId = String(formData.get("facturaId") ?? "");
   const monto = Number(formData.get("monto"));
   if (!facturaId) return { error: "Seleccione una factura pendiente." };
+  const empresaId = await obtenerEmpresaActivaId();
+  const [creditoValido, facturaValida] = await Promise.all([
+    prisma.creditoCliente.count({ where: { id: creditoId, empresaId } }),
+    prisma.factura.count({ where: { id: facturaId, empresaId } }),
+  ]);
+  if (creditoValido !== 1 || facturaValida !== 1) return { error: "El crédito o la factura no pertenece a la empresa activa." };
   try {
     await prisma.$transaction((tx) =>
       aplicarCreditoCliente(
@@ -74,8 +81,9 @@ export async function solicitarReembolso(
   const monto = Number(formData.get("monto"));
   const medioPago = String(formData.get("medioPago") ?? "") as $Enums.MedioPago;
   const referencia = String(formData.get("referencia") ?? "").trim() || null;
-  const credito = await prisma.creditoCliente.findUnique({
-    where: { id: creditoId },
+  const empresaId = await obtenerEmpresaActivaId();
+  const credito = await prisma.creditoCliente.findFirst({
+    where: { id: creditoId, empresaId },
     select: { moneda: true },
   });
   if (!credito) return { error: "El crédito no existe." };
@@ -114,7 +122,8 @@ export async function aprobarReembolso(reembolsoId: string): Promise<EstadoFormu
   if (!(await puedeRealizar(auth.usuario, "finanzas", "aprobar"))) {
     return { error: "Su grupo de seguridad no permite aprobar reembolsos." };
   }
-  const reembolso = await prisma.reembolsoCliente.findUnique({ where: { id: reembolsoId } });
+  const empresaId = await obtenerEmpresaActivaId();
+  const reembolso = await prisma.reembolsoCliente.findFirst({ where: { id: reembolsoId, empresaId } });
   if (!reembolso) return { error: "El reembolso no existe." };
   if (!puedeResolverSolicitud(reembolso.usuarioId, auth.usuario.id)) {
     return { error: "La persona solicitante no puede aprobar su propio reembolso." };
@@ -147,7 +156,8 @@ export async function rechazarReembolso(
   }
   const motivo = String(formData.get("motivo") ?? "").trim();
   if (motivo.length < 5) return { error: "Explique el rechazo con al menos 5 caracteres." };
-  const reembolso = await prisma.reembolsoCliente.findUnique({ where: { id: reembolsoId } });
+  const empresaId = await obtenerEmpresaActivaId();
+  const reembolso = await prisma.reembolsoCliente.findFirst({ where: { id: reembolsoId, empresaId } });
   if (!reembolso || reembolso.estadoAprobacion !== "PENDIENTE") {
     return { error: "El reembolso no está pendiente." };
   }
@@ -155,7 +165,7 @@ export async function rechazarReembolso(
     return { error: "La persona solicitante no puede rechazar su propia solicitud." };
   }
   const actualizado = await prisma.reembolsoCliente.updateMany({
-    where: { id: reembolso.id, estadoAprobacion: "PENDIENTE" },
+    where: { id: reembolso.id, empresaId, estadoAprobacion: "PENDIENTE" },
     data: {
       estadoAprobacion: "RECHAZADA",
       aprobadoPor: auth.usuario.nombre,

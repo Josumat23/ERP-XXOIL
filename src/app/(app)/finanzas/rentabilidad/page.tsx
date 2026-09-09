@@ -7,6 +7,7 @@ import { esPeriodoMensualValido } from "@/lib/periodos";
 import { formatMoneda } from "@/lib/format";
 import { ETIQUETA_CANAL_CLIENTE, ETIQUETA_SEGMENTO_MERCADO } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const NOMBRE_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -22,9 +23,10 @@ const NOMBRE_MES = [
 type FilaAgregada = { ventas: number; costo: number };
 type Filtros = { vendedorId?: string; zonaId?: string; clienteId?: string };
 
-async function calcularAgregados(desde: Date, hasta: Date, filtros: Filtros) {
+async function calcularAgregados(desde: Date, hasta: Date, filtros: Filtros, empresaId: string) {
   const facturas = await prisma.factura.findMany({
     where: {
+      empresaId,
       fechaEmision: { gte: desde, lt: hasta },
       estado: { not: "ANULADA" },
       ...(filtros.vendedorId ? { vendedorId: filtros.vendedorId } : {}),
@@ -89,6 +91,7 @@ export default async function RentabilidadPage({
   const anio = periodoValido ? anioIngresado : hoy.getFullYear();
   const mes = periodoValido ? mesIngresado : hoy.getMonth() + 1;
   const modoComparacion = comparar === "anio" ? "anio" : "mes";
+  const empresaId = await obtenerEmpresaActivaId();
   const filtros: Filtros = {
     vendedorId: vendedorId || undefined,
     zonaId: zonaId || undefined,
@@ -103,11 +106,11 @@ export default async function RentabilidadPage({
     modoComparacion === "anio" ? new Date(anio - 1, mes, 1) : new Date(anio, mes - 1, 1);
 
   const [actual, anterior, vendedores, zonas, clientes] = await Promise.all([
-    calcularAgregados(desde, hasta, filtros),
-    calcularAgregados(desdeAnterior, hastaAnterior, filtros),
-    prisma.vendedor.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.zona.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
+    calcularAgregados(desde, hasta, filtros, empresaId),
+    calcularAgregados(desdeAnterior, hastaAnterior, filtros, empresaId),
+    prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.zona.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
   ]);
 
   // Query string común para que el toggle de comparación y la navegación de

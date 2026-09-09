@@ -7,6 +7,7 @@ import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function CuentasPorPagarPage({
   searchParams,
@@ -17,9 +18,11 @@ export default async function CuentasPorPagarPage({
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
   const { q, estado } = await searchParams;
   const filtroEstado = estado === "pendiente" || estado === "pagada" ? estado : undefined;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const cuentas = await prisma.cuentaPorPagar.findMany({
     where: {
+      empresaId,
       ...(filtroEstado === "pendiente" ? { estado: "PENDIENTE" } : {}),
       ...(filtroEstado === "pagada" ? { estado: "PAGADA" } : {}),
       ...(q

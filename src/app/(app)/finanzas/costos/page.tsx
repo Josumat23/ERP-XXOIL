@@ -4,23 +4,25 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 // Reporte de costos: costo promedio de insumos, costo/kg de lotes y
 // margen por presentación (precio de venta vs costo promedio de envasado).
 export default async function CostosPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [insumos, lotes, presentaciones] = await Promise.all([
-    prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.insumo.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
     prisma.loteGranel.findMany({
-      where: { estado: { in: ["APROBADO", "RECHAZADO", "PENDIENTE_CALIDAD"] } },
+      where: { empresaId, estado: { in: ["APROBADO", "RECHAZADO", "PENDIENTE_CALIDAD"] } },
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaInicio: "desc" },
       take: 20,
     }),
     prisma.presentacion.findMany({
-      where: { activo: true },
+      where: { empresaId, activo: true },
       include: { producto: true },
       orderBy: { sku: "asc" },
     }),

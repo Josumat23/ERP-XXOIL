@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { ejecutarPagoProveedor } from "@/lib/pagosProveedor";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string; resultado?: string };
 
@@ -77,6 +78,7 @@ export async function ejecutarPropuestaPago(
 
   const { montoAprobacionPagos } = await obtenerConfiguracionEmpresa();
   const montoAprobacion = montoAprobacionPagos.toNumber();
+  const empresaId = await obtenerEmpresaActivaId();
 
   const exitosas: string[] = [];
   const fallidas: string[] = [];
@@ -92,6 +94,7 @@ export async function ejecutarPropuestaPago(
             medioPago,
             referencia: "Propuesta de pago en lote",
             montoAprobacionPagos: montoAprobacion,
+            empresaId,
           },
           { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
         );

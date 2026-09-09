@@ -1,5 +1,7 @@
 # 09 — Roadmap por oleadas
 
+> **Entregado 2026-09-09:** aislamiento multiempresa de subledgers CxC/CxP, pagos, caja, propuestas, saldos a favor y reportes de costos, rentabilidad y resultados.
+
 > **Entregado 2026-09-09:** aislamiento multiempresa de órdenes de compra, recepciones, devoluciones a proveedor e inspecciones de entrada; selección de compañía activa aplicada también a RFQ.
 
 > **Entregado 2026-09-09:** migración y aislamiento multiempresa real de descuentos por canal y movimientos de envases retornables.
