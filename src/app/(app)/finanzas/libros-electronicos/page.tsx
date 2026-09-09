@@ -4,6 +4,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { formatMoneda } from "@/lib/format";
 import { puedeRealizar } from "@/lib/permisos";
 import { esPeriodoMensualValido } from "@/lib/periodos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const NOMBRE_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -18,6 +19,7 @@ export default async function LibrosElectronicosPage({
   const usuario = await obtenerUsuario();
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
   if (!(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const hoy = new Date();
   const { anio: anioParam, mes: mesParam } = await searchParams;
@@ -32,17 +34,17 @@ export default async function LibrosElectronicosPage({
 
   const [facturas, notasCredito, cuentas] = await Promise.all([
     prisma.factura.aggregate({
-      where: { fechaEmision: { gte: desde, lt: hasta } },
+      where: { empresaId, fechaEmision: { gte: desde, lt: hasta } },
       _count: true,
       _sum: { total: true },
     }),
     prisma.notaCredito.aggregate({
-      where: { fecha: { gte: desde, lt: hasta } },
+      where: { empresaId, fecha: { gte: desde, lt: hasta } },
       _count: true,
       _sum: { monto: true },
     }),
     prisma.cuentaPorPagar.aggregate({
-      where: { fechaEmision: { gte: desde, lt: hasta } },
+      where: { empresaId, fechaEmision: { gte: desde, lt: hasta } },
       _count: true,
       _sum: { total: true },
     }),

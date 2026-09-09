@@ -180,7 +180,7 @@ export async function liberarLote(id: string): Promise<void> {
     }
     await tx.reservaInsumoProduccion.deleteMany({ where: { loteGranelId: lote.id } });
     await tx.loteGranel.update({ where: { id }, data: { costoInsumos, costoReproceso } });
-    if (costoInsumos > 0) await postearAsiento(tx, { origen: "INICIO_PRODUCCION", glosa: `Liberación y consumo de materias primas para ${lote.codigo}`, referencia: lote.codigo, lineas: [{ clave: "WIP_PRODUCCION", debe: costoInsumos }, { clave: "INVENTARIO_INSUMOS", haber: costoInsumos }], usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
+    if (costoInsumos > 0) await postearAsiento(tx, { empresaId: lote.empresaId, origen: "INICIO_PRODUCCION", glosa: `Liberación y consumo de materias primas para ${lote.codigo}`, referencia: lote.codigo, lineas: [{ clave: "WIP_PRODUCCION", debe: costoInsumos }, { clave: "INVENTARIO_INSUMOS", haber: costoInsumos }], usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
   });
   revalidatePath("/produccion/lotes");
   revalidatePath(`/produccion/lotes/${id}`);
@@ -239,7 +239,7 @@ export async function ajustarMaterialLote(id: string, _prevState: EstadoFormular
       if (esDevolucion) await devolverLoteInsumo(tx, { loteGranelId: id, insumoId, cantidad, movimientoMaterialId: movimientoMaterial.id });
       else await asignarLoteInsumo(tx, { loteGranelId: id, insumoId, cantidad });
       await tx.loteGranel.update({ where: { id }, data: { costoInsumos: nuevoCosto } });
-      await postearAsiento(tx, { origen: "INICIO_PRODUCCION", glosa: `${esDevolucion ? "Devolución" : "Consumo adicional"} de material en ${lote.codigo}`, referencia: lote.codigo, lineas: esDevolucion ? [{ clave: "INVENTARIO_INSUMOS", debe: costoTotal }, { clave: "WIP_PRODUCCION", haber: costoTotal }] : [{ clave: "WIP_PRODUCCION", debe: costoTotal }, { clave: "INVENTARIO_INSUMOS", haber: costoTotal }], usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
+      await postearAsiento(tx, { empresaId: lote.empresaId, origen: "INICIO_PRODUCCION", glosa: `${esDevolucion ? "Devolución" : "Consumo adicional"} de material en ${lote.codigo}`, referencia: lote.codigo, lineas: esDevolucion ? [{ clave: "INVENTARIO_INSUMOS", debe: costoTotal }, { clave: "WIP_PRODUCCION", haber: costoTotal }] : [{ clave: "WIP_PRODUCCION", debe: costoTotal }, { clave: "INVENTARIO_INSUMOS", haber: costoTotal }], usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
     });
   } catch (error) {
     return { error: error instanceof Error ? error.message : "No se pudo registrar el movimiento." };
@@ -310,6 +310,7 @@ export async function finalizarLote(
       if (resultado.count !== 1) throw new Error("El lote cambió mientras se finalizaba. Actualice la página e intente nuevamente.");
       if (costoManoObra > 0) {
         await postearAsiento(tx, {
+          empresaId: lote.empresaId,
           origen: "MANO_OBRA_PRODUCCION",
           glosa: `Mano de obra aplicada a ${lote.codigo}`,
           referencia: lote.codigo,

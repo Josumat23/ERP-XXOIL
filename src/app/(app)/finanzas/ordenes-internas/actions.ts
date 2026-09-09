@@ -123,7 +123,7 @@ export async function liquidarOrdenInterna(
       await postearOrdenInterna(
         tx,
         { codigoOrden: orden.codigo, descripcion: orden.descripcion, monto: total, centroCostoId },
-        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: orden.empresaId }
       );
     });
   } catch (e) {

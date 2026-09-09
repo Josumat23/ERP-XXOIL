@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_TIPO: Record<string, string> = {
   ACTIVO: "Activo",
@@ -25,6 +26,7 @@ export default async function BalancePage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { mes: mesParam } = await searchParams;
 
@@ -40,7 +42,7 @@ export default async function BalancePage({
   }
 
   const detalles = await prisma.asientoDetalle.findMany({
-    where: { asiento: { anio, mes } },
+    where: { asiento: { empresaId, anio, mes } },
     include: { cuenta: true },
   });
 

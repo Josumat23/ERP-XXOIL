@@ -130,7 +130,7 @@ export async function aprobarPagoProveedor(pagoId: string) {
       await postearPagoProveedor(
         tx,
         { documentoProveedor: cuenta.numeroDocumento, proveedor: cuenta.proveedor.razonSocial, monto },
-        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId }
       );
     });
   } catch (e) {

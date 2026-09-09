@@ -169,6 +169,7 @@ export async function crearEnvasado(
       if (!entrada.ok) throw new Error(entrada.error);
 
       await postearAsiento(tx, {
+        empresaId: lote.empresaId,
         origen: "ENVASADO_PRODUCCION",
         glosa: `Transferencia a producto terminado ${envasado.codigo}`,
         referencia: envasado.codigo,

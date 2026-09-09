@@ -88,7 +88,7 @@ export async function revertirDespacho(
     await postearReversoSalidaMercancia(
       tx,
       { numeroGuia: guia.numero, pedido: guia.pedido.numero, costoTotal, motivo },
-      audit
+      { ...audit, empresaId: guia.empresaId }
     );
   }
   if (guia.pedido) {

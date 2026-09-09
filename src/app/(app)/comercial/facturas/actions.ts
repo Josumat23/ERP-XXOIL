@@ -246,7 +246,7 @@ export async function registrarCobro(
           montoCxc: aplicacion.cxcFuncionalAplicada,
           diferenciaCambio: aplicacion.diferenciaCambio,
         },
-        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: factura.empresaId }
       );
     });
   } catch (e) {
@@ -534,7 +534,7 @@ export async function crearNotaCredito(
           montoCxc: distribucion.montoCxcFuncional,
           montoSaldoFavor: distribucion.montoSaldoFavorFuncional,
         },
-        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId }
       );
     });
   } catch (e) {
@@ -690,7 +690,7 @@ export async function anularFactura(
           costoVentas: costoVentasAnulado,
           motivo,
         },
-        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: factura.empresaId }
       );
     });
   } catch (e) {

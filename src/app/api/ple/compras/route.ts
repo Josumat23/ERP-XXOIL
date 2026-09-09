@@ -3,6 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { codigoTipoDocumento, esPeriodoPLEValido, generarArchivoPLE, generarLineaCompra, periodoAAAAMM, separarSerieNumero } from "@/lib/ple";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export async function GET(req: NextRequest) {
   const usuario = await obtenerUsuario();
@@ -15,6 +17,7 @@ export async function GET(req: NextRequest) {
   ) {
     return NextResponse.json({ error: "Acceso denegado." }, { status: 403 });
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const anio = Number(req.nextUrl.searchParams.get("anio"));
   const mes = Number(req.nextUrl.searchParams.get("mes"));
@@ -26,7 +29,7 @@ export async function GET(req: NextRequest) {
   const hasta = new Date(anio, mes, 1);
 
   const cuentas = await prisma.cuentaPorPagar.findMany({
-    where: { fechaEmision: { gte: desde, lt: hasta } },
+    where: { empresaId, fechaEmision: { gte: desde, lt: hasta } },
     include: { proveedor: true },
     orderBy: { fechaEmision: "asc" },
   });
@@ -35,7 +38,7 @@ export async function GET(req: NextRequest) {
   // impuesto); se estima con la tasa vigente estándar (18%) para la base
   // imponible y el IGV — mismo criterio que el resto del ERP usa como tasa
   // por defecto (ver ConfiguracionEmpresa.tasaIgv).
-  const configuracion = await prisma.configuracionEmpresa.findFirst();
+  const configuracion = await obtenerConfiguracionEmpresa();
   const tasaIgv = (configuracion?.tasaIgv.toNumber() ?? 18) / 100;
 
   let correlativo = 0;

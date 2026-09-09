@@ -95,7 +95,7 @@ export async function aplicarRecargoAFactura(
   await postearRecargoMora(
     tx,
     { numeroFactura: factura.numero, montoFuncional },
-    actor
+    { ...actor, empresaId: factura.empresaId }
   );
 
   return { ok: true, monto, montoFuncional, tipoCambio };

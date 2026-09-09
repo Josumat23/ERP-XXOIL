@@ -6,6 +6,7 @@ import { ETIQUETA_CONTROL, type ClaveControl } from "@/lib/contabilidad";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { CuentaFormulario, ControlFormulario } from "./PlanCuentasFormularios";
 import { alternarActivoCuenta } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_TIPO: Record<string, string> = {
   ACTIVO: "Activo",
@@ -28,10 +29,11 @@ export default async function PlanCuentasPage() {
   if (!usuario || usuario.rol !== "ADMIN" || !(await puedeRealizar(usuario, "finanzas", "ver"))) {
     redirect("/");
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [cuentas, controles] = await Promise.all([
-    prisma.cuentaContable.findMany({ orderBy: { codigo: "asc" } }),
-    prisma.controlContable.findMany(),
+    prisma.cuentaContable.findMany({ where: { planCuentas: { empresaId } }, orderBy: { codigo: "asc" } }),
+    prisma.controlContable.findMany({ where: { empresaId } }),
   ]);
 
   const controlPorClave = new Map(controles.map((c) => [c.clave, c.cuentaId]));

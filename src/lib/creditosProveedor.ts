@@ -102,7 +102,7 @@ export async function aplicarCreditoProveedor(
       documentoProveedor: cxp.numeroDocumento,
       montoFuncional: params.montoFuncional,
     },
-    audit
+    { ...audit, empresaId: credito.empresaId }
   );
 }
 
@@ -177,6 +177,6 @@ export async function registrarReembolsoProveedor(
       referencia: params.referencia.trim(),
       montoFuncional: params.montoFuncional,
     },
-    audit
+    { ...audit, empresaId: credito.empresaId }
   );
 }

@@ -261,7 +261,7 @@ export async function generarPlanillaMensual(
         neto: l.neto,
       })),
     },
-    { usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre }
+    { usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre, empresaId: params.empresaId ?? "1" }
   );
 
   await tx.planillaDetalle.createMany({
@@ -395,7 +395,7 @@ export async function generarGratificacion(
       fecha: fin,
       lineas: lineas.map((l) => ({ empleado: l.empleadoNombre, centroCostoId: l.centroCostoId, montoBase: l.montoBase, bono: l.bono })),
     },
-    { usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre }
+    { usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre, empresaId: params.empresaId ?? "1" }
   );
 
   await tx.planillaDetalle.createMany({
@@ -469,7 +469,7 @@ export async function generarCts(
       fecha: fin,
       lineas: lineas.map((l) => ({ empleado: l.empleadoNombre, centroCostoId: l.centroCostoId, monto: l.monto })),
     },
-    { usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre }
+    { usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre, empresaId: params.empresaId ?? "1" }
   );
 
   await tx.planillaDetalle.createMany({
@@ -548,7 +548,7 @@ export async function generarLiquidacion(
       montoVacaciones,
       fecha: params.fechaCese,
     },
-    { usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre }
+    { usuarioId: params.usuarioId, usuarioNombre: params.usuarioNombre, empresaId: e.empresaId }
   );
 
   await tx.liquidacionDesvinculacion.create({

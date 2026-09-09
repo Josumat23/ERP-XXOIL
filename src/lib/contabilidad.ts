@@ -89,6 +89,7 @@ type LineaAsiento = {
 };
 
 type ParamsAsiento = {
+  empresaId?: string;
   origen: $Enums.OrigenAsiento;
   glosa: string;
   referencia?: string;
@@ -105,17 +106,17 @@ async function siguienteNumeroAsiento(tx: Tx): Promise<string> {
   return `AS-${String(n).padStart(5, "0")}`;
 }
 
-async function libroDiario(tx: Tx) {
-  const libro = await tx.libro.findFirst({ where: { codigo: "DIARIO" } });
+async function libroDiario(tx: Tx, empresaId: string) {
+  const libro = await tx.libro.findFirst({ where: { empresaId, codigo: "DIARIO" } });
   if (libro) return libro;
-  return tx.libro.create({ data: { codigo: "DIARIO", nombre: "Libro diario" } });
+  return tx.libro.create({ data: { empresaId, codigo: "DIARIO", nombre: "Libro diario" } });
 }
 
-export async function reclamarPeriodoAbierto(tx: Tx, fecha: Date): Promise<boolean> {
+export async function reclamarPeriodoAbierto(tx: Tx, fecha: Date, empresaId: string): Promise<boolean> {
   const anio = fecha.getFullYear();
   const mes = fecha.getMonth() + 1;
   const periodo = await tx.periodoFiscal.findUnique({
-    where: { empresaId_anio_mes: { empresaId: "1", anio, mes } },
+    where: { empresaId_anio_mes: { empresaId, anio, mes } },
     select: { id: true, estado: true },
   });
   if (!periodo) return true;
@@ -143,18 +144,19 @@ export async function postearAsiento(
   params: ParamsAsiento
 ): Promise<{ ok: boolean; motivo?: string; numero?: string }> {
   const fecha = params.fecha ?? new Date();
+  const empresaId = params.empresaId ?? "1";
   const anio = fecha.getFullYear();
   const mes = fecha.getMonth() + 1;
 
   // La escritura condicional serializa el posteo contra el cierre del período.
-  if (!(await reclamarPeriodoAbierto(tx, fecha))) {
+  if (!(await reclamarPeriodoAbierto(tx, fecha, empresaId))) {
     return { ok: false, motivo: `Período fiscal ${mes}/${anio} cerrado` };
   }
 
   // Resolver cuentas de control
   const claves = [...new Set(params.lineas.map((l) => l.clave))];
   const controles = await tx.controlContable.findMany({
-    where: { clave: { in: claves } },
+    where: { empresaId, clave: { in: claves } },
   });
   const cuentaPorClave = new Map(controles.map((c) => [c.clave, c.cuentaId]));
   const faltantes = claves.filter((c) => !cuentaPorClave.has(c));
@@ -195,7 +197,7 @@ export async function postearAsiento(
   // control apunta a una regla de prorrateo, esta línea se reparte en varias
   // AsientoDetalle según el % de cada centro de la regla.
   const controlesCosto = await tx.centroCostoControl.findMany({
-    where: { clave: { in: claves } },
+    where: { empresaId, clave: { in: claves } },
     include: { regla: { include: { lineas: true } } },
   });
   const controlCostoPorClave = new Map(controlesCosto.map((c) => [c.clave, c]));
@@ -277,7 +279,7 @@ export async function postearAsiento(
     if (!presupuesto) continue;
 
     const existentes = await tx.asientoDetalle.findMany({
-      where: { centroCostoId, asiento: { anio, mes } },
+      where: { centroCostoId, asiento: { empresaId, anio, mes } },
       select: { debe: true, haber: true },
     });
     const gastoActual = existentes.reduce((acc, d) => acc + d.debe.toNumber() - d.haber.toNumber(), 0);
@@ -292,11 +294,12 @@ export async function postearAsiento(
     }
   }
 
-  const libro = await libroDiario(tx);
+  const libro = await libroDiario(tx, empresaId);
   const numero = await siguienteNumeroAsiento(tx);
 
   await tx.asientoContable.create({
     data: {
+      empresaId,
       libroId: libro.id,
       numero,
       fecha,
@@ -314,7 +317,7 @@ export async function postearAsiento(
   return { ok: true, numero };
 }
 
-type Auditoria = { usuarioId: string; usuarioNombre: string };
+type Auditoria = { usuarioId: string; usuarioNombre: string; empresaId?: string };
 
 // --- Posteos específicos por transacción -----------------------------------
 

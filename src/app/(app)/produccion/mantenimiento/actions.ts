@@ -296,7 +296,7 @@ export async function completarOrdenMantenimiento(
             monto: total,
             centroCostoId: orden.centroCostoId ?? orden.equipo.centroCostoId,
           },
-          { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+          { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId: orden.equipo.empresaId }
         );
       }
     });

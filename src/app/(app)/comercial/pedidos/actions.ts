@@ -596,7 +596,7 @@ export async function facturarPedido(
           total: importesFuncionales.totalFuncional,
           costoVentas: pedido.requiereEntrega ? 0 : costoVentas,
         },
-        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId }
       );
     });
   } catch (e) {

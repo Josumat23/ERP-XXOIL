@@ -92,7 +92,7 @@ export async function ejecutarPagoProveedor(
   await postearPagoProveedor(
     tx,
     { documentoProveedor: cuenta.numeroDocumento, proveedor: cuenta.proveedor.razonSocial, monto: params.monto },
-    audit
+    { ...audit, empresaId: params.empresaId }
   );
 
   return { ok: true };

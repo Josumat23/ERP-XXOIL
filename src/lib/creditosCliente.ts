@@ -177,7 +177,7 @@ export async function aplicarCreditoCliente(
       cxcFuncionalAplicada: calculo.cxcFuncionalAplicada,
       diferenciaCambio: calculo.diferenciaCambio,
     },
-    audit
+    { ...audit, empresaId: credito.empresaId }
   );
 }
 
@@ -271,7 +271,7 @@ async function ejecutarReembolso(
       creditoFuncionalAplicado: reembolso.creditoFuncionalAplicado.toNumber(),
       diferenciaCambio: reembolso.diferenciaCambio.toNumber(),
     },
-    aprobador ?? { usuarioId: reembolso.usuarioId, usuarioNombre: reembolso.usuarioNombre }
+    { ...(aprobador ?? { usuarioId: reembolso.usuarioId, usuarioNombre: reembolso.usuarioNombre }), empresaId: credito.empresaId }
   );
 }
 
