@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
 
 // Lista de zonas activas para los <select> de ubicación en Presentación/Insumo.
-export async function zonasAlmacenParaSelect() {
+export async function zonasAlmacenParaSelect(empresaId?: string) {
   const zonas = await prisma.zonaAlmacen.findMany({
-    where: { activo: true, almacen: { activo: true } },
+    where: { activo: true, almacen: { activo: true, ...(empresaId ? { empresaId } : {}) } },
     include: { almacen: true },
     orderBy: [{ almacen: { codigo: "asc" } }, { codigo: "asc" }],
   });

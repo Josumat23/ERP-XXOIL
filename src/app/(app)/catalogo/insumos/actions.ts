@@ -8,6 +8,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { registrarMovimiento } from "@/lib/inventario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -94,6 +95,7 @@ export async function crearInsumo(
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const stockInicial = Number(formData.get("stock") ?? 0);
   if (!Number.isFinite(stockInicial) || stockInicial < 0) {
@@ -102,7 +104,9 @@ export async function crearInsumo(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const creado = await tx.insumo.create({ data: resultado.datos });
+      if (resultado.datos.proveedorId && await tx.proveedor.count({ where: { id: resultado.datos.proveedorId, empresaId } }) !== 1) throw new Error("El proveedor no pertenece a la empresa activa.");
+      if (resultado.datos.zonaAlmacenId && await tx.zonaAlmacen.count({ where: { id: resultado.datos.zonaAlmacenId, almacen: { empresaId } } }) !== 1) throw new Error("La ubicación no pertenece a la empresa activa.");
+      const creado = await tx.insumo.create({ data: { ...resultado.datos, empresaId } });
       await registrarAuditoriaMaestro(tx, { entidad: "Insumo", registroId: creado.id, accion: "CREAR", despues: creado, usuario: auth.usuario });
       if (stockInicial > 0) {
         const mov = await registrarMovimiento(tx, {
@@ -144,11 +148,14 @@ export async function actualizarInsumo(
 
   const resultado = leerDatos(formData);
   if ("error" in resultado) return resultado;
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
-      const antes = await tx.insumo.findUniqueOrThrow({ where: { id } });
-      const despues = await tx.insumo.update({ where: { id }, data: resultado.datos });
+      const antes = await tx.insumo.findFirstOrThrow({ where: { id, empresaId } });
+      if (resultado.datos.proveedorId && await tx.proveedor.count({ where: { id: resultado.datos.proveedorId, empresaId } }) !== 1) throw new Error("El proveedor no pertenece a la empresa activa.");
+      if (resultado.datos.zonaAlmacenId && await tx.zonaAlmacen.count({ where: { id: resultado.datos.zonaAlmacenId, almacen: { empresaId } } }) !== 1) throw new Error("La ubicación no pertenece a la empresa activa.");
+      const despues = await tx.insumo.update({ where: { id, empresaId }, data: resultado.datos });
       await registrarAuditoriaMaestro(tx, { entidad: "Insumo", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     });
   } catch (e) {
@@ -167,9 +174,10 @@ export async function alternarActivoInsumo(id: string, activo: boolean) {
   const auth = await requerirRol(["ALMACEN"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.insumo.findUniqueOrThrow({ where: { id } });
-    const despues = await tx.insumo.update({ where: { id }, data: { activo } });
+    const antes = await tx.insumo.findFirstOrThrow({ where: { id, empresaId } });
+    const despues = await tx.insumo.update({ where: { id, empresaId }, data: { activo } });
     await registrarAuditoriaMaestro(tx, { entidad: "Insumo", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/catalogo/insumos");

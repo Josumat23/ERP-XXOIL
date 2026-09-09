@@ -9,6 +9,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
 import InsumoFormulario from "../InsumoFormulario";
 import { actualizarInsumo } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function EditarInsumoPage({
   params,
@@ -19,12 +20,13 @@ export default async function EditarInsumoPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [insumo, insumos, proveedores, zonasAlmacen, unidadesMedida] = await Promise.all([
-    prisma.insumo.findUnique({ where: { id } }),
-    prisma.insumo.findMany({ orderBy: { creadoEn: "desc" } }),
-    prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
-    zonasAlmacenParaSelect(),
+    prisma.insumo.findFirst({ where: { id, empresaId } }),
+    prisma.insumo.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
+    prisma.proveedor.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
+    zonasAlmacenParaSelect(empresaId),
     unidadesMedidaParaSelect(),
   ]);
 

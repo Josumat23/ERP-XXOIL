@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoInsumo } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_TIPO: Record<string, string> = {
   MATERIA_PRIMA: "Materia prima",
@@ -25,10 +26,12 @@ export default async function InsumosPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { q, tipo, estado } = await searchParams;
+  const empresaId = await obtenerEmpresaActivaId();
   const filtroTipo = TIPOS.find((t) => t === tipo);
 
   const insumos = await prisma.insumo.findMany({
     where: {
+      empresaId,
       ...(filtroTipo ? { tipo: filtroTipo as "MATERIA_PRIMA" | "ENVASE" | "ETIQUETA" } : {}),
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
       ...(q
