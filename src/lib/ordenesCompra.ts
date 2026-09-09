@@ -28,6 +28,14 @@ export async function crearOrdenCompraDesdeDatos(
 
   let ocId = "";
   await prisma.$transaction(async (tx) => {
+    const [proveedorValido, almacenValido, insumosValidos] = await Promise.all([
+      tx.proveedor.count({ where: { id: datos.proveedorId, empresaId: actor.empresaId, activo: true } }),
+      datos.almacenId ? tx.almacen.count({ where: { id: datos.almacenId, empresaId: actor.empresaId, activo: true } }) : Promise.resolve(1),
+      tx.insumo.count({ where: { id: { in: datos.lineas.map((linea) => linea.insumoId) }, empresaId: actor.empresaId, activo: true } }),
+    ]);
+    if (proveedorValido !== 1 || almacenValido !== 1 || insumosValidos !== datos.lineas.length) {
+      throw new Error("Proveedor, almacén o insumos fuera de la empresa activa.");
+    }
     let acuerdo: Prisma.AcuerdoSuministroGetPayload<{ include: { lineas: true } }> | null = null;
     if (datos.acuerdoId) {
       acuerdo = await tx.acuerdoSuministro.findFirst({
@@ -86,8 +94,8 @@ export async function crearOrdenCompraDesdeDatos(
 
     if (datos.edtId) {
       if (!datos.proyectoId) throw new Error("Seleccione el proyecto al que pertenece la fase.");
-      const edt = await tx.edtProyecto.findUnique({
-        where: { id: datos.edtId },
+      const edt = await tx.edtProyecto.findFirst({
+        where: { id: datos.edtId, proyecto: { empresaId: actor.empresaId } },
         select: { proyectoId: true },
       });
       if (!edtPerteneceAProyecto(edt, datos.proyectoId)) {

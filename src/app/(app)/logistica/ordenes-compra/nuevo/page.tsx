@@ -6,22 +6,24 @@ import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import OrdenCompraFormulario from "../OrdenCompraFormulario";
 import { obtenerTipoCambioVigente } from "@/lib/tipoCambio";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevaOrdenCompraPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [proveedores, insumos, almacenes, ordenes, tipoCambioSugerido, proyectos, edts] = await Promise.all([
-    prisma.proveedor.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
-    prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
-    prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.ordenCompra.findMany({ include: { proveedor: true }, orderBy: { fecha: "desc" } }),
+    prisma.proveedor.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.insumo.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.almacen.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.ordenCompra.findMany({ where: { empresaId }, include: { proveedor: true }, orderBy: { fecha: "desc" } }),
     obtenerTipoCambioVigente(),
     prisma.proyecto.findMany({
-      where: { estado: { in: ["PLANIFICADO", "EN_PROGRESO"] } },
+      where: { empresaId, estado: { in: ["PLANIFICADO", "EN_PROGRESO"] } },
       orderBy: { codigo: "asc" },
     }),
-    prisma.edtProyecto.findMany({ orderBy: { codigo: "asc" } }),
+    prisma.edtProyecto.findMany({ where: { proyecto: { empresaId } }, orderBy: { codigo: "asc" } }),
   ]);
 
   return (

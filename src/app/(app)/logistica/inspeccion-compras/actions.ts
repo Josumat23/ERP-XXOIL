@@ -7,6 +7,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import { normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
 import { ResultadoInspeccion } from "@/generated/prisma/client";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -37,11 +38,12 @@ export async function resolverInspeccionCompra(
   if (resultado === "RECHAZADO" && !observaciones) {
     return { error: "Al rechazar una recepción, las observaciones son obligatorias." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   try {
     await prisma.$transaction(async (tx) => {
       const inspeccion = await tx.inspeccionCompra.findFirst({
-        where: { id: inspeccionId, recepcionDetalle: { recepcion: { ordenCompra: { empresaId: auth.usuario.empresaId } } } },
+        where: { id: inspeccionId, recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } } },
         include: {
           recepcionDetalle: {
             include: { insumo: true, recepcion: { include: { ordenCompra: true } } },
@@ -52,7 +54,7 @@ export async function resolverInspeccionCompra(
       if (inspeccion.resultado !== "PENDIENTE") {
         throw new Error("Esta recepción ya fue evaluada.");
       }
-      const plan = await tx.planInspeccionInsumo.findFirst({ where: { empresaId: auth.usuario.empresaId, insumoId: inspeccion.recepcionDetalle.insumoId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } });
+      const plan = await tx.planInspeccionInsumo.findFirst({ where: { empresaId, insumoId: inspeccion.recepcionDetalle.insumoId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } });
       if (plan && plan.id !== planId) throw new Error("Debe usar el plan de inspección vigente. Actualice la página.");
       if (!plan && planId) throw new Error("El plan de inspección ya no está vigente.");
       let mediciones: { secuencia: number; nombre: string; unidadMedida: string; limiteInferior: number | null; limiteSuperior: number | null; metodoEnsayo: string | null; valorMedido: number; conforme: boolean }[] = [];

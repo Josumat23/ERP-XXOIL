@@ -5,6 +5,7 @@ import { formatMoneda, formatNumero, formatFecha } from "@/lib/format";
 import { ETIQUETA_ESTADO_OC, ETIQUETA_ESTADO_APROBACION } from "@/lib/etiquetas";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -37,10 +38,11 @@ export default async function DetalleOrdenCompraPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const { id } = await params;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [oc, ordenes] = await Promise.all([
     prisma.ordenCompra.findFirst({
-      where: { id, empresaId: usuario.empresaId },
+      where: { id, empresaId },
       include: {
         proveedor: true,
         almacen: true,
@@ -55,7 +57,7 @@ export default async function DetalleOrdenCompraPage({
         acuerdo: true,
       },
     }),
-    prisma.ordenCompra.findMany({ where: { empresaId: usuario.empresaId }, include: { proveedor: true }, orderBy: { fecha: "desc" } }),
+    prisma.ordenCompra.findMany({ where: { empresaId }, include: { proveedor: true }, orderBy: { fecha: "desc" } }),
   ]);
   if (!oc) notFound();
 
