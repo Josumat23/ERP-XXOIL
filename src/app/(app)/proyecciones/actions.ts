@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import {
   trimestreDe,
   trimestreAnterior,
@@ -27,20 +27,21 @@ export async function obtenerOCrearProyeccion(anio: number, trimestre: number): 
   }
 
   const existente = await prisma.proyeccion.findUnique({
-    where: { empresaId_anio_trimestre: { empresaId: "1", anio, trimestre } },
+    where: { empresaId_anio_trimestre: { empresaId: auth.usuario.empresaId, anio, trimestre } },
   });
   if (existente) return existente.id;
 
   const base = trimestreAnterior(anio, trimestre);
 
   const [presentaciones, historico, macro] = await Promise.all([
-    prisma.presentacion.findMany({ where: { activo: true } }),
-    ventasHistoricasPorTrimestre(),
+    prisma.presentacion.findMany({ where: { empresaId: auth.usuario.empresaId, activo: true } }),
+    ventasHistoricasPorTrimestre(auth.usuario.empresaId),
     obtenerFactorMacro(),
   ]);
 
   const proyeccion = await prisma.proyeccion.create({
     data: {
+      empresaId: auth.usuario.empresaId,
       anio,
       trimestre,
       anioBase: base.anio,
@@ -97,10 +98,11 @@ export async function actualizarSupuestosMarketing(
     return { error: "El presupuesto de publicidad debe ser mayor o igual a 0." };
   }
 
-  await prisma.proyeccion.update({
-    where: { id: proyeccionId },
+  const actualizada = await prisma.proyeccion.updateMany({
+    where: { id: proyeccionId, empresaId: auth.usuario.empresaId },
     data: { crecimientoMercadoPct, factorCompetenciaPct, presupuestoPublicidad },
   });
+  if (actualizada.count !== 1) return { error: "La proyección no existe en la empresa activa." };
 
   revalidatePath(`/proyecciones/${proyeccionId}`);
   return {};
@@ -119,7 +121,11 @@ export async function actualizarCajaMinima(
     return { error: "La caja mínima debe ser mayor o igual a 0." };
   }
 
-  await prisma.proyeccion.update({ where: { id: proyeccionId }, data: { cajaMinimaDeseada } });
+  const actualizada = await prisma.proyeccion.updateMany({
+    where: { id: proyeccionId, empresaId: auth.usuario.empresaId },
+    data: { cajaMinimaDeseada },
+  });
+  if (actualizada.count !== 1) return { error: "La proyección no existe en la empresa activa." };
   revalidatePath(`/proyecciones/${proyeccionId}`);
   return {};
 }
@@ -139,7 +145,13 @@ export async function actualizarDetalleProyeccion(
     return;
   }
 
-  const detalle = await prisma.proyeccionDetalle.update({
+  const detalle = await prisma.proyeccionDetalle.findFirst({
+    where: { id: detalleId, proyeccion: { empresaId: auth.usuario.empresaId } },
+    select: { proyeccionId: true },
+  });
+  if (!detalle) return;
+
+  await prisma.proyeccionDetalle.update({
     where: { id: detalleId },
     data: {
       ajusteCualitativoPct,
@@ -179,10 +191,18 @@ export async function guardarSimulacionPrecios(
 
   try {
     await prisma.$transaction(async (tx) => {
-      await tx.proyeccion.update({ where: { id: proyeccionId }, data: { metaUtilidadOperativa } });
+      const proyeccion = await tx.proyeccion.updateMany({
+        where: { id: proyeccionId, empresaId: auth.usuario.empresaId },
+        data: { metaUtilidadOperativa },
+      });
+      if (proyeccion.count !== 1) throw new Error("PROYECCION_AJENA");
       for (const linea of resultadoLineas.lineas) {
         const actualizada = await tx.proyeccionDetalle.updateMany({
-          where: { id: linea.detalleId, proyeccionId },
+          where: {
+            id: linea.detalleId,
+            proyeccionId,
+            proyeccion: { empresaId: auth.usuario.empresaId },
+          },
           data: {
             precioSimulado: linea.precioSimulado,
             precioCompetidorRef: linea.precioCompetidorRef,
@@ -194,7 +214,7 @@ export async function guardarSimulacionPrecios(
       }
     });
   } catch (error) {
-    if (error instanceof Error && error.message === "LINEA_SIMULACION_AJENA") {
+    if (error instanceof Error && ["LINEA_SIMULACION_AJENA", "PROYECCION_AJENA"].includes(error.message)) {
       return { error: "Una línea no pertenece a la proyección indicada." };
     }
     throw error;
@@ -209,8 +229,8 @@ export async function refrescarFactorMacro(proyeccionId: string) {
   if ("error" in auth) return;
 
   const macro = await obtenerFactorMacro();
-  await prisma.proyeccion.update({
-    where: { id: proyeccionId },
+  await prisma.proyeccion.updateMany({
+    where: { id: proyeccionId, empresaId: auth.usuario.empresaId },
     data: {
       macroPbiManufacturaVar: macro.pbiManufacturaVar,
       macroInflacionVar: macro.inflacionVar,

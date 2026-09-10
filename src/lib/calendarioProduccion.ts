@@ -62,9 +62,11 @@ export type ResumenCalendario = {
  */
 export async function horasDisponiblesEnRango(
   inicio: Date,
-  fin: Date
+  fin: Date,
+  empresaId: string,
 ): Promise<{ total: number; porAlmacen: ResumenCalendario[] }> {
   const calendarios = await prisma.calendarioProduccion.findMany({
+    where: { almacen: { empresaId } },
     include: { almacen: true, diasNoLaborables: true },
   });
 
