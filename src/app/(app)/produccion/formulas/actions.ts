@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { normalizarDetallesFormula, type DetalleFormulaNormalizado } from "@/lib/detallesFormula";
@@ -63,8 +63,29 @@ export async function crearFormula(
   }
 
   await prisma.$transaction(async (tx) => {
+    const [producto, totalInsumos] = await Promise.all([
+      tx.producto.findFirst({
+        where: { id: productoId, empresaId: auth.usuario.empresaId, activo: true },
+        select: { id: true },
+      }),
+      tx.insumo.count({
+        where: {
+          id: { in: detalles.map((detalle) => detalle.insumoId) },
+          empresaId: auth.usuario.empresaId,
+          activo: true,
+        },
+      }),
+    ]);
+    if (!producto) throw new Error("El producto no pertenece a la empresa activa.");
+    if (totalInsumos !== detalles.length) {
+      throw new Error("Uno o más insumos no pertenecen a la empresa activa.");
+    }
     const centros = await tx.centroTrabajo.findMany({
-      where: { id: { in: [...new Set(operaciones.map((operacion) => operacion.centroTrabajoId))] }, activo: true },
+      where: {
+        id: { in: [...new Set(operaciones.map((operacion) => operacion.centroTrabajoId))] },
+        empresaId: auth.usuario.empresaId,
+        activo: true,
+      },
       select: { id: true },
     });
     if (centros.length !== new Set(operaciones.map((operacion) => operacion.centroTrabajoId)).size) {
@@ -78,18 +99,18 @@ export async function crearFormula(
       select: { id: true },
     });
     const ultima = await tx.formula.findFirst({
-      where: { productoId },
+      where: { productoId, empresaId: auth.usuario.empresaId },
       orderBy: { version: "desc" },
     });
     const ahora = new Date();
     // La nueva versión nace vigente: cierra la vigencia de cualquier otra versión
     // activa del mismo producto para que nunca haya dos versiones vigentes a la vez.
     const vigentes = await tx.formula.findMany({
-      where: { productoId, activo: true },
+      where: { productoId, empresaId: auth.usuario.empresaId, activo: true },
       include: { detalles: true },
     });
     await tx.formula.updateMany({
-      where: { productoId, activo: true },
+      where: { productoId, empresaId: auth.usuario.empresaId, activo: true },
       data: { activo: false, vigenteHasta: ahora },
     });
     for (const vigente of vigentes) {
@@ -98,6 +119,7 @@ export async function crearFormula(
     }
     const formula = await tx.formula.create({
       data: {
+        empresaId: auth.usuario.empresaId,
         productoId,
         version: (ultima?.version ?? 0) + 1,
         rendimientoKg,
@@ -124,26 +146,31 @@ export async function alternarActivoFormula(id: string, activo: boolean) {
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
 
   await prisma.$transaction(async (tx) => {
-    const referencia = await tx.formula.findUniqueOrThrow({
-      where: { id },
+    const referencia = await tx.formula.findFirst({
+      where: { id, empresaId: auth.usuario.empresaId },
       select: { productoId: true },
     });
+    if (!referencia) throw new Error("La fórmula no pertenece a la empresa activa.");
     await tx.producto.update({
       where: { id: referencia.productoId },
       data: { id: referencia.productoId },
       select: { id: true },
     });
     const ahora = new Date();
-    const antes = await tx.formula.findUniqueOrThrow({ where: { id }, include: { detalles: true } });
+    const antes = await tx.formula.findFirst({
+      where: { id, empresaId: auth.usuario.empresaId },
+      include: { detalles: true },
+    });
+    if (!antes) throw new Error("La fórmula no pertenece a la empresa activa.");
     if (activo) {
       // Reactivar una versión anterior cierra la vigencia de la que estuviera
       // activa en ese momento para el mismo producto (nunca dos a la vez).
       const vigentes = await tx.formula.findMany({
-        where: { productoId: antes.productoId, activo: true, id: { not: id } },
+        where: { productoId: antes.productoId, empresaId: auth.usuario.empresaId, activo: true, id: { not: id } },
         include: { detalles: true },
       });
       await tx.formula.updateMany({
-        where: { productoId: antes.productoId, activo: true, id: { not: id } },
+        where: { productoId: antes.productoId, empresaId: auth.usuario.empresaId, activo: true, id: { not: id } },
         data: { activo: false, vigenteHasta: ahora },
       });
       for (const vigente of vigentes) {

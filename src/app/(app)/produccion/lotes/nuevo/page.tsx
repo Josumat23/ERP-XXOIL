@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import LoteFormulario from "../LoteFormulario";
@@ -12,16 +12,17 @@ export default async function NuevoLotePage() {
 
   const [formulas, lotes, lotesRechazados] = await Promise.all([
     prisma.formula.findMany({
-      where: { activo: true },
+      where: { empresaId: usuario.empresaId, activo: true },
       include: { producto: true, detalles: { include: { insumo: true } } },
       orderBy: [{ producto: { nombre: "asc" } }, { version: "desc" }],
     }),
     prisma.loteGranel.findMany({
+      where: { empresaId: usuario.empresaId },
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaInicio: "desc" },
     }),
     prisma.loteGranel.findMany({
-      where: { estado: "RECHAZADO", disposicionRechazo: null },
+      where: { empresaId: usuario.empresaId, estado: "RECHAZADO", disposicionRechazo: null },
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaFin: "desc" },
     }),

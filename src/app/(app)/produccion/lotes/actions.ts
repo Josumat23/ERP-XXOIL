@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { asignarLoteInsumo, devolverLoteInsumo } from "@/lib/trazabilidad";
@@ -22,12 +22,15 @@ export async function iniciarOperacion(id: string): Promise<void> {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth || !(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   await prisma.$transaction(async (tx) => {
-    const operacion = await tx.loteOperacion.findUnique({ where: { id }, include: { loteGranel: true } });
+    const operacion = await tx.loteOperacion.findFirst({
+      where: { id, loteGranel: { empresaId: auth.usuario.empresaId } },
+      include: { loteGranel: true },
+    });
     if (!operacion || operacion.loteGranel.estado !== "EN_PROCESO") throw new Error("La operación no está disponible.");
     const anteriorPendiente = await tx.loteOperacion.count({ where: { loteGranelId: operacion.loteGranelId, secuencia: { lt: operacion.secuencia }, estado: { not: "COMPLETADA" } } });
     const otraEnProceso = await tx.loteOperacion.count({ where: { loteGranelId: operacion.loteGranelId, estado: "EN_PROCESO" } });
     if (anteriorPendiente > 0 || otraEnProceso > 0) throw new Error("Complete la operación anterior antes de iniciar esta operación.");
-    const resultado = await tx.loteOperacion.updateMany({ where: { id, estado: "PENDIENTE" }, data: { estado: "EN_PROCESO", inicioEn: new Date(), usuarioInicioId: auth.usuario.id, usuarioInicioNombre: auth.usuario.nombre } });
+    const resultado = await tx.loteOperacion.updateMany({ where: { id, loteGranel: { empresaId: auth.usuario.empresaId }, estado: "PENDIENTE" }, data: { estado: "EN_PROCESO", inicioEn: new Date(), usuarioInicioId: auth.usuario.id, usuarioInicioNombre: auth.usuario.nombre } });
     if (resultado.count !== 1) throw new Error("La operación fue actualizada por otro usuario.");
   });
   revalidatePath(`/produccion/lotes`);
@@ -45,13 +48,16 @@ export async function completarOperacion(id: string, _prevState: EstadoFormulari
   if (tiempos.some((valor) => !Number.isFinite(valor) || valor < 0) || tiempos.every((valor) => valor === 0)) return { error: "Registre tiempos reales válidos; al menos uno debe ser mayor a cero." };
   try {
     const operacion = await prisma.$transaction(async (tx) => {
-      const actual = await tx.loteOperacion.findUnique({ where: { id }, include: { loteGranel: true } });
+      const actual = await tx.loteOperacion.findFirst({
+        where: { id, loteGranel: { empresaId: auth.usuario.empresaId } },
+        include: { loteGranel: true },
+      });
       if (!actual || actual.estado !== "EN_PROCESO" || actual.loteGranel.estado !== "EN_PROCESO") throw new Error("Solo puede completar una operación en proceso.");
       if (equipoId) {
-        const equipo = await tx.equipo.findFirst({ where: { id: equipoId, centroTrabajoId: actual.centroTrabajoId, activo: true }, select: { id: true } });
+        const equipo = await tx.equipo.findFirst({ where: { id: equipoId, empresaId: auth.usuario.empresaId, centroTrabajoId: actual.centroTrabajoId, activo: true }, select: { id: true } });
         if (!equipo) throw new Error("El equipo no está activo o no pertenece al centro de trabajo de la operación.");
       }
-      const resultado = await tx.loteOperacion.updateMany({ where: { id, estado: "EN_PROCESO" }, data: { equipoId, preparacionRealHoras, maquinaRealHoras, manoObraRealHoras, estado: "COMPLETADA", finEn: new Date(), usuarioFinId: auth.usuario.id, usuarioFinNombre: auth.usuario.nombre } });
+      const resultado = await tx.loteOperacion.updateMany({ where: { id, loteGranel: { empresaId: auth.usuario.empresaId }, estado: "EN_PROCESO" }, data: { equipoId, preparacionRealHoras, maquinaRealHoras, manoObraRealHoras, estado: "COMPLETADA", finEn: new Date(), usuarioFinId: auth.usuario.id, usuarioFinNombre: auth.usuario.nombre } });
       if (resultado.count !== 1) throw new Error("La operación fue actualizada por otro usuario.");
       return actual;
     });
@@ -88,14 +94,16 @@ export async function crearLote(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const formula = await tx.formula.findUnique({
-        where: { id: formulaId },
+      const formula = await tx.formula.findFirst({
+        where: { id: formulaId, empresaId: auth.usuario.empresaId },
         include: { detalles: true, producto: true, operaciones: { orderBy: { secuencia: "asc" } } },
       });
       if (!formula || !formula.activo) throw new Error("La fórmula no existe o está inactiva.");
 
       if (loteOrigenId) {
-        const origen = await tx.loteGranel.findUnique({ where: { id: loteOrigenId } });
+        const origen = await tx.loteGranel.findFirst({
+          where: { id: loteOrigenId, empresaId: auth.usuario.empresaId },
+        });
         if (!origen) throw new Error("El lote de origen del reproceso no existe.");
         if (origen.estado !== "RECHAZADO" || origen.disposicionRechazo) {
           throw new Error("El lote rechazado ya fue dispuesto o no está disponible para reproceso.");
@@ -107,12 +115,16 @@ export async function crearLote(
 
       let costoEstandarInsumos = 0;
       for (const detalle of formula.detalles) {
-        const insumo = await tx.insumo.findUniqueOrThrow({ where: { id: detalle.insumoId } });
+        const insumo = await tx.insumo.findFirst({
+          where: { id: detalle.insumoId, empresaId: auth.usuario.empresaId, activo: true },
+        });
+        if (!insumo) throw new Error("Un insumo de la fórmula no pertenece a la empresa activa.");
         costoEstandarInsumos += detalle.cantidad.toNumber() * factor * insumo.costoUnitario.toNumber();
       }
       const costoEstandarManoObra = formula.horasEstandar === null ? null : formula.horasEstandar.toNumber() * factor * tarifaHoraManoObra.toNumber();
       const lote = await tx.loteGranel.create({
         data: {
+          empresaId: auth.usuario.empresaId,
           codigo,
           formulaId,
           loteOrigenId,
@@ -156,23 +168,26 @@ export async function liberarLote(id: string): Promise<void> {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth || !(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   await prisma.$transaction(async (tx) => {
-    const lote = await tx.loteGranel.findUnique({ where: { id }, include: { formula: { include: { producto: true } }, loteOrigen: true, reservasInsumo: true } });
+    const lote = await tx.loteGranel.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, include: { formula: { include: { producto: true } }, loteOrigen: true, reservasInsumo: true } });
     if (!lote || !puedeLiberarOrden(lote.estado)) throw new Error("Solo se puede liberar una orden planificada.");
     const ahora = new Date();
-    const cambio = await tx.loteGranel.updateMany({ where: { id, estado: "PLANIFICADO" }, data: { estado: "EN_PROCESO", fechaInicio: ahora, fechaLiberacion: ahora, usuarioLiberacionId: auth.usuario.id, usuarioLiberacionNombre: auth.usuario.nombre } });
+    const cambio = await tx.loteGranel.updateMany({ where: { id, empresaId: auth.usuario.empresaId, estado: "PLANIFICADO" }, data: { estado: "EN_PROCESO", fechaInicio: ahora, fechaLiberacion: ahora, usuarioLiberacionId: auth.usuario.id, usuarioLiberacionNombre: auth.usuario.nombre } });
     if (cambio.count !== 1) throw new Error("La orden fue liberada por otro usuario.");
     let costoReproceso = 0;
     if (lote.loteOrigenId) {
       const origen = lote.loteOrigen;
       if (!origen || origen.estado !== "RECHAZADO" || origen.disposicionRechazo) throw new Error("El lote de reproceso ya no está disponible.");
       costoReproceso = origen.costoInsumos.toNumber() + origen.costoManoObra.toNumber() + origen.costoReproceso.toNumber();
-      const disposicion = await tx.loteGranel.updateMany({ where: { id: origen.id, estado: "RECHAZADO", disposicionRechazo: null }, data: { disposicionRechazo: "REPROCESADO", motivoDisposicion: `Incorporado a ${lote.codigo}`, fechaDisposicion: new Date(), usuarioDisposicionId: auth.usuario.id, usuarioDisposicionNombre: auth.usuario.nombre } });
+      const disposicion = await tx.loteGranel.updateMany({ where: { id: origen.id, empresaId: auth.usuario.empresaId, estado: "RECHAZADO", disposicionRechazo: null }, data: { disposicionRechazo: "REPROCESADO", motivoDisposicion: `Incorporado a ${lote.codigo}`, fechaDisposicion: new Date(), usuarioDisposicionId: auth.usuario.id, usuarioDisposicionNombre: auth.usuario.nombre } });
       if (disposicion.count !== 1) throw new Error("El lote rechazado fue dispuesto por otro usuario.");
     }
     let costoInsumos = 0;
     for (const reserva of lote.reservasInsumo) {
       const cantidad = reserva.cantidad.toNumber();
-      const insumo = await tx.insumo.findUniqueOrThrow({ where: { id: reserva.insumoId } });
+      const insumo = await tx.insumo.findFirst({
+        where: { id: reserva.insumoId, empresaId: auth.usuario.empresaId, activo: true },
+      });
+      if (!insumo) throw new Error("Un insumo reservado no pertenece a la empresa activa.");
       costoInsumos += cantidad * insumo.costoUnitario.toNumber();
       const movimiento = await registrarMovimiento(tx, { tipoItem: "INSUMO", insumoId: reserva.insumoId, tipoMovimiento: "SALIDA", origen: "PRODUCCION", cantidad, referencia: `Lote ${lote.codigo} (${lote.formula.producto.nombre} v${lote.formula.version})`, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre });
       if (!movimiento.ok) throw new Error(movimiento.error);
@@ -194,9 +209,9 @@ export async function cancelarLote(id: string, _prevState: EstadoFormulario, for
   if (motivo.length < 5 || motivo.length > 500) return { error: "Ingrese un motivo de cancelación entre 5 y 500 caracteres." };
   try {
     await prisma.$transaction(async (tx) => {
-      const lote = await tx.loteGranel.findUnique({ where: { id }, select: { estado: true } });
+      const lote = await tx.loteGranel.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, select: { estado: true } });
       if (!lote || !puedeCancelarOrden(lote.estado)) throw new Error("Solo se puede cancelar una orden planificada.");
-      const resultado = await tx.loteGranel.updateMany({ where: { id, estado: "PLANIFICADO" }, data: { estado: "CANCELADO", fechaCancelacion: new Date(), motivoCancelacion: motivo, usuarioCancelacionId: auth.usuario.id, usuarioCancelacionNombre: auth.usuario.nombre } });
+      const resultado = await tx.loteGranel.updateMany({ where: { id, empresaId: auth.usuario.empresaId, estado: "PLANIFICADO" }, data: { estado: "CANCELADO", fechaCancelacion: new Date(), motivoCancelacion: motivo, usuarioCancelacionId: auth.usuario.id, usuarioCancelacionNombre: auth.usuario.nombre } });
       if (resultado.count !== 1) throw new Error("La orden cambió mientras se cancelaba.");
       await tx.reservaInsumoProduccion.deleteMany({ where: { loteGranelId: id } });
     });
@@ -223,8 +238,8 @@ export async function ajustarMaterialLote(id: string, _prevState: EstadoFormular
   try {
     await prisma.$transaction(async (tx) => {
       const [lote, insumo] = await Promise.all([
-        tx.loteGranel.findUnique({ where: { id } }),
-        tx.insumo.findFirst({ where: { id: insumoId, activo: true } }),
+        tx.loteGranel.findFirst({ where: { id, empresaId: auth.usuario.empresaId } }),
+        tx.insumo.findFirst({ where: { id: insumoId, empresaId: auth.usuario.empresaId, activo: true } }),
       ]);
       if (!lote || lote.estado !== "EN_PROCESO") throw new Error("Solo se ajustan materiales de una orden en proceso.");
       if (!insumo) throw new Error("El insumo no existe o está inactivo.");
@@ -273,7 +288,7 @@ export async function finalizarLote(
   const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
   try {
     await prisma.$transaction(async (tx) => {
-      const lote = await tx.loteGranel.findUnique({ where: { id }, include: { operaciones: true } });
+      const lote = await tx.loteGranel.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, include: { operaciones: true } });
       if (!lote) throw new Error("El lote no existe.");
       if (lote.estado !== "EN_PROCESO") throw new Error("Solo se puede finalizar un lote en proceso.");
       if (lote.operaciones.some((operacion) => operacion.estado !== "COMPLETADA")) throw new Error("Complete todas las operaciones de la ruta antes de finalizar el lote.");
@@ -295,7 +310,7 @@ export async function finalizarLote(
             })
           : null;
       const resultado = await tx.loteGranel.updateMany({
-        where: { id, estado: "EN_PROCESO" },
+        where: { id, empresaId: auth.usuario.empresaId, estado: "EN_PROCESO" },
         data: {
           kgProducidos,
           mermaKg: merma,

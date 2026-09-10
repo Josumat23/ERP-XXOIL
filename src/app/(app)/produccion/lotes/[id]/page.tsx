@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
@@ -33,8 +33,8 @@ export default async function DetalleLotePage({
   const { id } = await params;
 
   const [lote, lotes] = await Promise.all([
-    prisma.loteGranel.findUnique({
-      where: { id },
+    prisma.loteGranel.findFirst({
+      where: { id, empresaId: usuario.empresaId },
       include: {
         formula: { include: { producto: true, detalles: { include: { insumo: true } } } },
         controlCalidad: { include: { resultadosCaracteristica: { select: { id: true } } } },
@@ -47,18 +47,19 @@ export default async function DetalleLotePage({
       },
     }),
     prisma.loteGranel.findMany({
+      where: { empresaId: usuario.empresaId },
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaInicio: "desc" },
     }),
   ]);
   if (!lote) notFound();
   const [equipos, insumosActivos] = await Promise.all([
-    prisma.equipo.findMany({ where: { activo: true, centroTrabajoId: { in: lote.operaciones.map((operacion) => operacion.centroTrabajoId) } }, orderBy: { codigo: "asc" } }),
-    prisma.insumo.findMany({ where: { activo: true, tipo: "MATERIA_PRIMA" }, orderBy: { codigo: "asc" } }),
+    prisma.equipo.findMany({ where: { empresaId: usuario.empresaId, activo: true, centroTrabajoId: { in: lote.operaciones.map((operacion) => operacion.centroTrabajoId) } }, orderBy: { codigo: "asc" } }),
+    prisma.insumo.findMany({ where: { empresaId: usuario.empresaId, activo: true, tipo: "MATERIA_PRIMA" }, orderBy: { codigo: "asc" } }),
   ]);
 
   const consumos = await prisma.movimientoKardex.findMany({
-    where: { origen: "PRODUCCION", referencia: { contains: lote.codigo } },
+    where: { empresaId: usuario.empresaId, origen: "PRODUCCION", referencia: { contains: lote.codigo } },
     include: { insumo: true },
     orderBy: { creadoEn: "asc" },
   });
