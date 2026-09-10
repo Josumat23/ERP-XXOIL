@@ -7,6 +7,7 @@ import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   ABIERTA: "Abierta",
@@ -27,11 +28,13 @@ export default async function OrdenesInternasPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { q, estado } = await searchParams;
 
   const ordenes = await prisma.ordenInterna.findMany({
     where: {
+      empresaId,
       ...(estado ? { estado: estado as "ABIERTA" | "LIQUIDADA" | "ANULADA" } : {}),
       ...(q ? { descripcion: { contains: q } } : {}),
     },

@@ -5,13 +5,15 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { CLAVES_RECLASIFICABLES, ETIQUETA_CONTROL } from "@/lib/contabilidad";
 import ReclasificacionFormulario from "./ReclasificacionFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function ReclasificacionesPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const centros = await prisma.centroCosto.findMany({
-    where: { activo: true },
+    where: { empresaId, activo: true },
     orderBy: { codigo: "asc" },
   });
 

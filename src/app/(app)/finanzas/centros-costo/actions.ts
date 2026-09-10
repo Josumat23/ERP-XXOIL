@@ -108,7 +108,8 @@ export async function guardarPadreCentroCosto(
 export async function alternarActivoCentroCosto(id: string, activo: boolean) {
   const auth = await requerirRol([]);
   if ("error" in auth) return;
-  await prisma.centroCosto.update({ where: { id }, data: { activo } });
+  const empresaId = await obtenerEmpresaActivaId();
+  await prisma.centroCosto.updateMany({ where: { id, empresaId }, data: { activo } });
   revalidatePath("/finanzas/centros-costo");
 }
 
@@ -122,6 +123,7 @@ export async function guardarPresupuesto(
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const anio = Number(formData.get("anio"));
   const mes = Number(formData.get("mes"));
@@ -134,6 +136,8 @@ export async function guardarPresupuesto(
     return { error: "El monto presupuestado debe ser un número válido." };
   }
 
+  const centro = await prisma.centroCosto.findFirst({ where: { id: centroCostoId, empresaId }, select: { id: true } });
+  if (!centro) return { error: "El centro de costo no existe en la compañía activa." };
   await prisma.presupuestoCentroCosto.upsert({
     where: { centroCostoId_anio_mes: { centroCostoId, anio, mes } },
     update: { montoPresupuestado },
@@ -158,6 +162,7 @@ export async function crearReglaAsignacion(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([]);
   if ("error" in auth) return auth;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const nombre = String(formData.get("nombre") ?? "").trim();
   let lineasRaw: unknown;
@@ -179,7 +184,7 @@ export async function crearReglaAsignacion(
   }
 
   const centrosActivos = await prisma.centroCosto.count({
-    where: { id: { in: lineas.map((l) => l.centroCostoId) }, activo: true },
+    where: { id: { in: lineas.map((l) => l.centroCostoId) }, empresaId, activo: true },
   });
   if (centrosActivos !== lineas.length) {
     return { error: "Seleccione únicamente centros de costo activos." };
@@ -206,6 +211,7 @@ export async function reclasificarCosto(
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const clave = String(formData.get("clave") ?? "") as ClaveControl;
   const centroOrigenId = String(formData.get("centroOrigenId") ?? "");
@@ -227,7 +233,7 @@ export async function reclasificarCosto(
     postearReclasificacionCosto(
       tx,
       { clave, monto, centroOrigenId, centroDestinoId, motivo },
-      { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre }
+      { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId }
     )
   );
   if (!resultado.ok) {
@@ -242,7 +248,11 @@ export async function reclasificarCosto(
 export async function alternarActivoRegla(id: string, activo: boolean) {
   const auth = await requerirRol([]);
   if ("error" in auth) return;
-  await prisma.reglaAsignacionCosto.update({ where: { id }, data: { activo } });
+  const empresaId = await obtenerEmpresaActivaId();
+  await prisma.reglaAsignacionCosto.updateMany({
+    where: { id, lineas: { some: { centroCosto: { empresaId } } } },
+    data: { activo },
+  });
   revalidatePath("/finanzas/centros-costo/reglas");
 }
 
@@ -254,11 +264,12 @@ export async function guardarAsignacionControl(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([]);
   if ("error" in auth) return auth;
+  const empresaId = await obtenerEmpresaActivaId();
   if (!esClaveControlValida(clave)) return { error: "La clave contable es inválida." };
 
   const valor = String(formData.get("valor") ?? "");
   if (!valor) {
-    await prisma.centroCostoControl.deleteMany({ where: { clave } });
+    await prisma.centroCostoControl.deleteMany({ where: { empresaId, clave } });
     revalidatePath("/finanzas/centros-costo/reglas");
     return {};
   }
@@ -269,11 +280,11 @@ export async function guardarAsignacionControl(
   const destinoActivo =
     destino.tipo === "regla"
       ? await prisma.reglaAsignacionCosto.findFirst({
-          where: { id: destino.id, activo: true },
+          where: { id: destino.id, activo: true, lineas: { some: { centroCosto: { empresaId } } } },
           select: { id: true },
         })
       : await prisma.centroCosto.findFirst({
-          where: { id: destino.id, activo: true },
+          where: { id: destino.id, empresaId, activo: true },
           select: { id: true },
         });
   if (!destinoActivo) return { error: "La asignación seleccionada ya no está activa." };
@@ -284,9 +295,9 @@ export async function guardarAsignacionControl(
       : { centroCostoId: destino.id, reglaId: null };
 
   await prisma.centroCostoControl.upsert({
-    where: { empresaId_clave: { empresaId: "1", clave } },
+    where: { empresaId_clave: { empresaId, clave } },
     update: data,
-    create: { clave, ...data },
+    create: { empresaId, clave, ...data },
   });
 
   revalidatePath("/finanzas/centros-costo/reglas");

@@ -5,14 +5,16 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import OrdenInternaFormulario from "../OrdenInternaFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevaOrdenInternaPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [centrosCosto, ordenes] = await Promise.all([
-    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.ordenInterna.findMany({ orderBy: { creadoEn: "desc" } }),
+    prisma.centroCosto.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.ordenInterna.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
   ]);
 
   return (

@@ -10,6 +10,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { registrarDepreciacionMes } from "./actions";
 import DepreciacionFormulario from "./DepreciacionFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_CATEGORIA: Record<$Enums.CategoriaActivoFijo, string> = {
   MAQUINARIA: "Maquinaria",
@@ -27,12 +28,14 @@ export default async function ActivosFijosPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { q, categoria, estado } = await searchParams;
   const filtroCategoria = CATEGORIAS.find((c) => c === categoria);
 
   const activos = await prisma.activoFijo.findMany({
     where: {
+      empresaId,
       ...(filtroCategoria ? { categoria: filtroCategoria } : {}),
       ...(estado === "activo" ? { activo: true } : estado === "baja" ? { activo: false } : {}),
       ...(q ? { OR: [{ nombre: { contains: q } }, { codigo: { contains: q } }] } : {}),

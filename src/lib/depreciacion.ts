@@ -1,7 +1,7 @@
 import type { Tx } from "@/lib/inventario";
 import { postearDepreciacion } from "@/lib/contabilidad";
 
-export type ActorTarea = { usuarioId: string; usuarioNombre: string };
+export type ActorTarea = { usuarioId: string; usuarioNombre: string; empresaId: string };
 
 // Extraído de activos-fijos/actions.ts para poder reusarlo tanto desde el
 // botón manual (registrarDepreciacionMes) como desde la tarea programada
@@ -15,7 +15,7 @@ export async function ejecutarDepreciacionDelMes(
   actor: ActorTarea
 ): Promise<{ procesados: number; totalMes: number }> {
   const activos = await tx.activoFijo.findMany({
-    where: { activo: true },
+    where: { empresaId: actor.empresaId, activo: true },
     select: { id: true },
     orderBy: { id: "asc" },
   });

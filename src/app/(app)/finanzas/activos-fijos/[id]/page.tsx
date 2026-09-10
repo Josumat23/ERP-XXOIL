@@ -10,6 +10,7 @@ import BajaFormulario from "../BajaFormulario";
 import VentaFormulario from "../VentaFormulario";
 import { darDeBajaActivoFijo, venderActivoFijo } from "../actions";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_CATEGORIA: Record<string, string> = {
   MAQUINARIA: "Maquinaria",
@@ -31,19 +32,20 @@ export default async function DetalleActivoFijoPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { id } = await params;
 
   const [activo, activos, { tasaIgv }] = await Promise.all([
-    prisma.activoFijo.findUnique({
-      where: { id },
+    prisma.activoFijo.findFirst({
+      where: { id, empresaId },
       include: {
         almacen: true,
         centroCosto: true,
         depreciaciones: { orderBy: [{ anio: "desc" }, { mes: "desc" }] },
       },
     }),
-    prisma.activoFijo.findMany({ orderBy: { creadoEn: "desc" } }),
+    prisma.activoFijo.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
     obtenerConfiguracionEmpresa(),
   ]);
   if (!activo) notFound();

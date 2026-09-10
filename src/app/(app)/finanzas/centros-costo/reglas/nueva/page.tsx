@@ -4,13 +4,15 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import ReglaAsignacionFormulario from "../../ReglaAsignacionFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function NuevaReglaAsignacionPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const centros = await prisma.centroCosto.findMany({
-    where: { activo: true },
+    where: { empresaId, activo: true },
     orderBy: { codigo: "asc" },
   });
 

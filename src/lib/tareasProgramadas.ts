@@ -23,14 +23,24 @@ async function registrarEjecucion(clave: ClaveTarea, exitoso: boolean, resumen: 
 async function ejecutarDepreciacionMensual() {
   const hoy = new Date();
   try {
-    const resultado = await prisma.$transaction((tx) =>
-      ejecutarDepreciacionDelMes(tx, hoy.getFullYear(), hoy.getMonth() + 1, ACTOR_SISTEMA)
-    );
+    const empresas = await prisma.empresa.findMany({ where: { activa: true }, select: { id: true } });
+    let procesados = 0;
+    let totalMes = 0;
+    for (const empresa of empresas) {
+      const resultado = await prisma.$transaction((tx) =>
+        ejecutarDepreciacionDelMes(tx, hoy.getFullYear(), hoy.getMonth() + 1, {
+          ...ACTOR_SISTEMA,
+          empresaId: empresa.id,
+        })
+      );
+      procesados += resultado.procesados;
+      totalMes += resultado.totalMes;
+    }
     await registrarEjecucion(
       "DEPRECIACION_MENSUAL",
       true,
-      resultado.procesados > 0
-        ? `${resultado.procesados} activo(s) depreciados, total S/ ${resultado.totalMes.toFixed(2)}.`
+      procesados > 0
+        ? `${procesados} activo(s) depreciados, total S/ ${totalMes.toFixed(2)}.`
         : "Sin activos pendientes de depreciar este mes."
     );
   } catch (e) {

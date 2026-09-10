@@ -8,6 +8,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import AgregarCostoFormulario from "../AgregarCostoFormulario";
 import LiquidarFormulario from "../LiquidarFormulario";
 import { agregarCostoOrdenInterna, anularOrdenInterna, liquidarOrdenInterna } from "../actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   ABIERTA: "Abierta",
@@ -28,19 +29,20 @@ export default async function DetalleOrdenInternaPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { id } = await params;
 
   const [orden, ordenes, centrosCosto] = await Promise.all([
-    prisma.ordenInterna.findUnique({
-      where: { id },
+    prisma.ordenInterna.findFirst({
+      where: { id, empresaId },
       include: {
         centroCosto: true,
         costos: { orderBy: { fecha: "desc" } },
       },
     }),
-    prisma.ordenInterna.findMany({ orderBy: { creadoEn: "desc" } }),
-    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.ordenInterna.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
+    prisma.centroCosto.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
   ]);
   if (!orden) notFound();
 

@@ -11,6 +11,7 @@ import { postearVentaActivoFijo } from "@/lib/contabilidad";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { ejecutarDepreciacionDelMes } from "@/lib/depreciacion";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -40,6 +41,7 @@ export async function crearActivoFijo(
   if (!(await puedeRealizar(auth.usuario, "finanzas", "crear"))) {
     return { error: "Su grupo de seguridad no permite crear registros en Finanzas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const nombre = String(formData.get("nombre") ?? "").trim();
   const categoria = String(formData.get("categoria") ?? "") as $Enums.CategoriaActivoFijo;
@@ -70,11 +72,26 @@ export async function crearActivoFijo(
   if (!Number.isInteger(vidaUtilAnios) || vidaUtilAnios <= 0) {
     return { error: "La vida útil (años) debe ser un entero mayor a 0." };
   }
+  const [almacenValido, centroValido, proyectoValido] = await Promise.all([
+    almacenId
+      ? prisma.almacen.count({ where: { id: almacenId, empresaId, activo: true } })
+      : Promise.resolve(1),
+    centroCostoId
+      ? prisma.centroCosto.count({ where: { id: centroCostoId, empresaId, activo: true } })
+      : Promise.resolve(1),
+    proyectoId
+      ? prisma.proyecto.count({ where: { id: proyectoId, empresaId } })
+      : Promise.resolve(1),
+  ]);
+  if (!almacenValido || !centroValido || !proyectoValido) {
+    return { error: "La ubicación, centro de costo o proyecto no pertenece a la empresa activa." };
+  }
 
   await prisma.$transaction(async (tx) => {
     const codigo = await siguienteCodigoActivoFijo(tx);
     await tx.activoFijo.create({
       data: {
+        empresaId,
         codigo,
         nombre,
         categoria,
@@ -107,16 +124,17 @@ export async function darDeBajaActivoFijo(
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const motivoBaja = String(formData.get("motivoBaja") ?? "").trim();
   if (!motivoBaja) return { error: "El motivo de la baja es obligatorio." };
 
   const actualizado = await prisma.activoFijo.updateMany({
-    where: { id, activo: true },
+    where: { id, empresaId, activo: true },
     data: { activo: false, fechaBaja: new Date(), motivoBaja },
   });
   if (actualizado.count !== 1) {
-    const existe = await prisma.activoFijo.findUnique({ where: { id }, select: { id: true } });
+    const existe = await prisma.activoFijo.findFirst({ where: { id, empresaId }, select: { id: true } });
     return { error: existe ? "Este activo ya fue dado de baja." : "El activo no existe." };
   }
 
@@ -138,6 +156,7 @@ export async function venderActivoFijo(
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const precioVenta = Number(formData.get("precioVenta"));
   const medioPago = String(formData.get("medioPago") ?? "") as $Enums.MedioPago;
@@ -159,12 +178,12 @@ export async function venderActivoFijo(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const activo = await tx.activoFijo.findUnique({ where: { id } });
+      const activo = await tx.activoFijo.findFirst({ where: { id, empresaId } });
       if (!activo) throw new Error("El activo no existe.");
       if (!activo.activo) throw new Error("Este activo ya fue dado de baja.");
 
       const actualizado = await tx.activoFijo.updateMany({
-        where: { id, activo: true },
+        where: { id, empresaId, activo: true },
         data: { activo: false, fechaBaja: new Date(), motivoBaja, precioVenta },
       });
       if (actualizado.count !== 1) throw new Error("Este activo ya fue dado de baja.");
@@ -172,6 +191,7 @@ export async function venderActivoFijo(
       if (precioVenta > 0) {
         await tx.movimientoCaja.create({
           data: {
+            empresaId,
             tipo: "INGRESO",
             concepto: `Venta del activo ${activo.codigo} — ${activo.nombre}`,
             monto: precioVenta,
@@ -218,6 +238,7 @@ export async function registrarDepreciacionMes(
 ): Promise<EstadoFormulario> {
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return auth;
+  const empresaId = await obtenerEmpresaActivaId();
 
   const anio = Number(formData.get("anio"));
   const mes = Number(formData.get("mes"));
@@ -230,6 +251,7 @@ export async function registrarDepreciacionMes(
       ejecutarDepreciacionDelMes(tx, anio, mes, {
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
+        empresaId,
       })
     );
 

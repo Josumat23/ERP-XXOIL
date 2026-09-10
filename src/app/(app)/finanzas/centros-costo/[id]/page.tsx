@@ -50,7 +50,7 @@ export default async function DetalleCentroCostoPage({
   const [presupuestos, real] = await Promise.all([
     prisma.presupuestoCentroCosto.findMany({ where: { centroCostoId: id } }),
     prisma.asientoDetalle.findMany({
-      where: { centroCostoId: id },
+      where: { centroCostoId: id, asiento: { empresaId } },
       include: { asiento: true },
     }),
   ]);
