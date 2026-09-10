@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -19,7 +19,9 @@ export default async function EnvasadosPage({
   const { q } = await searchParams;
 
   const envasados = await prisma.envasado.findMany({
-    where: q
+    where: {
+      loteGranel: { empresaId: usuario.empresaId },
+      ...(q
       ? {
           OR: [
             { codigo: { contains: q } },
@@ -27,7 +29,8 @@ export default async function EnvasadosPage({
             { presentacion: { sku: { contains: q } } },
           ],
         }
-      : {},
+      : {}),
+    },
     include: {
       loteGranel: { include: { formula: { include: { producto: true } } } },
       presentacion: true,

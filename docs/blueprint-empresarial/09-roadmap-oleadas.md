@@ -172,3 +172,7 @@ El control de calidad, las causas y los reclamos de cliente operan dentro de la 
 ## Actualización: fórmulas y lotes multiempresa
 
 Las recetas, órdenes de producción, operaciones, ajustes de materiales y recall se aíslan por empresa activa. Véase `docs/aislamiento-multiempresa-formulas-lotes.md`.
+
+## Actualización: envasado y capacidad multiempresa
+
+El envasado, sus consumos y la nivelación de capacidad se limitan a lotes y centros de la empresa activa. Véase `docs/aislamiento-multiempresa-envasado-capacidad.md`.

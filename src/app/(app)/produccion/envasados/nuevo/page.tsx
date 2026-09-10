@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import EnvasadoFormulario from "../EnvasadoFormulario";
@@ -18,16 +18,16 @@ export default async function NuevoEnvasadoPage({
 
   const [lotes, presentaciones, insumos, envasados] = await Promise.all([
     prisma.loteGranel.findMany({
-      where: { estado: "APROBADO", kgDisponibles: { gt: 0 } },
+      where: { empresaId: usuario.empresaId, estado: "APROBADO", kgDisponibles: { gt: 0 } },
       include: { formula: { include: { producto: true } } },
       orderBy: { codigo: "asc" },
     }),
-    prisma.presentacion.findMany({ where: { activo: true }, orderBy: { sku: "asc" } }),
+    prisma.presentacion.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { sku: "asc" } }),
     prisma.insumo.findMany({
-      where: { activo: true, tipo: { in: ["ENVASE", "ETIQUETA"] } },
+      where: { empresaId: usuario.empresaId, activo: true, tipo: { in: ["ENVASE", "ETIQUETA"] } },
       orderBy: { codigo: "asc" },
     }),
-    prisma.envasado.findMany({ include: { presentacion: true }, orderBy: { fecha: "desc" } }),
+    prisma.envasado.findMany({ where: { loteGranel: { empresaId: usuario.empresaId } }, include: { presentacion: true }, orderBy: { fecha: "desc" } }),
   ]);
 
   return (

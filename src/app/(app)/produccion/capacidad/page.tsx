@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import { cargaPlanOperacion } from "@/lib/planificacionCapacidad";
@@ -11,8 +11,8 @@ export default async function CapacidadPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
   const centros = await prisma.centroTrabajo.findMany({
-    where: { activo: true },
-    include: { almacen: true, operacionesLote: { where: { loteGranel: { estado: { in: ["PLANIFICADO", "EN_PROCESO"] } }, estado: { not: "COMPLETADA" } }, include: { loteGranel: { include: { formula: { include: { producto: true } } } } }, orderBy: [{ fechaPlanInicio: "asc" }, { loteGranel: { fechaInicio: "asc" } }] } },
+    where: { empresaId: usuario.empresaId, activo: true },
+    include: { almacen: true, operacionesLote: { where: { loteGranel: { empresaId: usuario.empresaId, estado: { in: ["PLANIFICADO", "EN_PROCESO"] } }, estado: { not: "COMPLETADA" } }, include: { loteGranel: { include: { formula: { include: { producto: true } } } } }, orderBy: [{ fechaPlanInicio: "asc" }, { loteGranel: { fechaInicio: "asc" } }] } },
     orderBy: { codigo: "asc" },
   });
   return <div className="max-w-7xl">
