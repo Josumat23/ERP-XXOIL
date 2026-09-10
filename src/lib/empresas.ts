@@ -1,7 +1,7 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuario, requerirRol } from "@/lib/auth";
 import type { Usuario } from "@/generated/prisma/client";
 
 const COOKIE_EMPRESA_ACTIVA = "erp_empresa_activa";
@@ -60,6 +60,21 @@ export async function obtenerEmpresaActivaId(): Promise<string> {
     select: { id: true },
   });
   return empresa?.id ?? usuario.empresaId;
+}
+
+export async function obtenerUsuarioEmpresaActiva() {
+  const usuario = await obtenerUsuario();
+  if (!usuario) return null;
+  return { ...usuario, empresaId: await obtenerEmpresaActivaId() };
+}
+
+export async function requerirRolEmpresaActiva(roles: Parameters<typeof requerirRol>[0]) {
+  const auth = await requerirRol(roles);
+  if ("error" in auth) return auth;
+  return {
+    ...auth,
+    usuario: { ...auth.usuario, empresaId: await obtenerEmpresaActivaId() },
+  };
 }
 
 export async function establecerEmpresaActivaId(id: string): Promise<void> {

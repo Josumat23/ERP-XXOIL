@@ -2,7 +2,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { normalizarLineasAcuerdo, cantidadLiberable } from "@/lib/acuerdosSuministro";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";

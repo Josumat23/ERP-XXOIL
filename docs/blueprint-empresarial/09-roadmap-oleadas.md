@@ -161,3 +161,6 @@ Se aislaron activos fijos, depreciación, centros de costo, reglas de asignació
 # Actualización: configuración y valorización multiempresa
 
 Se aislaron el calendario fiscal, los niveles de aprobación de compras y la valorización histórica de inventario por empresa activa. Véase `docs/aislamiento-multiempresa-configuracion-reportes.md`.
+# Actualización: compras estratégicas multiempresa
+
+Se aislaron el detalle RFQ y el ciclo de acuerdos de suministro por empresa activa. Véase `docs/aislamiento-multiempresa-compras-estrategicas.md`.
