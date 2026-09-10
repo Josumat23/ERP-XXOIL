@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { postearAsiento } from "@/lib/contabilidad";
 import { normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
@@ -44,8 +44,8 @@ export async function registrarCalidad(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const lote = await tx.loteGranel.findUnique({
-        where: { id: loteId },
+      const lote = await tx.loteGranel.findFirst({
+        where: { id: loteId, empresaId: auth.usuario.empresaId },
         include: { controlCalidad: true, formula: true },
       });
       if (!lote) throw new Error("El lote no existe.");
@@ -53,6 +53,13 @@ export async function registrarCalidad(
         throw new Error("El lote no está pendiente de calidad.");
       }
       if (lote.controlCalidad) throw new Error("El lote ya fue evaluado.");
+      if (causaId) {
+        const causa = await tx.causaCalidad.findFirst({
+          where: { id: causaId, empresaId: auth.usuario.empresaId, activo: true },
+          select: { id: true },
+        });
+        if (!causa) throw new Error("La causa no pertenece a la empresa activa.");
+      }
 
       let planVersion: number | null = null;
       let resultados: { secuencia: number; nombre: string; unidadMedida: string; limiteInferior: number | null; limiteSuperior: number | null; metodoEnsayo: string | null; valorMedido: number; conforme: boolean }[] = [];
@@ -78,7 +85,7 @@ export async function registrarCalidad(
       if (resultado === "RECHAZADO" && (!causaId || !accionCorrectiva)) throw new Error("Al rechazar un lote, la causa y la acción correctiva son obligatorias.");
 
       const reclamo = await tx.loteGranel.updateMany({
-        where: { id: loteId, estado: "PENDIENTE_CALIDAD" },
+        where: { id: loteId, empresaId: auth.usuario.empresaId, estado: "PENDIENTE_CALIDAD" },
         data: {
           estado: resultado === ResultadoCalidad.APROBADO ? EstadoLote.APROBADO : EstadoLote.RECHAZADO,
           kgDisponibles: resultado === "APROBADO" ? lote.kgProducidos : 0,
@@ -135,11 +142,18 @@ export async function desecharLote(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const lote = await tx.loteGranel.findUnique({ where: { id: loteId } });
+      const lote = await tx.loteGranel.findFirst({
+        where: { id: loteId, empresaId: auth.usuario.empresaId },
+      });
       if (!lote || lote.estado !== "RECHAZADO") throw new Error("El lote no está rechazado.");
       if (lote.disposicionRechazo) throw new Error("El lote rechazado ya tiene una disposición final.");
       const reclamo = await tx.loteGranel.updateMany({
-        where: { id: loteId, estado: "RECHAZADO", disposicionRechazo: null },
+        where: {
+          id: loteId,
+          empresaId: auth.usuario.empresaId,
+          estado: "RECHAZADO",
+          disposicionRechazo: null,
+        },
         data: {
           disposicionRechazo: "DESECHADO",
           motivoDisposicion: motivo,

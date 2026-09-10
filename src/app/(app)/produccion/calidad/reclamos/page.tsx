@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -28,6 +28,7 @@ export default async function ReclamosClientePage({
   const [reclamos, clientes, facturas, causas] = await Promise.all([
     prisma.reclamoCliente.findMany({
       where: {
+        empresaId: usuario.empresaId,
         ...(filtroEstado ? { estado: filtroEstado as "ABIERTO" | "EN_PROCESO" | "CERRADO" } : {}),
         ...(q
           ? { OR: [{ numero: { contains: q } }, { cliente: { razonSocial: { contains: q } } }] }
@@ -36,13 +37,19 @@ export default async function ReclamosClientePage({
       include: { cliente: true, causa: true },
       orderBy: { creadoEn: "desc" },
     }),
-    prisma.cliente.findMany({ where: { activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.cliente.findMany({
+      where: { empresaId: usuario.empresaId, activo: true },
+      orderBy: { razonSocial: "asc" },
+    }),
     prisma.factura.findMany({
-      where: { estado: { not: "ANULADA" } },
+      where: { empresaId: usuario.empresaId, estado: { not: "ANULADA" } },
       orderBy: { fechaEmision: "desc" },
       take: 100,
     }),
-    prisma.causaCalidad.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.causaCalidad.findMany({
+      where: { empresaId: usuario.empresaId, activo: true },
+      orderBy: { nombre: "asc" },
+    }),
   ]);
 
   return (
