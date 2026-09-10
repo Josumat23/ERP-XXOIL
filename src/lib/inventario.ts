@@ -60,6 +60,7 @@ type ParamsMovimiento = {
   referencia?: string;
   usuarioId: string;
   usuarioNombre: string;
+  empresaIdEsperada?: string;
   // Almacén explícito (obligatorio para Traslados, donde origen y destino los
   // elige el usuario). Si se omite, se resuelve solo a partir de la zona
   // asignada al ítem (Presentacion/Insumo.zonaAlmacenId → ZonaAlmacen.almacenId),
@@ -74,7 +75,8 @@ async function resolverAlmacenId(
   tx: Tx,
   tipoItem: $Enums.TipoItemKardex,
   presentacionId?: string,
-  insumoId?: string
+  insumoId?: string,
+  empresaId?: string,
 ): Promise<{ ok: true; almacenId: string } | { ok: false; error: string }> {
   const zonaAlmacenId =
     tipoItem === "PRESENTACION"
@@ -83,11 +85,17 @@ async function resolverAlmacenId(
       : (await tx.insumo.findUnique({ where: { id: insumoId! }, select: { zonaAlmacenId: true } }))?.zonaAlmacenId;
 
   if (zonaAlmacenId) {
-    const zona = await tx.zonaAlmacen.findUnique({ where: { id: zonaAlmacenId }, select: { almacenId: true } });
+    const zona = await tx.zonaAlmacen.findFirst({
+      where: { id: zonaAlmacenId, ...(empresaId ? { almacen: { empresaId } } : {}) },
+      select: { almacenId: true },
+    });
     if (zona) return { ok: true, almacenId: zona.almacenId };
   }
 
-  const principal = await tx.almacen.findFirst({ where: { activo: true }, orderBy: { creadoEn: "asc" } });
+  const principal = await tx.almacen.findFirst({
+    where: { activo: true, ...(empresaId ? { empresaId } : {}) },
+    orderBy: { creadoEn: "asc" },
+  });
   if (!principal) {
     return { ok: false, error: "No hay ningún almacén activo configurado (Configuración → Almacenes)." };
   }
@@ -124,7 +132,7 @@ export async function registrarMovimiento(
 
   let almacenId = params.almacenId;
   if (!almacenId) {
-    const resuelto = await resolverAlmacenId(tx, tipoItem, presentacionId, insumoId);
+    const resuelto = await resolverAlmacenId(tx, tipoItem, presentacionId, insumoId, params.empresaIdEsperada);
     if (!resuelto.ok) return resuelto;
     almacenId = resuelto.almacenId;
   }
@@ -148,6 +156,11 @@ export async function registrarMovimiento(
     costoUnitario = item.costoUnitario;
     empresaId = item.empresaId;
   }
+  if (params.empresaIdEsperada && empresaId !== params.empresaIdEsperada) {
+    return { ok: false, error: "El ítem no pertenece a la empresa activa." };
+  }
+  const almacenValido = await tx.almacen.count({ where: { id: almacenId, empresaId } });
+  if (!almacenValido) return { ok: false, error: "El almacén no pertenece a la empresa del ítem." };
 
   // findFirst (no findUnique) a propósito: el índice compuesto
   // almacenId_tipoItem_presentacionId_insumoId incluye dos columnas nulleables

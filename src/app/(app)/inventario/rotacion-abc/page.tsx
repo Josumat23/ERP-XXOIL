@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -92,20 +92,20 @@ type DatosRotacionAbc = {
 // Frontera de carga de datos: el instante actual y las consultas Prisma
 // viven aquí, no en el cuerpo del Server Component, para que el render
 // reciba únicamente resultados ya deterministas.
-async function cargarDatosRotacionAbc(): Promise<DatosRotacionAbc> {
+async function cargarDatosRotacionAbc(empresaId: string): Promise<DatosRotacionAbc> {
   const desde = new Date(Date.now() - DIAS_VENTANA * MS_POR_DIA);
 
   const [presentaciones, insumos, salidasPresentacion, salidasInsumo] = await Promise.all([
-    prisma.presentacion.findMany({ where: { activo: true }, include: { producto: true } }),
-    prisma.insumo.findMany({ where: { activo: true } }),
+    prisma.presentacion.findMany({ where: { empresaId, activo: true }, include: { producto: true } }),
+    prisma.insumo.findMany({ where: { empresaId, activo: true } }),
     prisma.movimientoKardex.groupBy({
       by: ["presentacionId"],
-      where: { tipoItem: "PRESENTACION", tipoMovimiento: "SALIDA", fecha: { gte: desde } },
+      where: { empresaId, tipoItem: "PRESENTACION", tipoMovimiento: "SALIDA", fecha: { gte: desde } },
       _sum: { cantidad: true },
     }),
     prisma.movimientoKardex.groupBy({
       by: ["insumoId"],
-      where: { tipoItem: "INSUMO", tipoMovimiento: "SALIDA", fecha: { gte: desde } },
+      where: { empresaId, tipoItem: "INSUMO", tipoMovimiento: "SALIDA", fecha: { gte: desde } },
       _sum: { cantidad: true },
     }),
   ]);
@@ -147,7 +147,7 @@ export default async function RotacionAbcPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
-  const { filasProductos, filasInsumos } = await cargarDatosRotacionAbc();
+  const { filasProductos, filasInsumos } = await cargarDatosRotacionAbc(usuario.empresaId);
 
   return (
     <div className="max-w-6xl">

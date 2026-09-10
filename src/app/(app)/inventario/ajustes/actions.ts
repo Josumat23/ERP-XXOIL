@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 
@@ -42,6 +42,10 @@ export async function crearAjuste(
 
   try {
     await prisma.$transaction(async (tx) => {
+      const itemValido = tipoItem === "PRESENTACION"
+        ? await tx.presentacion.count({ where: { id: itemId, empresaId: auth.usuario.empresaId } })
+        : await tx.insumo.count({ where: { id: itemId, empresaId: auth.usuario.empresaId } });
+      if (!itemValido) throw new Error("El ítem no pertenece a la empresa activa.");
       const mov = await registrarMovimiento(tx, {
         tipoItem,
         presentacionId: tipoItem === "PRESENTACION" ? itemId : undefined,
@@ -52,6 +56,7 @@ export async function crearAjuste(
         motivo,
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
+        empresaIdEsperada: auth.usuario.empresaId,
       });
       if (!mov.ok) throw new Error(mov.error);
     });

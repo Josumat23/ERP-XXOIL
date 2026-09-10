@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ORIGEN } from "@/lib/etiquetas";
@@ -21,6 +21,7 @@ export default async function KardexPage({
   const [movimientos, presentaciones, insumos, almacenes] = await Promise.all([
     prisma.movimientoKardex.findMany({
       where: {
+        empresaId: usuario.empresaId,
         ...(filtroTipo ? { tipoItem: filtroTipo } : {}),
         ...(item && filtroTipo === "PRESENTACION" ? { presentacionId: item } : {}),
         ...(item && filtroTipo === "INSUMO" ? { insumoId: item } : {}),
@@ -30,9 +31,9 @@ export default async function KardexPage({
       orderBy: { creadoEn: "desc" },
       take: 200,
     }),
-    prisma.presentacion.findMany({ orderBy: { sku: "asc" } }),
-    prisma.insumo.findMany({ orderBy: { codigo: "asc" } }),
-    prisma.almacen.findMany({ orderBy: { codigo: "asc" } }),
+    prisma.presentacion.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { sku: "asc" } }),
+    prisma.insumo.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { codigo: "asc" } }),
+    prisma.almacen.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { codigo: "asc" } }),
   ]);
 
   return (

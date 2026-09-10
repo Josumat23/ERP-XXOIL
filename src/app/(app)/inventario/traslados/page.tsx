@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import TrasladoFormulario from "./TrasladoFormulario";
@@ -20,23 +20,23 @@ export default async function TrasladosPage({
 
   const [presentaciones, insumos, almacenes, zonas, saldos, movimientos] = await Promise.all([
     prisma.presentacion.findMany({
-      where: { activo: true },
+      where: { empresaId: usuario.empresaId, activo: true },
       include: { producto: true, zonaAlmacen: { include: { almacen: true } } },
       orderBy: { sku: "asc" },
     }),
     prisma.insumo.findMany({
-      where: { activo: true },
+      where: { empresaId: usuario.empresaId, activo: true },
       include: { zonaAlmacen: { include: { almacen: true } } },
       orderBy: { codigo: "asc" },
     }),
-    prisma.almacen.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.almacen.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { codigo: "asc" } }),
     prisma.zonaAlmacen.findMany({
-      where: { activo: true },
+      where: { activo: true, almacen: { empresaId: usuario.empresaId } },
       include: { almacen: true },
       orderBy: [{ almacen: { codigo: "asc" } }, { codigo: "asc" }],
     }),
     prisma.saldoAlmacen.findMany({
-      where: { cantidad: { gt: 0 }, ...(almacenId ? { almacenId } : {}) },
+      where: { almacen: { empresaId: usuario.empresaId }, cantidad: { gt: 0 }, ...(almacenId ? { almacenId } : {}) },
       include: {
         almacen: true,
         presentacion: { include: { producto: true } },
@@ -45,7 +45,7 @@ export default async function TrasladosPage({
       orderBy: { almacen: { codigo: "asc" } },
     }),
     prisma.movimientoKardex.findMany({
-      where: { origen: "TRASLADO", tipoMovimiento: "SALIDA" },
+      where: { empresaId: usuario.empresaId, origen: "TRASLADO", tipoMovimiento: "SALIDA" },
       include: { presentacion: { include: { producto: true } }, insumo: true, almacen: true },
       orderBy: { creadoEn: "desc" },
       take: 30,

@@ -192,3 +192,7 @@ Los escenarios trimestrales y sus cálculos de demanda, operaciones, capacidad y
 ## Actualización: proyectos de inversión multiempresa
 
 Los proyectos, su WBS, red de actividades, costos y dimensiones relacionadas se aíslan por empresa activa, con numeración independiente por compañía. Véase `docs/aislamiento-multiempresa-proyectos.md`.
+
+## Actualización: controles de inventario multiempresa
+
+Los ajustes, traslados, ubicaciones, conteos, kardex y análisis de exactitud/rotación se aíslan por empresa activa. Véase `docs/aislamiento-multiempresa-controles-inventario.md`.

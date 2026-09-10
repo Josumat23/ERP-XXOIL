@@ -79,19 +79,19 @@ export async function siguienteCodigoCliente(tx: Tx): Promise<string> {
 // El traslado no tiene tabla propia (son dos MovimientoKardex con la misma
 // referencia): el correlativo se calcula contando cuántas referencias
 // "TR-" distintas ya existen en el kardex.
-export async function siguienteCodigoTraslado(tx: Tx): Promise<string> {
+export async function siguienteCodigoTraslado(tx: Tx, empresaId: string): Promise<string> {
   await reservarCorrelativo(tx);
   const ultimo = await tx.movimientoKardex.findFirst({
-    where: { origen: "TRASLADO", referencia: { startsWith: "TR-" } },
+    where: { empresaId, origen: "TRASLADO", referencia: { startsWith: "TR-" } },
     orderBy: { referencia: "desc" },
     select: { referencia: true },
   });
   return siguiente("TR", ultimo?.referencia ?? null);
 }
 
-export async function siguienteCodigoConteo(tx: Tx): Promise<string> {
+export async function siguienteCodigoConteo(tx: Tx, empresaId: string): Promise<string> {
   await reservarCorrelativo(tx);
-  const ultimo = await tx.conteoInventario.findFirst({ orderBy: { codigo: "desc" } });
+  const ultimo = await tx.conteoInventario.findFirst({ where: { empresaId }, orderBy: { codigo: "desc" } });
   return siguiente("CI", ultimo?.codigo ?? null);
 }
 

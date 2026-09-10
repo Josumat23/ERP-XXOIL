@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoConteo } from "@/lib/correlativos";
@@ -46,9 +46,9 @@ export async function crearConteo(
   let conteoId = "";
   try {
     await prisma.$transaction(async (tx) => {
-      const codigo = await siguienteCodigoConteo(tx);
+      const codigo = await siguienteCodigoConteo(tx, auth.usuario.empresaId);
       const conteo = await tx.conteoInventario.create({
-        data: { codigo, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre },
+        data: { empresaId: auth.usuario.empresaId, codigo, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre },
       });
       conteoId = conteo.id;
 
@@ -61,14 +61,14 @@ export async function crearConteo(
           l.tipoItem === "PRESENTACION"
             ? (
                 await tx.presentacion.update({
-                  where: { id: l.itemId },
+                  where: { id: l.itemId, empresaId: auth.usuario.empresaId },
                   data: { stock: { increment: 0 } },
                   select: { stock: true },
                 })
               ).stock.toNumber()
             : (
                 await tx.insumo.update({
-                  where: { id: l.itemId },
+                  where: { id: l.itemId, empresaId: auth.usuario.empresaId },
                   data: { stock: { increment: 0 } },
                   select: { stock: true },
                 })
@@ -99,6 +99,7 @@ export async function crearConteo(
             referencia: codigo,
             usuarioId: auth.usuario.id,
             usuarioNombre: auth.usuario.nombre,
+            empresaIdEsperada: auth.usuario.empresaId,
           });
           if (!mov.ok) throw new Error(mov.error);
         }

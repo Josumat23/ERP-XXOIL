@@ -525,13 +525,14 @@ model SaldoAlmacen {
 model ConteoInventario {
   id            String   @id @default(cuid())
   empresaId     String   @default("1")
-  codigo        String   @unique // CI-00001
+  codigo        String // CI-00001
   fecha         DateTime @default(now())
   usuarioId     String
   usuarioNombre String
 
   detalles ConteoInventarioDetalle[]
 
+  @@unique([empresaId, codigo])
   @@map("conteos_inventario")
 }
 
