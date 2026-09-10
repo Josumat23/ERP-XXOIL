@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
@@ -24,7 +24,9 @@ export async function crearCausaCalidad(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const causa = await tx.causaCalidad.create({ data: { nombre } });
+      const causa = await tx.causaCalidad.create({
+        data: { empresaId: auth.usuario.empresaId, nombre },
+      });
       await registrarAuditoriaMaestro(tx, { entidad: "CausaCalidad", registroId: causa.id, accion: "CREAR", despues: causa, usuario: auth.usuario });
     });
   } catch (e) {
@@ -45,8 +47,16 @@ export async function alternarActivoCausaCalidad(id: string, activo: boolean) {
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.causaCalidad.findUniqueOrThrow({ where: { id } });
-    const despues = await tx.causaCalidad.update({ where: { id }, data: { activo } });
+    const antes = await tx.causaCalidad.findFirst({
+      where: { id, empresaId: auth.usuario.empresaId },
+    });
+    if (!antes) throw new Error("La causa no pertenece a la empresa activa.");
+    const actualizada = await tx.causaCalidad.updateMany({
+      where: { id, empresaId: auth.usuario.empresaId },
+      data: { activo },
+    });
+    if (actualizada.count !== 1) throw new Error("La causa cambió mientras se actualizaba.");
+    const despues = { ...antes, activo };
     await registrarAuditoriaMaestro(tx, { entidad: "CausaCalidad", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/produccion/calidad/causas");

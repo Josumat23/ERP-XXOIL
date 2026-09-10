@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -21,20 +21,28 @@ export default async function CalidadPage({
 
   const [pendientes, evaluados, causas, planes] = await Promise.all([
     prisma.loteGranel.findMany({
-      where: { estado: "PENDIENTE_CALIDAD" },
+      where: { empresaId: usuario.empresaId, estado: "PENDIENTE_CALIDAD" },
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaFin: "asc" },
     }),
     prisma.controlCalidad.findMany({
       where: {
+        loteGranel: {
+          empresaId: usuario.empresaId,
+          ...(q
+            ? { OR: [{ codigo: { contains: q } }, { formula: { producto: { nombre: { contains: q } } } }] }
+            : {}),
+        },
         ...(filtroResultado ? { resultado: filtroResultado } : {}),
-        ...(q ? { loteGranel: { OR: [{ codigo: { contains: q } }, { formula: { producto: { nombre: { contains: q } } } }] } } : {}),
       },
       include: { loteGranel: { include: { formula: { include: { producto: true } } } }, causa: true, resultadosCaracteristica: { orderBy: { secuencia: "asc" } } },
       orderBy: { fecha: "desc" },
       take: 20,
     }),
-    prisma.causaCalidad.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.causaCalidad.findMany({
+      where: { empresaId: usuario.empresaId, activo: true },
+      orderBy: { nombre: "asc" },
+    }),
     prisma.planInspeccionCalidad.findMany({ where: { empresaId: usuario.empresaId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } }),
   ]);
 

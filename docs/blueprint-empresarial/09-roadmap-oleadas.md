@@ -164,3 +164,7 @@ Se aislaron el calendario fiscal, los niveles de aprobación de compras y la val
 # Actualización: compras estratégicas multiempresa
 
 Se aislaron el detalle RFQ y el ciclo de acuerdos de suministro por empresa activa. Véase `docs/aislamiento-multiempresa-compras-estrategicas.md`.
+
+## Actualización: calidad multiempresa
+
+El control de calidad, las causas y los reclamos de cliente operan dentro de la empresa activa. Las acciones validan nuevamente las relaciones recibidas desde formularios para impedir referencias cruzadas entre compañías.

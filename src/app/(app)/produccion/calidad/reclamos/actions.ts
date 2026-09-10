@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteNumeroReclamo } from "@/lib/correlativos";
 import type { $Enums } from "@/generated/prisma/client";
@@ -31,9 +31,21 @@ export async function crearReclamo(
   let id: string;
   try {
     id = await prisma.$transaction(async (tx) => {
+      const cliente = await tx.cliente.findFirst({
+        where: { id: clienteId, empresaId: auth.usuario.empresaId, activo: true },
+        select: { id: true },
+      });
+      if (!cliente) throw new Error("El cliente no pertenece a la empresa activa.");
+      if (causaId) {
+        const causa = await tx.causaCalidad.findFirst({
+          where: { id: causaId, empresaId: auth.usuario.empresaId, activo: true },
+          select: { id: true },
+        });
+        if (!causa) throw new Error("La causa no pertenece a la empresa activa.");
+      }
       if (facturaId) {
-        const factura = await tx.factura.findUnique({
-          where: { id: facturaId },
+        const factura = await tx.factura.findFirst({
+          where: { id: facturaId, empresaId: auth.usuario.empresaId },
           select: { clienteId: true },
         });
         if (!factura) throw new Error("La factura relacionada no existe.");
@@ -44,6 +56,7 @@ export async function crearReclamo(
       const numero = await siguienteNumeroReclamo(tx);
       const creado = await tx.reclamoCliente.create({
         data: {
+          empresaId: auth.usuario.empresaId,
           numero,
           clienteId,
           facturaId,
@@ -85,8 +98,8 @@ export async function actualizarEstadoReclamo(
     return { error: "Para cerrar el reclamo, indique la acción correctiva aplicada." };
   }
 
-  const reclamo = await prisma.reclamoCliente.findUnique({
-    where: { id },
+  const reclamo = await prisma.reclamoCliente.findFirst({
+    where: { id, empresaId: auth.usuario.empresaId },
     select: { estado: true },
   });
   if (!reclamo) return { error: "El reclamo no existe." };
@@ -96,7 +109,7 @@ export async function actualizarEstadoReclamo(
   }
 
   const resultado = await prisma.reclamoCliente.updateMany({
-    where: { id, estado: reclamo.estado },
+    where: { id, empresaId: auth.usuario.empresaId, estado: reclamo.estado },
     data: {
       estado,
       accionCorrectiva,

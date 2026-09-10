@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import CausaFormulario from "./CausaFormulario";
@@ -12,6 +12,7 @@ export default async function CausasCalidadPage() {
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
   const causas = await prisma.causaCalidad.findMany({
+    where: { empresaId: usuario.empresaId },
     include: { _count: { select: { controlesCalidad: true, reclamosCliente: true } } },
     orderBy: { nombre: "asc" },
   });

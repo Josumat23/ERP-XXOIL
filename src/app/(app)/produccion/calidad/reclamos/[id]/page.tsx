@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -24,11 +24,15 @@ export default async function DetalleReclamoPage({
   const { id } = await params;
 
   const [reclamo, reclamos] = await Promise.all([
-    prisma.reclamoCliente.findUnique({
-      where: { id },
+    prisma.reclamoCliente.findFirst({
+      where: { id, empresaId: usuario.empresaId },
       include: { cliente: true, factura: true, causa: true },
     }),
-    prisma.reclamoCliente.findMany({ include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
+    prisma.reclamoCliente.findMany({
+      where: { empresaId: usuario.empresaId },
+      include: { cliente: true },
+      orderBy: { creadoEn: "desc" },
+    }),
   ]);
   if (!reclamo) notFound();
 
