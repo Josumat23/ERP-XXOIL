@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import { esPeriodoMensualValido } from "@/lib/periodos";
@@ -27,6 +27,7 @@ export default async function VariacionesProduccionPage({
 
   const lotes = await prisma.loteGranel.findMany({
     where: {
+      empresaId: usuario.empresaId,
       fechaFin: { gte: desde, lt: hasta },
       variacionTotal: { not: null },
     },

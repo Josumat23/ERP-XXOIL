@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import OrdenMantenimientoFormulario from "../OrdenMantenimientoFormulario";
@@ -18,9 +18,10 @@ export default async function NuevaOrdenMantenimientoPage({
   const { equipoId, avisoId } = await searchParams;
 
   const [equipos, centrosCosto, ordenes] = await Promise.all([
-    prisma.equipo.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.equipo.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.centroCosto.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { codigo: "asc" } }),
     prisma.ordenMantenimiento.findMany({
+      where: { equipo: { empresaId: usuario.empresaId } },
       include: { equipo: true },
       orderBy: { fechaProgramada: "desc" },
     }),

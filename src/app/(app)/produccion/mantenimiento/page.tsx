@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatFecha, formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -39,6 +39,7 @@ export default async function MantenimientoPage({
   const [ordenes, todasOrdenes] = await Promise.all([
     prisma.ordenMantenimiento.findMany({
       where: {
+        equipo: { empresaId: usuario.empresaId },
         ...(filtroTipo ? { tipo: filtroTipo } : {}),
         ...(filtroEstado ? { estado: filtroEstado } : {}),
         ...(q
@@ -48,7 +49,7 @@ export default async function MantenimientoPage({
       include: { equipo: { include: { almacen: true } } },
       orderBy: { fechaProgramada: "desc" },
     }),
-    prisma.ordenMantenimiento.findMany(),
+    prisma.ordenMantenimiento.findMany({ where: { equipo: { empresaId: usuario.empresaId } } }),
   ]);
 
   const pendientes = todasOrdenes.filter((o) => o.estado === "PROGRAMADA" || o.estado === "EN_PROCESO");

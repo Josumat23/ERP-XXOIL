@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoOrdenMantenimiento } from "@/lib/correlativos";
 import { postearMantenimiento } from "@/lib/contabilidad";
@@ -71,7 +71,16 @@ export async function crearOrdenMantenimiento(
   }
 
   await prisma.$transaction(async (tx) => {
-    const equipo = await tx.equipo.findUniqueOrThrow({ where: { id: equipoId } });
+    const equipo = await tx.equipo.findFirst({
+      where: { id: equipoId, empresaId: auth.usuario.empresaId, activo: true },
+    });
+    if (!equipo) throw new Error("El equipo no pertenece a la empresa activa.");
+    if (centroCostoId) {
+      const centroCosto = await tx.centroCosto.findFirst({
+        where: { id: centroCostoId, empresaId: auth.usuario.empresaId, activo: true },
+      });
+      if (!centroCosto) throw new Error("El centro de costo no pertenece a la empresa activa.");
+    }
     const aviso = avisoId ? await tx.avisoMantenimiento.findFirst({ where: { id: avisoId, empresaId: auth.usuario.empresaId, equipoId, estado: "ABIERTO" } }) : null;
     if (avisoId && !aviso) throw new Error("El aviso ya no está abierto o no corresponde al equipo.");
     const codigo = await siguienteCodigoOrdenMantenimiento(tx);
@@ -118,11 +127,14 @@ export async function iniciarOrdenMantenimiento(id: string) {
     return { error: "Su grupo de seguridad no permite editar registros en Producción." };
   }
 
-  const existe = await prisma.ordenMantenimiento.findUnique({ where: { id }, select: { id: true } });
+  const existe = await prisma.ordenMantenimiento.findFirst({
+    where: { id, equipo: { empresaId: auth.usuario.empresaId } },
+    select: { id: true },
+  });
   if (!existe) return { error: "La orden no existe." };
 
   const resultado = await prisma.ordenMantenimiento.updateMany({
-    where: { id, estado: "PROGRAMADA" },
+    where: { id, equipo: { empresaId: auth.usuario.empresaId }, estado: "PROGRAMADA" },
     data: { estado: "EN_PROCESO", fechaInicio: new Date() },
   });
   if (resultado.count !== 1) return { error: "La orden ya fue iniciada o cerrada." };
@@ -175,8 +187,8 @@ export async function completarOrdenMantenimiento(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const orden = await tx.ordenMantenimiento.findUnique({
-        where: { id },
+      const orden = await tx.ordenMantenimiento.findFirst({
+        where: { id, equipo: { empresaId: auth.usuario.empresaId } },
         include: { equipo: true, planMantenimiento: true },
       });
       if (!orden) throw new Error("La orden no existe.");
@@ -200,7 +212,7 @@ export async function completarOrdenMantenimiento(
       }
 
       const reclamo = await tx.ordenMantenimiento.updateMany({
-        where: { id, estado: "EN_PROCESO" },
+        where: { id, equipo: { empresaId: auth.usuario.empresaId }, estado: "EN_PROCESO" },
         data: { estado: "COMPLETADA" },
       });
       if (reclamo.count !== 1) {
@@ -209,7 +221,9 @@ export async function completarOrdenMantenimiento(
 
       let costoRepuestos = 0;
       for (const r of repuestos) {
-        const insumo = await tx.insumo.findUnique({ where: { id: r.insumoId } });
+        const insumo = await tx.insumo.findFirst({
+          where: { id: r.insumoId, empresaId: auth.usuario.empresaId, activo: true },
+        });
         if (!insumo) throw new Error("Uno de los repuestos seleccionados no existe.");
 
         const mov = await registrarMovimiento(tx, {
@@ -279,6 +293,7 @@ export async function completarOrdenMantenimiento(
       if (total > 0) {
         await tx.movimientoCaja.create({
           data: {
+            empresaId: auth.usuario.empresaId,
             tipo: "EGRESO",
             concepto: `Mantenimiento ${orden.codigo} — ${orden.equipo.nombre}`,
             monto: total,
@@ -323,14 +338,17 @@ export async function cancelarOrdenMantenimiento(id: string) {
 
   try {
     await prisma.$transaction(async (tx) => {
-      const orden = await tx.ordenMantenimiento.findUnique({ where: { id }, include: { equipo: true } });
+      const orden = await tx.ordenMantenimiento.findFirst({
+        where: { id, equipo: { empresaId: auth.usuario.empresaId } },
+        include: { equipo: true },
+      });
       if (!orden) throw new Error("La orden no existe.");
       if (orden.estado !== "PROGRAMADA") {
         throw new Error("Solo se puede cancelar una orden que aún no se ha iniciado.");
       }
 
       const reclamo = await tx.ordenMantenimiento.updateMany({
-        where: { id, estado: "PROGRAMADA" },
+        where: { id, equipo: { empresaId: auth.usuario.empresaId }, estado: "PROGRAMADA" },
         data: { estado: "CANCELADA" },
       });
       if (reclamo.count !== 1) {

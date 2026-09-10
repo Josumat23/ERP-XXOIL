@@ -180,3 +180,7 @@ El envasado, sus consumos y la nivelación de capacidad se limitan a lotes y cen
 ## Actualización: centros de trabajo y equipos multiempresa
 
 Los centros operativos, equipos, contadores y planes preventivos validan la empresa activa y sus dimensiones relacionadas. Véase `docs/aislamiento-multiempresa-centros-equipos.md`.
+
+## Actualización: mantenimiento y variaciones multiempresa
+
+Las órdenes, avisos, confiabilidad, repuestos, costos y variaciones de producción se aíslan por empresa activa. Véase `docs/aislamiento-multiempresa-mantenimiento-variaciones.md`.
