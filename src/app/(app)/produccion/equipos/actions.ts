@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoEquipo } from "@/lib/correlativos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
@@ -43,12 +43,24 @@ export async function crearEquipo(
   try {
     await prisma.$transaction(async (tx) => {
       const codigo = await siguienteCodigoEquipo(tx);
+      const [almacen, activoFijo, centroCosto] = await Promise.all([
+        tx.almacen.findFirst({ where: { id: almacenId, empresaId: auth.usuario.empresaId, activo: true } }),
+        activoFijoId
+          ? tx.activoFijo.findFirst({ where: { id: activoFijoId, empresaId: auth.usuario.empresaId, activo: true } })
+          : null,
+        centroCostoId
+          ? tx.centroCosto.findFirst({ where: { id: centroCostoId, empresaId: auth.usuario.empresaId, activo: true } })
+          : null,
+      ]);
+      if (!almacen) throw new Error("El almacén no pertenece a la empresa activa.");
+      if (activoFijoId && !activoFijo) throw new Error("El activo fijo no pertenece a la empresa activa.");
+      if (centroCostoId && !centroCosto) throw new Error("El centro de costo no pertenece a la empresa activa.");
       if (centroTrabajoId) {
-        const centro = await tx.centroTrabajo.findFirst({ where: { id: centroTrabajoId, almacenId, activo: true } });
+        const centro = await tx.centroTrabajo.findFirst({ where: { id: centroTrabajoId, empresaId: auth.usuario.empresaId, almacenId, activo: true } });
         if (!centro) throw new Error("El centro de trabajo no pertenece a la planta seleccionada o está inactivo.");
       }
       const equipo = await tx.equipo.create({
-        data: { codigo, nombre, almacenId, activoFijoId, centroCostoId, centroTrabajoId, notas, unidadContador, contadorActual },
+        data: { empresaId: auth.usuario.empresaId, codigo, nombre, almacenId, activoFijoId, centroCostoId, centroTrabajoId, notas, unidadContador, contadorActual },
       });
       if (unidadContador) await tx.lecturaContadorEquipo.create({ data: { equipoId: equipo.id, valor: contadorActual, fuente: "ALTA_EQUIPO", observacion: "Lectura inicial", usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre } });
       await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: equipo.id, accion: "CREAR", despues: equipo, usuario: auth.usuario });
@@ -70,7 +82,8 @@ export async function alternarActivoEquipo(id: string, activo: boolean) {
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.equipo.findUniqueOrThrow({ where: { id } });
+    const antes = await tx.equipo.findFirst({ where: { id, empresaId: auth.usuario.empresaId } });
+    if (!antes) throw new Error("El equipo no pertenece a la empresa activa.");
     const despues = await tx.equipo.update({ where: { id }, data: { activo } });
     await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
@@ -95,14 +108,14 @@ export async function actualizarContadorEquipo(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const antes = await tx.equipo.findUnique({ where: { id } });
+      const antes = await tx.equipo.findFirst({ where: { id, empresaId: auth.usuario.empresaId } });
       if (!antes) throw new Error("El equipo no existe.");
       if (contadorActual < antes.contadorActual.toNumber()) {
         throw new Error("La nueva lectura no puede ser menor a la actual.");
       }
 
       const actualizado = await tx.equipo.updateMany({
-        where: { id, contadorActual: antes.contadorActual },
+        where: { id, empresaId: auth.usuario.empresaId, contadorActual: antes.contadorActual },
         data: { contadorActual },
       });
       if (actualizado.count !== 1) {
@@ -159,6 +172,13 @@ export async function crearPlanMantenimiento(
   }
 
   await prisma.$transaction(async (tx) => {
+    const equipo = await tx.equipo.findFirst({
+      where: { id: equipoId, empresaId: auth.usuario.empresaId, activo: true },
+    });
+    if (!equipo) throw new Error("El equipo no pertenece a la empresa activa.");
+    if (tipo === "POR_CONTADOR" && !equipo.unidadContador) {
+      throw new Error("El equipo no tiene una unidad de contador configurada.");
+    }
     const plan = await tx.planMantenimiento.create({
       data: { equipoId, nombre, tipo: tipo as (typeof TIPOS_PLAN_VALIDOS)[number], frecuenciaDias, frecuenciaContador, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre },
     });
@@ -174,7 +194,10 @@ export async function alternarActivoPlan(id: string, equipoId: string, activo: b
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.planMantenimiento.findUniqueOrThrow({ where: { id } });
+    const antes = await tx.planMantenimiento.findFirst({
+      where: { id, equipoId, equipo: { empresaId: auth.usuario.empresaId } },
+    });
+    if (!antes) throw new Error("El plan no pertenece a la empresa activa.");
     const despues = await tx.planMantenimiento.update({ where: { id }, data: { activo } });
     await registrarAuditoriaMaestro(tx, { entidad: "PlanMantenimiento", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });

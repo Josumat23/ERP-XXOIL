@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { capacidadEfectivaDiaria } from "@/lib/centrosTrabajo";
 import { formatNumero } from "@/lib/format";
@@ -13,9 +13,9 @@ export default async function DetalleCentroTrabajoPage({ params }: { params: Pro
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
   const { id } = await params;
   const [centro, almacenes, centrosCosto] = await Promise.all([
-    prisma.centroTrabajo.findUnique({ where: { id }, include: { almacen: true, centroCosto: true, equipos: { orderBy: { codigo: "asc" } } } }),
-    prisma.almacen.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
-    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.centroTrabajo.findFirst({ where: { id, empresaId: usuario.empresaId }, include: { almacen: true, centroCosto: true, equipos: { orderBy: { codigo: "asc" } } } }),
+    prisma.almacen.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.centroCosto.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { codigo: "asc" } }),
   ]);
   if (!centro) notFound();
   const accion = actualizarCentroTrabajo.bind(null, centro.id);

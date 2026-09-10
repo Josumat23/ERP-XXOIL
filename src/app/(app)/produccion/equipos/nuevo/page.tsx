@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import EquipoFormulario from "../EquipoFormulario";
@@ -13,26 +13,26 @@ export default async function NuevoEquipoPage() {
 
   const [almacenes, activosFijos, centrosCosto, centrosTrabajo, equipos] = await Promise.all([
     prisma.almacen.findMany({
-      where: { activo: true },
+      where: { empresaId: usuario.empresaId, activo: true },
       select: { id: true, nombre: true },
       orderBy: { nombre: "asc" },
     }),
     prisma.activoFijo.findMany({
-      where: { activo: true, equipo: null },
+      where: { empresaId: usuario.empresaId, activo: true, equipo: null },
       select: { id: true, codigo: true, nombre: true },
       orderBy: { nombre: "asc" },
     }),
     prisma.centroCosto.findMany({
-      where: { activo: true },
+      where: { empresaId: usuario.empresaId, activo: true },
       select: { id: true, codigo: true, nombre: true },
       orderBy: { codigo: "asc" },
     }),
     prisma.centroTrabajo.findMany({
-      where: { activo: true },
+      where: { empresaId: usuario.empresaId, activo: true },
       select: { id: true, codigo: true, nombre: true, almacenId: true },
       orderBy: { codigo: "asc" },
     }),
-    prisma.equipo.findMany({ orderBy: { creadoEn: "desc" } }),
+    prisma.equipo.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { creadoEn: "desc" } }),
   ]);
 
   return (

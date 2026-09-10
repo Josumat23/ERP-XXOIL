@@ -176,3 +176,7 @@ Las recetas, órdenes de producción, operaciones, ajustes de materiales y recal
 ## Actualización: envasado y capacidad multiempresa
 
 El envasado, sus consumos y la nivelación de capacidad se limitan a lotes y centros de la empresa activa. Véase `docs/aislamiento-multiempresa-envasado-capacidad.md`.
+
+## Actualización: centros de trabajo y equipos multiempresa
+
+Los centros operativos, equipos, contadores y planes preventivos validan la empresa activa y sus dimensiones relacionadas. Véase `docs/aislamiento-multiempresa-centros-equipos.md`.
