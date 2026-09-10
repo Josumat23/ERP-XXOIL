@@ -77,7 +77,7 @@ import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto, rutaEntidadAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
-import { siguienteCodigoProyecto } from "@/lib/correlativos";
+import { siguienteCodigoConteo, siguienteCodigoProyecto, siguienteCodigoTraslado } from "@/lib/correlativos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { creariaCicloJerarquico } from "@/lib/jerarquiaEmpleados";
 import { calcularRetencion5taMensual, esPorcentajePlanillaValido, generarPlanillaMensual } from "@/lib/planilla";
@@ -2328,6 +2328,27 @@ test("proyectos numeran y permiten el mismo código dentro de compañías distin
     );
   } finally {
     await prisma.proyecto.deleteMany({ where: { empresaId: { in: empresas } } });
+    await prisma.empresa.deleteMany({ where: { id: { in: empresas } } });
+  }
+});
+
+test("conteos y traslados numeran independientemente por compañía", async () => {
+  const sufijo = Date.now().toString(36);
+  const empresas = [`empresa-inventario-a-${sufijo}`, `empresa-inventario-b-${sufijo}`];
+  await prisma.empresa.createMany({ data: empresas.map((id) => ({ id, razonSocial: id })) });
+  try {
+    for (const empresaId of empresas) {
+      await prisma.$transaction(async (tx) => {
+        assert.equal(await siguienteCodigoConteo(tx, empresaId), "CI-00001");
+        await tx.conteoInventario.create({
+          data: { empresaId, codigo: "CI-00001", usuarioId: "prueba", usuarioNombre: "Prueba" },
+        });
+        assert.equal(await siguienteCodigoTraslado(tx, empresaId), "TR-00001");
+      });
+    }
+    assert.equal(await prisma.conteoInventario.count({ where: { codigo: "CI-00001", empresaId: { in: empresas } } }), 2);
+  } finally {
+    await prisma.conteoInventario.deleteMany({ where: { empresaId: { in: empresas } } });
     await prisma.empresa.deleteMany({ where: { id: { in: empresas } } });
   }
 });

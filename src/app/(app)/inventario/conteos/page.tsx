@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ConteoFormulario from "./ConteoFormulario";
@@ -15,12 +15,12 @@ export default async function ConteosPage() {
 
   const [presentaciones, insumos, conteos] = await Promise.all([
     prisma.presentacion.findMany({
-      where: { activo: true },
+      where: { empresaId: usuario.empresaId, activo: true },
       include: { producto: true },
       orderBy: { sku: "asc" },
     }),
-    prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
-    prisma.conteoInventario.findMany({ orderBy: { fecha: "desc" }, take: 30 }),
+    prisma.insumo.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.conteoInventario.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { fecha: "desc" }, take: 30 }),
   ]);
 
   return (

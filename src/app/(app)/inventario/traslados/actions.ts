@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoTraslado } from "@/lib/correlativos";
@@ -44,7 +44,14 @@ export async function crearTraslado(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const referencia = await siguienteCodigoTraslado(tx);
+      const [itemValido, almacenesValidos] = await Promise.all([
+        tipoItem === "PRESENTACION"
+          ? tx.presentacion.count({ where: { id: itemId, empresaId: auth.usuario.empresaId } })
+          : tx.insumo.count({ where: { id: itemId, empresaId: auth.usuario.empresaId } }),
+        tx.almacen.count({ where: { id: { in: [almacenOrigenId, almacenDestinoId] }, empresaId: auth.usuario.empresaId, activo: true } }),
+      ]);
+      if (!itemValido || almacenesValidos !== 2) throw new Error("El ítem o los almacenes no pertenecen a la empresa activa.");
+      const referencia = await siguienteCodigoTraslado(tx, auth.usuario.empresaId);
 
       const salida = await registrarMovimiento(tx, {
         tipoItem,
@@ -58,6 +65,7 @@ export async function crearTraslado(
         almacenId: almacenOrigenId,
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
+        empresaIdEsperada: auth.usuario.empresaId,
       });
       if (!salida.ok) throw new Error(salida.error);
 
@@ -73,6 +81,7 @@ export async function crearTraslado(
         almacenId: almacenDestinoId,
         usuarioId: auth.usuario.id,
         usuarioNombre: auth.usuario.nombre,
+        empresaIdEsperada: auth.usuario.empresaId,
       });
       if (!entrada.ok) throw new Error(entrada.error);
     });
@@ -113,11 +122,11 @@ export async function reubicarZona(
   }
   if (!zonaDestinoId) return { error: "Seleccione la zona destino." };
 
-  const zonaDestino = await prisma.zonaAlmacen.findUnique({ where: { id: zonaDestinoId } });
+  const zonaDestino = await prisma.zonaAlmacen.findFirst({ where: { id: zonaDestinoId, almacen: { empresaId: auth.usuario.empresaId } } });
   if (!zonaDestino) return { error: "La zona destino no existe." };
 
   if (tipoItem === "PRESENTACION") {
-    const item = await prisma.presentacion.findUnique({ where: { id: itemId } });
+    const item = await prisma.presentacion.findFirst({ where: { id: itemId, empresaId: auth.usuario.empresaId } });
     if (!item) return { error: "La presentación no existe." };
     if (item.zonaAlmacenId === zonaDestinoId) return { error: "Ya está en esa zona." };
     if (item.zonaAlmacenId) {
@@ -131,7 +140,7 @@ export async function reubicarZona(
     }
     await prisma.presentacion.update({ where: { id: itemId }, data: { zonaAlmacenId: zonaDestinoId } });
   } else {
-    const item = await prisma.insumo.findUnique({ where: { id: itemId } });
+    const item = await prisma.insumo.findFirst({ where: { id: itemId, empresaId: auth.usuario.empresaId } });
     if (!item) return { error: "El insumo no existe." };
     if (item.zonaAlmacenId === zonaDestinoId) return { error: "Ya está en esa zona." };
     if (item.zonaAlmacenId) {

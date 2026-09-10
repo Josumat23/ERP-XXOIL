@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import AjusteFormulario from "./AjusteFormulario";
 
@@ -13,11 +13,11 @@ export default async function AjustesPage() {
 
   const [presentaciones, insumos] = await Promise.all([
     prisma.presentacion.findMany({
-      where: { activo: true },
+      where: { empresaId: usuario.empresaId, activo: true },
       include: { producto: true },
       orderBy: { sku: "asc" },
     }),
-    prisma.insumo.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.insumo.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { codigo: "asc" } }),
   ]);
 
   return (

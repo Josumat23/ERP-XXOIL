@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 
@@ -15,8 +15,8 @@ export default async function DetalleConteoPage({
 
   const { id } = await params;
 
-  const conteo = await prisma.conteoInventario.findUnique({
-    where: { id },
+  const conteo = await prisma.conteoInventario.findFirst({
+    where: { id, empresaId: usuario.empresaId },
     include: {
       detalles: {
         include: { presentacion: { include: { producto: true } }, insumo: true },
