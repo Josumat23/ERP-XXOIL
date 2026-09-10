@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { Prisma, TipoCentroTrabajo } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import {
@@ -34,14 +34,13 @@ function leerFormulario(formData: FormData) {
   return { codigo, nombre, tipo, almacenId, centroCostoId, capacidadHorasDia, eficienciaPct };
 }
 
-async function validarDimensiones(almacenId: string, centroCostoId: string | null) {
+async function validarDimensiones(empresaId: string, almacenId: string, centroCostoId: string | null) {
   const [almacen, centro] = await Promise.all([
-    prisma.almacen.findFirst({ where: { id: almacenId, activo: true } }),
-    centroCostoId ? prisma.centroCosto.findFirst({ where: { id: centroCostoId, activo: true } }) : null,
+    prisma.almacen.findFirst({ where: { id: almacenId, empresaId, activo: true } }),
+    centroCostoId ? prisma.centroCosto.findFirst({ where: { id: centroCostoId, empresaId, activo: true } }) : null,
   ]);
   if (!almacen) return "La planta seleccionada no existe o está inactiva.";
   if (centroCostoId && !centro) return "El centro de costo no existe o está inactivo.";
-  if (centro && centro.empresaId !== almacen.empresaId) return "La planta y el centro de costo pertenecen a compañías distintas.";
   return null;
 }
 
@@ -51,11 +50,13 @@ export async function crearCentroTrabajo(_prev: EstadoFormulario, formData: Form
   if (!(await puedeRealizar(auth.usuario, "produccion", "crear"))) return { error: "Sin permiso para crear centros de trabajo." };
   const datos = leerFormulario(formData);
   if ("error" in datos) return datos;
-  const errorDimension = await validarDimensiones(datos.almacenId, datos.centroCostoId);
+  const errorDimension = await validarDimensiones(auth.usuario.empresaId, datos.almacenId, datos.centroCostoId);
   if (errorDimension) return { error: errorDimension };
   try {
     await prisma.$transaction(async (tx) => {
-      const centro = await tx.centroTrabajo.create({ data: datos });
+      const centro = await tx.centroTrabajo.create({
+        data: { ...datos, empresaId: auth.usuario.empresaId },
+      });
       await registrarAuditoriaMaestro(tx, { entidad: "CentroTrabajo", registroId: centro.id, accion: "CREAR", despues: centro, usuario: auth.usuario });
     });
   } catch (error) {
@@ -72,11 +73,14 @@ export async function actualizarCentroTrabajo(id: string, _prev: EstadoFormulari
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return { error: "Sin permiso para editar centros de trabajo." };
   const datos = leerFormulario(formData);
   if ("error" in datos) return datos;
-  const errorDimension = await validarDimensiones(datos.almacenId, datos.centroCostoId);
+  const errorDimension = await validarDimensiones(auth.usuario.empresaId, datos.almacenId, datos.centroCostoId);
   if (errorDimension) return { error: errorDimension };
   try {
     await prisma.$transaction(async (tx) => {
-      const antes = await tx.centroTrabajo.findUniqueOrThrow({ where: { id } });
+      const antes = await tx.centroTrabajo.findFirst({
+        where: { id, empresaId: auth.usuario.empresaId },
+      });
+      if (!antes) throw new Error("El centro de trabajo no pertenece a la empresa activa.");
       const despues = await tx.centroTrabajo.update({ where: { id }, data: datos });
       await registrarAuditoriaMaestro(tx, { entidad: "CentroTrabajo", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     });
@@ -94,7 +98,10 @@ export async function alternarCentroTrabajo(id: string, activo: boolean) {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth || !(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.centroTrabajo.findUniqueOrThrow({ where: { id } });
+    const antes = await tx.centroTrabajo.findFirst({
+      where: { id, empresaId: auth.usuario.empresaId },
+    });
+    if (!antes) throw new Error("El centro de trabajo no pertenece a la empresa activa.");
     const despues = await tx.centroTrabajo.update({ where: { id }, data: { activo } });
     await registrarAuditoriaMaestro(tx, { entidad: "CentroTrabajo", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });

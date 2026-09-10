@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { capacidadEfectivaDiaria } from "@/lib/centrosTrabajo";
 import { formatNumero } from "@/lib/format";
@@ -13,6 +13,7 @@ export default async function CentrosTrabajoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
   const centros = await prisma.centroTrabajo.findMany({
+    where: { empresaId: usuario.empresaId },
     include: { almacen: true, centroCosto: true, _count: { select: { equipos: true } } },
     orderBy: [{ activo: "desc" }, { codigo: "asc" }],
   });

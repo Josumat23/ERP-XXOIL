@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatFecha, formatMoneda } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -36,8 +36,8 @@ export default async function DetalleEquipoPage({
   const { id } = await params;
 
   const [equipo, equipos] = await Promise.all([
-    prisma.equipo.findUnique({
-      where: { id },
+    prisma.equipo.findFirst({
+      where: { id, empresaId: usuario.empresaId },
       include: {
         almacen: true,
         activoFijo: true,
@@ -48,7 +48,7 @@ export default async function DetalleEquipoPage({
         lecturasContador: { orderBy: { creadoEn: "desc" }, take: 20 },
       },
     }),
-    prisma.equipo.findMany({ orderBy: { creadoEn: "desc" } }),
+    prisma.equipo.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { creadoEn: "desc" } }),
   ]);
   if (!equipo) notFound();
 

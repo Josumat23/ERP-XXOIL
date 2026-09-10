@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -18,10 +18,11 @@ export default async function EquiposPage({
 
   const { q, almacenId, estado } = await searchParams;
 
-  const almacenes = await prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } });
+  const almacenes = await prisma.almacen.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { nombre: "asc" } });
 
   const equipos = await prisma.equipo.findMany({
     where: {
+      empresaId: usuario.empresaId,
       ...(almacenId ? { almacenId } : {}),
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
       ...(q ? { OR: [{ nombre: { contains: q } }, { codigo: { contains: q } }] } : {}),
