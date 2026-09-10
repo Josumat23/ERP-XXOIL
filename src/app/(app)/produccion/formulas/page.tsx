@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -20,6 +20,7 @@ export default async function FormulasPage({
 
   const formulas = await prisma.formula.findMany({
     where: {
+      empresaId: usuario.empresaId,
       ...(estado === "activa" ? { activo: true } : estado === "inactiva" ? { activo: false } : {}),
       ...(q ? { producto: { nombre: { contains: q } } } : {}),
     },

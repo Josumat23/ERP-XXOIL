@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
@@ -32,6 +32,7 @@ export default async function LotesPage({
 
   const lotes = await prisma.loteGranel.findMany({
     where: {
+      empresaId: usuario.empresaId,
       ...(filtroEstado ? { estado: filtroEstado } : {}),
       ...(q
         ? { OR: [{ codigo: { contains: q } }, { formula: { producto: { nombre: { contains: q } } } }] }

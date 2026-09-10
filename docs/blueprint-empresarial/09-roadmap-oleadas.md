@@ -168,3 +168,7 @@ Se aislaron el detalle RFQ y el ciclo de acuerdos de suministro por empresa acti
 ## Actualización: calidad multiempresa
 
 El control de calidad, las causas y los reclamos de cliente operan dentro de la empresa activa. Las acciones validan nuevamente las relaciones recibidas desde formularios para impedir referencias cruzadas entre compañías.
+
+## Actualización: fórmulas y lotes multiempresa
+
+Las recetas, órdenes de producción, operaciones, ajustes de materiales y recall se aíslan por empresa activa. Véase `docs/aislamiento-multiempresa-formulas-lotes.md`.

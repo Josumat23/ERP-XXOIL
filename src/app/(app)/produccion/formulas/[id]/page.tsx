@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -18,8 +18,8 @@ export default async function DetalleFormulaPage({
   const { id } = await params;
 
   const [formula, formulas] = await Promise.all([
-    prisma.formula.findUnique({
-      where: { id },
+    prisma.formula.findFirst({
+      where: { id, empresaId: usuario.empresaId },
       include: {
         producto: true,
         detalles: { include: { insumo: true } },
@@ -28,6 +28,7 @@ export default async function DetalleFormulaPage({
       },
     }),
     prisma.formula.findMany({
+      where: { empresaId: usuario.empresaId },
       include: { producto: true },
       orderBy: [{ producto: { nombre: "asc" } }, { version: "desc" }],
     }),

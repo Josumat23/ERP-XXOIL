@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import FormulaFormulario from "../FormulaFormulario";
@@ -11,16 +11,23 @@ export default async function NuevaFormulaPage() {
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
   const [productos, insumos, formulas, centrosTrabajo] = await Promise.all([
-    prisma.producto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.producto.findMany({
+      where: { empresaId: usuario.empresaId, activo: true },
+      orderBy: { nombre: "asc" },
+    }),
     prisma.insumo.findMany({
-      where: { activo: true, tipo: "MATERIA_PRIMA" },
+      where: { empresaId: usuario.empresaId, activo: true, tipo: "MATERIA_PRIMA" },
       orderBy: { codigo: "asc" },
     }),
     prisma.formula.findMany({
+      where: { empresaId: usuario.empresaId },
       include: { producto: true },
       orderBy: [{ producto: { nombre: "asc" } }, { version: "desc" }],
     }),
-    prisma.centroTrabajo.findMany({ where: { activo: true }, orderBy: [{ codigo: "asc" }] }),
+    prisma.centroTrabajo.findMany({
+      where: { empresaId: usuario.empresaId, activo: true },
+      orderBy: [{ codigo: "asc" }],
+    }),
   ]);
 
   return (
