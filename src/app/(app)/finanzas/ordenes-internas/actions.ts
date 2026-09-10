@@ -7,6 +7,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoOrdenInterna } from "@/lib/correlativos";
 import { postearOrdenInterna } from "@/lib/contabilidad";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -19,6 +20,7 @@ export async function crearOrdenInterna(
   if (!(await puedeRealizar(auth.usuario, "finanzas", "crear"))) {
     return { error: "Su grupo de seguridad no permite crear registros en Finanzas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const descripcion = String(formData.get("descripcion") ?? "").trim();
   const centroCostoId = String(formData.get("centroCostoId") ?? "") || null;
@@ -29,12 +31,20 @@ export async function crearOrdenInterna(
   if (presupuesto !== null && (!Number.isFinite(presupuesto) || presupuesto < 0)) {
     return { error: "El presupuesto debe ser un número válido." };
   }
+  if (centroCostoId) {
+    const centro = await prisma.centroCosto.findFirst({
+      where: { id: centroCostoId, empresaId, activo: true },
+      select: { id: true },
+    });
+    if (!centro) return { error: "El centro de costo no pertenece a la empresa activa." };
+  }
 
   let ordenId = "";
   await prisma.$transaction(async (tx) => {
     const codigo = await siguienteCodigoOrdenInterna(tx);
     const orden = await tx.ordenInterna.create({
       data: {
+        empresaId,
         codigo,
         descripcion,
         centroCostoId,
@@ -60,6 +70,7 @@ export async function agregarCostoOrdenInterna(
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const concepto = String(formData.get("concepto") ?? "").trim();
   const monto = Number(formData.get("monto"));
@@ -70,7 +81,7 @@ export async function agregarCostoOrdenInterna(
   try {
     await prisma.$transaction(async (tx) => {
       const reclamo = await tx.ordenInterna.updateMany({
-        where: { id: ordenInternaId, estado: "ABIERTA" },
+        where: { id: ordenInternaId, empresaId, estado: "ABIERTA" },
         data: { totalAcumulado: { increment: monto } },
       });
       if (reclamo.count !== 1) throw new Error("Solo se pueden agregar costos a una orden abierta.");
@@ -97,13 +108,20 @@ export async function liquidarOrdenInterna(
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
   }
+  const empresaId = await obtenerEmpresaActivaId();
 
   const centroCostoId = String(formData.get("centroCostoId") ?? "");
   if (!centroCostoId) return { error: "Seleccione el centro de costo de destino." };
 
   try {
     await prisma.$transaction(async (tx) => {
-      const orden = await tx.ordenInterna.findUniqueOrThrow({ where: { id } });
+      const centro = await tx.centroCosto.findFirst({
+        where: { id: centroCostoId, empresaId, activo: true },
+        select: { id: true },
+      });
+      if (!centro) throw new Error("El centro de costo no pertenece a la empresa activa.");
+      const orden = await tx.ordenInterna.findFirst({ where: { id, empresaId } });
+      if (!orden) throw new Error("La orden interna no existe.");
       if (orden.estado !== "ABIERTA") {
         throw new Error("Solo se puede liquidar una orden abierta.");
       }
@@ -111,7 +129,7 @@ export async function liquidarOrdenInterna(
       if (total <= 0) throw new Error("La orden no tiene costos acumulados que liquidar.");
 
       const reclamo = await tx.ordenInterna.updateMany({
-        where: { id, estado: "ABIERTA", totalAcumulado: orden.totalAcumulado },
+        where: { id, empresaId, estado: "ABIERTA", totalAcumulado: orden.totalAcumulado },
         data: { estado: "LIQUIDADA", centroCostoId, fechaLiquidacion: new Date() },
       });
       if (reclamo.count !== 1) {
@@ -140,10 +158,11 @@ export async function anularOrdenInterna(id: string) {
   const auth = await requerirRol(["GERENCIA"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
 
   await prisma.$transaction(async (tx) => {
     await tx.ordenInterna.updateMany({
-      where: { id, estado: "ABIERTA", totalAcumulado: 0 },
+      where: { id, empresaId, estado: "ABIERTA", totalAcumulado: 0 },
       data: { estado: "ANULADA" },
     });
   });

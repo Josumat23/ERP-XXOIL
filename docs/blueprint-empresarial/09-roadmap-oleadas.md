@@ -155,3 +155,6 @@ Para el rollback de cambios de esquema: el patrón ya establecido en este reposi
 # Actualización: contabilidad general multiempresa
 
 Se aisló por empresa activa el plan de cuentas, los controles, períodos, libros, asientos, balance y exportaciones PLE. Los posteos automáticos ahora pueden transportar la empresa de la transacción hasta el motor contable. Véase `docs/aislamiento-multiempresa-contabilidad-general.md`.
+# Actualización: maestros financieros multiempresa
+
+Se aislaron activos fijos, depreciación, centros de costo, reglas de asignación y órdenes internas. Véase `docs/aislamiento-multiempresa-maestros-financieros.md`.

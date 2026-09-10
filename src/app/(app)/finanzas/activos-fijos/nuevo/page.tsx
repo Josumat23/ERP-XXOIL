@@ -5,6 +5,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ActivoFijoFormulario from "../ActivoFijoFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { crearActivoFijo } from "../actions";
 import { costoRealProyecto } from "@/lib/proyectos";
 
@@ -15,14 +16,15 @@ export default async function NuevoActivoFijoPage({
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { proyectoId } = await searchParams;
 
   const [almacenes, centrosCosto, activos, proyecto] = await Promise.all([
-    prisma.almacen.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
-    prisma.activoFijo.findMany({ orderBy: { creadoEn: "desc" } }),
-    proyectoId ? prisma.proyecto.findUnique({ where: { id: proyectoId } }) : null,
+    prisma.almacen.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.centroCosto.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.activoFijo.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
+    proyectoId ? prisma.proyecto.findFirst({ where: { id: proyectoId, empresaId } }) : null,
   ]);
 
   const proyectoOrigen = proyecto

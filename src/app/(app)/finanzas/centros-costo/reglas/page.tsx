@@ -6,18 +6,21 @@ import { puedeRealizar } from "@/lib/permisos";
 import { ETIQUETA_CONTROL, type ClaveControl } from "@/lib/contabilidad";
 import { alternarActivoRegla } from "../actions";
 import ControlCentroFormulario from "../ControlCentroFormulario";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function ReglasAsignacionCostoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const [reglas, centros, controles] = await Promise.all([
     prisma.reglaAsignacionCosto.findMany({
+      where: { lineas: { some: { centroCosto: { empresaId } } } },
       include: { lineas: { include: { centroCosto: true } } },
       orderBy: { nombre: "asc" },
     }),
-    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { codigo: "asc" } }),
-    prisma.centroCostoControl.findMany(),
+    prisma.centroCosto.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
+    prisma.centroCostoControl.findMany({ where: { empresaId } }),
   ]);
 
   const controlPorClave = new Map(
