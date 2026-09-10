@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatFecha, formatMoneda } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -37,8 +37,8 @@ export default async function DetalleOrdenMantenimientoPage({
   const { id } = await params;
 
   const [orden, ordenes, insumosActivos] = await Promise.all([
-    prisma.ordenMantenimiento.findUnique({
-      where: { id },
+    prisma.ordenMantenimiento.findFirst({
+      where: { id, equipo: { empresaId: usuario.empresaId } },
       include: {
         equipo: { include: { almacen: true, centroCosto: true } },
         centroCosto: true,
@@ -47,10 +47,11 @@ export default async function DetalleOrdenMantenimientoPage({
       },
     }),
     prisma.ordenMantenimiento.findMany({
+      where: { equipo: { empresaId: usuario.empresaId } },
       include: { equipo: true },
       orderBy: { fechaProgramada: "desc" },
     }),
-    prisma.insumo.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.insumo.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { nombre: "asc" } }),
   ]);
   if (!orden) notFound();
 
