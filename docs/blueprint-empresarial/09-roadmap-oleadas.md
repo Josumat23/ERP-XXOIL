@@ -59,6 +59,7 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 - **Verificación**: funciones puras en la suite normal, consultas aisladas por compañía y visualización en MRP/Proyecciones.
 
 ### 0.2 — Multi-empresa real: FK completa en el grafo transaccional
+- **Avance 2026-09-10:** primera etapa física completada para usuarios, auditoría, cuentas bancarias, catálogo e inventario (11 tablas). Véase `docs/integridad-fk-empresa-catalogo-inventario.md`. El ítem permanece abierto hasta cubrir los demás dominios.
 - **Qué**: agregar relación real `empresa Empresa @relation(fields: [empresaId], references: [id])` a los modelos transaccionales que hoy solo tienen `empresaId` como string suelto (`Pedido`, `Factura`, `OrdenCompra`, `MovimientoKardex`, `AsientoContable`, `Insumo`, `Producto`, etc. — lista completa en Blueprint 05), y filtrar por `obtenerEmpresaActivaId()` en cada `actions.ts` que hoy no lo hace (confirmado ausente en 7 de 8 módulos muestreados, Blueprint 08).
 - **Dependencias**: ninguna técnica, pero es el prerrequisito lógico de 0.3, y de los ítems de jerarquía de planta/centro de costo de la Oleada 1.
 - **Criterio de aceptación**: crear una segunda `Empresa`, cambiar la compañía activa, y confirmar que **ningún** dato (insumos, pedidos, facturas, asientos, kardex) de la compañía 1 es visible ni editable desde la compañía 2, y viceversa.

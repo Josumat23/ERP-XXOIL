@@ -86,6 +86,7 @@ model ConfiguracionEmpresa {
 model CuentaBancariaEmpresa {
   id           String  @id @default(cuid())
   empresaId    String  @default("1")
+  empresa      Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   banco        String
   moneda       String  @default("PEN")
   numeroCuenta String
@@ -131,6 +132,7 @@ enum EstadoPasoAprobacion {
 model Usuario {
   id                     String     @id @default(cuid())
   empresaId              String     @default("1")
+  empresa                Empresa    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre                 String
   usuario                String // nombre de acceso
   passwordHash           String
@@ -173,6 +175,7 @@ enum AccionAuditoriaMaestro {
 model AuditoriaMaestro {
   id             String                 @id @default(cuid())
   empresaId      String                 @default("1")
+  empresa        Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   entidad        String
   registroId     String
   accion         AccionAuditoriaMaestro
@@ -194,6 +197,7 @@ model AuditoriaMaestro {
 model Categoria {
   id          String   @id @default(cuid())
   empresaId   String   @default("1")
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre      String
   descripcion String?
   activo      Boolean  @default(true)
@@ -220,6 +224,7 @@ enum SegmentoMercado {
 model Producto {
   id               String           @id @default(cuid())
   empresaId        String           @default("1")
+  empresa          Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   categoriaId      String
   codigo           String
   nombre           String
@@ -252,6 +257,7 @@ model Producto {
 model Presentacion {
   id                String   @id @default(cuid())
   empresaId         String   @default("1")
+  empresa           Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   productoId        String
   sku               String
   nombre            String
@@ -316,6 +322,7 @@ model EscalonPrecio {
 model Proveedor {
   id                  String              @id @default(cuid())
   empresaId           String              @default("1")
+  empresa             Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   razonSocial         String
   ruc                 String?
   tipoDocumentoFiscal TipoDocumentoFiscal @default(RUC)
@@ -358,6 +365,7 @@ enum TipoInsumo {
 model Insumo {
   id                   String     @id @default(cuid())
   empresaId            String     @default("1")
+  empresa              Empresa    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   proveedorId          String?
   codigo               String
   nombre               String
@@ -421,6 +429,7 @@ enum TipoMovimientoCasco {
 model MovimientoCasco {
   id            String              @id @default(cuid())
   empresaId     String              @default("1")
+  empresa       Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId     String
   insumoId      String
   tipo          TipoMovimientoCasco
@@ -468,6 +477,7 @@ enum OrigenMovimiento {
 model MovimientoKardex {
   id             String           @id @default(cuid())
   empresaId      String           @default("1")
+  empresa        Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   fecha          DateTime         @default(now())
   almacenId      String
   tipoItem       TipoItemKardex
@@ -525,6 +535,7 @@ model SaldoAlmacen {
 model ConteoInventario {
   id            String   @id @default(cuid())
   empresaId     String   @default("1")
+  empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo        String // CI-00001
   fecha         DateTime @default(now())
   usuarioId     String
@@ -4101,6 +4112,18 @@ model Empresa {
   esPrincipal     Boolean  @default(false)
   activa          Boolean  @default(true)
   creadoEn        DateTime @default(now())
+
+  cuentasBancarias  CuentaBancariaEmpresa[]
+  usuarios          Usuario[]
+  auditoriasMaestro AuditoriaMaestro[]
+  categorias        Categoria[]
+  productos         Producto[]
+  presentaciones    Presentacion[]
+  proveedores       Proveedor[]
+  insumos           Insumo[]
+  movimientosCasco  MovimientoCasco[]
+  movimientosKardex MovimientoKardex[]
+  conteosInventario ConteoInventario[]
 
   @@map("empresas")
 }
