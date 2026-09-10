@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { cargaPlanOperacion, programarCapacidadFinita } from "@/lib/planificacionCapacidad";
 
@@ -10,8 +10,8 @@ export async function nivelarCapacidad(): Promise<void> {
   const auth = await requerirRol(["PRODUCCION"]);
   if ("error" in auth || !(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   const [centros, lotes] = await Promise.all([
-    prisma.centroTrabajo.findMany({ where: { activo: true }, include: { almacen: { include: { calendarioProduccion: { include: { diasNoLaborables: true } } } } } }),
-    prisma.loteGranel.findMany({ where: { estado: { in: ["PLANIFICADO", "EN_PROCESO"] } }, include: { operaciones: { where: { estado: { not: "COMPLETADA" } }, orderBy: { secuencia: "asc" } } }, orderBy: { fechaInicio: "asc" } }),
+    prisma.centroTrabajo.findMany({ where: { empresaId: auth.usuario.empresaId, activo: true }, include: { almacen: { include: { calendarioProduccion: { include: { diasNoLaborables: true } } } } } }),
+    prisma.loteGranel.findMany({ where: { empresaId: auth.usuario.empresaId, estado: { in: ["PLANIFICADO", "EN_PROCESO"] } }, include: { operaciones: { where: { estado: { not: "COMPLETADA" } }, orderBy: { secuencia: "asc" } } }, orderBy: { fechaInicio: "asc" } }),
   ]);
   const calendarios = centros.flatMap((centro) => {
     const calendario = centro.almacen.calendarioProduccion;

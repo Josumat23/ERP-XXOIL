@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
@@ -17,8 +17,8 @@ export default async function DetalleEnvasadoPage({
   const { id } = await params;
 
   const [envasado, envasados] = await Promise.all([
-    prisma.envasado.findUnique({
-      where: { id },
+    prisma.envasado.findFirst({
+      where: { id, loteGranel: { empresaId: usuario.empresaId } },
       include: {
         loteGranel: { include: { formula: { include: { producto: true } } } },
         presentacion: true,
@@ -41,7 +41,11 @@ export default async function DetalleEnvasadoPage({
         },
       },
     }),
-    prisma.envasado.findMany({ include: { presentacion: true }, orderBy: { fecha: "desc" } }),
+    prisma.envasado.findMany({
+      where: { loteGranel: { empresaId: usuario.empresaId } },
+      include: { presentacion: true },
+      orderBy: { fecha: "desc" },
+    }),
   ]);
   if (!envasado) notFound();
 

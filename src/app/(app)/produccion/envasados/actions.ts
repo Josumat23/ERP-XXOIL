@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoEnvasado } from "@/lib/correlativos";
@@ -57,8 +57,8 @@ export async function crearEnvasado(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const lote = await tx.loteGranel.findUnique({
-        where: { id: loteGranelId },
+      const lote = await tx.loteGranel.findFirst({
+        where: { id: loteGranelId, empresaId: auth.usuario.empresaId },
         include: { formula: { include: { producto: true } } },
       });
       if (!lote) throw new Error("El lote no existe.");
@@ -66,7 +66,9 @@ export async function crearEnvasado(
         throw new Error("Solo se puede envasar un lote aprobado por control de calidad.");
       }
 
-      const presentacion = await tx.presentacion.findUnique({ where: { id: presentacionId } });
+      const presentacion = await tx.presentacion.findFirst({
+        where: { id: presentacionId, empresaId: auth.usuario.empresaId, activo: true },
+      });
       if (!presentacion) throw new Error("La presentación no existe.");
       if (presentacion.productoId !== lote.formula.productoId) {
         throw new Error(
@@ -83,7 +85,7 @@ export async function crearEnvasado(
       }
 
       const reserva = await tx.loteGranel.updateMany({
-        where: { id: loteGranelId, estado: "APROBADO", kgDisponibles: { gte: kgConsumidos } },
+        where: { id: loteGranelId, empresaId: auth.usuario.empresaId, estado: "APROBADO", kgDisponibles: { gte: kgConsumidos } },
         data: { kgDisponibles: { decrement: kgConsumidos } },
       });
       if (reserva.count !== 1) {
@@ -121,7 +123,15 @@ export async function crearEnvasado(
       // Consumo de envases y etiquetas, acumulando su costo
       let costoEnvases = 0;
       for (const linea of insumos) {
-        const insumo = await tx.insumo.findUniqueOrThrow({ where: { id: linea.insumoId } });
+        const insumo = await tx.insumo.findFirst({
+          where: {
+            id: linea.insumoId,
+            empresaId: auth.usuario.empresaId,
+            activo: true,
+            tipo: { in: ["ENVASE", "ETIQUETA"] },
+          },
+        });
+        if (!insumo) throw new Error("Un insumo de envasado no pertenece a la empresa activa.");
         costoEnvases += linea.cantidad * insumo.costoUnitario.toNumber();
 
         const mov = await registrarMovimiento(tx, {
