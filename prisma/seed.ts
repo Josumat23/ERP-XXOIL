@@ -13,6 +13,20 @@ function hashPassword(password: string): string {
 }
 
 async function main() {
+  // La compañía principal debe existir antes que cualquier fila con una FK
+  // empresaId. Conserva el identificador histórico "1" usado por los datos
+  // anteriores a la habilitación multiempresa.
+  await prisma.empresa.upsert({
+    where: { id: "1" },
+    update: { esPrincipal: true, activa: true },
+    create: {
+      id: "1",
+      razonSocial: "Grasas y Lubricantes del Perú S.A.C.",
+      ruc: "20123456789",
+      esPrincipal: true,
+    },
+  });
+
   // ------------------------------------------------------- configuración empresa
   await prisma.configuracionEmpresa.upsert({
     where: { id: "1" },

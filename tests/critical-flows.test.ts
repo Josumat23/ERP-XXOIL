@@ -1993,6 +1993,20 @@ test("MRP consume el pronóstico con pedidos firmes sin duplicar demanda", () =>
   );
 });
 
+test("catálogo e inventario rechazan compañías inexistentes por FK", async () => {
+  const empresaId = `empresa-inexistente-${Date.now().toString(36)}`;
+  await assert.rejects(
+    prisma.categoria.create({
+      data: { empresaId, nombre: `Categoría inválida ${empresaId}` },
+    }),
+    (error: unknown) =>
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2003",
+  );
+});
+
 test("MRP calcula backlog parcial sin consumir facturas anuladas", () => {
   assert.equal(calcularSaldoPedido(100, [
     { cantidad: 30, anulada: false },
