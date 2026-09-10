@@ -158,3 +158,6 @@ Se aisló por empresa activa el plan de cuentas, los controles, períodos, libro
 # Actualización: maestros financieros multiempresa
 
 Se aislaron activos fijos, depreciación, centros de costo, reglas de asignación y órdenes internas. Véase `docs/aislamiento-multiempresa-maestros-financieros.md`.
+# Actualización: configuración y valorización multiempresa
+
+Se aislaron el calendario fiscal, los niveles de aprobación de compras y la valorización histórica de inventario por empresa activa. Véase `docs/aislamiento-multiempresa-configuracion-reportes.md`.
