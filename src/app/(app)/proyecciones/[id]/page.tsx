@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import FichaTabs from "@/components/FichaTabs";
 import BarraRanking from "@/components/BarraRanking";
@@ -15,7 +15,6 @@ import { actualizarDetalleProyeccion, refrescarFactorMacro } from "../actions";
 import SupuestosMarketingFormulario from "./SupuestosMarketingFormulario";
 import CajaMinimaFormulario from "./CajaMinimaFormulario";
 import SimuladorPrecios from "./SimuladorPrecios";
-import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
 
@@ -31,7 +30,7 @@ export default async function DetalleProyeccionPage({
   ) {
     redirect("/");
   }
-  const empresaId = await obtenerEmpresaActivaId();
+  const empresaId = usuario.empresaId;
 
   const { id } = await params;
 
@@ -82,7 +81,8 @@ export default async function DetalleProyeccionPage({
       proyeccion.presupuestoPublicidad.toNumber(),
       proyeccion.cajaMinimaDeseada.toNumber(),
       proyeccion.anio,
-      proyeccion.trimestre
+      proyeccion.trimestre,
+      empresaId,
     ),
   ]);
 

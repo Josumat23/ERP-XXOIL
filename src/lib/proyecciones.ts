@@ -36,9 +36,9 @@ export function trimestreAnterior(anio: number, trimestre: number): { anio: numb
 }
 
 /** Unidades vendidas por presentación, agrupadas por "año-trimestre", de toda la historia (facturas no anuladas). */
-export async function ventasHistoricasPorTrimestre(): Promise<Map<string, Map<string, number>>> {
+export async function ventasHistoricasPorTrimestre(empresaId: string): Promise<Map<string, Map<string, number>>> {
   const facturas = await prisma.factura.findMany({
-    where: { estado: { not: "ANULADA" } },
+    where: { empresaId, estado: { not: "ANULADA" } },
     include: { detalles: true },
   });
   const mapa = new Map<string, Map<string, number>>();
@@ -202,7 +202,8 @@ export async function calcularOperaciones(
   const { inicio, fin } = rangoTrimestre(anio, trimestre);
   const { total: horasHombreDisponibles, porAlmacen: capacidadPorAlmacen } = await horasDisponiblesEnRango(
     inicio,
-    fin
+    fin,
+    empresaId,
   );
   const backlog = await prisma.pedidoDetalle.findMany({
     where: {
@@ -269,8 +270,17 @@ export async function calcularOperaciones(
     include: { detalles: { include: { insumo: true } } },
     orderBy: { version: "desc" },
   });
-  const reservas = await prisma.reservaInsumoProduccion.groupBy({ by: ["insumoId"], _sum: { cantidad: true } });
-  const reservaPorInsumo = new Map(reservas.map((reserva) => [reserva.insumoId, reserva._sum.cantidad?.toNumber() ?? 0]));
+  const reservas = await prisma.reservaInsumoProduccion.findMany({
+    where: { loteGranel: { empresaId } },
+    select: { insumoId: true, cantidad: true },
+  });
+  const reservaPorInsumo = new Map<string, number>();
+  for (const reserva of reservas) {
+    reservaPorInsumo.set(
+      reserva.insumoId,
+      (reservaPorInsumo.get(reserva.insumoId) ?? 0) + reserva.cantidad.toNumber(),
+    );
+  }
   const formulaPorProducto = new Map<string, (typeof formulas)[number]>();
   for (const f of formulas) {
     if (!formulaPorProducto.has(f.productoId)) formulaPorProducto.set(f.productoId, f);
@@ -278,7 +288,7 @@ export async function calcularOperaciones(
 
   // Eficiencia histórica (h-h por kg de granel), de lotes ya finalizados.
   const lotesFinalizados = await prisma.loteGranel.findMany({
-    where: { kgProducidos: { gt: 0 }, estado: { in: ["APROBADO", "RECHAZADO"] } },
+    where: { empresaId, kgProducidos: { gt: 0 }, estado: { in: ["APROBADO", "RECHAZADO"] } },
   });
   const kgTotalHistorico = lotesFinalizados.reduce((acc, l) => acc + l.kgProducidos.toNumber(), 0);
   const horasTotalHistorico = lotesFinalizados.reduce((acc, l) => acc + l.horasManoObra.toNumber(), 0);
@@ -370,7 +380,8 @@ export async function calcularFinanzas(
   presupuestoPublicidad: number,
   cajaMinimaDeseada: number,
   anio: number,
-  trimestre: number
+  trimestre: number,
+  empresaId: string,
 ): Promise<ResultadoFinanzas> {
   const config = await prisma.configuracionEmpresa.findUniqueOrThrow({ where: { id: "1" } });
   const { inicio, fin } = rangoTrimestre(anio, trimestre);
@@ -383,7 +394,7 @@ export async function calcularFinanzas(
     0
   );
 
-  const vendedoresActivos = await prisma.vendedor.findMany({ where: { activo: true } });
+  const vendedoresActivos = await prisma.vendedor.findMany({ where: { empresaId, activo: true } });
   const tasaComisionPromedio =
     vendedoresActivos.length > 0
       ? vendedoresActivos.reduce((acc, v) => acc + v.tasaComision.toNumber(), 0) / vendedoresActivos.length / 100
@@ -392,7 +403,7 @@ export async function calcularFinanzas(
 
   // Gastos fijos: promedio histórico de egresos manuales de caja (hasta 4 trimestres).
   const movimientosManuales = await prisma.movimientoCaja.findMany({
-    where: { tipo: "EGRESO", referencia: null },
+    where: { empresaId, tipo: "EGRESO", referencia: null },
     orderBy: { fecha: "desc" },
     take: 200,
   });
@@ -410,9 +421,9 @@ export async function calcularFinanzas(
   const utilidadOperativa = utilidadBruta - comisionesProyectadas - gastosOperativosProyectados;
 
   const [movimientosCaja, facturasPendientes, cuentasPorPagarPendientes] = await Promise.all([
-    prisma.movimientoCaja.findMany(),
-    prisma.factura.findMany({ where: { estado: "PENDIENTE" } }),
-    prisma.cuentaPorPagar.findMany({ where: { estado: "PENDIENTE" } }),
+    prisma.movimientoCaja.findMany({ where: { empresaId } }),
+    prisma.factura.findMany({ where: { empresaId, estado: "PENDIENTE" } }),
+    prisma.cuentaPorPagar.findMany({ where: { empresaId, estado: "PENDIENTE" } }),
   ]);
   const cajaActual = movimientosCaja.reduce(
     (acc, m) => acc + (m.tipo === "INGRESO" ? m.monto.toNumber() : -m.monto.toNumber()),

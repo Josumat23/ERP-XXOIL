@@ -184,3 +184,7 @@ Los centros operativos, equipos, contadores y planes preventivos validan la empr
 ## Actualización: mantenimiento y variaciones multiempresa
 
 Las órdenes, avisos, confiabilidad, repuestos, costos y variaciones de producción se aíslan por empresa activa. Véase `docs/aislamiento-multiempresa-mantenimiento-variaciones.md`.
+
+## Actualización: Proyecciones/S&OP multiempresa
+
+Los escenarios trimestrales y sus cálculos de demanda, operaciones, capacidad y finanzas consumen únicamente información de la empresa activa. Véase `docs/aislamiento-multiempresa-proyecciones.md`.

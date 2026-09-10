@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { irAProyeccionActual } from "./actions";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
@@ -16,6 +16,7 @@ export default async function ProyeccionesPage() {
   }
 
   const proyecciones = await prisma.proyeccion.findMany({
+    where: { empresaId: usuario.empresaId },
     orderBy: [{ anio: "desc" }, { trimestre: "desc" }],
     include: { _count: { select: { detalles: true } } },
   });

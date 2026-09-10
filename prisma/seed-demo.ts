@@ -63,8 +63,8 @@ async function seedProyeccionesHistoricas(audit: { usuarioId: string; usuarioNom
   const trimestre1Atras = trimestreAnterior(trimestreActual.anio, trimestreActual.trimestre);
   const trimestre2Atras = trimestreAnterior(trimestre1Atras.anio, trimestre1Atras.trimestre);
 
-  const presentacionesActivas = await prisma.presentacion.findMany({ where: { activo: true } });
-  const historicoVentas = await ventasHistoricasPorTrimestre();
+  const presentacionesActivas = await prisma.presentacion.findMany({ where: { empresaId: "1", activo: true } });
+  const historicoVentas = await ventasHistoricasPorTrimestre("1");
   const macro = await obtenerFactorMacro();
 
   let creadas = 0;
@@ -79,6 +79,7 @@ async function seedProyeccionesHistoricas(audit: { usuarioId: string; usuarioNom
 
     await prisma.proyeccion.create({
       data: {
+        empresaId: "1",
         anio: objetivo.anio,
         trimestre: objetivo.trimestre,
         anioBase: base.anio,
