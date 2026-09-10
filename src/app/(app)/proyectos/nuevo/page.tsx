@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ProyectoFormulario from "../ProyectoFormulario";
@@ -11,9 +11,9 @@ export default async function NuevoProyectoPage() {
   if (!usuario || !(await puedeRealizar(usuario, "proyectos", "ver"))) redirect("/");
 
   const [centrosCosto, empleados, proyectos] = await Promise.all([
-    prisma.centroCosto.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.empleado.findMany({ where: { estado: "ACTIVO" }, orderBy: { nombres: "asc" } }),
-    prisma.proyecto.findMany({ orderBy: { creadoEn: "desc" } }),
+    prisma.centroCosto.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.empleado.findMany({ where: { empresaId: usuario.empresaId, estado: "ACTIVO" }, orderBy: { nombres: "asc" } }),
+    prisma.proyecto.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { creadoEn: "desc" } }),
   ]);
 
   return (

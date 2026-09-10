@@ -2,6 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from "node
 import { tmpdir } from "node:os";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { spawnSync } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import Database from "better-sqlite3";
 
 const workspace = resolve(process.cwd());
@@ -18,10 +19,14 @@ if (!estaDentro(temporal, temporalRaiz) || estaDentro(temporal, workspace)) {
   throw new Error("Directorio temporal inseguro: " + temporal);
 }
 
+const tsxWindowsBootstrap = pathToFileURL(
+  resolve(workspace, "scripts/tsx-windows-bootstrap.mjs")
+).href;
 const databaseUrl = "file:" + baseDatos.replaceAll("\\", "/");
-const entorno = { ...process.env, DATABASE_URL: databaseUrl, NODE_ENV: "test" };
-
-const tsxCli = resolve(workspace, "node_modules/tsx/dist/cli.mjs");
+const nodeOptions = [process.env.NODE_OPTIONS, `--import=${tsxWindowsBootstrap}`]
+  .filter(Boolean)
+  .join(" ");
+const entorno = { ...process.env, DATABASE_URL: databaseUrl, NODE_ENV: "test", NODE_OPTIONS: nodeOptions };
 const archivosPruebas = readdirSync(resolve(workspace, "tests"))
   .filter((nombre) => nombre.endsWith(".test.ts"))
   .sort()
@@ -59,7 +64,7 @@ function ejecutar(etiqueta, argumentos) {
 try {
   console.log("\n[tests] Aplicando migraciones a SQLite temporal");
   aplicarMigraciones();
-  ejecutar("Cargando datos maestros mínimos", [tsxCli, "prisma/seed.ts"]);
+  ejecutar("Cargando datos maestros mínimos", ["--import", "tsx", "prisma/seed.ts"]);
   ejecutar("Ejecutando ciclos críticos", [
     "--import",
     "tsx",

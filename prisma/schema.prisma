@@ -3166,7 +3166,7 @@ enum EstadoProyecto {
 model Proyecto {
   id               String         @id @default(cuid())
   empresaId        String         @default("1")
-  codigo           String         @unique // PRY-00001
+  codigo           String // PRY-00001
   nombre           String
   descripcion      String?
   // Solo una etiqueta informativa de qué área/sponsor lo pidió — el costo
@@ -3191,6 +3191,7 @@ model Proyecto {
   ordenesCompra OrdenCompra[]
   activosFijos  ActivoFijo[]
 
+  @@unique([empresaId, codigo])
   @@map("proyectos")
 }
 
