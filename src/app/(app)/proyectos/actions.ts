@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
-import { requerirRol } from "@/lib/auth";
+import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { reservarCorrelativo, siguienteCodigoProyecto } from "@/lib/correlativos";
 import {
@@ -54,11 +54,24 @@ export async function crearProyecto(
     return { error: "La fecha de fin planificada no puede ser anterior al inicio." };
   }
 
+  const [centroValido, responsableValido] = await Promise.all([
+    centroCostoId
+      ? prisma.centroCosto.count({ where: { id: centroCostoId, empresaId: auth.usuario.empresaId, activo: true } })
+      : 1,
+    responsableId
+      ? prisma.empleado.count({ where: { id: responsableId, empresaId: auth.usuario.empresaId, estado: "ACTIVO" } })
+      : 1,
+  ]);
+  if (!centroValido || !responsableValido) {
+    return { error: "El centro de costo o responsable no pertenece a la empresa activa." };
+  }
+
   let proyectoId = "";
   await prisma.$transaction(async (tx) => {
-    const codigo = await siguienteCodigoProyecto(tx);
+    const codigo = await siguienteCodigoProyecto(tx, auth.usuario.empresaId);
     const proyecto = await tx.proyecto.create({
       data: {
+        empresaId: auth.usuario.empresaId,
         codigo,
         nombre,
         descripcion,
@@ -85,7 +98,9 @@ export async function cambiarEstadoProyecto(id: string, nuevoEstado: string) {
   if (!ESTADOS_VALIDOS.includes(nuevoEstado as $Enums.EstadoProyecto)) return;
 
   const estado = nuevoEstado as $Enums.EstadoProyecto;
-  const proyecto = await prisma.proyecto.findUnique({ where: { id } });
+  const proyecto = await prisma.proyecto.findFirst({
+    where: { id, empresaId: auth.usuario.empresaId },
+  });
   if (!proyecto) return;
 
   await prisma.proyecto.update({
@@ -124,11 +139,15 @@ export async function crearEdt(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const proyecto = await tx.proyecto.findUniqueOrThrow({ where: { id: proyectoId } });
+      const proyecto = await tx.proyecto.findFirstOrThrow({
+        where: { id: proyectoId, empresaId: auth.usuario.empresaId },
+      });
       await reservarCorrelativo(tx);
       let codigoPadre: string | null = null;
       if (parentId) {
-        const parent = await tx.edtProyecto.findUniqueOrThrow({ where: { id: parentId } });
+        const parent = await tx.edtProyecto.findFirstOrThrow({
+          where: { id: parentId, proyecto: { empresaId: auth.usuario.empresaId } },
+        });
         if (parent.proyectoId !== proyectoId) throw new Error("La fase padre no pertenece a este proyecto.");
         codigoPadre = parent.codigo;
       }
@@ -174,8 +193,21 @@ export async function crearActividad(
   let proyectoId = "";
   try {
     await prisma.$transaction(async (tx) => {
-      const edt = await tx.edtProyecto.findUniqueOrThrow({ where: { id: edtId } });
+      const edt = await tx.edtProyecto.findFirstOrThrow({
+        where: { id: edtId, proyecto: { empresaId: auth.usuario.empresaId } },
+      });
       proyectoId = edt.proyectoId;
+      const [responsableValido, equipoValido] = await Promise.all([
+        responsableId
+          ? tx.empleado.count({ where: { id: responsableId, empresaId: auth.usuario.empresaId, estado: "ACTIVO" } })
+          : 1,
+        equipoId
+          ? tx.equipo.count({ where: { id: equipoId, empresaId: auth.usuario.empresaId, activo: true } })
+          : 1,
+      ]);
+      if (!responsableValido || !equipoValido) {
+        throw new Error("El responsable o equipo no pertenece a la empresa activa.");
+      }
       await reservarCorrelativo(tx);
       const actividades = await tx.actividadProyecto.findMany({
         where: { edtId },
@@ -204,7 +236,7 @@ export async function eliminarActividad(id: string) {
   let proyectoId: string | null = null;
   await prisma.$transaction(async (tx) => {
     const actividad = await tx.actividadProyecto.findUnique({
-      where: { id },
+      where: { id, edt: { proyecto: { empresaId: auth.usuario.empresaId } } },
       select: { edt: { select: { proyectoId: true } } },
     });
     if (!actividad) throw new Error("La actividad no existe.");
@@ -258,6 +290,10 @@ export async function crearPrecedencia(
       if (predecesora.edt.proyectoId !== proyectoId || sucesora.edt.proyectoId !== proyectoId) {
         throw new Error("Ambas actividades deben pertenecer a este proyecto.");
       }
+      const proyecto = await tx.proyecto.count({
+        where: { id: proyectoId, empresaId: auth.usuario.empresaId },
+      });
+      if (!proyecto) throw new Error("El proyecto no existe en la empresa activa.");
       if (await formariaCiclo(tx, actividadPredecesoraId, actividadSucesoraId)) {
         throw new Error("Esa precedencia formaría un ciclo en la red de actividades.");
       }
@@ -286,7 +322,7 @@ export async function eliminarPrecedencia(id: string) {
   let proyectoId: string | null = null;
   await prisma.$transaction(async (tx) => {
     const precedencia = await tx.precedenciaActividad.findUnique({
-      where: { id },
+      where: { id, predecesora: { edt: { proyecto: { empresaId: auth.usuario.empresaId } } } },
       select: {
         predecesora: { select: { edt: { select: { proyectoId: true } } } },
         sucesora: { select: { edt: { select: { proyectoId: true } } } },
@@ -326,11 +362,17 @@ export async function agregarCostoProyecto(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const proyecto = await tx.proyecto.findUnique({ where: { id: proyectoId }, select: { id: true } });
+      const proyecto = await tx.proyecto.findFirst({
+        where: { id: proyectoId, empresaId: auth.usuario.empresaId },
+        select: { id: true },
+      });
       if (!proyecto) throw new Error("El proyecto no existe.");
 
       if (edtId) {
-        const edt = await tx.edtProyecto.findUnique({ where: { id: edtId }, select: { proyectoId: true } });
+        const edt = await tx.edtProyecto.findFirst({
+          where: { id: edtId, proyecto: { empresaId: auth.usuario.empresaId } },
+          select: { proyectoId: true },
+        });
         if (!edtPerteneceAProyecto(edt, proyectoId)) {
           throw new Error("La fase seleccionada no pertenece a este proyecto.");
         }

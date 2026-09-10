@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatFecha } from "@/lib/format";
 import { costoRealProyecto } from "@/lib/proyectos";
@@ -37,9 +37,9 @@ const CLASE_ESTADO: Record<string, string> = {
 
 type EdtConActividades = NonNullable<Awaited<ReturnType<typeof cargarProyecto>>>["edts"][number];
 
-async function cargarProyecto(id: string) {
-  const proyecto = await prisma.proyecto.findUnique({
-    where: { id },
+async function cargarProyecto(id: string, empresaId: string) {
+  const proyecto = await prisma.proyecto.findFirst({
+    where: { id, empresaId },
     include: {
       centroCosto: true,
       responsable: true,
@@ -64,12 +64,12 @@ export default async function DetalleProyectoPage({ params }: { params: Promise<
   const { id } = await params;
 
   const [proyecto, proyectos, empleados, equipos, precedencias] = await Promise.all([
-    cargarProyecto(id),
-    prisma.proyecto.findMany({ orderBy: { creadoEn: "desc" } }),
-    prisma.empleado.findMany({ where: { estado: "ACTIVO" }, orderBy: { nombres: "asc" } }),
-    prisma.equipo.findMany({ where: { activo: true }, orderBy: { nombre: "asc" } }),
+    cargarProyecto(id, usuario.empresaId),
+    prisma.proyecto.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { creadoEn: "desc" } }),
+    prisma.empleado.findMany({ where: { empresaId: usuario.empresaId, estado: "ACTIVO" }, orderBy: { nombres: "asc" } }),
+    prisma.equipo.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.precedenciaActividad.findMany({
-      where: { predecesora: { edt: { proyectoId: id } } },
+      where: { predecesora: { edt: { proyectoId: id, proyecto: { empresaId: usuario.empresaId } } } },
       include: { predecesora: true, sucesora: true },
     }),
   ]);

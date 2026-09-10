@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import { costoRealProyecto } from "@/lib/proyectos";
@@ -35,6 +35,7 @@ export default async function ProyectosPage({
 
   const proyectos = await prisma.proyecto.findMany({
     where: {
+      empresaId: usuario.empresaId,
       ...(estado ? { estado: estado as "PLANIFICADO" | "EN_PROGRESO" | "CERRADO" | "CANCELADO" } : {}),
       ...(q ? { nombre: { contains: q } } : {}),
     },

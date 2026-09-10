@@ -77,6 +77,7 @@ import { Afp, TipoComisionAfp, TipoDireccion } from "@/generated/prisma/client";
 import { DIRECTORIO_ADJUNTOS, esTipoEntidadAdjunto, existeEntidadAdjunto, resolverRutaAdjunto, rutaEntidadAdjunto } from "@/lib/adjuntos";
 import { empresaSolicitadaPermitida, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { edtPerteneceAProyecto, siguienteCodigoActividad, siguienteCodigoEdt } from "@/lib/proyectos";
+import { siguienteCodigoProyecto } from "@/lib/correlativos";
 import { registrarAuditoriaMaestro, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import { creariaCicloJerarquico } from "@/lib/jerarquiaEmpleados";
 import { calcularRetencion5taMensual, esPorcentajePlanillaValido, generarPlanillaMensual } from "@/lib/planilla";
@@ -2292,6 +2293,43 @@ test("proyectos no reutilizan códigos locales después de eliminar filas interm
   assert.equal(siguienteCodigoActividad([]), "A-01");
   assert.equal(siguienteCodigoEdt(["1", "3"], null), "4");
   assert.equal(siguienteCodigoEdt(["2.1", "2.3", "20.9"], "2"), "2.4");
+});
+
+test("proyectos numeran y permiten el mismo código dentro de compañías distintas", async () => {
+  const sufijo = Date.now().toString(36);
+  const empresas = [`empresa-proyecto-a-${sufijo}`, `empresa-proyecto-b-${sufijo}`];
+  await prisma.empresa.createMany({
+    data: empresas.map((id) => ({ id, razonSocial: id })),
+  });
+
+  try {
+    for (const empresaId of empresas) {
+      await prisma.$transaction(async (tx) => {
+        const codigo = await siguienteCodigoProyecto(tx, empresaId);
+        assert.equal(codigo, "PRY-00001");
+        await tx.proyecto.create({
+          data: {
+            empresaId,
+            codigo,
+            nombre: `Proyecto ${empresaId}`,
+            presupuestoTotal: 100,
+            fechaInicioPlan: new Date(2026, 0, 1),
+            fechaFinPlan: new Date(2026, 0, 31),
+            usuarioId: "prueba",
+            usuarioNombre: "Prueba",
+          },
+        });
+      });
+    }
+
+    assert.equal(
+      await prisma.proyecto.count({ where: { codigo: "PRY-00001", empresaId: { in: empresas } } }),
+      2,
+    );
+  } finally {
+    await prisma.proyecto.deleteMany({ where: { empresaId: { in: empresas } } });
+    await prisma.empresa.deleteMany({ where: { id: { in: empresas } } });
+  }
 });
 
 test("Server Actions solo amplían orígenes explícitamente en producción", () => {
