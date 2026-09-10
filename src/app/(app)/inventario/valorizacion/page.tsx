@@ -6,15 +6,17 @@ import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { construirValorizacionInventario } from "@/lib/valorizacionInventario";
 import { formatMoneda, formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function ValorizacionInventarioPage({ searchParams }: { searchParams: Promise<{ corte?: string; almacenId?: string }> }) {
   const usuario = await obtenerUsuario(); if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
   const filtros = await searchParams; const fecha = filtros.corte ? crearFechaCalendarioLocal(filtros.corte) : new Date();
   if (!fecha) redirect("/inventario/valorizacion");
   const fin = new Date(fecha); fin.setHours(23, 59, 59, 999);
   const [movimientos, almacenes] = await Promise.all([
-    prisma.movimientoKardex.findMany({ where: { empresaId: usuario.empresaId, fecha: { lte: fin }, ...(filtros.almacenId ? { almacenId: filtros.almacenId } : {}) }, include: { almacen: true, insumo: true, presentacion: { include: { producto: true } } }, orderBy: [{ fecha: "desc" }, { creadoEn: "desc" }] }),
-    prisma.almacen.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.movimientoKardex.findMany({ where: { empresaId, fecha: { lte: fin }, ...(filtros.almacenId ? { almacenId: filtros.almacenId } : {}) }, include: { almacen: true, insumo: true, presentacion: { include: { producto: true } } }, orderBy: [{ fecha: "desc" }, { creadoEn: "desc" }] }),
+    prisma.almacen.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
   ]);
   const base = construirValorizacionInventario(movimientos.map((m) => ({ almacenId: m.almacenId, tipoItem: m.tipoItem, itemId: m.tipoItem === "INSUMO" ? m.insumoId! : m.presentacionId!, saldoNuevo: m.saldoNuevo.toNumber(), costoUnitario: m.costoUnitario.toNumber() })));
   const detalle = new Map(movimientos.map((m) => [`${m.almacenId}:${m.tipoItem}:${m.tipoItem === "INSUMO" ? m.insumoId : m.presentacionId}`, m]));

@@ -4,6 +4,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { esAnioOperativoValido } from "@/lib/periodos";
 import { generarAnioFiscal, alternarPeriodoFiscal } from "./actions";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 const NOMBRES_MES = [
   "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -18,6 +19,7 @@ export default async function CalendarioFiscalPage({
   const usuario = await obtenerUsuario();
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
   if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
+  const empresaId = await obtenerEmpresaActivaId();
 
   const { anio: anioParam } = await searchParams;
   const hoy = new Date();
@@ -25,7 +27,7 @@ export default async function CalendarioFiscalPage({
   const anio = esAnioOperativoValido(anioIngresado) ? anioIngresado : hoy.getFullYear();
 
   const periodos = await prisma.periodoFiscal.findMany({
-    where: { anio },
+    where: { empresaId, anio },
     orderBy: { mes: "asc" },
   });
 
