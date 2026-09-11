@@ -504,6 +504,14 @@ test("cumplimiento de ventas asigna entregas FIFO y conserva su costo real", () 
 });
 test("asientos manuales aceptan solo cuentas activas de la compañía contable", async () => {
   const sufijo = Date.now().toString();
+  // Los planes de cuentas ya tienen FK física hacia Empresa: las dos compañías
+  // del escenario deben existir antes de colgarles contabilidad.
+  await prisma.empresa.createMany({
+    data: [
+      { id: "empresa-contable-a", razonSocial: "Compañía contable A" },
+      { id: "empresa-contable-b", razonSocial: "Compañía contable B" },
+    ],
+  });
   const planPrincipal = await prisma.planCuentas.create({
     data: { empresaId: "empresa-contable-a", codigo: `PLAN-A-${sufijo}`, nombre: "Plan A" },
   });
@@ -2042,6 +2050,18 @@ test("los dominios migrados rechazan compañías inexistentes por FK", async () 
   await assert.rejects(
     prisma.serieDocumento.create({
       data: { empresaId, tipoDocumento: "FACTURA", serie: "F999" },
+    }),
+    (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2003",
+  );
+  await assert.rejects(
+    prisma.almacen.create({
+      data: { empresaId, codigo: "ALM-INV", nombre: "Almacén inválido" },
+    }),
+    (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2003",
+  );
+  await assert.rejects(
+    prisma.libro.create({
+      data: { empresaId, codigo: "LIB-INV", nombre: "Libro inválido" },
     }),
     (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2003",
   );

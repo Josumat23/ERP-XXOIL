@@ -2645,6 +2645,7 @@ model SerieDocumento {
 model Almacen {
   id           String   @id @default(cuid())
   empresaId    String   @default("1")
+  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo       String
   nombre       String
   direccion    String?
@@ -2729,6 +2730,7 @@ model ZonaAlmacen {
 model ClaseUnidadMedida {
   id        String   @id @default(cuid())
   empresaId String   @default("1")
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo    String // ej. PESO, VOLUMEN, CANTIDAD
   nombre    String
   activo    Boolean  @default(true)
@@ -2766,6 +2768,7 @@ model UnidadMedida {
 model GrupoSeguridad {
   id            String   @id @default(cuid())
   empresaId     String   @default("1")
+  empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo        String
   nombre        String
   esPredefinido Boolean  @default(false)
@@ -2807,6 +2810,7 @@ enum EstadoPeriodoFiscal {
 model PeriodoFiscal {
   id         String              @id @default(cuid())
   empresaId  String              @default("1")
+  empresa    Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   anio       Int
   mes        Int // 1-12
   estado     EstadoPeriodoFiscal @default(ABIERTO)
@@ -2836,6 +2840,7 @@ enum TipoCuenta {
 model PlanCuentas {
   id        String   @id @default(cuid())
   empresaId String   @default("1")
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo    String // ej. PCGE (Plan Contable General Empresarial)
   nombre    String
   esMaestro Boolean  @default(false)
@@ -2867,6 +2872,7 @@ model CuentaContable {
 model Libro {
   id        String   @id @default(cuid())
   empresaId String   @default("1")
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo    String // ej. DIARIO
   nombre    String
   moneda    String   @default("PEN")
@@ -2913,6 +2919,7 @@ enum OrigenAsiento {
 model AsientoContable {
   id            String        @id @default(cuid())
   empresaId     String        @default("1")
+  empresa       Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   libroId       String
   numero        String        @unique // AS-00001
   fecha         DateTime      @default(now())
@@ -2956,8 +2963,9 @@ model AsientoDetalle {
 // usa la contabilización automática; si falta, la transacción operativa se
 // registra igual pero sin asiento (se avisa en la pantalla de controles).
 model ControlContable {
-  id        String @id @default(cuid())
-  empresaId String @default("1")
+  id        String  @id @default(cuid())
+  empresaId String  @default("1")
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clave     String // CUENTAS_POR_COBRAR, VENTAS, IGV_POR_PAGAR, COSTO_VENTAS,
   //                  INVENTARIO_PT, INVENTARIO_INSUMOS, CAJA_BANCOS,
   //                  CUENTAS_POR_PAGAR, DEVOLUCIONES
@@ -4204,6 +4212,14 @@ model Empresa {
   conciliacionesBancarias    ConciliacionBancaria[]
   hojasRuta                  HojaRuta[]
   seriesDocumento            SerieDocumento[]
+  almacenes                  Almacen[]
+  clasesUnidadMedida         ClaseUnidadMedida[]
+  gruposSeguridad            GrupoSeguridad[]
+  periodosFiscales           PeriodoFiscal[]
+  planesCuentas              PlanCuentas[]
+  libros                     Libro[]
+  asientosContables          AsientoContable[]
+  controlesContables         ControlContable[]
 
   @@map("empresas")
 }
