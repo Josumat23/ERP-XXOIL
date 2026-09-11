@@ -57,6 +57,29 @@ Se agregaron dos guardias:
 | Aprobaciones de compras | Selector de planta y columna "Alcance" |
 | Bandeja de aprobaciones | Carga acotada a la compañía activa |
 
+## Segunda pasada: el criterio de aceptación del ítem 0.2
+
+El roadmap exigía para el ítem 0.2: *crear una segunda Empresa, cambiar la compañía activa, y confirmar que ningún dato de la compañía 1 es visible ni editable desde la compañía 2*. Se ejecutó sobre la base demo.
+
+Con la segunda compañía activa quedaron vacías, como corresponde: almacenes (contadores por rol en 0), ubicaciones técnicas, posiciones organizativas, clientes, usuarios y plan de cuentas. Al volver a la primera, todos los datos reaparecieron — la prueba no vale si solo se ven ceros porque algo se rompió.
+
+### La fuga que encontró
+
+**El panel general no filtraba por compañía en ninguna de sus 21 consultas.** Con la segunda compañía activa seguía mostrando S/ 287.50 de ventas, S/ 566.40 de cuentas por cobrar, S/ 108.69 de comisiones y S/ 35,714.21 de inventario: todo de la primera.
+
+Es la pantalla más visible del sistema y la que más datos financieros junta en un solo lugar, y no tenía ni una sola referencia a la compañía. Por eso se le escapó a los dos barridos anteriores: el de `actions.ts` solo miraba acciones, y la guardia de pantallas busca las que usan la compañía *de origen* del usuario — ésta no usaba ninguna.
+
+Dos de las 21 consultas no llevan `empresaId` propio y se acotan por relación: `asientoDetalle` a través de su asiento, y `ordenMantenimiento` a través de su equipo.
+
+### El banner que mentía
+
+La pantalla de compañías anunciaba al operador que solo Clientes y Proveedores filtraban de verdad por compañía, y que el resto del sistema operaba contra la principal. Dejó de ser cierto al cerrar el ítem 0.2. Un aviso falso sobre aislamiento de datos es peor que un documento desactualizado, porque el operador decide en base a él. Se reemplazó por lo que sí importa saber: una compañía nueva empieza vacía y hay que darla de alta en Configuración antes de operarla.
+
+### Guardias agregadas
+
+- `el panel general acota todas sus consultas a la compañía activa`: parte el bloque `Promise.all` por cada `prisma.` y exige el filtro en cada trozo. Verificada quitando un filtro: falla.
+- `la pantalla de compañías no anuncia un alcance que ya no es cierto`.
+
 ## Limitación
 
-La base demo se siembra con los mismos datos de demostración del proyecto, con **una sola compañía**. El aislamiento multiempresa sigue verificado por consultas en la suite, no a ojo en pantalla: para eso haría falta un segundo juego de datos y un recorrido cambiando la compañía activa.
+La compañía de prueba se creó vacía. Queda sin ejercer el caso de dos compañías **ambas con datos**, que es donde se notaría una consulta que filtra por la compañía equivocada en lugar de no filtrar. Hoy ese caso lo cubren las pruebas de aislamiento por consultas de la suite, no el recorrido a ojo.

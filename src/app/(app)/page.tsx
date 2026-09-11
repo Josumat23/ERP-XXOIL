@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { formatMoneda, formatNumero, formatFecha } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -19,6 +20,11 @@ const baseFactura = (f: {
     : f.totalFuncional.toNumber();
 
 export default async function PanelPage() {
+  // El panel agrega cifras de todos los módulos: si no se acota, un ADMIN que
+  // cambia de compañía sigue viendo las ventas, la cobranza y el inventario de
+  // la anterior. Es la pantalla más visible del sistema y la que más datos
+  // financieros junta en un solo lugar.
+  const empresaId = await obtenerEmpresaActivaId();
   const hoy = new Date();
   const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
   const inicioRango = new Date(hoy.getFullYear(), hoy.getMonth() - (MESES_TENDENCIA - 1), 1);
@@ -47,41 +53,42 @@ export default async function PanelPage() {
     ordenesMantenimientoPendientes,
   ] = await Promise.all([
     prisma.factura.findMany({
-      where: { estado: { not: "ANULADA" }, fechaEmision: { gte: inicioRango } },
+      where: { empresaId, estado: { not: "ANULADA" }, fechaEmision: { gte: inicioRango } },
       include: { cliente: true, vendedor: true, detalles: true },
     }),
     prisma.factura.findMany({
-      where: { estado: "PENDIENTE" },
+      where: { empresaId, estado: "PENDIENTE" },
       include: { cliente: true },
       orderBy: { fechaVencimiento: "asc" },
     }),
-    prisma.comision.findMany({ where: { estado: "PENDIENTE" } }),
-    prisma.comision.findMany({ where: { creadoEn: { gte: inicioMes } } }),
+    prisma.comision.findMany({ where: { empresaId, estado: "PENDIENTE" } }),
+    prisma.comision.findMany({ where: { empresaId, creadoEn: { gte: inicioMes } } }),
     prisma.notaCredito.findMany({
-      where: { fecha: { gte: inicioMes }, factura: { estado: { not: "ANULADA" } } },
+      where: { empresaId, fecha: { gte: inicioMes }, factura: { estado: { not: "ANULADA" } } },
       include: { factura: true },
     }),
-    prisma.movimientoCaja.findMany({ where: { fecha: { gte: inicioMes }, referencia: null } }),
+    prisma.movimientoCaja.findMany({ where: { empresaId, fecha: { gte: inicioMes }, referencia: null } }),
     prisma.loteGranel.findMany({
-      where: { estado: { in: ["EN_PROCESO", "PENDIENTE_CALIDAD"] } },
+      where: { empresaId, estado: { in: ["EN_PROCESO", "PENDIENTE_CALIDAD"] } },
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaInicio: "asc" },
     }),
     prisma.loteGranel.findMany({
-      where: { estado: { in: ["APROBADO", "RECHAZADO"] }, fechaFin: { gte: inicioMes } },
+      where: { empresaId, estado: { in: ["APROBADO", "RECHAZADO"] }, fechaFin: { gte: inicioMes } },
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaFin: "desc" },
     }),
-    prisma.envasado.findMany({ where: { fecha: { gte: inicioMes } } }),
-    prisma.presentacion.findMany({ where: { activo: true }, include: { producto: true } }),
-    prisma.insumo.findMany({ where: { activo: true } }),
-    prisma.pedido.count({ where: { estado: "PENDIENTE" } }),
-    prisma.pedido.findMany({ where: { fecha: { gte: inicioMes } } }),
-    prisma.cuentaPorPagar.findMany({ where: { estado: "PENDIENTE" }, include: { proveedor: true } }),
-    prisma.asientoDetalle.findMany({ include: { cuenta: true } }),
-    prisma.cliente.count({ where: { activo: true } }),
+    prisma.envasado.findMany({ where: { empresaId, fecha: { gte: inicioMes } } }),
+    prisma.presentacion.findMany({ where: { empresaId, activo: true }, include: { producto: true } }),
+    prisma.insumo.findMany({ where: { empresaId, activo: true } }),
+    prisma.pedido.count({ where: { empresaId, estado: "PENDIENTE" } }),
+    prisma.pedido.findMany({ where: { empresaId, fecha: { gte: inicioMes } } }),
+    prisma.cuentaPorPagar.findMany({ where: { empresaId, estado: "PENDIENTE" }, include: { proveedor: true } }),
+    prisma.asientoDetalle.findMany({ where: { asiento: { empresaId } }, include: { cuenta: true } }),
+    prisma.cliente.count({ where: { empresaId, activo: true } }),
     prisma.envasado.findMany({
       where: {
+        empresaId,
         unidadesDisponibles: { gt: 0 },
         fechaVencimiento: { lte: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 60) },
       },
@@ -90,6 +97,7 @@ export default async function PanelPage() {
     }),
     prisma.cotizacion.findMany({
       where: {
+        empresaId,
         estado: "PENDIENTE",
         validaHasta: { lte: new Date(hoy.getFullYear(), hoy.getMonth(), hoy.getDate() + 7) },
       },
@@ -97,13 +105,13 @@ export default async function PanelPage() {
       orderBy: { validaHasta: "asc" },
     }),
     prisma.conteoInventario.findMany({
-      where: { fecha: { gte: new Date(hoy.getFullYear(), hoy.getMonth() - 2, hoy.getDate()) } },
+      where: { empresaId, fecha: { gte: new Date(hoy.getFullYear(), hoy.getMonth() - 2, hoy.getDate()) } },
       include: { detalles: { include: { presentacion: true, insumo: true } } },
       orderBy: { fecha: "desc" },
     }),
-    prisma.movimientoCasco.findMany({ include: { insumo: true } }),
+    prisma.movimientoCasco.findMany({ where: { empresaId }, include: { insumo: true } }),
     prisma.ordenMantenimiento.findMany({
-      where: { estado: { in: ["PROGRAMADA", "EN_PROCESO"] } },
+      where: { equipo: { empresaId }, estado: { in: ["PROGRAMADA", "EN_PROCESO"] } },
       include: { equipo: true },
       orderBy: { fechaProgramada: "asc" },
     }),
