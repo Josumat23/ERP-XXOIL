@@ -80,6 +80,23 @@ La pantalla de compañías anunciaba al operador que solo Clientes y Proveedores
 - `el panel general acota todas sus consultas a la compañía activa`: parte el bloque `Promise.all` por cada `prisma.` y exige el filtro en cada trozo. Verificada quitando un filtro: falla.
 - `la pantalla de compañías no anuncia un alcance que ya no es cierto`.
 
-## Limitación
+## Tercera pasada: dos compañías, ambas con datos
 
-La compañía de prueba se creó vacía. Queda sin ejercer el caso de dos compañías **ambas con datos**, que es donde se notaría una consulta que filtra por la compañía equivocada en lugar de no filtrar. Hoy ese caso lo cubren las pruebas de aislamiento por consultas de la suite, no el recorrido a ojo.
+Con una compañía vacía solo se detecta *"la consulta no filtra"*. El error más silencioso es el otro: *"la consulta filtra por la compañía equivocada"*, que con una compañía vacía se ve idéntico a funcionar bien.
+
+`prisma/seed-segunda-empresa.ts` puebla una segunda compañía con datos propios y **deliberadamente reconocibles**, para que una cifra cruzada salte a la vista:
+
+| Dato | Compañía 1 | Compañía 2 |
+| --- | --- | --- |
+| Ventas del mes | S/ 287.50 (2 facturas) | **S/ 1,234.56** (1 factura) |
+| Cuentas por cobrar | S/ 566.40 | **S/ 1,456.78** |
+| Comisiones por pagar | S/ 108.69 | S/ 0.00 |
+| Valor de inventario | S/ 35,714.21 | **S/ 8,000.00** |
+
+Se siembra automáticamente con `npm run dev:demo`; se omite con `--sin-segunda-empresa`, y es idempotente.
+
+### Resultado
+
+El panel general de cada compañía mostró **exactamente sus propias cifras**: ni las de la otra, ni ceros. Clientes listó solo *Minera del Sur S.A.* y Facturas solo *F999-00000001*, sin rastro de los 5 clientes ni las 20 facturas de la primera. Y al volver a la compañía 1, sus cifras seguían intactas — la segunda no la contaminó.
+
+Esto es lo que faltaba para dar el criterio de aceptación del ítem 0.2 por ejercido de verdad: no solo que cada compañía no vea a la otra, sino que cada una vea **lo suyo**.

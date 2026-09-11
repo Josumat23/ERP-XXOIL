@@ -55,7 +55,12 @@ if (recienCreada) {
     DATABASE_URL: databaseUrl,
     NODE_OPTIONS: [process.env.NODE_OPTIONS, `--import=${bootstrap}`].filter(Boolean).join(" "),
   };
-  for (const semilla of ["prisma/seed.ts", "prisma/seed-demo.ts"]) {
+  // La tercera semilla puebla una SEGUNDA compañía, para poder revisar el
+  // aislamiento con dos compañías que ambas tienen datos. Se omite con
+  // --sin-segunda-empresa.
+  const semillas = ["prisma/seed.ts", "prisma/seed-demo.ts"];
+  if (!process.argv.includes("--sin-segunda-empresa")) semillas.push("prisma/seed-segunda-empresa.ts");
+  for (const semilla of semillas) {
     if (!existsSync(join(raiz, semilla))) continue;
     const resultado = spawnSync(process.execPath, ["--import", "tsx", semilla], {
       cwd: raiz,
