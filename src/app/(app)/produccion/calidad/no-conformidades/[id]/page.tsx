@@ -1,13 +1,13 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import CapaFormulario from "./CapaFormulario";
 
 export default async function DetalleNoConformidadPage({ params }: { params: Promise<{ id: string }> }) {
-  const usuario = await obtenerUsuario();
+  const usuario = await obtenerUsuarioEmpresaActiva();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
   const { id } = await params;
   const [registro, usuarios] = await Promise.all([
