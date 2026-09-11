@@ -114,3 +114,67 @@
 ---
 
 Cada uno de estos campos/modelos se retoma con solución técnica concreta y secuencia de implementación en Blueprint 09 (roadmap por oleadas).
+
+---
+
+# Revisión contra el código — 2026-09-11
+
+El diccionario de arriba conserva su texto y sus prioridades originales del **2026-08-06**. Esta sección lo audita campo por campo contra el código actual: qué se construyó, qué sigue faltando y qué dejó de aplicar.
+
+## Campos que ya existen
+
+| Maestro | Campo que faltaba | Prioridad original | Dónde está hoy |
+|---|---|---|---|
+| `Empresa` | FK real desde el grafo transaccional | **P0** | Los 79 modelos con `empresaId` llevan `@relation` hacia `Empresa` con `onDelete: Restrict`, y 68 `actions.ts` filtran por compañía activa. Guardias estructurales en `tests/critical-flows.test.ts`. |
+| `Empresa` | `monedaFuncional` usada en cálculos | P1 | Llega al pedido y a la factura (`Factura.monedaFuncional`, `totalFuncional`, diferencia de cambio por cobro). |
+| `Almacen` | `tipo`/`rol` | **P0** | `Almacen.tipo TipoAlmacen` — PLANTA / ALMACEN_DISTRIBUCION / ALMACEN_TRANSITO. El seed crea el almacén de producción como `PLANTA`, con prueba que lo exige. |
+| `ZonaAlmacen` | `SaldoZona` (cantidad por zona) | **P0** | `model SaldoZona`, `@@unique([zonaAlmacenId, itemId])`. Ver `docs/particion-stock-por-zona.md`. |
+| `CentroCosto` | `parentId` (jerarquía) | **P1** | `CentroCosto.parentId` + `CentroCostoJerarquia`, sin ciclos ni cruces de compañía, con agregación por subárbol. |
+| `CentroCosto` | `companiaId` real (FK) | P1 | Cubierto por el P0 de `Empresa`. |
+| `Cliente` | Historial de cambios de `limiteCredito` | **P1** | `model AuditoriaMaestro` (antes/después serializados, campos sensibles enmascarados), aplicado en `comercial/clientes/actions.ts`. |
+| `Cliente` | Chequeo de crédito bloqueante en `crearPedido` | **P1** | `comercial/pedidos/actions.ts:213-247` — deja el pedido en `estadoAprobacionCredito: PENDIENTE`; la aprobación caduca si la deuda o el monto cambian (`esAprobacionCreditoVigente`). |
+| `Usuario` | `intentosFallidos`, `bloqueadoHasta` | **P1** | Ambos campos existen y gobiernan el bloqueo de cuenta. |
+| `Usuario` | Cookie con flag `secure` | **P1** | `src/lib/auth.ts` y `src/lib/empresas.ts` marcan `secure` cuando `NODE_ENV=production`. |
+| `Empleado` | `jefeDirectoId` / `posicionId` | **P1** | `Empleado.jefeDirectoId` (auto-relación con prevención de ciclos) + `PosicionOrganizativa` + `AsignacionPosicion` con vigencias. |
+| `Equipo` | `ubicacionTecnicaId` | P1 | `model UbicacionTecnica` jerárquica (`parentId`, `onDelete: Restrict`) por planta, y `Equipo.ubicacionTecnicaId`. |
+| `OrdenCompra` | Referencia a cotización comparada (RFQ) | **P1** | `RfqCompra` + `RfqCompraLinea` + `OfertaRfq`, con adjudicación justificada y la OC colgando del RFQ. |
+| `OrdenCompra` | Nivel de aprobación (jerarquía de liberación) | P1 | `model NivelAprobacionCompra` — por monto y por planta, aplicados en unión. |
+| `ControlCalidad` | Valores medidos por parámetro | **P1** | `ResultadoCaracteristicaCalidad` (`valorMedido`, `limiteInferior`/`limiteSuperior`, `unidadMedida`, `metodoEnsayo`, `conforme`) + `PlanInspeccionCalidad` versionado. Certificado de análisis: `docs/certificado-analisis-calidad.md`. |
+| Transversal | Change log genérico de maestros | P1 | `model AuditoriaMaestro` en **25** `actions.ts` de maestros. Ver `docs/auditoria-cambios-sensibles.md`. |
+
+## Campos que siguen faltando
+
+| Maestro | Campo | Prioridad | Estado verificado 2026-09-11 |
+|---|---|---|---|
+| `Empresa` | `direccionFiscal`, `representanteLegal`, `regimenTributario` | P2 | Ausentes (`grep`: 0 coincidencias). Los datos formales del emisor salen hoy de `ConfiguracionEmpresa`, que es global — ver el hallazgo nuevo abajo. |
+| `Almacen` | `plantaId` (separación Werk→Lgort) | P1 | Ausente. Con `Almacen.tipo` la distinción de rol ya existe; lo que falta es la jerarquía planta→almacenes subordinados. Depende de una pregunta abierta de Blueprint 10. |
+| `ZonaAlmacen` | Slotting multi-nivel (pasillo/rack/nivel) | (no priorizado) | `ZonaAlmacen` sigue plana, sin `parentId`. `SaldoZona` resolvió la cantidad, no la jerarquía. |
+| `Cliente` | `ubigeoId` (FK estructurada) | P2 | Ausente en `Cliente`. El `model Ubigeo` **sí existe**, pero solo lo usa `GuiaRemision` (`ubigeoPartidaId`/`ubigeoLlegadaId`, líneas 2344-2345) para el XML de SUNAT. Reutilizarlo en `Cliente`, `Proveedor` y `Almacen` es trabajo pendiente, no modelo nuevo. |
+| `Proveedor` | `departamento`/`provincia`/`distrito`/`ubigeoId` | P2 | Ausentes: `Proveedor` sigue teniendo solo `direccion` de texto libre. La inconsistencia con `Cliente`/`Almacen` señalada en 2026-08-06 sigue vigente. |
+| `Proveedor` | Historial/versión de condiciones comerciales | P3 | El **rastro del cambio** sí existe ahora (`AuditoriaMaestro` cubre `catalogo/proveedores`), pero no hay versionado de condiciones con vigencias. |
+| `Empleado` | `sctr` | **P1** | Ausente. **Bloqueado por confirmación profesional**: forma parte del módulo de SST y no se construye sin criterio profesional de seguridad y salud ocupacional. |
+| `Equipo` | Lista de materiales técnica planificada | P2 | Ausente. Sigue registrándose solo el consumo real (`RepuestoOrdenMantenimiento`). |
+| `Factura` | `BOLETA` en `TipoComprobanteElectronico` | **P1** condicional | Ausente: el enum sigue siendo `FACTURA / NOTA_CREDITO / GUIA_REMISION`, y `src/lib/facturacionElectronica.ts:131` lo dice explícitamente ("este sistema solo emite Factura, no Boleta"). Sigue condicionado a si hay canal minorista o venta de mostrador — **decisión de negocio, no se asume**. |
+| `NotaCredito` | `model NotaDebito` | P2 | Ausente. |
+| `AsientoContable` | Alerta activa cuando una transacción no generó asiento | P1 | **Sigue ausente, y es el pendiente más accionable de esta lista.** `postearAsiento()` (`src/lib/contabilidad.ts:142-165`) devuelve `{ ok: false, motivo }` sin lanzar, por diseño deliberado —la operación comercial no debe bloquearse—, pero prácticamente todos los llamadores **descartan el resultado**: de los puntos de llamada revisados solo `finanzas/centros-costo/actions.ts:254` muestra el motivo al usuario. Un control contable sin configurar o un período cerrado dejan la transacción sin asiento **en silencio**. |
+| `PeriodoFiscal` | Checklist de cierre de período | P2 | Ausente: no existe modelo de tareas de cierre; el período sigue siendo abierto/cerrado. |
+| Transversal | Modelo de SST (IPERC, accidentes, exámenes médicos, SCTR) | **P0** | **Bloqueado por confirmación profesional.** |
+| Transversal | Integración SIRE | **P0 (validar urgencia)** | **Bloqueado**: es una investigación normativa previa, no desarrollo. |
+| Transversal | Consentimiento/retención de datos personales (Ley 29733) | P1 | **Bloqueado por confirmación profesional/legal.** |
+
+## Campos que dejaron de aplicar
+
+| Maestro | Campo | Motivo |
+|---|---|---|
+| `OrdenCompra` | `organizacionCompraId` | El negocio confirmó el 2026-09-12 que **las compras son centralizadas**: la organización de compras no existe como unidad propia (Blueprint 10, respuestas registradas). Modelarla obligaría a elegirla —o ignorarla— en cada alta de orden, sin aportar control. |
+| `Cliente` | Segmento de crédito compartido entre compañías | Depende de que existan varias sociedades operando de verdad, lo que a su vez depende del hallazgo nuevo de abajo. Se mantiene en P2, sin trabajo hasta entonces. |
+
+## Campo nuevo que faltaba y este diccionario no registraba
+
+| Maestro | Campo faltante | Por qué se necesita | Prioridad |
+|---|---|---|---|
+| `ConfiguracionEmpresa` (`prisma/schema.prisma`, `id String @id @default("1")`) | `empresaId` como FK real, y una fila por compañía en lugar de la fila única `"1"` | Esa fila gobierna **razón social y RUC del emisor, moneda, tasa de IGV, credenciales SUNAT, umbral de aprobación de compras, alcance de aprobación jerárquica y recargo por mora**. Es el único maestro de configuración que quedó fuera del aislamiento por compañía: se lee con `where: { id: "1" }` clavado en 11 archivos. Una segunda sociedad legal real emitiría hoy sus facturas con el RUC y las credenciales SUNAT de la primera. No afecta a quien opera una sola compañía —el caso actual—, pero es el eslabón que falta para operar con dos. | **P0 para multi-sociedad; sin efecto operativo con una sola compañía** |
+
+---
+
+**Balance**: **16 campos/modelos construidos y verificados**, **2 que dejaron de aplicar** por decisión de negocio, **4 bloqueados** por confirmación profesional o legal (SST, SCTR, SIRE, Ley 29733) y **11 pendientes sin bloqueo**. De esos 11, el más accionable es la **alerta de transacción sin asiento contable**: hoy falla en silencio y ningún gate automático lo detecta. A la lista se suma el campo nuevo detectado en esta revisión (`ConfiguracionEmpresa` por compañía).

@@ -71,6 +71,18 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 - **Prueba**: script de datos de prueba con 2 empresas, 2 juegos de clientes/insumos/pedidos, verificación cruzada de que cada consulta filtrada por empresa activa no devuelve filas de la otra.
 - **Rollback**: mantener `empresaId` como campo (no se elimina, se le agrega la relación) — revertir la migración de Prisma es seguro porque no se borra la columna existente, solo se agrega la FK y el filtro de aplicación.
 - **Prioridad**: **P0, el ítem más grande y más bloqueante de todo el roadmap.**
+- **Nota de auditoría 2026-09-11:** el conteo subió a **79 de 79** al agregarse `UbicacionTecnica`, `PosicionOrganizativa` y `AsignacionPosicion` después del cierre. No es deriva: los tres nacieron con la relación porque el guardia estructural de la suite la exige. El "76 de 76" de arriba se deja tal cual, con su fecha.
+
+### 0.2b — Configuración de la sociedad por compañía
+- **Detectado 2026-09-11** al contrastar los Blueprints 03 y 05 contra el código, después de cerrar 0.2.
+- **Qué**: `ConfiguracionEmpresa` es el maestro que quedó fuera del aislamiento: `id String @id @default("1")`, sin `empresaId` ni relación hacia `Empresa`, leído con `where: { id: "1" }` clavado en **11 archivos** (`src/lib/empresa.ts`, `src/lib/facturacionElectronica.ts`, `src/lib/proyecciones.ts`, `src/lib/recargoMora.ts`, `comercial/pedidos/actions.ts`, `comercial/pedidos/nuevo/page.tsx`, `comercial/facturas/[id]/page.tsx`, `configuracion/empresa/actions.ts`, `logistica/rfq/actions.ts`, `logistica/acuerdos-suministro/actions.ts`). Esa fila gobierna razón social y RUC del emisor, moneda, tasa de IGV, credenciales SUNAT, umbral de aprobación de compras, alcance de aprobación jerárquica y recargo por mora.
+- **Por qué importa**: una segunda sociedad legal real —el escenario que 0.2 habilitó— emitiría hoy sus facturas con el RUC y las credenciales SUNAT de la primera, y calcularía su IGV con la tasa de la otra.
+- **Alcance honesto de la brecha**: **con una sola compañía operando, que es el caso actual, no hay ningún flujo roto**. Es el eslabón que falta para operar de verdad con dos, no una falla presente.
+- **Dependencias**: 0.2 (completado). Ninguna otra.
+- **Criterio de aceptación**: crear una segunda compañía con RUC y tasa de IGV propios, emitir un documento desde cada una y confirmar que cada uno sale con los datos de su compañía; confirmar además que editar la configuración de una no altera la de la otra.
+- **Prueba**: escenario sobre base efímera con dos filas de configuración, más recorrido en navegador con ambas compañías pobladas.
+- **Rollback**: migración aditiva — se agrega `empresaId` con `@default("1")` y se respalda la fila existente como la de la compañía principal; revertir deja la fila `"1"` intacta.
+- **Prioridad**: **P0 para multi-sociedad; sin efecto operativo mientras haya una sola compañía.**
 
 ### 0.3 — Planta como unidad organizativa real
 - **Avance 2026-09-11:** `Almacen.tipo` (`PLANTA` / `ALMACEN_DISTRIBUCION` / `ALMACEN_TRANSITO`) existe y se administra desde Configuración → Almacenes. La migración trasladó la convención vigente —un almacén hacía de planta si tenía `CalendarioProduccion`— al campo explícito, así que ningún dato cambia de comportamiento al aplicarla. La capacidad de Proyecciones ya suma **solo plantas**. Véase `docs/planta-unidad-organizativa.md`.
