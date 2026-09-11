@@ -115,3 +115,66 @@
 | RR.HH. — área de personal | **Parcial**, vía reutilización de `Almacen`/`CentroCosto` |
 
 **El hallazgo más material de este documento**: la ausencia de una relación `@relation` real desde el grafo transaccional (`Pedido`, `Factura`, `OrdenCompra`, `MovimientoKardex`, `AsientoContable`, `Insumo`, etc.) hacia `model Empresa` (`prisma/schema.prisma:2874-2888`) significa que, tal como está hoy, **el sistema no puede operar de forma segura con más de una sociedad legal real** — cualquier intento de "varias compañías" mezclaría datos financieros y de inventario sin aislamiento verdadero, exactamente como el propio comentario del esquema lo admite. Este es el prerrequisito de la primera oleada del roadmap (Blueprint 09).
+
+---
+
+# Revisión contra el código — 2026-09-11
+
+La auditoría de arriba conserva su texto original del **2026-08-06** y no se reescribe: sus citas de línea son verbatim de aquel momento y sirven de fotografía histórica. Esta sección dice qué cambió desde entonces y qué sigue igual.
+
+Método: relectura completa de `prisma/schema.prisma` y de `src/lib/` + `src/app/(app)/**/actions.ts`.
+
+## Cambios de veredicto
+
+| Sección | Veredicto 2026-08-06 | Veredicto 2026-09-11 | Evidencia |
+|---|---|---|---|
+| §1 — FK real hacia `Empresa` | **Ausente** ("cero relaciones `@relation` hacia `Empresa`") | **Verificado completo** | Los **79** modelos que llevan `empresaId` tienen hoy `empresa Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)` — 79 campos `empresaId`, 79 relaciones. Una prueba estructural en `tests/critical-flows.test.ts` falla si se agrega un modelo con `empresaId` suelto. |
+| §1 — Filtro real por sociedad activa | **Parcial** ("solo 2 de ~60 entidades") | **Verificado completo** | Los **68** `actions.ts` resuelven la compañía con `obtenerEmpresaActivaId()` / `obtenerUsuarioEmpresaActiva()` y verifican pertenencia antes de tocar un recurso. El tablero (`src/app/(app)/page.tsx`) filtra sus 21 consultas. |
+| §1 — Moneda funcional por sociedad | **Parcial / solo UI** | **Verificado completo** en el flujo comercial | `Empresa.monedaFuncional` gobierna de verdad: `comercial/pedidos/actions.ts:208,419` la lleva al pedido y de ahí a `Factura.monedaFuncional` / `totalFuncional`, y la pantalla de factura muestra importes funcionales y diferencia de cambio. |
+| §1 — Banner de la pantalla de compañías | Declaraba al usuario que solo Clientes y Proveedores estaban aislados | **Corregido** | `configuracion/empresas/page.tsx` ya no afirma un aislamiento parcial; ahora advierte lo que sí es cierto: una compañía nueva empieza vacía y hay que darla de alta como una instalación nueva. |
+| §2 — Planta como unidad propia | **Ausente** | **Resuelto en su parte operativa** | `Almacen.tipo TipoAlmacen` (PLANTA / ALMACEN_DISTRIBUCION / ALMACEN_TRANSITO) reemplaza la convención de "tener calendario de producción". Falta la separación Werk→Lgort (una planta con varios almacenes subordinados), pendiente de la pregunta abierta correspondiente. |
+| §2 — MRP a nivel planta | **Parcial, pendiente de confirmar** | **Verificado completo** | `src/lib/proyecciones.ts` — `calcularOperaciones(detalles, anio, trimestre, empresaId, almacenId?)` netea contra el `SaldoAlmacen` de esa planta, solo sus órdenes en firme y su capacidad; el pronóstico se excluye a propósito al correr por planta (`docs/mrp-por-planta.md`). |
+| §3 — Cantidad por zona | **Ausente** ("un ítem apunta a una sola zona") | **Verificado completo** | `model SaldoZona` con `@@unique([zonaAlmacenId, itemId])`. La copia no nuleable `itemId` existe porque en SQLite dos NULL se consideran distintos y una clave con columnas nuleables no impediría duplicados. |
+| §4 — Organización de compras | **Ausente** | **No aplicable, confirmado por el negocio** | El 2026-09-12 el negocio confirmó que **las compras son centralizadas** y esa unidad no existe (Blueprint 10, respuestas registradas). No se modela `OrganizacionCompras`. |
+| §4 — Esquema de liberación multi-nivel | **Ausente** (un solo umbral global) | **Verificado completo** | `model NivelAprobacionCompra` — niveles por monto y por planta, aplicados **en unión**: los generales más los de la planta, nunca menos, para que configurar una planta no pueda aflojar el control. |
+| §4 — Comparación formal de proveedores | Ausente (Blueprint 05) | **Verificado completo** | `model RfqCompra` + `RfqCompraLinea` + `OfertaRfq`, con adjudicación justificada (`justificacionAdjudicacion`, `adjudicadaPorId`) y la orden de compra colgando del RFQ. |
+| §6 — Jerarquía de centros de costo | El cuadro la daba por completa, pero el **resumen ejecutivo decía "ausente"** | **Verificado completo** (el resumen estaba desactualizado) | `CentroCosto.parentId` + auto-relación `CentroCostoJerarquia`, con prevención de ciclos y agregación presupuesto-real por subárbol. |
+| §7 — Historial de cambios de `limiteCredito` | **Ausente** | **Verificado completo** | `model AuditoriaMaestro` guarda antes/después serializados desde **25** `actions.ts` de maestros, `comercial/clientes` entre ellos; los campos sensibles se enmascaran como `[PROTEGIDO]`. |
+| §7 — Chequeo de crédito solo al facturar | **Parcial** | **Verificado completo** ya en el pedido | `comercial/pedidos/actions.ts:213-247` evalúa el crédito al crear el pedido y lo deja en `estadoAprobacionCredito: PENDIENTE`, con excepción resoluble desde `/aprobaciones`. `esAprobacionCreditoVigente()` invalida la aprobación si la deuda o el monto cambiaron después. |
+| §8 — Organigrama y posiciones | **Parcial** ("falta catálogo/versionado de posiciones") | **Verificado completo** | `PosicionOrganizativa` (con `reportaAId` jerárquico) + `AsignacionPosicion` (vigencias por empleado) + `Empleado.jefeDirectoId`. La jerarquía además condiciona quién aprueba: `src/lib/aprobacionesJerarquia.ts`. |
+| §8 — Multi-sociedad en RR.HH. | **Parcial / heredado** | **Verificado completo** | `Empleado.empresaId` es FK real y las pantallas de RR.HH. filtran por compañía activa como el resto. |
+
+## Lo que sigue igual
+
+- **§3 — Slotting multi-nivel** (pasillo/rack/nivel): sigue ausente. `ZonaAlmacen` es plana, sin `parentId`. `SaldoZona` resolvió la *cantidad* por zona, no la *jerarquía* de ubicaciones. Los procesos de almacén tipo WM/EWM (tareas de picking, oleadas, unidades de manejo) siguen fuera de alcance.
+- **§4 — Grupo de compradores**: sigue sin existir. Con compras centralizadas el rol lo cumplen `Usuario.rol` y los niveles de aprobación.
+- **§5 — Organización de ventas**: sin cambios. Canal (`CanalCliente` + `DescuentoCanal`) y zona (`Zona`, `Vendedor.zonaId`) siguen cubriendo el rol comercial; no hay jerarquía de organización de ventas con libro propio, y no se ha pedido.
+- **§6 — Área de controlling** que agrupe varias sociedades: sigue sin existir. Ahora que el aislamiento por compañía es real, esta sería la pieza para consolidar CO entre sociedades — no antes.
+- **§7 — Workflow de aprobación del *cambio de límite* de crédito**: sigue ausente como flujo propio. Lo que hay es la **auditoría** del cambio (queda el rastro) y la **aprobación del pedido** que excede el límite. Cambiar el límite en sí sigue siendo una edición directa con permiso.
+- **§7 — Escalamiento de cobranza**: `AvisoCobranza` sigue siendo un log de avisos emitidos, sin máquina de estados.
+- **§1 — `Empresa` como entidad legal completa**: siguen ausentes `direccionFiscal`, `representanteLegal` y `regimenTributario` (P2 en Blueprint 05).
+
+## Hallazgo nuevo de esta revisión
+
+**`ConfiguracionEmpresa` sigue siendo una fila única global, ajena al aislamiento por compañía.**
+
+`model ConfiguracionEmpresa` tiene `id String @id @default("1")` y **no lleva `empresaId` ni relación hacia `Empresa`** — es el maestro que quedó fuera del trabajo de aislamiento. Se lee con `where: { id: "1" }` clavado en **11 archivos**: `src/lib/empresa.ts:7`, `src/lib/facturacionElectronica.ts:362`, `src/lib/proyecciones.ts:426`, `src/lib/recargoMora.ts:37`, `comercial/pedidos/actions.ts:122`, `comercial/pedidos/nuevo/page.tsx:28`, `comercial/facturas/[id]/page.tsx:98`, `configuracion/empresa/actions.ts:103,178`, `logistica/rfq/actions.ts:98` y `logistica/acuerdos-suministro/actions.ts:14`.
+
+Por qué importa: esa fila gobierna **razón social y RUC de los documentos, moneda, tasa de IGV, credenciales SUNAT, umbral de aprobación de compras, alcance de aprobación jerárquica y recargo por mora**. Una segunda sociedad legal real —el escenario que el ítem 0.2 del roadmap habilitó— emitiría hoy sus facturas con el RUC de la primera y bajo sus credenciales SUNAT.
+
+Alcance de la brecha, dicho con honestidad: **no afecta a quien opera una sola compañía**, que es el caso actual, y por eso ningún flujo está roto hoy. Pero es el eslabón que falta para operar de verdad con dos sociedades. Queda registrado en Blueprint 05 y en el roadmap.
+
+## Resumen ejecutivo actualizado
+
+| Unidad organizativa SAP | Estado 2026-08-06 | Estado 2026-09-11 |
+|---|---|---|
+| Sociedad (Company Code) | Parcial — aislamiento real en 2 de ~60 entidades | **Verificado completo** en el grafo transaccional (79/79 con FK, 68/68 pantallas filtrando). Pendiente: `ConfiguracionEmpresa` global y los campos de entidad legal completa |
+| Planta (Plant) | Ausente como unidad propia | **Verificado completo** en su rol operativo (`Almacen.tipo`, capacidad y MRP por planta). Pendiente: separación Werk→Lgort |
+| Almacén / Ubicación | Verificado completo, sin cantidad por zona | **Verificado completo**, con cantidad por zona (`SaldoZona`). Pendiente: slotting multi-nivel |
+| Organización de compras | Ausente | **No aplicable justificado** (compras centralizadas, 2026-09-12). Liberación multi-nivel por monto y planta: completa |
+| Organización de ventas | Ausente como jerarquía | Sin cambios — canal y zona cubren el rol; la jerarquía no se ha pedido |
+| Controlling / centro de costo | Verificado completo (plano); jerarquía ausente | **Verificado completo, incluida la jerarquía** (el resumen anterior contradecía a su propio cuadro) |
+| Segmento de crédito | Parcial | **Parcial, con menos brecha**: límite, bloqueo, auditoría del cambio y aprobación del pedido que lo excede. Pendiente: workflow del cambio de límite y máquina de estados de cobranza |
+| RR.HH. — área de personal | Parcial | **Verificado completo** para posiciones, organigrama y multi-sociedad. Pendiente: SCTR y el resto de SST, bloqueados por confirmación profesional |
+
+**El hallazgo más material del documento original —la ausencia de FK hacia `Empresa`— está cerrado.** El que lo reemplaza es más acotado: la configuración de la sociedad sigue siendo una sola para todas.
