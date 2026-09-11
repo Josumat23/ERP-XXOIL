@@ -4157,13 +4157,20 @@ model Contacto {
 // ---------------------------------------------------------------------------
 // Multi-empresa (fundación): permite registrar más de una compañía real (ej.
 // una subsidiaria en otro país), con una "compañía activa" por sesión (ver
-// src/lib/empresas.ts). FASE 1 — alcance honesto: Cliente y Proveedor ya
-// filtran de verdad por empresaId. El resto de módulos (Insumo, Pedido,
-// Factura, Orden de Compra, Asientos, ConfiguracionEmpresa/tasas fiscales...)
-// TODAVÍA opera solo contra la compañía "1" por defecto — extender el filtro
-// real a todo el grafo transaccional es una fase 2 separada y más grande, no
-// hecha ahora para no arriesgar mezclar datos financieros de compañías
-// distintas sin poder probarlo.
+// src/lib/empresas.ts).
+//
+// Estado al 2026-09-11 (ítem 0.2 del roadmap): los 76 modelos que llevan
+// empresaId tienen ya relación física hacia Empresa, agregadas en diez
+// migraciones aditivas documentadas en docs/integridad-fk-empresa-*.md. La
+// base rechaza por FK cualquier fila que apunte a una compañía inexistente y
+// ninguna compañía con datos puede borrarse (onDelete: Restrict). La suite
+// audita el esquema para que un modelo nuevo con empresaId no pueda quedarse
+// sin la relación.
+//
+// Lo que falta del ítem 0.2 es el filtro de aplicación: cinco módulos de
+// Configuración (almacenes, unidades de medida, grupos de seguridad,
+// usuarios y series de documento) todavía resuelven sus Server Actions sin
+// acotar a la compañía activa y escriben con el empresaId por defecto.
 // ---------------------------------------------------------------------------
 model Empresa {
   id              String   @id @default(cuid())

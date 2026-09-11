@@ -2618,3 +2618,22 @@ test("indicadores de asistencia separan aprobados de borradores", () => {
   const resumen = resumirAsistencia([{ empleadoId: "e1", estado: "APROBADO", ausenciaJustificada: false, minutosTardanza: 15, minutosSobretiempo: 30 }, { empleadoId: "e1", estado: "APROBADO", ausenciaJustificada: true, minutosTardanza: 0, minutosSobretiempo: 0 }, { empleadoId: "e1", estado: "BORRADOR", ausenciaJustificada: false, minutosTardanza: 10, minutosSobretiempo: 20 }]);
   assert.deepEqual(resumen.get("e1"), { diasAsistidos: 1, ausenciasJustificadas: 1, minutosTardanza: 15, minutosSobretiempo: 30, pendientes: 1 });
 });
+
+test("todo modelo con empresaId declara la relación física hacia Empresa", async () => {
+  // Auditoría de cierre del ítem 0.2: la FK de compañía no puede depender de
+  // que alguien recuerde agregarla al crear un modelo nuevo.
+  const esquema = await readFile(resolve(process.cwd(), "prisma/schema.prisma"), "utf8");
+  const modelos = [...esquema.matchAll(/^model\s+(\w+)\s*\{([\s\S]*?)^\}/gm)];
+  const conEmpresaId = modelos.filter(([, , cuerpo]) => /^\s*empresaId\s/m.test(cuerpo));
+  const sinRelacion = conEmpresaId
+    .filter(
+      ([, , cuerpo]) => !/^\s*empresa\s+Empresa\s+@relation\(fields: \[empresaId\]/m.test(cuerpo)
+    )
+    .map(([, nombre]) => nombre);
+
+  assert.deepEqual(sinRelacion, []);
+  assert.ok(
+    conEmpresaId.length >= 76,
+    `Se esperaban al menos 76 modelos con empresaId y se hallaron ${conEmpresaId.length}`
+  );
+});
