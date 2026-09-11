@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 
 export default async function CertificadoAnalisisPage({ params }: { params: Promise<{ loteId: string }> }) {
-  const usuario = await obtenerUsuario();
+  const usuario = await obtenerUsuarioEmpresaActiva();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
   const { loteId } = await params;
   const lote = await prisma.loteGranel.findFirst({
@@ -33,7 +33,7 @@ export default async function CertificadoAnalisisPage({ params }: { params: Prom
         <Dato etiqueta="Decisión de uso" valor="APROBADO PARA USO / ENVASADO" />
       </div>
       <table className="tabla mt-7"><thead><tr><th>#</th><th>Característica</th><th>Método</th><th>Especificación</th><th>Resultado</th><th>Conformidad</th></tr></thead><tbody>
-        {control.resultadosCaracteristica.map(r => <tr key={r.id}><td>{r.secuencia}</td><td>{r.nombre}</td><td>{r.metodoEnsayo ?? "—"}</td><td>{r.limiteInferior?.toString() ?? "−∞"} a {r.limiteSuperior?.toString() ?? "+∞"} {r.unidadMedida}</td><td className="font-medium">{r.valorMedido.toString()} {r.unidadMedida}</td><td className="text-green-700 font-medium">Conforme</td></tr>)}
+        {control.resultadosCaracteristica.map(r => <tr key={r.id}><td>{r.secuencia}</td><td>{r.nombre}</td><td>{r.metodoEnsayo ?? "—"}</td><td>{r.limiteInferior?.toString() ?? "−∞"} a {r.limiteSuperior?.toString() ?? "+∞"} {r.unidadMedida}</td><td className="font-medium">{r.valorMedido.toString()} {r.unidadMedida}</td><td className={r.conforme ? "text-green-700 font-medium" : "text-red-700 font-medium"}>{r.conforme ? "Conforme" : "No conforme"}</td></tr>)}
       </tbody></table>
       {control.observaciones && <div className="mt-5 text-sm"><strong>Observaciones:</strong> {control.observaciones}</div>}
       <div className="mt-12 grid grid-cols-2 gap-12 text-sm"><div className="border-t border-neutral-500 pt-2"><strong>{control.usuarioNombre}</strong><span className="block text-neutral-500">Responsable de liberación de calidad</span></div><div className="border-t border-neutral-500 pt-2"><strong>Fecha de liberación</strong><span className="block text-neutral-500">{new Intl.DateTimeFormat("es-PE", { dateStyle: "long", timeStyle: "short" }).format(control.fecha)}</span></div></div>

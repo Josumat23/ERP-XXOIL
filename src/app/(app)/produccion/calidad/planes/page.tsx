@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { prisma } from "@/lib/prisma";
 import PlanFormulario from "./PlanFormulario";
 
 export default async function PlanesCalidadPage() {
-  const usuario = await obtenerUsuario();
+  const usuario = await obtenerUsuarioEmpresaActiva();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
   const [productos, planes] = await Promise.all([
     prisma.producto.findMany({ where: { empresaId: usuario.empresaId, activo: true }, select: { id: true, codigo: true, nombre: true }, orderBy: { nombre: "asc" } }),

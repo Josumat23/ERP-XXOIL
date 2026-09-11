@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { isAbsolute, relative, resolve, sep } from "node:path";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
-import { readFile } from "node:fs/promises";
+import { readFile, readdir } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { calcularCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import {
@@ -2941,4 +2941,43 @@ test("la migración del rol organizativo respeta la convención anterior", async
     migracion,
     /CASE WHEN EXISTS \(SELECT 1 FROM "calendarios_produccion"[\s\S]*?THEN 'PLANTA' ELSE 'ALMACEN_DISTRIBUCION' END/
   );
+});
+
+test("ninguna pantalla filtra por la compañía de origen del usuario", async () => {
+  // Una pantalla que hace `where: { empresaId: usuario.empresaId }` sobre el
+  // usuario devuelto por obtenerUsuario() consulta su compañía de ORIGEN, no
+  // la activa: un ADMIN que cambia de compañía sigue viendo la suya. El
+  // helper correcto es obtenerUsuarioEmpresaActiva() / obtenerEmpresaActivaId().
+  const raiz = resolve(process.cwd(), "src/app");
+  const pendientes = [raiz];
+  const archivos: string[] = [];
+  while (pendientes.length > 0) {
+    const directorio = pendientes.pop() as string;
+    for (const entrada of await readdir(directorio, { withFileTypes: true })) {
+      const ruta = join(directorio, entrada.name);
+      if (entrada.isDirectory()) pendientes.push(ruta);
+      else if (entrada.name === "page.tsx" || entrada.name === "route.ts") archivos.push(ruta);
+    }
+  }
+  assert.ok(archivos.length > 100, `Se esperaban muchas pantallas y se hallaron ${archivos.length}`);
+
+  const infractoras: string[] = [];
+  for (const ruta of archivos) {
+    const contenido = await readFile(ruta, "utf8");
+    if (!/\b(usuario|actual)\.empresaId\b/.test(contenido)) continue;
+    if (/obtenerEmpresaActivaId|obtenerUsuarioEmpresaActiva/.test(contenido)) continue;
+    infractoras.push(relative(process.cwd(), ruta).replaceAll("\\", "/"));
+  }
+  assert.deepEqual(infractoras, []);
+});
+
+test("el certificado de análisis reporta la conformidad registrada, no la supuesta", async () => {
+  // El control queda APROBADO solo si todas las características medidas son
+  // conformes, pero el certificado no debe deducirlo: lee la columna.
+  const certificado = await readFile(
+    resolve(process.cwd(), "src/app/(app)/produccion/calidad/certificados/[loteId]/page.tsx"),
+    "utf8"
+  );
+  assert.match(certificado, /r\.conforme \? "Conforme" : "No conforme"/);
+  assert.doesNotMatch(certificado, /className="text-green-700 font-medium">Conforme</);
 });
