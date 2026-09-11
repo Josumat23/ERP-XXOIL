@@ -193,22 +193,60 @@ export function calcularUnidadesAProducir(detalle: {
  * La capacidad disponible sale del calendario de producción de los almacenes
  * (Configuración → Almacenes) para el rango de fechas del trimestre proyectado.
  */
+/**
+ * MRP. Con `almacenId` se planifica para UNA planta: el neteo usa el stock de
+ * esa planta y solo su demanda firme.
+ *
+ * El pronóstico queda fuera cuando se planifica por planta, a propósito:
+ * `Proyeccion` no tiene dimensión de planta, así que repartirlo entre plantas
+ * exigiría un criterio de asignación que es una decisión del negocio. Suponerlo
+ * daría un número plausible y equivocado, que es peor que no darlo.
+ *
+ * Sin `almacenId` el comportamiento es el de siempre: compañía completa.
+ */
 export async function calcularOperaciones(
   detalles: DetalleCalculado[],
   anio: number,
   trimestre: number,
   empresaId: string,
+  almacenId?: string | null,
 ): Promise<ResultadoOperaciones> {
   const { inicio, fin } = rangoTrimestre(anio, trimestre);
-  const { total: horasHombreDisponibles, porAlmacen: capacidadPorAlmacen } = await horasDisponiblesEnRango(
+  const { total: horasTodas, porAlmacen: capacidadTodas } = await horasDisponiblesEnRango(
     inicio,
     fin,
     empresaId,
   );
+  const capacidadPorAlmacen = almacenId
+    ? capacidadTodas.filter((a) => a.almacenId === almacenId)
+    : capacidadTodas;
+  const horasHombreDisponibles = almacenId
+    ? capacidadPorAlmacen.reduce((acc, a) => acc + a.horasDisponibles, 0)
+    : horasTodas;
+
+  // Stock de la planta: SaldoAlmacen en vez del agregado de la compañía.
+  // Un ítem sin saldo en esa planta cuenta como cero, no como el stock total.
+  const saldosPlanta = almacenId
+    ? await prisma.saldoAlmacen.findMany({ where: { almacenId } })
+    : [];
+  const stockPlantaPresentacion = new Map<string, number>();
+  const stockPlantaInsumo = new Map<string, number>();
+  for (const saldo of saldosPlanta) {
+    if (saldo.presentacionId) {
+      stockPlantaPresentacion.set(saldo.presentacionId, saldo.cantidad.toNumber());
+    } else if (saldo.insumoId) {
+      stockPlantaInsumo.set(saldo.insumoId, saldo.cantidad.toNumber());
+    }
+  }
+  const stockDePresentacion = (presentacionId: string, agregado: number) =>
+    almacenId ? (stockPlantaPresentacion.get(presentacionId) ?? 0) : agregado;
+  const stockDeInsumo = (insumoId: string, agregado: number) =>
+    almacenId ? (stockPlantaInsumo.get(insumoId) ?? 0) : agregado;
   const backlog = await prisma.pedidoDetalle.findMany({
     where: {
       pedido: {
         empresaId,
+        ...(almacenId ? { almacenId } : {}),
         estado: { in: ["PENDIENTE", "PARCIAL"] },
         OR: [{ fechaEntregaSolicitada: null }, { fechaEntregaSolicitada: { lt: fin } }],
       },
@@ -255,12 +293,13 @@ export async function calcularOperaciones(
   const detallesPlanificacion = [...detallePorPresentacion.values()];
   const demandaNeteada = detallesPlanificacion.map((detalle) => {
     const pedidosFirmes = pedidosFirmesPorPresentacion.get(detalle.presentacionId) ?? 0;
+    const pronostico = almacenId ? 0 : detalle.demandaProyectada;
     return {
       presentacionId: detalle.presentacionId,
       nombre: detalle.nombre,
-      pronostico: detalle.demandaProyectada,
+      pronostico,
       pedidosFirmes,
-      demandaPlanificada: calcularDemandaPlanificada(detalle.demandaProyectada, pedidosFirmes),
+      demandaPlanificada: calcularDemandaPlanificada(pronostico, pedidosFirmes),
     };
   });
   const demandaPorPresentacion = new Map(demandaNeteada.map((demanda) => [demanda.presentacionId, demanda]));
@@ -304,7 +343,7 @@ export async function calcularOperaciones(
     if (demandaPlanificada <= 0) continue;
     const unidadesAProducir = calcularUnidadesAProducir({
       demandaPlanificada,
-      stock: d.stock,
+      stock: stockDePresentacion(d.presentacionId, d.stock),
       stockMinimo: d.stockMinimo,
     });
     if (unidadesAProducir <= 0) continue;
@@ -327,13 +366,14 @@ export async function calcularOperaciones(
   }
 
   const insumos: NecesidadInsumo[] = [...consumoPorInsumo.values()].map(({ insumo, cantidad }) => {
-    const necesidadNeta = calcularCompraNeta(cantidad, insumo.stockMinimo.toNumber(), insumo.stock.toNumber(), reservaPorInsumo.get(insumo.id) ?? 0);
+    const stockInsumo = stockDeInsumo(insumo.id, insumo.stock.toNumber());
+    const necesidadNeta = calcularCompraNeta(cantidad, insumo.stockMinimo.toNumber(), stockInsumo, reservaPorInsumo.get(insumo.id) ?? 0);
     return {
       insumoId: insumo.id,
       nombre: insumo.nombre,
       unidadMedida: insumo.unidadMedida,
       costoUnitario: insumo.costoUnitario.toNumber(),
-      stock: insumo.stock.toNumber(),
+      stock: stockInsumo,
       stockMinimo: insumo.stockMinimo.toNumber(),
       stockReservadoProduccion: reservaPorInsumo.get(insumo.id) ?? 0,
       consumoProyectado: cantidad,
