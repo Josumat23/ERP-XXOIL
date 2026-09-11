@@ -2637,3 +2637,73 @@ test("todo modelo con empresaId declara la relación física hacia Empresa", asy
     `Se esperaban al menos 76 modelos con empresaId y se hallaron ${conEmpresaId.length}`
   );
 });
+
+test("series y unidades de medida quedan acotadas a la compañía activa", async () => {
+  const sufijo = Date.now().toString(36);
+  const empresas = [`empresa-config-a-${sufijo}`, `empresa-config-b-${sufijo}`];
+  const [empresaA, empresaB] = empresas;
+  await prisma.empresa.createMany({ data: empresas.map((id) => ({ id, razonSocial: id })) });
+
+  try {
+    const serie = await prisma.serieDocumento.create({
+      data: { empresaId: empresaA, tipoDocumento: "FACTURA", serie: "F001" },
+    });
+    const clase = await prisma.claseUnidadMedida.create({
+      data: { empresaId: empresaA, codigo: `PESO-${sufijo}`, nombre: "Peso" },
+    });
+    const unidad = await prisma.unidadMedida.create({
+      data: { claseId: clase.id, codigo: `kg-${sufijo}`, nombre: "Kilogramo" },
+    });
+
+    // La comprobación que hace alternarActivoSerie antes de escribir.
+    assert.equal(perteneceAEmpresaActiva(serie, empresaA), true);
+    assert.equal(perteneceAEmpresaActiva(serie, empresaB), false);
+
+    // La misma serie puede existir en ambas compañías: el único índice es
+    // (empresaId, tipoDocumento, serie).
+    await prisma.serieDocumento.create({
+      data: { empresaId: empresaB, tipoDocumento: "FACTURA", serie: "F001" },
+    });
+    assert.equal(await prisma.serieDocumento.count({ where: { empresaId: empresaA } }), 1);
+    assert.equal(await prisma.serieDocumento.count({ where: { empresaId: empresaB } }), 1);
+
+    // La consulta que hace alternarActivoUnidad: la unidad cuelga de la clase,
+    // así que la compañía se resuelve a través de ella.
+    assert.notEqual(
+      await prisma.unidadMedida.findFirst({ where: { id: unidad.id, clase: { empresaId: empresaA } } }),
+      null
+    );
+    assert.equal(
+      await prisma.unidadMedida.findFirst({ where: { id: unidad.id, clase: { empresaId: empresaB } } }),
+      null
+    );
+    assert.equal(
+      await prisma.claseUnidadMedida.findFirst({ where: { id: clase.id, empresaId: empresaB } }),
+      null
+    );
+  } finally {
+    await prisma.unidadMedida.deleteMany({ where: { clase: { empresaId: { in: empresas } } } });
+    await prisma.claseUnidadMedida.deleteMany({ where: { empresaId: { in: empresas } } });
+    await prisma.serieDocumento.deleteMany({ where: { empresaId: { in: empresas } } });
+    await prisma.empresa.deleteMany({ where: { id: { in: empresas } } });
+  }
+});
+
+test("Configuración resuelve series y unidades por la compañía activa, no por el id del navegador", async () => {
+  const series = await readFile(
+    resolve(process.cwd(), "src/app/(app)/configuracion/series/actions.ts"),
+    "utf8"
+  );
+  const unidades = await readFile(
+    resolve(process.cwd(), "src/app/(app)/configuracion/unidades-medida/actions.ts"),
+    "utf8"
+  );
+
+  for (const acciones of [series, unidades]) {
+    assert.match(acciones, /requerirRolEmpresaActiva as requerirRol/);
+    assert.doesNotMatch(acciones, /from "@\/lib\/auth"/);
+    assert.match(acciones, /obtenerEmpresaActivaId/);
+  }
+  assert.match(series, /empresaId: auth\.usuario\.empresaId/);
+  assert.match(unidades, /empresaId: auth\.usuario\.empresaId/);
+});
