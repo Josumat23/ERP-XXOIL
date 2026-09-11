@@ -3045,3 +3045,32 @@ test("la auditoría de configuración no filtra las credenciales SUNAT", () => {
   assert.match(serializado ?? "", /"tasaIgv":18/);
   assert.match(serializado ?? "", /"sunatUsuarioSol":"USUARIO01"/);
 });
+
+test("el envío de comprobantes a SUNAT exige rol y permiso", async () => {
+  // Era el ítem 0.1 del roadmap, marcado crítico: estas dos acciones quedaron
+  // sin guarda de acceso en su momento. Nada impedía que volviera a pasar.
+  const acciones = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/facturas/actions.ts"),
+    "utf8"
+  );
+  for (const nombre of ["enviarComprobanteFactura", "enviarComprobanteNotaCredito"]) {
+    const cuerpo = acciones.slice(acciones.indexOf(`export async function ${nombre}`));
+    const primeras = cuerpo.slice(0, 600);
+    assert.match(primeras, /requerirRol\(\["VENTAS"\]\)/, `${nombre} sin requerirRol`);
+    assert.match(primeras, /puedeRealizar\(/, `${nombre} sin puedeRealizar`);
+  }
+});
+
+test("la adjudicación de un RFQ exige comparar proveedores y separar funciones", async () => {
+  const acciones = await readFile(
+    resolve(process.cwd(), "src/app/(app)/logistica/rfq/actions.ts"),
+    "utf8"
+  );
+  const adjudicar = acciones.slice(acciones.indexOf("export async function adjudicarOferta"));
+  // Una adjudicación sin comparación no es una comparación de proveedores.
+  assert.match(adjudicar, /ofertas\.length < 2/);
+  // Quien pidió el RFQ no lo adjudica: la misma segregación del resto.
+  assert.match(adjudicar, /rfq\.usuarioId === auth\.usuario\.id/);
+  // Y la decisión queda justificada por escrito.
+  assert.match(adjudicar, /justificacion\.length < 12/);
+});
