@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { AlmacenFormulario, ZonaFormulario } from "./AlmacenFormularios";
 import { CalendarioProduccionFormulario } from "./CalendarioProduccionFormulario";
@@ -12,7 +13,9 @@ export default async function AlmacenesPage() {
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "ALMACEN")) redirect("/");
   if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
+  const empresaId = await obtenerEmpresaActivaId();
   const almacenes = await prisma.almacen.findMany({
+    where: { empresaId },
     include: {
       zonas: { include: { _count: { select: { presentaciones: true, insumos: true } } } },
       calendarioProduccion: { include: { diasNoLaborables: { orderBy: { fecha: "asc" } } } },

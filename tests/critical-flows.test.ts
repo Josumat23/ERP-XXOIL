@@ -2689,7 +2689,7 @@ test("series y unidades de medida quedan acotadas a la compañía activa", async
   }
 });
 
-test("Configuración resuelve series y unidades por la compañía activa, no por el id del navegador", async () => {
+test("Configuración resuelve series, unidades y almacenes por la compañía activa, no por el id del navegador", async () => {
   const series = await readFile(
     resolve(process.cwd(), "src/app/(app)/configuracion/series/actions.ts"),
     "utf8"
@@ -2698,12 +2698,87 @@ test("Configuración resuelve series y unidades por la compañía activa, no por
     resolve(process.cwd(), "src/app/(app)/configuracion/unidades-medida/actions.ts"),
     "utf8"
   );
+  const almacenes = await readFile(
+    resolve(process.cwd(), "src/app/(app)/configuracion/almacenes/actions.ts"),
+    "utf8"
+  );
 
-  for (const acciones of [series, unidades]) {
+  for (const acciones of [series, unidades, almacenes]) {
     assert.match(acciones, /requerirRolEmpresaActiva as requerirRol/);
     assert.doesNotMatch(acciones, /from "@\/lib\/auth"/);
     assert.match(acciones, /obtenerEmpresaActivaId/);
   }
-  assert.match(series, /empresaId: auth\.usuario\.empresaId/);
-  assert.match(unidades, /empresaId: auth\.usuario\.empresaId/);
+  for (const acciones of [series, unidades, almacenes]) {
+    assert.match(acciones, /empresaId: auth\.usuario\.empresaId/);
+  }
+});
+
+test("almacenes, zonas y calendario quedan acotados a la compañía activa", async () => {
+  const sufijo = Date.now().toString(36);
+  const empresas = [`empresa-almacen-a-${sufijo}`, `empresa-almacen-b-${sufijo}`];
+  const [empresaA, empresaB] = empresas;
+  await prisma.empresa.createMany({ data: empresas.map((id) => ({ id, razonSocial: id })) });
+
+  try {
+    // El único índice es (empresaId, codigo): el mismo código convive en ambas.
+    const almacenA = await prisma.almacen.create({
+      data: { empresaId: empresaA, codigo: "ALM01", nombre: "Almacén A" },
+    });
+    const almacenB = await prisma.almacen.create({
+      data: { empresaId: empresaB, codigo: "ALM01", nombre: "Almacén B" },
+    });
+    const zonaA = await prisma.zonaAlmacen.create({
+      data: { almacenId: almacenA.id, codigo: "Z01" },
+    });
+    const calendarioA = await prisma.calendarioProduccion.create({
+      data: { almacenId: almacenA.id },
+    });
+    const diaA = await prisma.diaNoLaborable.create({
+      data: { calendarioId: calendarioA.id, fecha: new Date(2026, 0, 1), motivo: "Año nuevo" },
+    });
+
+    // La comprobación que hace alternarActivoAlmacen.
+    assert.equal(perteneceAEmpresaActiva(almacenA, empresaA), true);
+    assert.equal(perteneceAEmpresaActiva(almacenA, empresaB), false);
+
+    // La que hace almacenDeEmpresaActiva antes de tocar zonas y calendario.
+    assert.notEqual(
+      await prisma.almacen.findFirst({ where: { id: almacenA.id, empresaId: empresaA } }),
+      null
+    );
+    assert.equal(
+      await prisma.almacen.findFirst({ where: { id: almacenA.id, empresaId: empresaB } }),
+      null
+    );
+
+    // Zonas y días no laborables resuelven la compañía a través del almacén.
+    assert.equal(
+      await prisma.zonaAlmacen.findFirst({ where: { id: zonaA.id, almacen: { empresaId: empresaB } } }),
+      null
+    );
+    assert.equal(
+      await prisma.diaNoLaborable.findFirst({
+        where: { id: diaA.id, calendario: { almacen: { empresaId: empresaB } } },
+      }),
+      null
+    );
+    assert.notEqual(
+      await prisma.diaNoLaborable.findFirst({
+        where: { id: diaA.id, calendario: { almacen: { empresaId: empresaA } } },
+      }),
+      null
+    );
+    assert.equal(await prisma.almacen.count({ where: { empresaId: empresaB } }), 1);
+    assert.equal(almacenB.codigo, almacenA.codigo);
+  } finally {
+    await prisma.diaNoLaborable.deleteMany({
+      where: { calendario: { almacen: { empresaId: { in: empresas } } } },
+    });
+    await prisma.calendarioProduccion.deleteMany({
+      where: { almacen: { empresaId: { in: empresas } } },
+    });
+    await prisma.zonaAlmacen.deleteMany({ where: { almacen: { empresaId: { in: empresas } } } });
+    await prisma.almacen.deleteMany({ where: { empresaId: { in: empresas } } });
+    await prisma.empresa.deleteMany({ where: { id: { in: empresas } } });
+  }
 });
