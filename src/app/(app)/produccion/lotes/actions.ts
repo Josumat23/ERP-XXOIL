@@ -90,7 +90,7 @@ export async function crearLote(
     return { error: "Los kg objetivo deben ser mayores a 0." };
   }
 
-  const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
+  const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa(auth.usuario.empresaId);
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -285,7 +285,7 @@ export async function finalizarLote(
     return { error: "Las horas de mano de obra deben ser mayores o iguales a 0." };
   }
 
-  const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
+  const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa(auth.usuario.empresaId);
   try {
     await prisma.$transaction(async (tx) => {
       const lote = await tx.loteGranel.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, include: { operaciones: true } });

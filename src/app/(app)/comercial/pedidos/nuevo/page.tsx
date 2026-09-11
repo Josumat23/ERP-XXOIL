@@ -7,6 +7,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PedidoFormulario from "../PedidoFormulario";
 import { calcularAtpPorProducto, unidadesEquivalentes } from "@/lib/atp";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export default async function NuevoPedidoPage() {
   const usuario = await obtenerUsuario();
@@ -25,7 +26,7 @@ export default async function NuevoPedidoPage() {
     prisma.pedido.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fecha: "desc" } }),
     prisma.descuentoCanal.findMany({ where: { empresaId } }),
     calcularAtpPorProducto(prisma, empresaId),
-    prisma.configuracionEmpresa.findUnique({ where: { id: "1" } }),
+    obtenerConfiguracionEmpresa(empresaId),
   ]);
   const descuentoPorCanal = Object.fromEntries(
     descuentosCanal.map((d) => [d.canal, d.descuentoPct.toNumber()])

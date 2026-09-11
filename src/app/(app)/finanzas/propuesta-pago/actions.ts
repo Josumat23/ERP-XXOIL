@@ -76,9 +76,9 @@ export async function ejecutarPropuestaPago(
     return { error: "La propuesta contiene cuentas por pagar repetidas." };
   }
 
-  const { montoAprobacionPagos } = await obtenerConfiguracionEmpresa();
-  const montoAprobacion = montoAprobacionPagos.toNumber();
   const empresaId = await obtenerEmpresaActivaId();
+  const { montoAprobacionPagos } = await obtenerConfiguracionEmpresa(empresaId);
+  const montoAprobacion = montoAprobacionPagos.toNumber();
 
   const exitosas: string[] = [];
   const fallidas: string[] = [];

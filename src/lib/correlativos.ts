@@ -12,11 +12,20 @@ function siguiente(prefijo: string, ultimo: string | null): string {
   return `${prefijo}-${String(n).padStart(5, "0")}`;
 }
 
+// Toma el cerrojo de numeración: un INSERT ... ON CONFLICT DO UPDATE sobre una
+// fila fija, portable a PostgreSQL. La escritura obliga a que dos
+// transacciones concurrentes se serialicen aquí, antes de leer el último
+// número — sin esto, ambas leerían el mismo máximo y generarían el mismo
+// código, y el choque recién lo descubriría el índice único.
+//
+// La fila vive en su propia tabla y no en ConfiguracionEmpresa: un mecanismo
+// de concurrencia no debe depender de un maestro de negocio (cuando esa
+// configuración pasó a ser una fila por compañía, el cerrojo dejó de funcionar).
 export async function reservarCorrelativo(tx: Tx): Promise<void> {
   await tx.$executeRaw`
-    INSERT INTO configuracion_empresa (id, actualizadoEn)
+    INSERT INTO cerrojo_correlativo (id, actualizadoEn)
     VALUES ('1', CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET id = excluded.id
+    ON CONFLICT(id) DO UPDATE SET actualizadoEn = CURRENT_TIMESTAMP
   `;
 }
 export async function siguienteCodigoLote(tx: Tx): Promise<string> {

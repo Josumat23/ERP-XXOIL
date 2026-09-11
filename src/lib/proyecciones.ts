@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ajustarCantidadCompra, calcularCompraNeta } from "@/lib/reservasProduccion";
 import { horasDisponiblesEnRango, type ResumenCalendario } from "@/lib/calendarioProduccion";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 // ---------------------------------------------------------------------------
 // Motor de proyecciones trimestrales (Marketing / Operaciones / Finanzas).
@@ -423,7 +424,7 @@ export async function calcularFinanzas(
   trimestre: number,
   empresaId: string,
 ): Promise<ResultadoFinanzas> {
-  const config = await prisma.configuracionEmpresa.findUniqueOrThrow({ where: { id: "1" } });
+  const config = await obtenerConfiguracionEmpresa(empresaId);
   const { inicio, fin } = rangoTrimestre(anio, trimestre);
 
   const ventasProyectadas = detalles.reduce((acc, d) => acc + d.ventasProyectadas, 0);

@@ -52,7 +52,7 @@ export async function crearEnvasado(
     return { error: "El detalle de envases/etiquetas es inválido." };
   }
 
-  const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa();
+  const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa(auth.usuario.empresaId);
   const costoManoObra = horasManoObra * tarifaHoraManoObra.toNumber();
 
   try {

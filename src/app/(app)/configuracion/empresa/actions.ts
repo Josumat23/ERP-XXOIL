@@ -20,6 +20,9 @@ export async function guardarConfiguracionEmpresa(
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return auth;
 
+  // Se edita la configuración de la compañía activa, no una fila global.
+  const empresaId = await obtenerEmpresaActivaId();
+
   const razonSocial = String(formData.get("razonSocial") ?? "").trim();
   const nombreComercial = String(formData.get("nombreComercial") ?? "").trim() || null;
   const ruc = String(formData.get("ruc") ?? "").trim() || null;
@@ -100,7 +103,7 @@ export async function guardarConfiguracionEmpresa(
   if (!["SIMULADO", "NUBEFACT", "SUNAT_DIRECTO"].includes(oseProveedor)) {
     return { error: "Seleccione un proveedor OSE válido." };
   }
-  const existente = await prisma.configuracionEmpresa.findUnique({ where: { id: "1" } });
+  const existente = await prisma.configuracionEmpresa.findUnique({ where: { empresaId } });
   const oseToken = resolverSecretoFormulario(oseTokenIngresado, existente?.oseToken ?? null);
   const sunatClaveSol = resolverSecretoFormulario(
     sunatClaveSolIngresada,
@@ -175,13 +178,13 @@ export async function guardarConfiguracionEmpresa(
   };
 
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.configuracionEmpresa.findUnique({ where: { id: "1" } });
+    const antes = await tx.configuracionEmpresa.findUnique({ where: { empresaId } });
     const despues = await tx.configuracionEmpresa.upsert({
-      where: { id: "1" },
+      where: { empresaId },
       update: datos,
-      create: { id: "1", ...datos },
+      create: { empresaId, ...datos },
     });
-    await registrarAuditoriaMaestro(tx, { entidad: "ConfiguracionEmpresa", registroId: despues.id, accion: antes ? "ACTUALIZAR" : "CREAR", antes, despues, usuario: auth.usuario });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "ConfiguracionEmpresa", registroId: despues.id, accion: antes ? "ACTUALIZAR" : "CREAR", antes, despues, usuario: auth.usuario });
   });
 
   revalidatePath("/", "layout");

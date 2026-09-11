@@ -37,6 +37,22 @@ async function main() {
     },
   });
 
+  // Configuración propia, con RUC y tasa de IGV distintos a los de la primera
+  // compañía: si una pantalla lee la configuración equivocada, el RUC del
+  // membrete o el IGV de un documento lo delatan a simple vista.
+  await prisma.configuracionEmpresa.create({
+    data: {
+      empresaId: EMPRESA_ID,
+      razonSocial: "Lubricantes del Sur S.A.C.",
+      ruc: "20555444333",
+      ciudad: "Arequipa, Perú",
+      tasaIgv: 10,
+      tarifaHoraManoObra: 33,
+      montoAprobacionCompras: 1111,
+      montoAprobacionPagos: 2222,
+    },
+  });
+
   const [almacen, categoria, vendedor, zona] = await Promise.all([
     prisma.almacen.create({
       data: { empresaId: EMPRESA_ID, tipo: "PLANTA", codigo: "SUR", nombre: "Planta Arequipa" },

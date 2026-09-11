@@ -9,6 +9,7 @@ import { siguienteNumeroOrdenCompra, siguienteNumeroRfq } from "@/lib/correlativ
 import { normalizarLineasOfertaRfq, normalizarLineasRfq } from "@/lib/rfq";
 import { pasosAplicablesCompra } from "@/lib/aprobacionesCompra";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type EstadoRfqFormulario = { error?: string };
 
@@ -95,7 +96,7 @@ export async function adjudicarOferta(rfqId: string, ofertaId: string, _estado: 
       await tx.ofertaRfq.updateMany({ where: { rfqId }, data: { estado: "NO_SELECCIONADA" } });
       await tx.ofertaRfq.update({ where: { id: ganadora.id }, data: { estado: "ADJUDICADA" } });
       const numero = await siguienteNumeroOrdenCompra(tx);
-      const configuracion = await tx.configuracionEmpresa.findUniqueOrThrow({ where: { id: "1" } });
+      const configuracion = await obtenerConfiguracionEmpresa(auth.usuario.empresaId, tx);
       const totalPen = ganadora.moneda === "USD" ? ganadora.total.toNumber() * ganadora.tipoCambio.toNumber() : ganadora.total.toNumber();
       const pasos = await pasosAplicablesCompra(tx, empresaId, totalPen, configuracion.montoAprobacionCompras.toNumber());
       const fechaEntrega = new Date(); fechaEntrega.setDate(fechaEntrega.getDate() + ganadora.plazoEntregaDias);

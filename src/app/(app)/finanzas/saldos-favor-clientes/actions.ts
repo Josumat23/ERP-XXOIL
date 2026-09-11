@@ -92,7 +92,7 @@ export async function solicitarReembolso(
   if (!validarTipoCambio(credito.moneda, tipoCambio)) {
     return { error: "Ingrese un tipo de cambio válido para el reembolso." };
   }
-  const config = await obtenerConfiguracionEmpresa();
+  const config = await obtenerConfiguracionEmpresa(empresaId);
   try {
     await prisma.$transaction((tx) =>
       solicitarReembolsoCliente(

@@ -30,6 +30,7 @@ import {
   enviarComprobanteNotaCredito,
 } from "../actions";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 function DatoRetorno({ etiqueta, valor }: { etiqueta: string; valor: string | number }) {
   return (
@@ -95,7 +96,7 @@ export default async function DetalleFacturaPage({
       },
     }),
     prisma.factura.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fechaEmision: "desc" } }),
-    prisma.configuracionEmpresa.findUnique({ where: { id: "1" } }),
+    obtenerConfiguracionEmpresa(empresaId),
     prisma.almacen.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
   ]);
   if (!factura) notFound();

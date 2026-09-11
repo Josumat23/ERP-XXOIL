@@ -1,4 +1,5 @@
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 // Membrete con los datos fiscales de la empresa para documentos impresos.
 // `soloImprimir` lo oculta en pantalla y lo muestra únicamente al imprimir.
@@ -11,7 +12,10 @@ export default async function MembreteEmpresa({
   numero?: string;
   soloImprimir?: boolean;
 }) {
-  const config = await obtenerConfiguracionEmpresa();
+  // Datos fiscales de la compañía activa: las pantallas que imprimen ya solo
+  // muestran documentos de esa compañía, así que el membrete coincide con el
+  // emisor del documento.
+  const config = await obtenerConfiguracionEmpresa(await obtenerEmpresaActivaId());
 
   return (
     <div

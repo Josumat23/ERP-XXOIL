@@ -27,6 +27,7 @@ import { calcularImportesFuncionales, convertirAMonedaFuncional } from "@/lib/mu
 import { calcularSaldoFacturable, calcularTotalesFacturaParcial } from "@/lib/facturacionParcial";
 import { asignarEntregasFifo } from "@/lib/cumplimientoVentas";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type EstadoFormulario = { error?: string };
 
@@ -119,8 +120,7 @@ export async function crearPedido(
   try {
     await prisma.$transaction(async (tx) => {
       const configuracion =
-        (await tx.configuracionEmpresa.findUnique({ where: { id: "1" } })) ??
-        (await tx.configuracionEmpresa.create({ data: { id: "1" } }));
+        await obtenerConfiguracionEmpresa(auth.usuario.empresaId, tx);
       const descuentoCanal = cliente.canal
         ? await tx.descuentoCanal.findUnique({ where: { empresaId_canal: { empresaId, canal: cliente.canal } } })
         : null;

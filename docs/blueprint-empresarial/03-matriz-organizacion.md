@@ -154,9 +154,11 @@ Método: relectura completa de `prisma/schema.prisma` y de `src/lib/` + `src/app
 - **§7 — Escalamiento de cobranza**: `AvisoCobranza` sigue siendo un log de avisos emitidos, sin máquina de estados.
 - **§1 — `Empresa` como entidad legal completa**: siguen ausentes `direccionFiscal`, `representanteLegal` y `regimenTributario` (P2 en Blueprint 05).
 
-## Hallazgo nuevo de esta revisión
+## Hallazgo nuevo de esta revisión — resuelto el mismo día
 
-**`ConfiguracionEmpresa` sigue siendo una fila única global, ajena al aislamiento por compañía.**
+> **Cerrado el 2026-09-11**, en el ciclo inmediatamente posterior a esta auditoría (ítem 0.2b del roadmap). `ConfiguracionEmpresa` tiene hoy una fila por compañía, con `empresaId` único y clave foránea; el acceso exige compañía explícita y una compañía nueva no hereda RUC ni credenciales SUNAT. La migración además destapó que el cerrojo de los correlativos usaba esa fila única como mutex, y se le dio tabla propia. Verificado en navegador con dos compañías: el membrete impreso de cada una sale con su propio RUC. Véase `docs/configuracion-por-compania.md`. Lo que sigue se deja como quedó registrado al detectarlo.
+
+**`ConfiguracionEmpresa` era una fila única global, ajena al aislamiento por compañía.**
 
 `model ConfiguracionEmpresa` tiene `id String @id @default("1")` y **no lleva `empresaId` ni relación hacia `Empresa`** — es el maestro que quedó fuera del trabajo de aislamiento. Se lee con `where: { id: "1" }` clavado en **11 archivos**: `src/lib/empresa.ts:7`, `src/lib/facturacionElectronica.ts:362`, `src/lib/proyecciones.ts:426`, `src/lib/recargoMora.ts:37`, `comercial/pedidos/actions.ts:122`, `comercial/pedidos/nuevo/page.tsx:28`, `comercial/facturas/[id]/page.tsx:98`, `configuracion/empresa/actions.ts:103,178`, `logistica/rfq/actions.ts:98` y `logistica/acuerdos-suministro/actions.ts:14`.
 
@@ -168,7 +170,7 @@ Alcance de la brecha, dicho con honestidad: **no afecta a quien opera una sola c
 
 | Unidad organizativa SAP | Estado 2026-08-06 | Estado 2026-09-11 |
 |---|---|---|
-| Sociedad (Company Code) | Parcial — aislamiento real en 2 de ~60 entidades | **Verificado completo** en el grafo transaccional (79/79 con FK, 68/68 pantallas filtrando). Pendiente: `ConfiguracionEmpresa` global y los campos de entidad legal completa |
+| Sociedad (Company Code) | Parcial — aislamiento real en 2 de ~60 entidades | **Verificado completo**: 79/79 con FK, 68/68 pantallas filtrando y, desde el 2026-09-11, `ConfiguracionEmpresa` por compañía. Pendiente solo: los campos de entidad legal completa (P2) |
 | Planta (Plant) | Ausente como unidad propia | **Verificado completo** en su rol operativo (`Almacen.tipo`, capacidad y MRP por planta). Pendiente: separación Werk→Lgort |
 | Almacén / Ubicación | Verificado completo, sin cantidad por zona | **Verificado completo**, con cantidad por zona (`SaldoZona`). Pendiente: slotting multi-nivel |
 | Organización de compras | Ausente | **No aplicable justificado** (compras centralizadas, 2026-09-12). Liberación multi-nivel por monto y planta: completa |
@@ -177,4 +179,4 @@ Alcance de la brecha, dicho con honestidad: **no afecta a quien opera una sola c
 | Segmento de crédito | Parcial | **Parcial, con menos brecha**: límite, bloqueo, auditoría del cambio y aprobación del pedido que lo excede. Pendiente: workflow del cambio de límite y máquina de estados de cobranza |
 | RR.HH. — área de personal | Parcial | **Verificado completo** para posiciones, organigrama y multi-sociedad. Pendiente: SCTR y el resto de SST, bloqueados por confirmación profesional |
 
-**El hallazgo más material del documento original —la ausencia de FK hacia `Empresa`— está cerrado.** El que lo reemplaza es más acotado: la configuración de la sociedad sigue siendo una sola para todas.
+**El hallazgo más material del documento original —la ausencia de FK hacia `Empresa`— está cerrado**, y el que apareció en su lugar —la configuración de la sociedad compartida por todas— también, el mismo día. Con eso el aislamiento multiempresa queda completo de punta a punta: datos transaccionales, pantallas y configuración.

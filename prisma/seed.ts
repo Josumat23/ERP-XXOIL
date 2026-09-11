@@ -29,11 +29,12 @@ async function main() {
 
   // ------------------------------------------------------- configuración empresa
   await prisma.configuracionEmpresa.upsert({
-    where: { id: "1" },
+    where: { empresaId: "1" },
     update: {},
     create: {
-      id: "1",
+      empresaId: "1",
       razonSocial: "Grasas y Lubricantes del Perú S.A.C.",
+      ruc: "20123456789",
       ciudad: "Lima, Perú",
       tasaIgv: 18,
     },

@@ -38,8 +38,8 @@ export async function GET(req: NextRequest) {
   // impuesto); se estima con la tasa vigente estándar (18%) para la base
   // imponible y el IGV — mismo criterio que el resto del ERP usa como tasa
   // por defecto (ver ConfiguracionEmpresa.tasaIgv).
-  const configuracion = await obtenerConfiguracionEmpresa();
-  const tasaIgv = (configuracion?.tasaIgv.toNumber() ?? 18) / 100;
+  const configuracion = await obtenerConfiguracionEmpresa(empresaId);
+  const tasaIgv = configuracion.tasaIgv.toNumber() / 100;
 
   let correlativo = 0;
   const lineas = cuentas.map((c) => {
