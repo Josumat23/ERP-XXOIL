@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { ClaseFormulario, UnidadFormulario } from "./UnidadMedidaFormularios";
 import { alternarActivoUnidad } from "./actions";
@@ -11,7 +12,9 @@ export default async function UnidadesMedidaPage() {
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
   if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
+  const empresaId = await obtenerEmpresaActivaId();
   const clases = await prisma.claseUnidadMedida.findMany({
+    where: { empresaId },
     include: { unidades: true },
     orderBy: { codigo: "asc" },
   });

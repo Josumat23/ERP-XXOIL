@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { formatearNumeroSerie } from "@/lib/series";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import SerieFormulario from "./SerieFormulario";
@@ -18,7 +19,9 @@ export default async function SeriesPage() {
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
   if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
+  const empresaId = await obtenerEmpresaActivaId();
   const series = await prisma.serieDocumento.findMany({
+    where: { empresaId },
     orderBy: [{ tipoDocumento: "asc" }, { serie: "asc" }],
   });
 

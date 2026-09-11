@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
-import { requerirRol } from "@/lib/auth";
+import { obtenerEmpresaActivaId, perteneceAEmpresaActiva, requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
@@ -30,7 +30,7 @@ export async function crearSerieDocumento(
 
   try {
     await prisma.serieDocumento.create({
-      data: { tipoDocumento, serie, correlativoActual },
+      data: { empresaId: auth.usuario.empresaId, tipoDocumento, serie, correlativoActual },
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -46,6 +46,11 @@ export async function crearSerieDocumento(
 export async function alternarActivoSerie(id: string, activo: boolean) {
   const auth = await requerirRol([]);
   if ("error" in auth) return;
+  // El id llega del navegador: se relee la serie para confirmar que es de la
+  // compañía activa antes de tocarla.
+  const empresaId = await obtenerEmpresaActivaId();
+  const serie = await prisma.serieDocumento.findUnique({ where: { id } });
+  if (!perteneceAEmpresaActiva(serie, empresaId)) return;
   await prisma.serieDocumento.update({ where: { id }, data: { activo } });
   revalidatePath("/configuracion/series");
 }
