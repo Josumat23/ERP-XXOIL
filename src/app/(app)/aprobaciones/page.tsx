@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { obtenerUsuario } from "@/lib/auth";
+import { obtenerUsuarioEmpresaActiva } from "@/lib/empresas";
 import { formatMoneda } from "@/lib/format";
 
 function Tarjeta({ titulo, cantidad, detalle }: { titulo: string; cantidad: number; detalle: string }) {
@@ -15,22 +15,25 @@ function Tarjeta({ titulo, cantidad, detalle }: { titulo: string; cantidad: numb
 }
 
 export default async function AprobacionesPage() {
-  const usuario = await obtenerUsuario();
+  const usuario = await obtenerUsuarioEmpresaActiva();
   if (!usuario || (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA")) redirect("/");
+  // La bandeja listaba las aprobaciones de TODAS las compañías: es de rol
+  // ADMIN/GERENCIA, pero el rol no es la compañía.
+  const empresaId = usuario.empresaId;
 
   const [creditos, compras, pagos] = await Promise.all([
     prisma.pedido.findMany({
-      where: { estado: "PENDIENTE", estadoAprobacionCredito: "PENDIENTE" },
+      where: { empresaId, estado: "PENDIENTE", estadoAprobacionCredito: "PENDIENTE" },
       include: { cliente: true },
       orderBy: { creditoSolicitadoEn: "asc" },
     }),
     prisma.ordenCompra.findMany({
-      where: { estadoAprobacion: "PENDIENTE" },
+      where: { empresaId, estadoAprobacion: "PENDIENTE" },
       include: { proveedor: true },
       orderBy: { fecha: "asc" },
     }),
     prisma.pagoProveedor.findMany({
-      where: { estadoAprobacion: "PENDIENTE" },
+      where: { empresaId, estadoAprobacion: "PENDIENTE" },
       include: { cuentaPorPagar: { include: { proveedor: true } } },
       orderBy: { fecha: "asc" },
     }),

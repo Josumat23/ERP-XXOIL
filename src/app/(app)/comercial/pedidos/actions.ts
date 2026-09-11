@@ -190,8 +190,61 @@ export async function crearPedido(
         lineasConPrecio,
         configuracion.tasaIgv.toNumber()
       );
+
+      // Crédito evaluado AL CREAR, no solo al facturar. Antes, un pedido que
+      // llevaba al cliente por encima de su límite nacía como cualquier otro,
+      // reservaba stock y recién se frenaba al facturar — con el compromiso ya
+      // tomado frente al cliente. Ahora nace PENDIENTE y aparece en la bandeja
+      // de aprobaciones desde el primer momento.
+      //
+      // El bloqueo duro sigue estando en facturarPedido, que reevalúa con la
+      // deuda del momento: entre la creación y la facturación el cliente pudo
+      // pagar o endeudarse más, así que la evaluación de hoy no autoriza la
+      // factura de mañana.
+      const empresa = await tx.empresa.findUnique({ where: { id: cliente.empresaId } });
+      const importesFuncionales = calcularImportesFuncionales({
+        moneda,
+        tipoCambio,
+        monedaFuncional: empresa?.monedaFuncional ?? "PEN",
+        subtotal: totales.total,
+        igv: totales.igv,
+        total: totales.totalConIgv,
+      });
+      const limiteCredito = condicionPago === "CONTADO" ? 0 : cliente.limiteCredito.toNumber();
+      let credito: {
+        estadoAprobacionCredito: "PENDIENTE";
+        condicionPagoCredito: typeof condicionPago;
+        deudaCreditoEvaluada: number;
+        montoCreditoEvaluado: number;
+        limiteCreditoEvaluado: number;
+        creditoSolicitadoEn: Date;
+      } | null = null;
+      if (limiteCredito > 0) {
+        const pendientes = await tx.factura.findMany({
+          where: { clienteId, estado: "PENDIENTE" },
+          select: { saldoFuncional: true },
+        });
+        const deudaActual = pendientes.reduce((acc, f) => acc + f.saldoFuncional.toNumber(), 0);
+        const evaluacion = evaluarCredito(
+          deudaActual,
+          importesFuncionales.totalFuncional,
+          limiteCredito
+        );
+        if (evaluacion.excede) {
+          credito = {
+            estadoAprobacionCredito: "PENDIENTE",
+            condicionPagoCredito: condicionPago,
+            deudaCreditoEvaluada: deudaActual,
+            montoCreditoEvaluado: importesFuncionales.totalFuncional,
+            limiteCreditoEvaluado: limiteCredito,
+            creditoSolicitadoEn: new Date(),
+          };
+        }
+      }
+
       const pedido = await tx.pedido.create({
         data: {
+          ...(credito ?? {}),
           numero,
           empresaId: cliente.empresaId,
           clienteId,
