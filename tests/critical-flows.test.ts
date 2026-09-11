@@ -3074,3 +3074,39 @@ test("la adjudicación de un RFQ exige comparar proveedores y separar funciones"
   // Y la decisión queda justificada por escrito.
   assert.match(adjudicar, /justificacion\.length < 12/);
 });
+
+test("el crédito se evalúa al crear el pedido, no solo al facturar", async () => {
+  // La aritmética de la evaluación ya está cubierta por evaluarCredito; lo
+  // que esta guardia fija es DÓNDE ocurre: antes se descubría al facturar,
+  // con el stock ya reservado y el compromiso tomado con el cliente.
+  const acciones = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/pedidos/actions.ts"),
+    "utf8"
+  );
+  const inicioCrear = acciones.indexOf("export async function crearPedido");
+  const inicioAnular = acciones.indexOf("export async function anularPedido");
+  assert.ok(inicioCrear !== -1 && inicioAnular > inicioCrear);
+  const crear = acciones.slice(inicioCrear, inicioAnular);
+
+  assert.match(crear, /evaluarCredito\(/);
+  assert.match(crear, /estadoAprobacionCredito: "PENDIENTE"/);
+  // La condición CONTADO no consume límite de crédito.
+  assert.match(crear, /condicionPago === "CONTADO" \? 0 :/);
+  // Y el bloqueo duro sigue en la facturación, que reevalúa con la deuda
+  // del momento: la evaluación de hoy no autoriza la factura de mañana.
+  const facturar = acciones.slice(acciones.indexOf("export async function facturarPedido"));
+  assert.match(facturar, /evaluarCredito\(/);
+  assert.match(facturar, /esAprobacionCreditoVigente\(/);
+});
+
+test("la bandeja de aprobaciones se acota a la compañía activa", async () => {
+  // Es una pantalla de rol ADMIN/GERENCIA, pero el rol no es la compañía:
+  // listaba las aprobaciones pendientes de todas las compañías a la vez.
+  const bandeja = await readFile(
+    resolve(process.cwd(), "src/app/(app)/aprobaciones/page.tsx"),
+    "utf8"
+  );
+  assert.match(bandeja, /obtenerUsuarioEmpresaActiva/);
+  // Las tres consultas de la bandeja, no solo la primera.
+  assert.equal((bandeja.match(/where: \{ empresaId,/g) ?? []).length, 3);
+});
