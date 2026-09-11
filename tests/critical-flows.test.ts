@@ -2086,6 +2086,20 @@ test("los dominios migrados rechazan compañías inexistentes por FK", async () 
     }),
     (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2003",
   );
+  await assert.rejects(
+    prisma.proyeccion.create({
+      data: {
+        empresaId,
+        anio: 2026,
+        trimestre: 1,
+        anioBase: 2025,
+        trimestreBase: 4,
+        usuarioId: "usuario-inexistente",
+        usuarioNombre: "Usuario inexistente",
+      },
+    }),
+    (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2003",
+  );
 });
 
 test("MRP calcula backlog parcial sin consumir facturas anuladas", () => {
