@@ -3,6 +3,10 @@
 import { useState } from "react";
 import { useActionState } from "react";
 import { guardarConfiguracionEmpresa, type EstadoFormulario } from "./actions";
+import {
+  DESCRIPCION_ALCANCE_APROBACION,
+  ETIQUETA_ALCANCE_APROBACION,
+} from "@/lib/aprobacionesJerarquia";
 
 type Props = {
   valores: {
@@ -27,6 +31,7 @@ type Props = {
     tarifaHoraManoObra: number;
     montoAprobacionCompras: number;
     montoAprobacionPagos: number;
+    alcanceAprobacionJerarquia: string;
     tasaDescuentoCxC: number;
     tasaCreditoCortoPlazo: number;
     limiteCreditoCortoPlazo: number;
@@ -220,7 +225,29 @@ export default function EmpresaFormulario({ valores }: Props) {
             />
           </Campo>
         </div>
-        <p className="text-xs text-neutral-500 mt-1">
+        <div className="mt-4">
+          <Campo etiqueta="Quién aprueba las solicitudes de RR. HH.">
+            <select
+              name="alcanceAprobacionJerarquia"
+              defaultValue={valores.alcanceAprobacionJerarquia}
+              className="campo-input"
+            >
+              {Object.entries(ETIQUETA_ALCANCE_APROBACION).map(([valor, etiqueta]) => (
+                <option key={valor} value={valor}>
+                  {etiqueta}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          <p className="text-xs text-neutral-500 mt-1">
+            {DESCRIPCION_ALCANCE_APROBACION[
+              valores.alcanceAprobacionJerarquia as keyof typeof DESCRIPCION_ALCANCE_APROBACION
+            ] ?? ""}{" "}
+            En cualquier caso, quien solicita nunca resuelve su propia solicitud.
+          </p>
+        </div>
+
+        <p className="text-xs text-neutral-500 mt-4">
           Órdenes de compra y pagos a proveedores por encima de estos montos quedan pendientes de
           aprobación de Gerencia antes de poder recepcionarse / ejecutarse.
         </p>
