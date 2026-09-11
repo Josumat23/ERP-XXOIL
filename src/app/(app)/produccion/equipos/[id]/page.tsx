@@ -43,6 +43,7 @@ export default async function DetalleEquipoPage({
         activoFijo: true,
         centroCosto: true,
         centroTrabajo: true,
+        ubicacionTecnica: { select: { codigo: true, nombre: true } },
         ordenesMantenimiento: { orderBy: { fechaProgramada: "desc" } },
         planesMantenimiento: { orderBy: { creadoEn: "desc" } },
         lecturasContador: { orderBy: { creadoEn: "desc" }, take: 20 },
@@ -92,6 +93,7 @@ export default async function DetalleEquipoPage({
           {equipo.codigo} · {equipo.almacen.nombre}
           {equipo.centroCosto ? ` · Centro de costo: ${equipo.centroCosto.codigo}` : ""}
           {equipo.centroTrabajo ? ` · Centro de trabajo: ${equipo.centroTrabajo.codigo}` : ""}
+          {equipo.ubicacionTecnica ? ` · Ubicación técnica: ${equipo.ubicacionTecnica.codigo}` : ""}
         </p>
 
         {equipo.activoFijo && (

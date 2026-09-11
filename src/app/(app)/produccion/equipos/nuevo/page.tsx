@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
+import { etiquetaRutaUbicacion, ordenarArbolUbicaciones } from "@/lib/ubicacionesTecnicas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import EquipoFormulario from "../EquipoFormulario";
 import { crearEquipo } from "../actions";
@@ -11,7 +12,7 @@ export default async function NuevoEquipoPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
-  const [almacenes, activosFijos, centrosCosto, centrosTrabajo, equipos] = await Promise.all([
+  const [almacenes, activosFijos, centrosCosto, centrosTrabajo, ubicaciones, equipos] = await Promise.all([
     prisma.almacen.findMany({
       where: { empresaId: usuario.empresaId, activo: true },
       select: { id: true, nombre: true },
@@ -32,8 +33,17 @@ export default async function NuevoEquipoPage() {
       select: { id: true, codigo: true, nombre: true, almacenId: true },
       orderBy: { codigo: "asc" },
     }),
+    prisma.ubicacionTecnica.findMany({
+      where: { empresaId: usuario.empresaId, activo: true },
+      select: { id: true, parentId: true, codigo: true, nombre: true },
+    }),
     prisma.equipo.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { creadoEn: "desc" } }),
   ]);
+
+  const ubicacionesTecnicas = ordenarArbolUbicaciones(ubicaciones).map(({ ubicacion }) => ({
+    id: ubicacion.id,
+    etiqueta: `${etiquetaRutaUbicacion(ubicacion.id, ubicaciones)} — ${ubicacion.nombre}`,
+  }));
 
   return (
     <div>
@@ -65,6 +75,7 @@ export default async function NuevoEquipoPage() {
           activosFijos={activosFijos}
           centrosCosto={centrosCosto}
           centrosTrabajo={centrosTrabajo}
+          ubicacionesTecnicas={ubicacionesTecnicas}
           textoBoton="Crear equipo"
         />
       </div>

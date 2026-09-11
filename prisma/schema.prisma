@@ -2680,6 +2680,7 @@ model Almacen {
   ordenesCompra        OrdenCompra[]
   centrosCosto         CentroCosto[]
   centrosTrabajo       CentroTrabajo[]
+  ubicacionesTecnicas  UbicacionTecnica[]
   empleados            Empleado[]
   pedidos              Pedido[]
   devolucionesCliente  DevolucionCliente[]
@@ -3389,30 +3390,60 @@ model CentroTrabajo {
 // El equipo es el activo físico que se mantiene; activoFijoId es opcional y lo
 // enlaza con su registro contable/depreciación cuando corresponde (no todo
 // equipo mantenible está capitalizado, ej. equipos menores ya depreciados).
+// Ubicación técnica (equivalente reducido a Functional Location de SAP PM):
+// el sitio donde vive un equipo, en jerarquía de niveles arbitrarios
+// (planta → línea → estación). El equipo puede cambiarse de sitio sin
+// perder el historial del sitio: las órdenes y avisos siguen colgando del
+// equipo, y la ubicación dice dónde estaba instalado.
+model UbicacionTecnica {
+  id        String   @id @default(cuid())
+  empresaId String   @default("1")
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  codigo    String
+  nombre    String
+  parentId  String?
+  // Planta a la que pertenece la raíz de la jerarquía. Solo se declara en
+  // los nodos raíz; los descendientes la heredan por el árbol.
+  almacenId String?
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  parent  UbicacionTecnica?  @relation("JerarquiaUbicacionTecnica", fields: [parentId], references: [id], onDelete: Restrict)
+  hijos   UbicacionTecnica[] @relation("JerarquiaUbicacionTecnica")
+  almacen Almacen?           @relation(fields: [almacenId], references: [id])
+  equipos Equipo[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, parentId])
+  @@map("ubicaciones_tecnicas")
+}
+
 model Equipo {
-  id              String   @id @default(cuid())
-  empresaId       String   @default("1")
-  empresa         Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  codigo          String // EQ-00001
-  nombre          String
-  almacenId       String
-  activoFijoId    String?  @unique
-  centroCostoId   String?
-  centroTrabajoId String?
-  activo          Boolean  @default(true)
-  notas           String?
+  id                 String   @id @default(cuid())
+  empresaId          String   @default("1")
+  empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  codigo             String // EQ-00001
+  nombre             String
+  almacenId          String
+  activoFijoId       String?  @unique
+  centroCostoId      String?
+  centroTrabajoId    String?
+  ubicacionTecnicaId String?
+  activo             Boolean  @default(true)
+  notas              String?
   // Contador de uso (horómetro/odómetro) para mantenimiento preventivo por
   // contador (ej. "cada 5,000 km" o "cada 250 horas de motor"). Se actualiza
   // manualmente — no hay telemetría real conectada. unidadContador queda null
   // en equipos que solo usan planes por tiempo.
-  contadorActual  Decimal  @default(0)
-  unidadContador  String? // "km", "horas", etc.
-  creadoEn        DateTime @default(now())
+  contadorActual     Decimal  @default(0)
+  unidadContador     String? // "km", "horas", etc.
+  creadoEn           DateTime @default(now())
 
   almacen              Almacen                 @relation(fields: [almacenId], references: [id])
   activoFijo           ActivoFijo?             @relation(fields: [activoFijoId], references: [id])
   centroCosto          CentroCosto?            @relation(fields: [centroCostoId], references: [id])
   centroTrabajo        CentroTrabajo?          @relation(fields: [centroTrabajoId], references: [id])
+  ubicacionTecnica     UbicacionTecnica?       @relation(fields: [ubicacionTecnicaId], references: [id])
   ordenesMantenimiento OrdenMantenimiento[]
   guiasRemision        GuiaRemision[]
   planesMantenimiento  PlanMantenimiento[]
@@ -4263,6 +4294,7 @@ model Empresa {
   proyectos                  Proyecto[]
   centrosTrabajo             CentroTrabajo[]
   equipos                    Equipo[]
+  ubicacionesTecnicas        UbicacionTecnica[]
   avisosMantenimiento        AvisoMantenimiento[]
   planesMantenimiento        PlanMantenimiento[]
   proyecciones               Proyeccion[]

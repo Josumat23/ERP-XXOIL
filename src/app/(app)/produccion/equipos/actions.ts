@@ -30,6 +30,7 @@ export async function crearEquipo(
   const activoFijoId = String(formData.get("activoFijoId") ?? "") || null;
   const centroCostoId = String(formData.get("centroCostoId") ?? "") || null;
   const centroTrabajoId = String(formData.get("centroTrabajoId") ?? "") || null;
+  const ubicacionTecnicaId = String(formData.get("ubicacionTecnicaId") ?? "") || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
   const unidadContador = String(formData.get("unidadContador") ?? "").trim() || null;
   const contadorActual = Number(formData.get("contadorActual") ?? 0);
@@ -59,8 +60,12 @@ export async function crearEquipo(
         const centro = await tx.centroTrabajo.findFirst({ where: { id: centroTrabajoId, empresaId: auth.usuario.empresaId, almacenId, activo: true } });
         if (!centro) throw new Error("El centro de trabajo no pertenece a la planta seleccionada o está inactivo.");
       }
+      if (ubicacionTecnicaId) {
+        const ubicacion = await tx.ubicacionTecnica.findFirst({ where: { id: ubicacionTecnicaId, empresaId: auth.usuario.empresaId, activo: true } });
+        if (!ubicacion) throw new Error("La ubicación técnica no pertenece a la compañía activa o está inactiva.");
+      }
       const equipo = await tx.equipo.create({
-        data: { empresaId: auth.usuario.empresaId, codigo, nombre, almacenId, activoFijoId, centroCostoId, centroTrabajoId, notas, unidadContador, contadorActual },
+        data: { empresaId: auth.usuario.empresaId, codigo, nombre, almacenId, activoFijoId, centroCostoId, centroTrabajoId, ubicacionTecnicaId, notas, unidadContador, contadorActual },
       });
       if (unidadContador) await tx.lecturaContadorEquipo.create({ data: { equipoId: equipo.id, valor: contadorActual, fuente: "ALTA_EQUIPO", observacion: "Lectura inicial", usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre } });
       await registrarAuditoriaMaestro(tx, { entidad: "Equipo", registroId: equipo.id, accion: "CREAR", despues: equipo, usuario: auth.usuario });
