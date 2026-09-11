@@ -7,6 +7,7 @@ type Almacen = { id: string; nombre: string };
 type ActivoFijo = { id: string; codigo: string; nombre: string };
 type CentroCosto = { id: string; codigo: string; nombre: string };
 type CentroTrabajo = { id: string; codigo: string; nombre: string; almacenId: string };
+type UbicacionTecnica = { id: string; etiqueta: string };
 
 type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
@@ -14,6 +15,7 @@ type Props = {
   activosFijos: ActivoFijo[];
   centrosCosto: CentroCosto[];
   centrosTrabajo: CentroTrabajo[];
+  ubicacionesTecnicas: UbicacionTecnica[];
   textoBoton: string;
 };
 
@@ -23,6 +25,7 @@ export default function EquipoFormulario({
   activosFijos,
   centrosCosto,
   centrosTrabajo,
+  ubicacionesTecnicas,
   textoBoton,
 }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
@@ -90,6 +93,19 @@ export default function EquipoFormulario({
       </Campo>
       <p className="text-xs text-neutral-500 -mt-2">
         La validación al guardar exige que el equipo y el centro pertenezcan a la misma planta.
+      </p>
+
+      <Campo etiqueta="Ubicación técnica (opcional)">
+        <select name="ubicacionTecnicaId" defaultValue="" className="campo-input">
+          <option value="">Sin asignar</option>
+          {ubicacionesTecnicas.map((u) => (
+            <option key={u.id} value={u.id}>{u.etiqueta}</option>
+          ))}
+        </select>
+      </Campo>
+      <p className="text-xs text-neutral-500 -mt-2">
+        Dónde está instalado físicamente, en la jerarquía planta → línea → estación. El historial de
+        mantenimiento sigue colgando del equipo, así que puede moverse de sitio sin perderlo.
       </p>
 
       <div className="grid grid-cols-2 gap-4">
