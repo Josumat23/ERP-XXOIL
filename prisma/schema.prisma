@@ -4183,6 +4183,7 @@ enum ClaveTareaProgramada {
   RECARGO_MORA
   TIPO_CAMBIO_DIARIO
   MANTENIMIENTO_PREVENTIVO
+  RESPALDO_BASE
 }
 
 model TareaProgramada {

@@ -8,7 +8,9 @@
     "start": "tsx server.ts",
     "lint": "eslint",
     "seed:demo": "tsx prisma/seed-demo.ts",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs",
+    "respaldo": "node scripts/respaldo.mjs",
+    "restaurar": "node scripts/restaurar.mjs"
   },
   "dependencies": {
     "@prisma/adapter-better-sqlite3": "^7.9.1",
