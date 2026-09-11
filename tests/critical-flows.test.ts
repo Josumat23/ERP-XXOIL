@@ -43,6 +43,7 @@ import { calcularSaldoFacturable, calcularTotalesFacturaParcial } from "@/lib/fa
 import { asignarEntregasFifo, calcularSaldoDocumento } from "@/lib/cumplimientoVentas";
 import { calcularAplicacionCobro, calcularImportesFuncionales } from "@/lib/multimoneda";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { horasDisponiblesEnRango } from "@/lib/calendarioProduccion";
 import { normalizarRutaProduccion, puedeIniciarOperacion } from "@/lib/rutasProduccion";
 import { cargaPlanOperacion, programarCapacidadFinita } from "@/lib/planificacionCapacidad";
 import { puedeCancelarOrden, puedeEjecutarOrden, puedeLiberarOrden } from "@/lib/cicloOrdenProduccion";
@@ -2863,4 +2864,81 @@ test("grupos de seguridad y usuarios quedan acotados a la compañía activa", as
     await prisma.grupoSeguridad.deleteMany({ where: { empresaId: { in: empresas } } });
     await prisma.empresa.deleteMany({ where: { id: { in: empresas } } });
   }
+});
+
+test("el rol organizativo separa plantas de almacenes de distribución", async () => {
+  const sufijo = Date.now().toString(36);
+  const empresaId = `empresa-planta-${sufijo}`;
+  await prisma.empresa.create({ data: { id: empresaId, razonSocial: empresaId } });
+
+  try {
+    const planta = await prisma.almacen.create({
+      data: { empresaId, tipo: "PLANTA", codigo: "PLANTA1", nombre: "Planta Lurín" },
+    });
+    const distribucion = await prisma.almacen.create({
+      data: { empresaId, codigo: "DIST1", nombre: "CD Callao" },
+    });
+    const transito = await prisma.almacen.create({
+      data: { empresaId, tipo: "ALMACEN_TRANSITO", codigo: "TRANS1", nombre: "Tránsito" },
+    });
+
+    // El default no convierte cualquier almacén nuevo en planta.
+    assert.equal(distribucion.tipo, "ALMACEN_DISTRIBUCION");
+
+    // Criterio de aceptación del ítem 0.3: listar plantas es distinto de
+    // listar almacenes de distribución.
+    assert.deepEqual(
+      (await prisma.almacen.findMany({ where: { empresaId, tipo: "PLANTA" }, select: { id: true } })).map((a) => a.id),
+      [planta.id]
+    );
+    assert.equal(await prisma.almacen.count({ where: { empresaId, tipo: "ALMACEN_DISTRIBUCION" } }), 1);
+    assert.equal(await prisma.almacen.count({ where: { empresaId, tipo: "ALMACEN_TRANSITO" } }), 1);
+
+    // La capacidad solo suma plantas, aunque el almacén de distribución
+    // tenga calendario configurado.
+    const horas = { horasLunes: 8, horasMartes: 8, horasMiercoles: 8, horasJueves: 8, horasViernes: 8, horasSabado: 0, horasDomingo: 0 };
+    await prisma.calendarioProduccion.create({ data: { almacenId: planta.id, ...horas } });
+    await prisma.calendarioProduccion.create({ data: { almacenId: distribucion.id, ...horas } });
+    await prisma.calendarioProduccion.create({ data: { almacenId: transito.id, ...horas } });
+
+    // Lunes 5 a viernes 9 de enero de 2026: cinco días de 8 horas.
+    const capacidad = await horasDisponiblesEnRango(
+      new Date(2026, 0, 5),
+      new Date(2026, 0, 10),
+      empresaId
+    );
+    assert.deepEqual(
+      capacidad.porAlmacen.map((a) => a.almacenId),
+      [planta.id]
+    );
+    assert.equal(capacidad.total, 40);
+
+    // Reclasificar el centro de distribución como planta lo incorpora.
+    await prisma.almacen.update({ where: { id: distribucion.id }, data: { tipo: "PLANTA" } });
+    const ampliada = await horasDisponiblesEnRango(new Date(2026, 0, 5), new Date(2026, 0, 10), empresaId);
+    assert.equal(ampliada.porAlmacen.length, 2);
+    assert.equal(ampliada.total, 80);
+  } finally {
+    await prisma.calendarioProduccion.deleteMany({ where: { almacen: { empresaId } } });
+    await prisma.almacen.deleteMany({ where: { empresaId } });
+    await prisma.empresa.deleteMany({ where: { id: empresaId } });
+  }
+});
+
+test("la migración del rol organizativo respeta la convención anterior", async () => {
+  // El relleno corre una sola vez sobre datos existentes, así que lo que se
+  // comprueba es que la migración traslade la convención (tener
+  // CalendarioProduccion = ser planta) y no marque todo por defecto.
+  const migracion = await readFile(
+    resolve(
+      process.cwd(),
+      "prisma/migrations/20260911170000_warehouse_organizational_role/migration.sql"
+    ),
+    "utf8"
+  );
+  assert.match(migracion, /"tipo" TEXT NOT NULL DEFAULT 'ALMACEN_DISTRIBUCION'/);
+  assert.match(
+    migracion,
+    /CASE WHEN EXISTS \(SELECT 1 FROM "calendarios_produccion"[\s\S]*?THEN 'PLANTA' ELSE 'ALMACEN_DISTRIBUCION' END/
+  );
 });

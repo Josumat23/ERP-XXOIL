@@ -4,6 +4,12 @@ import { useRef } from "react";
 import { useActionState } from "react";
 import { crearAlmacen, crearZonaAlmacen, type EstadoFormulario } from "./actions";
 
+export const ETIQUETA_TIPO_ALMACEN: Record<string, string> = {
+  PLANTA: "Planta",
+  ALMACEN_DISTRIBUCION: "Almacén de distribución",
+  ALMACEN_TRANSITO: "Almacén de tránsito",
+};
+
 export function AlmacenFormulario() {
   const formRef = useRef<HTMLFormElement>(null);
   const [estado, formAction, enviando] = useActionState(
@@ -25,6 +31,13 @@ export function AlmacenFormulario() {
       <div className="flex flex-wrap gap-3 items-end">
         <input aria-label="Código del almacén" name="codigo" required placeholder="Código (ej. PLANTA)" className="campo-input w-40 font-mono" />
         <input aria-label="Nombre del almacén" name="nombre" required placeholder="Nombre" className="campo-input flex-1 min-w-48" />
+        <select aria-label="Rol organizativo" name="tipo" required defaultValue="ALMACEN_DISTRIBUCION" className="campo-input w-52">
+          {Object.entries(ETIQUETA_TIPO_ALMACEN).map(([valor, etiqueta]) => (
+            <option key={valor} value={valor}>
+              {etiqueta}
+            </option>
+          ))}
+        </select>
         <input aria-label="Encargado del almacén" name="encargado" placeholder="Encargado (opcional)" className="campo-input flex-1 min-w-40" />
       </div>
       <div className="flex flex-wrap gap-3 items-end">

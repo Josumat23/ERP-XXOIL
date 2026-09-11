@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@/generated/prisma/client";
+import { Prisma, TipoAlmacen } from "@/generated/prisma/client";
 import {
   obtenerEmpresaActivaId,
   perteneceAEmpresaActiva,
@@ -13,6 +13,7 @@ import { feriadosPeru } from "@/lib/calendarioProduccion";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { esAnioOperativoValido } from "@/lib/periodos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { esValorEnum } from "@/lib/enums";
 
 export type EstadoFormulario = { error?: string };
 
@@ -50,13 +51,17 @@ export async function crearAlmacen(
   const codigoPostal = String(formData.get("codigoPostal") ?? "").trim() || null;
   const pais = String(formData.get("pais") ?? "").trim() || "Perú";
   const encargado = String(formData.get("encargado") ?? "").trim() || null;
+  const tipo = String(formData.get("tipo") ?? "");
 
   if (!codigo || !nombre) return { error: "Código y nombre son obligatorios." };
+  if (!esValorEnum(Object.values(TipoAlmacen), tipo)) {
+    return { error: "Seleccione el rol organizativo del almacén." };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
       const almacen = await tx.almacen.create({
-        data: { empresaId: auth.usuario.empresaId, codigo, nombre, direccion, direccion2, ciudad, distrito, provincia, departamento, codigoPostal, pais, encargado },
+        data: { empresaId: auth.usuario.empresaId, tipo, codigo, nombre, direccion, direccion2, ciudad, distrito, provincia, departamento, codigoPostal, pais, encargado },
       });
       await registrarAuditoriaMaestro(tx, { empresaId: almacen.empresaId, entidad: "Almacen", registroId: almacen.id, accion: "CREAR", despues: almacen, usuario: auth.usuario });
     });
@@ -117,6 +122,25 @@ export async function alternarActivoAlmacen(id: string, activo: boolean) {
     if (!perteneceAEmpresaActiva(antes, empresaId)) return;
     const despues = await tx.almacen.update({ where: { id }, data: { activo } });
     await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Almacen", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
+  revalidatePath("/configuracion/almacenes");
+}
+
+// El rol organizativo se cambia por separado del alta: mover un almacén de
+// distribución a planta (o al revés) es una decisión de estructura, no un dato
+// que se corrija junto con la dirección.
+export async function actualizarTipoAlmacen(id: string, tipo: string) {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "configuracion", "editar"))) return;
+  if (!esValorEnum(Object.values(TipoAlmacen), tipo)) return;
+
+  const empresaId = await obtenerEmpresaActivaId();
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.almacen.findUnique({ where: { id } });
+    if (!perteneceAEmpresaActiva(antes, empresaId) || antes.tipo === tipo) return;
+    const despues = await tx.almacen.update({ where: { id }, data: { tipo } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Almacen", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/configuracion/almacenes");
 }
