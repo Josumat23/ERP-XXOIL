@@ -1993,11 +1993,21 @@ test("MRP consume el pronóstico con pedidos firmes sin duplicar demanda", () =>
   );
 });
 
-test("catálogo e inventario rechazan compañías inexistentes por FK", async () => {
+test("catálogo, inventario y calidad rechazan compañías inexistentes por FK", async () => {
   const empresaId = `empresa-inexistente-${Date.now().toString(36)}`;
   await assert.rejects(
     prisma.categoria.create({
       data: { empresaId, nombre: `Categoría inválida ${empresaId}` },
+    }),
+    (error: unknown) =>
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "P2003",
+  );
+  await assert.rejects(
+    prisma.causaCalidad.create({
+      data: { empresaId, nombre: `Causa inválida ${empresaId}` },
     }),
     (error: unknown) =>
       typeof error === "object" &&
