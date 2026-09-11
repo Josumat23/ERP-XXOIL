@@ -1979,10 +1979,18 @@ model NivelAprobacionCompra {
   nombre        String
   montoDesdePen Decimal
   rolAprobador  RolUsuario @default(GERENCIA)
+  // Nivel acotado a una planta. null = aplica a toda la compañía. Una orden
+  // recorre la union de ambos: los generales MAS los de su planta, nunca
+  // menos, para que configurar una planta no pueda aflojar el control.
+  almacenId     String?
+  almacen       Almacen?   @relation(fields: [almacenId], references: [id])
   activo        Boolean    @default(true)
   creadoEn      DateTime   @default(now())
 
+  // El orden es la posición en la secuencia combinada de la compañía, por eso
+  // sigue siendo único aunque el nivel sea de una planta.
   @@unique([empresaId, orden])
+  @@index([empresaId, almacenId, activo])
   @@map("niveles_aprobacion_compra")
 }
 
@@ -2671,19 +2679,20 @@ model Almacen {
   activo       Boolean     @default(true)
   creadoEn     DateTime    @default(now())
 
-  zonas                ZonaAlmacen[]
-  calendarioProduccion CalendarioProduccion?
-  saldos               SaldoAlmacen[]
-  movimientosKardex    MovimientoKardex[]
-  activosFijos         ActivoFijo[]
-  equipos              Equipo[]
-  ordenesCompra        OrdenCompra[]
-  centrosCosto         CentroCosto[]
-  centrosTrabajo       CentroTrabajo[]
-  ubicacionesTecnicas  UbicacionTecnica[]
-  empleados            Empleado[]
-  pedidos              Pedido[]
-  devolucionesCliente  DevolucionCliente[]
+  zonas                   ZonaAlmacen[]
+  calendarioProduccion    CalendarioProduccion?
+  saldos                  SaldoAlmacen[]
+  movimientosKardex       MovimientoKardex[]
+  activosFijos            ActivoFijo[]
+  equipos                 Equipo[]
+  ordenesCompra           OrdenCompra[]
+  nivelesAprobacionCompra NivelAprobacionCompra[]
+  centrosCosto            CentroCosto[]
+  centrosTrabajo          CentroTrabajo[]
+  ubicacionesTecnicas     UbicacionTecnica[]
+  empleados               Empleado[]
+  pedidos                 Pedido[]
+  devolucionesCliente     DevolucionCliente[]
 
   @@unique([empresaId, codigo])
   @@map("almacenes")

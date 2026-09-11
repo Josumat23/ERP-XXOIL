@@ -14,9 +14,19 @@ export async function crearNivelCompra(_estado: EstadoNivel, formData: FormData)
   const empresaId = await obtenerEmpresaActivaId();
   const nivel = { orden: Number(formData.get("orden")), nombre: String(formData.get("nombre") ?? "").trim(), montoDesdePen: Number(formData.get("montoDesdePen")), rolAprobador: String(formData.get("rolAprobador")) as "GERENCIA" | "ADMIN" };
   if (!validarNivelesCompra([nivel])) return { error: "Complete un nivel válido." };
+
+  // La planta llega del formulario: se relee acotada a la compañía activa.
+  const almacenId = String(formData.get("almacenId") ?? "").trim() || null;
+  if (almacenId) {
+    const planta = await prisma.almacen.findFirst({
+      where: { id: almacenId, empresaId, activo: true },
+      select: { id: true },
+    });
+    if (!planta) return { error: "La planta no pertenece a la compañía activa." };
+  }
   try {
     await prisma.$transaction(async (tx) => {
-      const creado = await tx.nivelAprobacionCompra.create({ data: { ...nivel, empresaId } });
+      const creado = await tx.nivelAprobacionCompra.create({ data: { ...nivel, empresaId, almacenId } });
       await registrarAuditoriaMaestro(tx, { empresaId, entidad: "NivelAprobacionCompra", registroId: creado.id, accion: "CREAR", despues: creado, usuario: auth.usuario });
     });
   }
