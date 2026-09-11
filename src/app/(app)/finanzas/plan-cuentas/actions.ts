@@ -6,6 +6,7 @@ import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { esClaveControlValida } from "@/lib/reglasAsignacionCosto";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -64,9 +65,11 @@ export async function alternarActivoCuenta(id: string, activo: boolean) {
   const auth = await requerirRol([]);
   if ("error" in auth) return;
   const empresaId = await obtenerEmpresaActivaId();
-  await prisma.cuentaContable.updateMany({
-    where: { id, planCuentas: { empresaId } },
-    data: { activo },
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.cuentaContable.findFirst({ where: { id, planCuentas: { empresaId } } });
+    if (!antes) return;
+    const despues = await tx.cuentaContable.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "CuentaContable", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/finanzas/plan-cuentas");
 }
@@ -97,10 +100,16 @@ export async function asignarControlContable(
     return { error: "Seleccione una cuenta activa del plan contable maestro." };
   }
 
-  await prisma.controlContable.upsert({
-    where: { empresaId_clave: { empresaId, clave } },
-    update: { cuentaId },
-    create: { empresaId, clave, cuentaId },
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.controlContable.findUnique({
+      where: { empresaId_clave: { empresaId, clave } },
+    });
+    const despues = await tx.controlContable.upsert({
+      where: { empresaId_clave: { empresaId, clave } },
+      update: { cuentaId },
+      create: { empresaId, clave, cuentaId },
+    });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "ControlContable", registroId: despues.id, accion: antes ? "ACTUALIZAR" : "CREAR", antes, despues, usuario: auth.usuario });
   });
 
   revalidatePath("/finanzas/plan-cuentas");

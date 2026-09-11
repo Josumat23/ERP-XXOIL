@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { esAnioOperativoValido } from "@/lib/periodos";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export async function generarAnioFiscal(anio: number) {
   const auth = await requerirRol([]); // solo ADMIN
@@ -35,13 +36,20 @@ export async function alternarPeriodoFiscal(id: string) {
   if (!periodo) return;
 
   const cerrando = periodo.estado === "ABIERTO";
-  await prisma.periodoFiscal.updateMany({
-    where: { id, empresaId, estado: periodo.estado },
-    data: {
-      estado: cerrando ? "CERRADO" : "ABIERTO",
-      cerradoEn: cerrando ? new Date() : null,
-      cerradoPor: cerrando ? auth.usuario.nombre : null,
-    },
+  await prisma.$transaction(async (tx) => {
+    const cambiados = await tx.periodoFiscal.updateMany({
+      where: { id, empresaId, estado: periodo.estado },
+      data: {
+        estado: cerrando ? "CERRADO" : "ABIERTO",
+        cerradoEn: cerrando ? new Date() : null,
+        cerradoPor: cerrando ? auth.usuario.nombre : null,
+      },
+    });
+    // Otra sesión pudo cambiar el estado entremedio: sin cambio no hay nada
+    // que auditar.
+    if (cambiados.count !== 1) return;
+    const despues = await tx.periodoFiscal.findUniqueOrThrow({ where: { id } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "PeriodoFiscal", registroId: id, accion: "ACTUALIZAR", antes: periodo, despues, usuario: auth.usuario });
   });
 
   revalidatePath("/configuracion/calendario-fiscal");

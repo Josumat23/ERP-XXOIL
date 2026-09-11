@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva, requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -29,8 +30,11 @@ export async function crearSerieDocumento(
   }
 
   try {
-    await prisma.serieDocumento.create({
-      data: { empresaId: auth.usuario.empresaId, tipoDocumento, serie, correlativoActual },
+    await prisma.$transaction(async (tx) => {
+      const creada = await tx.serieDocumento.create({
+        data: { empresaId: auth.usuario.empresaId, tipoDocumento, serie, correlativoActual },
+      });
+      await registrarAuditoriaMaestro(tx, { empresaId: creada.empresaId, entidad: "SerieDocumento", registroId: creada.id, accion: "CREAR", despues: creada, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -51,6 +55,9 @@ export async function alternarActivoSerie(id: string, activo: boolean) {
   const empresaId = await obtenerEmpresaActivaId();
   const serie = await prisma.serieDocumento.findUnique({ where: { id } });
   if (!perteneceAEmpresaActiva(serie, empresaId)) return;
-  await prisma.serieDocumento.update({ where: { id }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const despues = await tx.serieDocumento.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "SerieDocumento", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes: serie, despues, usuario: auth.usuario });
+  });
   revalidatePath("/configuracion/series");
 }

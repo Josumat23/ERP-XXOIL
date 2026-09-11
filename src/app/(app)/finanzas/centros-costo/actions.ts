@@ -15,6 +15,7 @@ import {
 } from "@/lib/reglasAsignacionCosto";
 import { creariaCicloCentroCosto } from "@/lib/jerarquiaCentrosCosto";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -96,7 +97,9 @@ export async function guardarPadreCentroCosto(
     if (creariaCicloCentroCosto(centroId, parentId, centros)) {
       return "La jerarquía no puede contener ciclos ni autorreferencias.";
     }
-    await tx.centroCosto.update({ where: { id: centroId }, data: { parentId } });
+    const antes = await tx.centroCosto.findUniqueOrThrow({ where: { id: centroId } });
+    const despues = await tx.centroCosto.update({ where: { id: centroId }, data: { parentId } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "CentroCosto", registroId: centroId, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     return null;
   });
   if (error) return { error };
@@ -109,7 +112,12 @@ export async function alternarActivoCentroCosto(id: string, activo: boolean) {
   const auth = await requerirRol([]);
   if ("error" in auth) return;
   const empresaId = await obtenerEmpresaActivaId();
-  await prisma.centroCosto.updateMany({ where: { id, empresaId }, data: { activo } });
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.centroCosto.findFirst({ where: { id, empresaId } });
+    if (!antes) return;
+    const despues = await tx.centroCosto.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "CentroCosto", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+  });
   revalidatePath("/finanzas/centros-costo");
 }
 
@@ -138,17 +146,23 @@ export async function guardarPresupuesto(
 
   const centro = await prisma.centroCosto.findFirst({ where: { id: centroCostoId, empresaId }, select: { id: true } });
   if (!centro) return { error: "El centro de costo no existe en la compañía activa." };
-  await prisma.presupuestoCentroCosto.upsert({
-    where: { centroCostoId_anio_mes: { centroCostoId, anio, mes } },
-    update: { montoPresupuestado },
-    create: {
-      centroCostoId,
-      anio,
-      mes,
-      montoPresupuestado,
-      usuarioId: auth.usuario.id,
-      usuarioNombre: auth.usuario.nombre,
-    },
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.presupuestoCentroCosto.findUnique({
+      where: { centroCostoId_anio_mes: { centroCostoId, anio, mes } },
+    });
+    const despues = await tx.presupuestoCentroCosto.upsert({
+      where: { centroCostoId_anio_mes: { centroCostoId, anio, mes } },
+      update: { montoPresupuestado },
+      create: {
+        centroCostoId,
+        anio,
+        mes,
+        montoPresupuestado,
+        usuarioId: auth.usuario.id,
+        usuarioNombre: auth.usuario.nombre,
+      },
+    });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "PresupuestoCentroCosto", registroId: despues.id, accion: antes ? "ACTUALIZAR" : "CREAR", antes, despues, usuario: auth.usuario });
   });
 
   revalidatePath(`/finanzas/centros-costo/${centroCostoId}`);
@@ -249,9 +263,13 @@ export async function alternarActivoRegla(id: string, activo: boolean) {
   const auth = await requerirRol([]);
   if ("error" in auth) return;
   const empresaId = await obtenerEmpresaActivaId();
-  await prisma.reglaAsignacionCosto.updateMany({
-    where: { id, lineas: { some: { centroCosto: { empresaId } } } },
-    data: { activo },
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.reglaAsignacionCosto.findFirst({
+      where: { id, lineas: { some: { centroCosto: { empresaId } } } },
+    });
+    if (!antes) return;
+    const despues = await tx.reglaAsignacionCosto.update({ where: { id }, data: { activo } });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "ReglaAsignacionCosto", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/finanzas/centros-costo/reglas");
 }
