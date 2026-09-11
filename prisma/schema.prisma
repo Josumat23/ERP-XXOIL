@@ -21,9 +21,21 @@ datasource db {
 // datos fiscales que aparecen en los documentos y parámetros como la tasa IGV.
 // ---------------------------------------------------------------------------
 
+// Quien puede resolver una solicitud de un empleado, mas alla del permiso.
+// SIN_JERARQUIA deja el comportamiento historico: basta el permiso y no ser
+// el propio solicitante. Las otras dos exigen relacion de mando, SIEMPRE con
+// respaldo de RR. HH.: si nadie de la cadena del solicitante tiene cuenta
+// activa, cualquiera con el permiso puede resolver. Sin ese respaldo, un
+// organigrama incompleto dejaria solicitudes sin nadie que las apruebe.
+enum AlcanceAprobacionJerarquia {
+  SIN_JERARQUIA
+  JEFE_DIRECTO
+  CADENA_MANDO
+}
+
 model ConfiguracionEmpresa {
-  id                              String    @id @default("1")
-  razonSocial                     String    @default("Mi Empresa S.A.C.")
+  id                              String                     @id @default("1")
+  razonSocial                     String                     @default("Mi Empresa S.A.C.")
   nombreComercial                 String?
   ruc                             String?
   direccion                       String?
@@ -33,13 +45,13 @@ model ConfiguracionEmpresa {
   provincia                       String?
   departamento                    String?
   codigoPostal                    String?
-  pais                            String    @default("Perú")
+  pais                            String                     @default("Perú")
   telefono                        String?
   fax                             String?
   email                           String?
   sitioWeb                        String?
-  moneda                          String    @default("PEN")
-  tasaIgv                         Decimal   @default(18) // % aplicado al facturar
+  moneda                          String                     @default("PEN")
+  tasaIgv                         Decimal                    @default(18) // % aplicado al facturar
   // Fabricar/comercializar lubricantes en Perú exige inscripción en el
   // Registro de Hidrocarburos de OSINERGMIN (categoría OPDH — Otros
   // Productos Derivados de Hidrocarburos). Referencia informativa; no
@@ -48,24 +60,24 @@ model ConfiguracionEmpresa {
   registroHidrocarburosVigencia   DateTime?
   // % mensual sobre el saldo vencido. 0 = no se cobra recargo por mora
   // (default: no cambia el comportamiento hasta que el usuario lo configure).
-  tasaRecargoMora                 Decimal   @default(0)
-  tarifaHoraManoObra              Decimal   @default(0) // S/ por hora, usado al costear lotes y envasados
+  tasaRecargoMora                 Decimal                    @default(0)
+  tarifaHoraManoObra              Decimal                    @default(0) // S/ por hora, usado al costear lotes y envasados
   // Aprobación por monto (0 = todo requiere aprobación siempre; un número muy
   // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
-  montoAprobacionCompras          Decimal   @default(5000)
-  montoAprobacionPagos            Decimal   @default(5000)
+  montoAprobacionCompras          Decimal                    @default(5000)
+  montoAprobacionPagos            Decimal                    @default(5000)
   // Tasas para la cascada de financiamiento en Proyecciones → Finanzas
   // (mismo orden que un modelo de tesorería típico: lo más barato/disponible primero).
-  tasaDescuentoCxC                Decimal   @default(9) // % (misma convención que tasaIgv: número entero, no fracción)
-  tasaCreditoCortoPlazo           Decimal   @default(9)
-  limiteCreditoCortoPlazo         Decimal   @default(100000)
-  tasaCreditoLargoPlazo           Decimal   @default(10)
+  tasaDescuentoCxC                Decimal                    @default(9) // % (misma convención que tasaIgv: número entero, no fracción)
+  tasaCreditoCortoPlazo           Decimal                    @default(9)
+  limiteCreditoCortoPlazo         Decimal                    @default(100000)
+  tasaCreditoLargoPlazo           Decimal                    @default(10)
   // Facturación electrónica SUNAT vía OSE (Operador de Servicios Electrónicos).
   // "SIMULADO" = no envía nada real, solo prueba el flujo interno (estado por
   // defecto: nadie debe recibir CDR falsos por accidente antes de contratar
   // un OSE de verdad). oseToken se guarda en texto plano a propósito: es un
   // token de servicio para llamadas salientes, no una contraseña de usuario.
-  oseProveedor                    String    @default("SIMULADO")
+  oseProveedor                    String                     @default("SIMULADO")
   oseToken                        String?
   // Comunicación directa a SUNAT (SEE - Del Contribuyente, oseProveedor =
   // "SUNAT_DIRECTO"): certificado digital de la empresa (.pfx/.p12 en
@@ -76,7 +88,8 @@ model ConfiguracionEmpresa {
   sunatCertificadoPassword        String?
   sunatUsuarioSol                 String?
   sunatClaveSol                   String?
-  actualizadoEn                   DateTime  @updatedAt
+  alcanceAprobacionJerarquia      AlcanceAprobacionJerarquia @default(CADENA_MANDO)
+  actualizadoEn                   DateTime                   @updatedAt
 
   @@map("configuracion_empresa")
 }

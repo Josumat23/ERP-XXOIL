@@ -13,6 +13,11 @@ import { generarLiquidacion } from "@/lib/planilla";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { esCambioSalarialValido } from "@/lib/cambiosSalariales";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
+import {
+  evaluarJerarquiaAprobacion,
+  MENSAJE_RECHAZO_JERARQUIA,
+  type AlcanceAprobacion,
+} from "@/lib/aprobacionesJerarquia";
 import { creariaCicloJerarquico } from "@/lib/jerarquiaEmpleados";
 
 export type EstadoFormulario = { error?: string };
@@ -263,6 +268,49 @@ export async function solicitarVacaciones(
   return {};
 }
 
+/**
+ * Regla jerárquica configurable, aplicada ENCIMA del permiso y de la
+ * segregación. Devuelve el mensaje de rechazo, o null si puede resolver.
+ *
+ * "Aprobadores posibles" son los empleados con cuenta de usuario activa: si
+ * ninguno de la cadena del solicitante lo es, entra el respaldo de RR. HH. y
+ * cualquiera con el permiso puede resolver. Sin ese respaldo un organigrama
+ * incompleto dejaría solicitudes sin salida.
+ */
+async function rechazoPorJerarquia(
+  empresaId: string,
+  empleadoSolicitanteId: string,
+  usuarioAprobadorId: string
+): Promise<string | null> {
+  const configuracion = await prisma.configuracionEmpresa.findUnique({ where: { id: "1" } });
+  const alcance = (configuracion?.alcanceAprobacionJerarquia ?? "CADENA_MANDO") as AlcanceAprobacion;
+  if (alcance === "SIN_JERARQUIA") return null;
+
+  const empleados = await prisma.empleado.findMany({
+    where: { empresaId },
+    select: { id: true, jefeDirectoId: true, estado: true, usuario: { select: { activo: true } } },
+  });
+  // Quien aprueba puede no tener ficha de empleado (p. ej. un administrador
+  // de sistema): en ese caso no está en ninguna cadena.
+  const aprobador = await prisma.empleado.findFirst({
+    where: { empresaId, usuarioId: usuarioAprobadorId },
+    select: { id: true },
+  });
+
+  const motivo = evaluarJerarquiaAprobacion({
+    alcance,
+    solicitanteId: empleadoSolicitanteId,
+    aprobadorId: aprobador?.id ?? null,
+    relaciones: empleados.map((e) => ({ id: e.id, jefeDirectoId: e.jefeDirectoId })),
+    aprobadoresPosibles: new Set(
+      empleados
+        .filter((e) => e.estado === "ACTIVO" && e.usuario?.activo === true)
+        .map((e) => e.id)
+    ),
+  });
+  return motivo ? MENSAJE_RECHAZO_JERARQUIA[motivo] : null;
+}
+
 export async function aprobarVacaciones(
   id: string,
   _prevState: EstadoFormulario,
@@ -284,6 +332,8 @@ export async function aprobarVacaciones(
   if (!puedeResolverSolicitud(pendiente.usuarioId, auth.usuario.id)) {
     return { error: "El solicitante no puede resolver su propia solicitud de vacaciones." };
   }
+  const rechazoJerarquia = await rechazoPorJerarquia(empresaId, pendiente.empleadoId, auth.usuario.id);
+  if (rechazoJerarquia) return { error: rechazoJerarquia };
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -341,6 +391,12 @@ export async function rechazarVacaciones(
   if (!puedeResolverSolicitud(solicitud.usuarioId, auth.usuario.id)) {
     return { error: "El solicitante no puede resolver su propia solicitud de vacaciones." };
   }
+  const rechazoJerarquiaRechazo = await rechazoPorJerarquia(
+    empresaId,
+    solicitud.empleadoId,
+    auth.usuario.id
+  );
+  if (rechazoJerarquiaRechazo) return { error: rechazoJerarquiaRechazo };
   if (solicitud.estado !== "PENDIENTE") return { error: "Esta solicitud ya fue resuelta." };
 
   const reclamo = await prisma.solicitudVacaciones.updateMany({

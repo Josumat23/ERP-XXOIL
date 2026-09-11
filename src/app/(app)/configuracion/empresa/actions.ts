@@ -8,6 +8,8 @@ import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { esValorEnum } from "@/lib/enums";
+import { ETIQUETA_ALCANCE_APROBACION, type AlcanceAprobacion } from "@/lib/aprobacionesJerarquia";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -42,6 +44,7 @@ export async function guardarConfiguracionEmpresa(
     : null;
   const tarifaHoraManoObra = Number(formData.get("tarifaHoraManoObra"));
   const montoAprobacionCompras = Number(formData.get("montoAprobacionCompras"));
+  const alcanceAprobacionJerarquia = String(formData.get("alcanceAprobacionJerarquia") ?? "");
   const montoAprobacionPagos = Number(formData.get("montoAprobacionPagos"));
   const tasaDescuentoCxC = Number(formData.get("tasaDescuentoCxC"));
   const tasaCreditoCortoPlazo = Number(formData.get("tasaCreditoCortoPlazo"));
@@ -64,6 +67,14 @@ export async function guardarConfiguracionEmpresa(
   }
   if (!Number.isFinite(tarifaHoraManoObra) || tarifaHoraManoObra < 0) {
     return { error: "La tarifa de mano de obra debe ser mayor o igual a 0." };
+  }
+  if (
+    !esValorEnum(
+      Object.keys(ETIQUETA_ALCANCE_APROBACION) as AlcanceAprobacion[],
+      alcanceAprobacionJerarquia
+    )
+  ) {
+    return { error: "Seleccione quién puede aprobar las solicitudes de RR. HH." };
   }
   if (!Number.isFinite(montoAprobacionCompras) || montoAprobacionCompras < 0) {
     return { error: "El monto de aprobación de compras debe ser mayor o igual a 0." };
@@ -148,6 +159,7 @@ export async function guardarConfiguracionEmpresa(
     registroHidrocarburosVigencia,
     tarifaHoraManoObra,
     montoAprobacionCompras,
+    alcanceAprobacionJerarquia,
     montoAprobacionPagos,
     tasaDescuentoCxC,
     tasaCreditoCortoPlazo,
