@@ -3167,3 +3167,42 @@ test("ningún Server Component importa constantes desde un módulo cliente", asy
   }
   assert.deepEqual(infractoras, []);
 });
+
+test("el panel general acota todas sus consultas a la compañía activa", async () => {
+  // Encontrado ejecutando el criterio de aceptación del ítem 0.2 en pantalla:
+  // con la segunda compañía activa, el panel seguía mostrando las ventas, la
+  // cobranza, las comisiones y el inventario de la primera. Es la pantalla que
+  // más datos financieros junta en un solo lugar, y no tenía ni una sola
+  // referencia a la compañía.
+  const panel = await readFile(resolve(process.cwd(), "src/app/(app)/page.tsx"), "utf8");
+  assert.match(panel, /obtenerEmpresaActivaId/);
+
+  // Se acota al bloque Promise.all y se parte por cada `prisma.`: cada trozo
+  // es una consulta, y todas deben traer el filtro de compañía. Es más tosco
+  // que parsear, y por eso no se rompe con un cambio de formato.
+  const bloque = panel.slice(
+    panel.indexOf("await Promise.all(["),
+    panel.indexOf("  ]);")
+  );
+  const consultas = bloque.split("prisma.").slice(1);
+  assert.ok(
+    consultas.length >= 20,
+    `Se esperaban las consultas del panel y se hallaron ${consultas.length}`
+  );
+  const sinEmpresa = consultas
+    .filter((consulta) => !consulta.includes("empresaId"))
+    .map((consulta) => consulta.slice(0, consulta.indexOf("(")));
+  assert.deepEqual(sinEmpresa, []);
+});
+
+test("la pantalla de compañías no anuncia un alcance que ya no es cierto", async () => {
+  // El banner declaraba al operador que solo Clientes y Proveedores filtraban
+  // de verdad. Eso dejó de ser cierto al cerrar el ítem 0.2, y un aviso falso
+  // sobre aislamiento de datos es peor que un documento desactualizado.
+  const pantalla = await readFile(
+    resolve(process.cwd(), "src/app/(app)/configuracion/empresas/page.tsx"),
+    "utf8"
+  );
+  assert.doesNotMatch(pantalla, /Alcance actual \(fase 1\)/);
+  assert.doesNotMatch(pantalla, /todavía opera solo contra la compañía principal/);
+});

@@ -25,14 +25,13 @@ export default async function EmpresasPage() {
       </h1>
       <p className="text-sm mb-1" style={{ color: "var(--epicor-texto-tenue)" }}>
         Base para operar más de una compañía real (ej. una subsidiaria en otro país). La compañía
-        activa determina qué clientes y proveedores ves y creas en tu sesión.
+        activa determina qué datos ves y creas en tu sesión, en todo el sistema.
       </p>
       <p className="text-xs mb-6 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2 max-w-2xl">
-        Alcance actual (fase 1): Clientes y Proveedores ya filtran de verdad por compañía. El resto
-        del sistema (insumos, pedidos, facturas, órdenes de compra, asientos contables, tasas de
-        Configuración → Empresa) todavía opera solo contra la compañía principal — extenderlo a
-        todo el sistema es una fase 2 más grande, para no arriesgar mezclar datos financieros de
-        compañías distintas sin poder probarlo primero.
+        Una compañía nueva empieza vacía: sin almacenes, sin plan de cuentas, sin series de
+        documento, sin usuarios propios y sin grupos de seguridad predefinidos. Antes de operar con
+        ella hay que darla de alta en Configuración, igual que una instalación nueva. Los datos de
+        las demás compañías no se ven ni se pueden editar desde aquí.
       </p>
 
       <div className="border border-black/10 dark:border-white/10 rounded-lg p-4 max-w-lg">
