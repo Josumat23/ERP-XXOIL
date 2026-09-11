@@ -3712,6 +3712,7 @@ enum Afp {
 model Empleado {
   id                     String                 @id @default(cuid())
   empresaId              String                 @default("1")
+  empresa                Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo                 String // EMP-00001
   nombres                String
   apellidos              String
@@ -3802,6 +3803,7 @@ model CambioSalarial {
 model TurnoTrabajo {
   id               String   @id @default(cuid())
   empresaId        String   @default("1")
+  empresa          Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo           String
   nombre           String
   inicioMinuto     Int
@@ -3825,6 +3827,7 @@ enum EstadoRegistroAsistencia {
 model RegistroAsistencia {
   id                  String                   @id @default(cuid())
   empresaId           String                   @default("1")
+  empresa             Empresa                  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   empleadoId          String
   fecha               DateTime
   entrada             DateTime?
@@ -3888,6 +3891,7 @@ model SolicitudVacaciones {
 model ParametroPlanilla {
   id            String   @id @default(cuid())
   empresaId     String   @default("1")
+  empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   rmv           Decimal // remuneración mínima vital vigente
   uit           Decimal // unidad impositiva tributaria vigente
   tasaEsSalud   Decimal  @default(9) // % aporte patronal
@@ -3909,6 +3913,7 @@ enum EstadoPoliticaTiempo {
 model PoliticaTiempoTrabajo {
   id                     String               @id @default(cuid())
   empresaId              String               @default("1")
+  empresa                Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   vigenteDesde           DateTime
   horasJornadaDiaria     Decimal              @default(8)
   primerasHorasRecargo   Decimal              @default(2)
@@ -3963,6 +3968,7 @@ enum EstadoPeriodoPlanilla {
 model PlanillaPeriodo {
   id            String                @id @default(cuid())
   empresaId     String                @default("1")
+  empresa       Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   anio          Int
   mes           Int
   tipo          TipoPeriodoPlanilla   @default(MENSUAL)
@@ -4048,6 +4054,7 @@ model LiquidacionDesvinculacion {
 model Adjunto {
   id             String   @id @default(cuid())
   empresaId      String   @default("1")
+  empresa        Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   entidadTipo    String // "Empleado", "ActivoFijo", "Equipo", "OrdenCompra", etc.
   entidadId      String
   nombreArchivo  String // nombre físico en disco (con prefijo único)
@@ -4240,6 +4247,13 @@ model Empresa {
   avisosMantenimiento        AvisoMantenimiento[]
   planesMantenimiento        PlanMantenimiento[]
   proyecciones               Proyeccion[]
+  empleados                  Empleado[]
+  turnosTrabajo              TurnoTrabajo[]
+  registrosAsistencia        RegistroAsistencia[]
+  parametrosPlanilla         ParametroPlanilla[]
+  politicasTiempoTrabajo     PoliticaTiempoTrabajo[]
+  planillaPeriodos           PlanillaPeriodo[]
+  adjuntos                   Adjunto[]
 
   @@map("empresas")
 }
