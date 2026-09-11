@@ -4,9 +4,9 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
-import { AlmacenFormulario, ZonaFormulario } from "./AlmacenFormularios";
+import { AlmacenFormulario, ZonaFormulario, ETIQUETA_TIPO_ALMACEN } from "./AlmacenFormularios";
 import { CalendarioProduccionFormulario } from "./CalendarioProduccionFormulario";
-import { alternarActivoAlmacen, alternarActivoZona } from "./actions";
+import { actualizarTipoAlmacen, alternarActivoAlmacen, alternarActivoZona } from "./actions";
 
 export default async function AlmacenesPage() {
   const usuario = await obtenerUsuario();
@@ -23,6 +23,9 @@ export default async function AlmacenesPage() {
     orderBy: { codigo: "asc" },
   });
 
+  const porTipo = new Map<string, number>();
+  for (const a of almacenes) porTipo.set(a.tipo, (porTipo.get(a.tipo) ?? 0) + 1);
+
   return (
     <div>
       <h1 className="text-2xl font-semibold mb-1" style={{ color: "var(--epicor-texto)" }}>
@@ -30,15 +33,25 @@ export default async function AlmacenesPage() {
       </h1>
       <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
         Equivalente reducido a Warehouse / Warehouse Zone de Epicor: define dónde vive físicamente
-        cada presentación e insumo, en vez de texto libre.
+        cada presentación e insumo, en vez de texto libre. El rol organizativo distingue una
+        planta (fabrica, tiene calendario de producción) de un almacén de distribución o de
+        tránsito.
       </p>
+
+      <div className="flex flex-wrap gap-2 mb-4">
+        {Object.entries(ETIQUETA_TIPO_ALMACEN).map(([valor, etiqueta]) => (
+          <span key={valor} className="insignia bg-neutral-100 text-neutral-600 dark:bg-neutral-800 dark:text-neutral-300">
+            {etiqueta}: {porTipo.get(valor) ?? 0}
+          </span>
+        ))}
+      </div>
 
       <PanelMaestroDetalle
         registros={almacenes.map((a) => ({
           id: a.id,
           href: `#almacen-${a.id}`,
           primario: a.nombre,
-          secundario: a.codigo,
+          secundario: `${a.codigo} · ${ETIQUETA_TIPO_ALMACEN[a.tipo]}`,
         }))}
       >
       <div className="max-w-4xl">
@@ -72,6 +85,29 @@ export default async function AlmacenesPage() {
                 )}
               </div>
               <div className="flex items-center gap-3">
+                <form
+                  action={async (formData: FormData) => {
+                    "use server";
+                    await actualizarTipoAlmacen(a.id, String(formData.get("tipo") ?? ""));
+                  }}
+                  className="flex items-center gap-2"
+                >
+                  <select
+                    aria-label={`Rol organizativo de ${a.nombre}`}
+                    name="tipo"
+                    defaultValue={a.tipo}
+                    className="campo-input text-sm w-48"
+                  >
+                    {Object.entries(ETIQUETA_TIPO_ALMACEN).map(([valor, etiqueta]) => (
+                      <option key={valor} value={valor}>
+                        {etiqueta}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="submit" className="text-sm text-neutral-600 dark:text-neutral-400 hover:underline">
+                    Guardar rol
+                  </button>
+                </form>
                 <span
                   className={`insignia ${
                     a.activo

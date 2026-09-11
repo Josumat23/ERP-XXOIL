@@ -55,18 +55,23 @@ export type ResumenCalendario = {
 };
 
 /**
- * Horas-hombre disponibles entre [inicio, fin), sumadas entre todos los
- * almacenes que tengan calendario configurado. Como los lotes de producción
- * todavía no se asignan a un almacén específico, esto es una agregación de
- * la capacidad total de planta configurada — no un chequeo por planta.
+ * Horas-hombre disponibles entre [inicio, fin), sumadas entre las plantas de
+ * la compañía que tengan calendario configurado. Como los lotes de producción
+ * todavía no se asignan a una planta específica, esto es una agregación de la
+ * capacidad total instalada; el desglose por planta va en `porAlmacen`.
  */
 export async function horasDisponiblesEnRango(
   inicio: Date,
   fin: Date,
   empresaId: string,
 ): Promise<{ total: number; porAlmacen: ResumenCalendario[] }> {
+  // Solo las plantas aportan capacidad de producción: un almacén de
+  // distribución o de tránsito puede tener calendario para otros fines, pero no
+  // fabrica. Antes del campo `tipo` la distinción era "tener calendario o no",
+  // y la migración que lo introdujo marcó como PLANTA justamente a los que ya
+  // lo tenían, así que el resultado no cambia hasta que alguien reclasifique.
   const calendarios = await prisma.calendarioProduccion.findMany({
-    where: { almacen: { empresaId } },
+    where: { almacen: { empresaId, tipo: "PLANTA" } },
     include: { almacen: true, diasNoLaborables: true },
   });
 

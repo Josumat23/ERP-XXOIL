@@ -2642,10 +2642,21 @@ model SerieDocumento {
 
 // --- Almacenes y zonas (Warehouse / Warehouse Zone) -------------------------
 
+// Rol organizativo del almacén (equivalente reducido a Plant/Storage Location
+// de SAP). Hasta ahora la distinción "planta" vs "almacén de distribución"
+// era solo convención: un almacén hacía de planta si tenía
+// CalendarioProduccion asociado. Este campo la vuelve explícita.
+enum TipoAlmacen {
+  PLANTA
+  ALMACEN_DISTRIBUCION
+  ALMACEN_TRANSITO
+}
+
 model Almacen {
-  id           String   @id @default(cuid())
-  empresaId    String   @default("1")
-  empresa      Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id           String      @id @default(cuid())
+  empresaId    String      @default("1")
+  tipo         TipoAlmacen @default(ALMACEN_DISTRIBUCION)
+  empresa      Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo       String
   nombre       String
   direccion    String?
@@ -2655,10 +2666,10 @@ model Almacen {
   provincia    String?
   departamento String?
   codigoPostal String?
-  pais         String   @default("Perú")
+  pais         String      @default("Perú")
   encargado    String?
-  activo       Boolean  @default(true)
-  creadoEn     DateTime @default(now())
+  activo       Boolean     @default(true)
+  creadoEn     DateTime    @default(now())
 
   zonas                ZonaAlmacen[]
   calendarioProduccion CalendarioProduccion?

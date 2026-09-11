@@ -72,6 +72,8 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 - **Prioridad**: **P0, el ítem más grande y más bloqueante de todo el roadmap.**
 
 ### 0.3 — Planta como unidad organizativa real
+- **Avance 2026-09-11:** `Almacen.tipo` (`PLANTA` / `ALMACEN_DISTRIBUCION` / `ALMACEN_TRANSITO`) existe y se administra desde Configuración → Almacenes. La migración trasladó la convención vigente —un almacén hacía de planta si tenía `CalendarioProduccion`— al campo explícito, así que ningún dato cambia de comportamiento al aplicarla. La capacidad de Proyecciones ya suma **solo plantas**. Véase `docs/planta-unidad-organizativa.md`.
+- **Lo que falta:** el MRP sigue neteando a nivel compañía (`logistica/mrp` pasa `almacenId: null`). Hacerlo por planta exige decidir contra qué stock netea cada planta, y eso depende de la pregunta abierta 2 del Blueprint 10 (si una planta puede tener varios almacenes subordinados). El campo `plantaId` jerárquico sigue siendo P1 por la misma razón.
 - **Qué**: agregar `tipo`/`rol` a `Almacen` (o modelo `Planta` separado si el negocio confirma que una planta puede tener varios almacenes subordinados — ver Blueprint 10, pregunta abierta).
 - **Dependencias**: 0.2 (una planta pertenece a una compañía real).
 - **Criterio de aceptación**: el sistema puede listar "todas las plantas" distinto de "todos los almacenes de distribución," y el MRP/Proyecciones puede planificar por planta.
