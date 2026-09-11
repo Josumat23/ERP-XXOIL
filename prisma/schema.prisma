@@ -1796,6 +1796,7 @@ enum EstadoAcuerdoSuministro {
 model AcuerdoSuministro {
   id            String                  @id @default(cuid())
   empresaId     String                  @default("1")
+  empresa       Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero        String
   proveedorId   String
   titulo        String
@@ -1847,6 +1848,7 @@ enum EstadoOfertaRfq {
 model RfqCompra {
   id                        String          @id @default(cuid())
   empresaId                 String          @default("1")
+  empresa                   Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero                    String
   titulo                    String
   fechaLimite               DateTime?
@@ -1922,6 +1924,7 @@ model OfertaRfqLinea {
 model OrdenCompra {
   id              String            @id @default(cuid())
   empresaId       String            @default("1")
+  empresa         Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero          String            @unique // OC-00001
   proveedorId     String
   almacenId       String? // almacén/planta de destino (opcional: si no se elige, la recepción resuelve el almacén como siempre)
@@ -1971,6 +1974,7 @@ model OrdenCompra {
 model NivelAprobacionCompra {
   id            String     @id @default(cuid())
   empresaId     String     @default("1")
+  empresa       Empresa    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   orden         Int
   nombre        String
   montoDesdePen Decimal
@@ -2023,6 +2027,7 @@ model OrdenCompraDetalle {
 model RecepcionCompra {
   id            String   @id @default(cuid())
   empresaId     String   @default("1")
+  empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero        String   @unique // RC-00001
   ordenCompraId String
   fecha         DateTime @default(now())
@@ -2067,6 +2072,7 @@ model RecepcionCompraDetalle {
 model DevolucionCompra {
   id                       String   @id @default(cuid())
   empresaId                String   @default("1")
+  empresa                  Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   recepcionCompraDetalleId String
   cantidad                 Decimal
   motivo                   String
@@ -2090,6 +2096,7 @@ enum EstadoCreditoProveedor {
 model CreditoProveedor {
   id                     String                 @id @default(cuid())
   empresaId              String                 @default("1")
+  empresa                Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   proveedorId            String
   devolucionCompraId     String                 @unique
   montoFuncionalOriginal Decimal
@@ -2109,6 +2116,7 @@ model CreditoProveedor {
 model AplicacionCreditoProveedor {
   id               String   @id @default(cuid())
   empresaId        String   @default("1")
+  empresa          Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   creditoId        String
   cuentaPorPagarId String
   fecha            DateTime @default(now())
@@ -2127,6 +2135,7 @@ model AplicacionCreditoProveedor {
 model ReembolsoProveedor {
   id             String    @id @default(cuid())
   empresaId      String    @default("1")
+  empresa        Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   creditoId      String
   fecha          DateTime  @default(now())
   montoFuncional Decimal
@@ -2190,6 +2199,7 @@ model InspeccionCompra {
 model PlanInspeccionInsumo {
   id            String    @id @default(cuid())
   empresaId     String    @default("1")
+  empresa       Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   insumoId      String
   version       Int
   nombre        String
@@ -2266,6 +2276,7 @@ enum ModalidadTransporte {
 model GuiaRemision {
   id                  String              @id @default(cuid())
   empresaId           String              @default("1")
+  empresa             Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero              String              @unique // ej. T001-00000001
   facturaId           String?
   pedidoId            String?
@@ -2384,6 +2395,7 @@ enum EstadoVerificacionFacturaProveedor {
 model CuentaPorPagar {
   id                            String                             @id @default(cuid())
   empresaId                     String                             @default("1")
+  empresa                       Empresa                            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   proveedorId                   String
   ordenCompraId                 String?
   recepcionCompraId             String? // recepción que originó esta CxP (para poder aplicar devoluciones)
@@ -2431,6 +2443,7 @@ model CuentaPorPagar {
 model PagoProveedor {
   id               String    @id @default(cuid())
   empresaId        String    @default("1")
+  empresa          Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   cuentaPorPagarId String
   fecha            DateTime  @default(now())
   monto            Decimal
@@ -4170,6 +4183,19 @@ model Empresa {
   reembolsosCliente          ReembolsoCliente[]
   devolucionesCliente        DevolucionCliente[]
   comisiones                 Comision[]
+  acuerdosSuministro         AcuerdoSuministro[]
+  rfqsCompra                 RfqCompra[]
+  ordenesCompra              OrdenCompra[]
+  nivelesAprobacionCompra    NivelAprobacionCompra[]
+  recepcionesCompra          RecepcionCompra[]
+  devolucionesCompra         DevolucionCompra[]
+  creditosProveedor          CreditoProveedor[]
+  aplicacionesCreditoProv    AplicacionCreditoProveedor[]
+  reembolsosProveedor        ReembolsoProveedor[]
+  planesInspeccionInsumo     PlanInspeccionInsumo[]
+  guiasRemision              GuiaRemision[]
+  cuentasPorPagar            CuentaPorPagar[]
+  pagosProveedor             PagoProveedor[]
 
   @@map("empresas")
 }
