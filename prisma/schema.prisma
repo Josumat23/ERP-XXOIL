@@ -299,6 +299,7 @@ model Presentacion {
   escalonesPrecio    EscalonPrecio[]
   conteoDetalles     ConteoInventarioDetalle[]
   cotizacionDetalles CotizacionDetalle[]
+  saldoZonas         SaldoZona[]
 
   @@unique([empresaId, sku])
   @@map("presentaciones")
@@ -413,6 +414,7 @@ model Insumo {
   planesInspeccion       PlanInspeccionInsumo[]
   lineasRfq              RfqCompraLinea[]
   lineasAcuerdo          AcuerdoSuministroLinea[]
+  saldoZonas             SaldoZona[]
 
   @@unique([empresaId, codigo])
   @@map("insumos")
@@ -507,6 +509,38 @@ model MovimientoKardex {
 // Saldo de stock por almacén (la "verdad" granular); Presentacion.stock e
 // Insumo.stock siguen existiendo como el total agregado de todos los
 // almacenes, mantenido en sincronía en la misma transacción que este saldo.
+// Partición real del stock dentro de un almacén. SaldoAlmacen dice cuánto hay
+// en el almacén; SaldoZona dice en qué zonas está repartido.
+//
+// Es una capa ADITIVA sobre SaldoAlmacen, no un reemplazo: el kardex sigue
+// moviendo el saldo del almacén sin conocer zonas, y repartir por zona es una
+// operación aparte que nunca altera el total. Lo que no se asignó a ninguna
+// zona se deriva como "sin zona": saldoAlmacen - suma(saldoZona).
+model SaldoZona {
+  id             String         @id @default(cuid())
+  zonaAlmacenId  String
+  tipoItem       TipoItemKardex
+  // Copia NO nuleable del id del item (presentacion o insumo). Existe solo
+  // para que el indice unico funcione de verdad: en SQLite dos NULL se
+  // consideran distintos, asi que una clave compuesta con columnas nuleables
+  // -como la de SaldoAlmacen- no impide filas duplicadas. Con SaldoZona
+  // duplicada la cantidad de la zona se contaria dos veces.
+  itemId         String
+  presentacionId String?
+  insumoId       String?
+  cantidad       Decimal        @default(0)
+  actualizadoEn  DateTime       @updatedAt
+
+  zona         ZonaAlmacen   @relation(fields: [zonaAlmacenId], references: [id], onDelete: Restrict)
+  presentacion Presentacion? @relation(fields: [presentacionId], references: [id])
+  insumo       Insumo?       @relation(fields: [insumoId], references: [id])
+
+  @@unique([zonaAlmacenId, itemId])
+  @@index([presentacionId])
+  @@index([insumoId])
+  @@map("saldos_zona")
+}
+
 model SaldoAlmacen {
   id             String         @id @default(cuid())
   almacenId      String
@@ -2741,6 +2775,7 @@ model ZonaAlmacen {
   almacen        Almacen        @relation(fields: [almacenId], references: [id])
   presentaciones Presentacion[]
   insumos        Insumo[]
+  saldos         SaldoZona[]
 
   @@unique([almacenId, codigo])
   @@map("zonas_almacen")

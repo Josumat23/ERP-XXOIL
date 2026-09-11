@@ -82,7 +82,10 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 - **Rollback**: campo nuevo, opcional — reversible sin pérdida de datos.
 - **Prioridad**: P0.
 
-### 0.4 — Partición de stock por zona (bin real, no puntero único)
+### 0.4 — ~~Partición de stock por zona (bin real, no puntero único)~~ — completado
+- **Resultado 2026-09-12:** `SaldoZona` guarda la cantidad por zona e ítem como capa aditiva sobre `SaldoAlmacen`; lo no repartido se deriva como "sin zona", de modo que la suma siempre cuadra con el saldo del almacén. El kardex no conoce zonas a propósito: repartir no genera movimiento ni altera el saldo. La zona principal pasa a ser derivada y los punteros `zonaAlmacenId` quedan como etiqueta de referencia. Véase `docs/particion-stock-por-zona.md`.
+- **Verificación:** funciones puras y escenario sobre base efímera en la suite, más recorrido en navegador: un insumo de 1.904 unidades repartido en MP-01 (200) y A-01 (300) con 1.404 sin asignar, total del almacén sin cambios en ningún paso, y sobregiro rechazado.
+- **Nota sobre la prioridad:** el ítem pedía validar el volumen de despacho con el negocio antes de comprometer el esfuerzo. Se construyó por indicación explícita de seguir el orden del roadmap; picking/oleadas (Oleada 2) sigue condicionado a ese dato.
 - **Qué**: nuevo modelo `SaldoZona` (cantidad por combinación almacén+zona+ítem), migrando `Presentacion.zonaAlmacenId`/`Insumo.zonaAlmacenId` de puntero único a una vista derivada ("zona principal") mientras el detalle real vive en `SaldoZona`.
 - **Dependencias**: ninguna técnica directa, pero es prerrequisito lógico de picking/oleadas (Oleada 2).
 - **Criterio de aceptación**: un ítem puede tener cantidad simultánea en más de una zona del mismo almacén, y la suma de `SaldoZona` por ítem coincide siempre con `SaldoAlmacen`.
