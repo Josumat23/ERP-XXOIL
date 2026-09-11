@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario, ETIQUETA_ROL } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import {
@@ -19,10 +20,11 @@ export default async function UsuariosPage() {
   if (!actual || actual.rol !== "ADMIN") redirect("/");
   if (!(await puedeRealizar(actual, "configuracion", "ver"))) redirect("/");
 
+  const empresaId = await obtenerEmpresaActivaId();
   const [usuarios, grupos, sesiones] = await Promise.all([
-    prisma.usuario.findMany({ orderBy: { nombre: "asc" } }),
+    prisma.usuario.findMany({ where: { empresaId }, orderBy: { nombre: "asc" } }),
     prisma.grupoSeguridad.findMany({
-      where: { esPredefinido: false, activo: true },
+      where: { empresaId, esPredefinido: false, activo: true },
       orderBy: { nombre: "asc" },
       select: { id: true, nombre: true },
     }),

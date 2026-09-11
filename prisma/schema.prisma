@@ -4167,10 +4167,11 @@ model Contacto {
 // audita el esquema para que un modelo nuevo con empresaId no pueda quedarse
 // sin la relación.
 //
-// Lo que falta del ítem 0.2 es el filtro de aplicación: cinco módulos de
-// Configuración (almacenes, unidades de medida, grupos de seguridad,
-// usuarios y series de documento) todavía resuelven sus Server Actions sin
-// acotar a la compañía activa y escriben con el empresaId por defecto.
+// El filtro de aplicación también está cerrado: los 68 actions.ts resuelven
+// la compañía activa antes de leer o escribir. La única excepción
+// deliberada es configuracion/tareas-programadas, que dispara a mano las
+// mismas tareas de mantenimiento que el servidor corre por temporizador y
+// que operan sobre toda la base, no sobre una compañía.
 // ---------------------------------------------------------------------------
 model Empresa {
   id              String   @id @default(cuid())

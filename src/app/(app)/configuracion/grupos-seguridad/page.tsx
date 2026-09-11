@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { MODULOS } from "./modulos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import GrupoFormulario from "./GrupoFormulario";
@@ -14,7 +15,9 @@ export default async function GruposSeguridadPage() {
   if (!usuario || usuario.rol !== "ADMIN") redirect("/");
   if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
+  const empresaId = await obtenerEmpresaActivaId();
   const grupos = await prisma.grupoSeguridad.findMany({
+    where: { empresaId },
     include: { permisos: true },
     orderBy: [{ esPredefinido: "desc" }, { codigo: "asc" }],
   });
