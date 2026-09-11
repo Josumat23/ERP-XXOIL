@@ -15,14 +15,24 @@ const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4:
 export default async function MrpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ proyeccionId?: string }>;
+  searchParams: Promise<{ proyeccionId?: string; almacenId?: string }>;
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario) redirect("/");
   if (!(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
   const empresaId = await obtenerEmpresaActivaId();
 
-  const { proyeccionId } = await searchParams;
+  const { proyeccionId, almacenId: almacenSolicitado } = await searchParams;
+
+  // Plantas de la compañía. El id llega de la URL: se relee acotado a la
+  // compañía activa antes de usarlo para planificar.
+  const plantas = await prisma.almacen.findMany({
+    where: { empresaId, tipo: "PLANTA", activo: true },
+    select: { id: true, nombre: true },
+    orderBy: { nombre: "asc" },
+  });
+  const almacenId = plantas.some((p) => p.id === almacenSolicitado) ? almacenSolicitado! : null;
+  const plantaActiva = plantas.find((p) => p.id === almacenId) ?? null;
 
   const proyecciones = await prisma.proyeccion.findMany({
     where: { empresaId },
@@ -83,6 +93,7 @@ export default async function MrpPage({
     proyeccionCompleta.anio,
     proyeccionCompleta.trimestre,
     empresaId,
+    almacenId,
   );
 
   const insumosAComprar = operaciones.insumos.filter((i) => i.aComprar > 0);
@@ -172,6 +183,16 @@ export default async function MrpPage({
         para generar la orden de compra directamente.
       </p>
 
+      {plantaActiva && (
+        <p className="text-xs mb-4 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2 max-w-3xl">
+          Planificando para <strong>{plantaActiva.nombre}</strong>: el neteo usa el stock de esa
+          planta y solo sus pedidos firmes. <strong>El pronóstico queda fuera</strong> — la
+          proyección no distingue plantas, y repartirla entre ellas exige un criterio de asignación
+          que es una decisión del negocio, no del sistema. Para planificar con pronóstico, elija
+          &quot;Toda la compañía&quot;.
+        </p>
+      )}
+
       <form method="get" className="flex items-end gap-3 mb-6">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Proyección</span>
@@ -183,6 +204,19 @@ export default async function MrpPage({
             ))}
           </select>
         </label>
+        {plantas.length > 0 && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Planta</span>
+            <select name="almacenId" defaultValue={almacenId ?? ""} className="campo-input">
+              <option value="">Toda la compañía</option>
+              {plantas.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nombre}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
         <button type="submit" className="boton-secundario">
           Ver
         </button>
@@ -249,7 +283,7 @@ export default async function MrpPage({
                         const ocId = await crearOrdenCompraDesdeDatos(
                           {
                             proveedorId: grupo.proveedorId!,
-                            almacenId: null,
+                            almacenId,
                             notas: `Sugerida por MRP — ${NOMBRE_TRIMESTRE[proyeccionCompleta.trimestre]} ${proyeccionCompleta.anio}`,
                             moneda: grupo.moneda,
                             tipoCambio: grupo.tipoCambio,
