@@ -1454,6 +1454,7 @@ model RecargoMora {
 model AvisoCobranza {
   id            String   @id @default(cuid())
   empresaId     String   @default("1")
+  empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId     String
   facturaId     String
   nivel         Int // 1 = aviso amistoso, 2 = aviso formal, 3 = aviso final
@@ -1494,6 +1495,7 @@ enum EstadoEnvioSunat {
 model ComprobanteElectronico {
   id               String                     @id @default(cuid())
   empresaId        String                     @default("1")
+  empresa          Empresa                    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   tipoDocumento    TipoComprobanteElectronico
   documentoId      String
   numeroDocumento  String // copia del numero de Factura/NotaCredito/GuiaRemision, para no resolver la relación polimórfica solo para mostrarlo
@@ -1524,6 +1526,7 @@ enum MedioPago {
 model Cobro {
   id                   String    @id @default(cuid())
   empresaId            String    @default("1")
+  empresa              Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   facturaId            String
   fecha                DateTime  @default(now())
   monto                Decimal
@@ -1562,6 +1565,7 @@ enum TipoNotaCredito {
 model NotaCredito {
   id             String          @id @default(cuid())
   empresaId      String          @default("1")
+  empresa        Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero         String          @unique // número SUNAT de la NC
   facturaId      String
   fecha          DateTime        @default(now())
@@ -1609,6 +1613,7 @@ enum EstadoCreditoCliente {
 model CreditoCliente {
   id                     String               @id @default(cuid())
   empresaId              String               @default("1")
+  empresa                Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId              String
   notaCreditoId          String               @unique
   moneda                 String               @default("PEN")
@@ -1632,6 +1637,7 @@ model CreditoCliente {
 model AplicacionCreditoCliente {
   id                       String   @id @default(cuid())
   empresaId                String   @default("1")
+  empresa                  Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   creditoId                String
   facturaId                String
   fecha                    DateTime @default(now())
@@ -1653,6 +1659,7 @@ model AplicacionCreditoCliente {
 model ReembolsoCliente {
   id                       String           @id @default(cuid())
   empresaId                String           @default("1")
+  empresa                  Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   creditoId                String
   fecha                    DateTime         @default(now())
   monto                    Decimal
@@ -1692,6 +1699,7 @@ enum DecisionDevolucionCliente {
 model DevolucionCliente {
   id               String                  @id @default(cuid())
   empresaId        String                  @default("1")
+  empresa          Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero           String                  @unique
   facturaId        String
   almacenId        String
@@ -1752,6 +1760,7 @@ enum EstadoComision {
 model Comision {
   id         String         @id @default(cuid())
   empresaId  String         @default("1")
+  empresa    Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   vendedorId String
   facturaId  String
   tipo       TipoComision
@@ -4127,31 +4136,40 @@ model Empresa {
   activa          Boolean  @default(true)
   creadoEn        DateTime @default(now())
 
-  cuentasBancarias  CuentaBancariaEmpresa[]
-  usuarios          Usuario[]
-  auditoriasMaestro AuditoriaMaestro[]
-  categorias        Categoria[]
-  productos         Producto[]
-  presentaciones    Presentacion[]
-  proveedores       Proveedor[]
-  insumos           Insumo[]
-  movimientosCasco  MovimientoCasco[]
-  movimientosKardex MovimientoKardex[]
-  conteosInventario ConteoInventario[]
-  formulas          Formula[]
-  lotesGranel       LoteGranel[]
-  noConformidades   NoConformidadCalidad[]
-  planesCalidad     PlanInspeccionCalidad[]
-  causasCalidad     CausaCalidad[]
-  reclamosCliente   ReclamoCliente[]
-  envasados         Envasado[]
-  zonasComerciales  Zona[]
-  vendedores        Vendedor[]
-  descuentosCanal   DescuentoCanal[]
-  clientes          Cliente[]
-  cotizaciones      Cotizacion[]
-  pedidos           Pedido[]
-  facturas          Factura[]
+  cuentasBancarias           CuentaBancariaEmpresa[]
+  usuarios                   Usuario[]
+  auditoriasMaestro          AuditoriaMaestro[]
+  categorias                 Categoria[]
+  productos                  Producto[]
+  presentaciones             Presentacion[]
+  proveedores                Proveedor[]
+  insumos                    Insumo[]
+  movimientosCasco           MovimientoCasco[]
+  movimientosKardex          MovimientoKardex[]
+  conteosInventario          ConteoInventario[]
+  formulas                   Formula[]
+  lotesGranel                LoteGranel[]
+  noConformidades            NoConformidadCalidad[]
+  planesCalidad              PlanInspeccionCalidad[]
+  causasCalidad              CausaCalidad[]
+  reclamosCliente            ReclamoCliente[]
+  envasados                  Envasado[]
+  zonasComerciales           Zona[]
+  vendedores                 Vendedor[]
+  descuentosCanal            DescuentoCanal[]
+  clientes                   Cliente[]
+  cotizaciones               Cotizacion[]
+  pedidos                    Pedido[]
+  facturas                   Factura[]
+  avisosCobranza             AvisoCobranza[]
+  comprobantes               ComprobanteElectronico[]
+  cobros                     Cobro[]
+  notasCredito               NotaCredito[]
+  creditosCliente            CreditoCliente[]
+  aplicacionesCreditoCliente AplicacionCreditoCliente[]
+  reembolsosCliente          ReembolsoCliente[]
+  devolucionesCliente        DevolucionCliente[]
+  comisiones                 Comision[]
 
   @@map("empresas")
 }
