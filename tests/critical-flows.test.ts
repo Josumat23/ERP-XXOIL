@@ -2065,6 +2065,27 @@ test("los dominios migrados rechazan compañías inexistentes por FK", async () 
     }),
     (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2003",
   );
+  await assert.rejects(
+    prisma.centroCosto.create({
+      data: { empresaId, codigo: "CC-INV", nombre: "Centro inválido", tipo: "OTRO" },
+    }),
+    (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2003",
+  );
+  await assert.rejects(
+    prisma.proyecto.create({
+      data: {
+        empresaId,
+        codigo: "PRY-INV",
+        nombre: "Proyecto inválido",
+        presupuestoTotal: 100,
+        fechaInicioPlan: new Date(2026, 0, 1),
+        fechaFinPlan: new Date(2026, 0, 31),
+        usuarioId: "usuario-inexistente",
+        usuarioNombre: "Usuario inexistente",
+      },
+    }),
+    (error: unknown) => typeof error === "object" && error !== null && "code" in error && error.code === "P2003",
+  );
 });
 
 test("MRP calcula backlog parcial sin consumir facturas anuladas", () => {
