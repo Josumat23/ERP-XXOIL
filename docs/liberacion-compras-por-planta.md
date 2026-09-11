@@ -26,9 +26,13 @@ El costo es real y vale nombrarlo: no se puede hacer que una planta apruebe **me
 - **El respaldo al umbral histórico no cambió.** Si la compañía no tiene ningún nivel configurado, se conserva el umbral único de `ConfiguracionEmpresa`. El filtro por planta se aplica *después* de traer los niveles de la compañía, a propósito: ese respaldo depende de si la compañía tiene esquema configurado, no de si esta planta en particular quedó sin niveles aplicables.
 - **Un rol desconocido cae en GERENCIA**, nunca en ADMIN: ante un dato raro se escala al permiso menor.
 
-## Lo que sigue ausente
+## Organización de compras: confirmado que no aplica
 
-**Organización de compras** como unidad propia no existe en el modelo (Blueprint 03 §4 la marca ausente) y no se inventa aquí. El criterio del roadmap decía "por planta/organización"; la planta existe y se implementó, la organización de compras es un modelo nuevo que requiere confirmar si el negocio la necesita.
+El criterio del roadmap decía "por planta **/organización**". La planta existe y está implementada. Sobre la otra mitad, el negocio confirmó el **2026-09-12** que **las compras son centralizadas**: no hay organización de compras como unidad propia.
+
+Por eso no se modela `OrganizacionCompras`. Agregar una unidad organizativa que nadie usa obligaría a elegirla —o a ignorarla— en cada alta de orden de compra, sin aportar ningún control real. Con los niveles por monto y por planta, el esquema de liberación queda cubierto por completo.
+
+Queda registrado en Blueprint 10 para que, si el grupo abre una organización de compras separada, se reabra con contexto en lugar de redescubrirse.
 
 ## Verificación
 

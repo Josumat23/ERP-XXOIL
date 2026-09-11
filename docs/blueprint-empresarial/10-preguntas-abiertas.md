@@ -31,4 +31,14 @@ Estas preguntas surgieron a lo largo de la auditoría (Blueprints 01-09) en punt
 
 ---
 
+## Respuestas registradas
+
+Preguntas ya resueltas por el negocio. Se dejan aquí, y no se borran de la tabla de arriba, para que quede constancia de **quién decidió qué y cuándo** — una pregunta que desaparece sin rastro se vuelve a abrir sola en la siguiente auditoría.
+
+| # | Pregunta | Respuesta | Fecha | Consecuencia aplicada |
+|---|---|---|---|---|
+| — | ¿Existe más de una organización de compras real (ej. una corporativa y otra por planta), o las compras son centralizadas? | **Centralizadas. No existe organización de compras como unidad propia.** | 2026-09-12 | El ítem "Esquema de liberación de compras multi-nivel" queda cubierto por completo con los niveles por monto y por planta ya construidos. No se modela `OrganizacionCompras`: agregar una unidad organizativa que nadie usa estorbaría en cada alta de orden de compra sin aportar control. Si el grupo abre una organización de compras separada, esto se reabre. |
+
+---
+
 **Nota de cierre**: ninguna de estas preguntas tiene una respuesta "por defecto" segura para asumir — cada una, respondida en un sentido u otro, cambia el alcance real de al menos un ítem del roadmap (Blueprint 09). Se recomienda resolverlas con los dueños de negocio correspondientes **antes** de iniciar la Oleada 0, salvo las preguntas 10, 11, 13, 15 y 16 (SST/SIRE/planilla/certificado digital), que por ser obligaciones legales activas o bloqueantes técnicos de facturación electrónica real, deben investigarse en paralelo sin esperar al resto.
