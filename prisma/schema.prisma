@@ -1078,6 +1078,7 @@ model EnvasadoInsumo {
 model Zona {
   id        String   @id @default(cuid())
   empresaId String   @default("1")
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre    String
   activo    Boolean  @default(true)
   creadoEn  DateTime @default(now())
@@ -1097,6 +1098,7 @@ enum TipoVendedor {
 model Vendedor {
   id           String       @id @default(cuid())
   empresaId    String       @default("1")
+  empresa      Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre       String
   documento    String?
   telefono     String?
@@ -1136,6 +1138,7 @@ enum CanalCliente {
 model DescuentoCanal {
   id           String       @id @default(cuid())
   empresaId    String       @default("1")
+  empresa      Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   canal        CanalCliente
   descuentoPct Decimal      @default(0)
 
@@ -1146,6 +1149,7 @@ model DescuentoCanal {
 model Cliente {
   id                   String              @id @default(cuid())
   empresaId            String              @default("1")
+  empresa              Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo               String // CLI-00001, asignado automáticamente al crear (nunca se reutiliza)
   razonSocial          String
   nombreComercial      String?
@@ -1214,6 +1218,7 @@ enum EstadoCotizacion {
 model Cotizacion {
   id            String           @id @default(cuid())
   empresaId     String           @default("1")
+  empresa       Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero        String           @unique // COT-00001
   clienteId     String
   vendedorId    String
@@ -1255,6 +1260,7 @@ model CotizacionDetalle {
 model Pedido {
   id                      String           @id @default(cuid())
   empresaId               String           @default("1")
+  empresa                 Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero                  String           @unique // PED-00001
   clienteId               String
   vendedorId              String
@@ -1340,6 +1346,7 @@ enum EstadoFactura {
 model Factura {
   id                String        @id @default(cuid())
   empresaId         String        @default("1")
+  empresa           Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero            String        @unique // número SUNAT, ej. F001-00000123
   pedidoId          String
   clienteId         String
@@ -4138,6 +4145,13 @@ model Empresa {
   causasCalidad     CausaCalidad[]
   reclamosCliente   ReclamoCliente[]
   envasados         Envasado[]
+  zonasComerciales  Zona[]
+  vendedores        Vendedor[]
+  descuentosCanal   DescuentoCanal[]
+  clientes          Cliente[]
+  cotizaciones      Cotizacion[]
+  pedidos           Pedido[]
+  facturas          Factura[]
 
   @@map("empresas")
 }
