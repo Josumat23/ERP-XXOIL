@@ -161,7 +161,7 @@ async function main() {
     const plantaSemilla = await prisma.almacen.upsert({
       where: { empresaId_codigo: { empresaId: "1", codigo: "PLANTA" } },
       update: {},
-      create: { codigo: "PLANTA", nombre: "Planta de producción" },
+      create: { codigo: "PLANTA", nombre: "Planta de producción", tipo: "PLANTA" },
     });
 
     const presentaciones = await prisma.presentacion.findMany();
@@ -327,7 +327,7 @@ async function main() {
   const planta = await prisma.almacen.upsert({
     where: { empresaId_codigo: { empresaId: "1", codigo: "PLANTA" } },
     update: {},
-    create: { codigo: "PLANTA", nombre: "Planta de producción" },
+    create: { codigo: "PLANTA", nombre: "Planta de producción", tipo: "PLANTA" },
   });
   const zonasSemillaAlmacen = [
     { almacenId: planta.id, codigo: "A-01", nombre: "Producto terminado" },

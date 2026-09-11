@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "tsx watch server.ts --dev",
+    "dev:demo": "node scripts/dev-demo.mjs",
     "build": "next build --webpack",
     "start": "tsx server.ts",
     "lint": "eslint",

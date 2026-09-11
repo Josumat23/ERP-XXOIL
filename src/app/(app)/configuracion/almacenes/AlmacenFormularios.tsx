@@ -3,12 +3,7 @@
 import { useRef } from "react";
 import { useActionState } from "react";
 import { crearAlmacen, crearZonaAlmacen, type EstadoFormulario } from "./actions";
-
-export const ETIQUETA_TIPO_ALMACEN: Record<string, string> = {
-  PLANTA: "Planta",
-  ALMACEN_DISTRIBUCION: "Almacén de distribución",
-  ALMACEN_TRANSITO: "Almacén de tránsito",
-};
+import { ETIQUETA_TIPO_ALMACEN } from "@/lib/tiposAlmacen";
 
 export function AlmacenFormulario() {
   const formRef = useRef<HTMLFormElement>(null);

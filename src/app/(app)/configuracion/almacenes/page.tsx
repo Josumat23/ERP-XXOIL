@@ -4,7 +4,8 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
-import { AlmacenFormulario, ZonaFormulario, ETIQUETA_TIPO_ALMACEN } from "./AlmacenFormularios";
+import { AlmacenFormulario, ZonaFormulario } from "./AlmacenFormularios";
+import { ETIQUETA_TIPO_ALMACEN } from "@/lib/tiposAlmacen";
 import { CalendarioProduccionFormulario } from "./CalendarioProduccionFormulario";
 import { actualizarTipoAlmacen, alternarActivoAlmacen, alternarActivoZona } from "./actions";
 

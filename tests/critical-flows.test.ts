@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { tmpdir } from "node:os";
 import { readFile, readdir } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
@@ -3109,4 +3109,61 @@ test("la bandeja de aprobaciones se acota a la compañía activa", async () => {
   assert.match(bandeja, /obtenerUsuarioEmpresaActiva/);
   // Las tres consultas de la bandeja, no solo la primera.
   assert.equal((bandeja.match(/where: \{ empresaId,/g) ?? []).length, 3);
+});
+
+test("la semilla deja al menos una planta que pueda producir", async () => {
+  // Verificado en navegador: sin esto, una instalación nueva no tiene ninguna
+  // PLANTA — el selector de ubicaciones técnicas queda vacío y, peor,
+  // horasDisponiblesEnRango solo suma plantas, así que la capacidad de
+  // Proyecciones sería cero aunque hubiera calendario configurado. La
+  // migración que introdujo el campo respetó la convención de las bases YA
+  // existentes; una base nueva no pasa por ese relleno.
+  const plantas = await prisma.almacen.findMany({ where: { tipo: "PLANTA" } });
+  assert.ok(plantas.length > 0, "La semilla no dejó ningún almacén de tipo PLANTA");
+  assert.ok(plantas.some((a) => a.codigo === "PLANTA"));
+});
+
+test("ningún Server Component importa constantes desde un módulo cliente", async () => {
+  // Trampa del App Router encontrada en navegador: si un Server Component
+  // importa un VALOR desde un módulo "use client", recibe una referencia de
+  // cliente en vez del objeto, y acceder a sus propiedades devuelve undefined.
+  // No hay error de TypeScript, no falla el lint, no falla el build: la
+  // pantalla simplemente muestra "undefined".
+  const raiz = resolve(process.cwd(), "src/app");
+  const pendientes = [raiz];
+  const paginas: string[] = [];
+  while (pendientes.length > 0) {
+    const directorio = pendientes.pop() as string;
+    for (const entrada of await readdir(directorio, { withFileTypes: true })) {
+      const ruta = join(directorio, entrada.name);
+      if (entrada.isDirectory()) pendientes.push(ruta);
+      else if (entrada.name === "page.tsx") paginas.push(ruta);
+    }
+  }
+
+  const infractoras: string[] = [];
+  for (const ruta of paginas) {
+    const contenido = await readFile(ruta, "utf8");
+    if (/^\s*["']use client["']/.test(contenido)) continue;
+    // Importaciones relativas con nombres en MAYÚSCULAS: son constantes, no
+    // componentes (PascalCase) ni tipos (importados con `type`).
+    for (const [, nombres, modulo] of contenido.matchAll(
+      /import\s*\{([^}]*)\}\s*from\s*["'](\.[^"']*)["']/g
+    )) {
+      const constantes = nombres
+        .split(",")
+        .map((n) => n.trim().split(/\s+as\s+/)[0].trim())
+        .filter((n) => /^[A-Z0-9_]{2,}$/.test(n));
+      if (constantes.length === 0) continue;
+      const destino = resolve(dirname(ruta), modulo.endsWith(".tsx") ? modulo : `${modulo}.tsx`);
+      const fuente = await readFile(destino, "utf8").catch(() => null);
+      if (fuente === null) continue;
+      if (/^\s*["']use client["']/.test(fuente)) {
+        infractoras.push(
+          `${relative(process.cwd(), ruta).replaceAll("\\", "/")} importa ${constantes.join(", ")} de ${modulo}`
+        );
+      }
+    }
+  }
+  assert.deepEqual(infractoras, []);
 });
