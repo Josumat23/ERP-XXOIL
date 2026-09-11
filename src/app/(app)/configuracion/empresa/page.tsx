@@ -14,7 +14,7 @@ export default async function EmpresaPage() {
 
   const empresaId = await obtenerEmpresaActivaId();
   const [config, cuentasBancarias] = await Promise.all([
-    obtenerConfiguracionEmpresa(),
+    obtenerConfiguracionEmpresa(empresaId),
     prisma.cuentaBancariaEmpresa.findMany({ where: { empresaId, activo: true }, orderBy: { banco: "asc" } }),
   ]);
 

@@ -1,6 +1,7 @@
 import type { Tx } from "@/lib/inventario";
 import { convertirAMonedaFuncional } from "@/lib/multimoneda";
 import { postearRecargoMora } from "@/lib/contabilidad";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type ActorTarea = { usuarioId: string; usuarioNombre: string };
 
@@ -34,7 +35,8 @@ export async function aplicarRecargoAFactura(
   const hoy = new Date();
   if (factura.fechaVencimiento >= hoy) return { ok: false, error: "La factura todavía no está vencida." };
 
-  const config = await tx.configuracionEmpresa.findUniqueOrThrow({ where: { id: "1" } });
+  // La tasa es la de la compañía dueña de la factura, no la del sistema.
+  const config = await obtenerConfiguracionEmpresa(factura.empresaId, tx);
   const tasa = config.tasaRecargoMora.toNumber();
   if (tasa <= 0) {
     return { ok: false, error: "La tasa de recargo por mora no está configurada (Configuración → Empresa)." };

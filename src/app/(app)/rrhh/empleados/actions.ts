@@ -19,6 +19,7 @@ import {
   type AlcanceAprobacion,
 } from "@/lib/aprobacionesJerarquia";
 import { creariaCicloJerarquico } from "@/lib/jerarquiaEmpleados";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 export type EstadoFormulario = { error?: string };
 
@@ -282,7 +283,7 @@ async function rechazoPorJerarquia(
   empleadoSolicitanteId: string,
   usuarioAprobadorId: string
 ): Promise<string | null> {
-  const configuracion = await prisma.configuracionEmpresa.findUnique({ where: { id: "1" } });
+  const configuracion = await obtenerConfiguracionEmpresa(empresaId);
   const alcance = (configuracion?.alcanceAprobacionJerarquia ?? "CADENA_MANDO") as AlcanceAprobacion;
   if (alcance === "SIN_JERARQUIA") return null;
 

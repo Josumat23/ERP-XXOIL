@@ -1,6 +1,5 @@
 import { cookies } from "next/headers";
 import { prisma } from "@/lib/prisma";
-import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { obtenerUsuario, requerirRol } from "@/lib/auth";
 import type { Usuario } from "@/generated/prisma/client";
 
@@ -15,12 +14,16 @@ export async function asegurarEmpresaPrincipal(): Promise<void> {
   const existente = await prisma.empresa.findUnique({ where: { id: "1" } });
   if (existente) return;
 
-  const config = await obtenerConfiguracionEmpresa();
+  // Lectura directa y no el ayudante de @/lib/empresa: ese ayudante crea la
+  // fila de configuración si falta, y esa fila ahora apunta por clave foránea
+  // a la compañía que estamos por crear. La migración hace este mismo INSERT,
+  // así que en una base migrada nunca se llega aquí; esto cubre una base nueva.
+  const config = await prisma.configuracionEmpresa.findFirst({ where: { empresaId: "1" } });
   await prisma.empresa.create({
     data: {
       id: "1",
-      razonSocial: config.razonSocial,
-      ruc: config.ruc,
+      razonSocial: config?.razonSocial ?? "Mi Empresa S.A.C.",
+      ruc: config?.ruc ?? null,
       pais: "Peru",
       monedaFuncional: "PEN",
       esPrincipal: true,

@@ -3216,7 +3216,18 @@ test("todo generador de correlativo toma el cerrojo antes de leer el último", a
   // `reservarCorrelativo` toma ese cerrojo con INSERT ... ON CONFLICT DO
   // UPDATE sobre una fila fija, que es portable a PostgreSQL: es el control
   // explícito que el roadmap exigía tener ANTES de plantear esa migración.
+  //
+  // Esa fila vive en `cerrojo_correlativo`, tabla propia sin datos de negocio.
+  // Antes se tomaba sobre `configuracion_empresa`, y cuando esa configuración
+  // pasó a ser una fila por compañía el cerrojo se rompió: la prueba de abajo
+  // fija que no se vuelva a atar a un maestro de negocio.
   const fuente = await readFile(resolve(process.cwd(), "src/lib/correlativos.ts"), "utf8");
+  assert.match(fuente, /INSERT INTO cerrojo_correlativo/);
+  assert.doesNotMatch(
+    fuente,
+    /INSERT INTO configuracion_empresa/,
+    "el cerrojo no debe volver a apoyarse en la configuración de la empresa"
+  );
   const generadores = [...fuente.matchAll(/export async function (siguiente\w+)[\s\S]*?\n\}/g)];
   assert.ok(generadores.length >= 15, `Se esperaban los generadores y se hallaron ${generadores.length}`);
 

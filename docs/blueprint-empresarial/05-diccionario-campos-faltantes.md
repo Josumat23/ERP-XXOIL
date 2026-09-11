@@ -169,7 +169,9 @@ El diccionario de arriba conserva su texto y sus prioridades originales del **20
 | `OrdenCompra` | `organizacionCompraId` | El negocio confirmó el 2026-09-12 que **las compras son centralizadas**: la organización de compras no existe como unidad propia (Blueprint 10, respuestas registradas). Modelarla obligaría a elegirla —o ignorarla— en cada alta de orden, sin aportar control. |
 | `Cliente` | Segmento de crédito compartido entre compañías | Depende de que existan varias sociedades operando de verdad, lo que a su vez depende del hallazgo nuevo de abajo. Se mantiene en P2, sin trabajo hasta entonces. |
 
-## Campo nuevo que faltaba y este diccionario no registraba
+## Campo nuevo que faltaba y este diccionario no registraba — construido el mismo día
+
+> **Cerrado el 2026-09-11** (ítem 0.2b del roadmap). `ConfiguracionEmpresa` tiene una fila por compañía con `empresaId` único, clave foránea y `onDelete: Restrict`; `obtenerConfiguracionEmpresa(empresaId)` exige compañía explícita y una compañía nueva no hereda RUC ni credenciales SUNAT. De paso se le dio tabla propia al cerrojo de correlativos, que usaba la fila única de configuración como mutex. Verificado en navegador con dos compañías de RUC e IGV distintos. Véase `docs/configuracion-por-compania.md`. La fila de abajo se conserva como quedó al detectarlo.
 
 | Maestro | Campo faltante | Por qué se necesita | Prioridad |
 |---|---|---|---|
@@ -177,4 +179,4 @@ El diccionario de arriba conserva su texto y sus prioridades originales del **20
 
 ---
 
-**Balance**: **16 campos/modelos construidos y verificados**, **2 que dejaron de aplicar** por decisión de negocio, **4 bloqueados** por confirmación profesional o legal (SST, SCTR, SIRE, Ley 29733) y **11 pendientes sin bloqueo**. De esos 11, el más accionable es la **alerta de transacción sin asiento contable**: hoy falla en silencio y ningún gate automático lo detecta. A la lista se suma el campo nuevo detectado en esta revisión (`ConfiguracionEmpresa` por compañía).
+**Balance** (al detectar; el campo nuevo se construyó el mismo día): **16 campos/modelos construidos y verificados**, **2 que dejaron de aplicar** por decisión de negocio, **4 bloqueados** por confirmación profesional o legal (SST, SCTR, SIRE, Ley 29733) y **11 pendientes sin bloqueo**. De esos 11, el más accionable es la **alerta de transacción sin asiento contable**: hoy falla en silencio y ningún gate automático lo detecta. A la lista se suma el campo nuevo detectado en esta revisión (`ConfiguracionEmpresa` por compañía).

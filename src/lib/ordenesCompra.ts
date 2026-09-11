@@ -24,7 +24,7 @@ export async function crearOrdenCompraDesdeDatos(
   },
   actor: { usuarioId: string; usuarioNombre: string; empresaId: string }
 ): Promise<string> {
-  const { montoAprobacionCompras } = await obtenerConfiguracionEmpresa();
+  const { montoAprobacionCompras } = await obtenerConfiguracionEmpresa(actor.empresaId);
 
   let ocId = "";
   await prisma.$transaction(async (tx) => {

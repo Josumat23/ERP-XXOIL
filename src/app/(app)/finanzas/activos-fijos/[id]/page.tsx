@@ -46,7 +46,7 @@ export default async function DetalleActivoFijoPage({
       },
     }),
     prisma.activoFijo.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
-    obtenerConfiguracionEmpresa(),
+    obtenerConfiguracionEmpresa(empresaId),
   ]);
   if (!activo) notFound();
 

@@ -172,7 +172,7 @@ export async function venderActivoFijo(
   // El precio ingresado es el monto total cobrado (con IGV incluido, igual
   // que el precio que ve el comprador); se separa la base imponible del IGV
   // para el asiento, igual que en notas de crédito y facturas.
-  const { tasaIgv } = await obtenerConfiguracionEmpresa();
+  const { tasaIgv } = await obtenerConfiguracionEmpresa(empresaId);
   const montoBase = precioVenta / (1 + tasaIgv.toNumber() / 100);
   const montoIgv = precioVenta - montoBase;
 

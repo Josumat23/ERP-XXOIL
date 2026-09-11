@@ -33,8 +33,29 @@ enum AlcanceAprobacionJerarquia {
   CADENA_MANDO
 }
 
+// Fila única que sirve de cerrojo para la numeración correlativa. No guarda
+// ningún dato de negocio: existe solo para que `reservarCorrelativo()` tome un
+// bloqueo de escritura antes de leer el último número.
+//
+// Antes el cerrojo se tomaba sobre la fila de ConfiguracionEmpresa, lo que
+// ataba un mecanismo de concurrencia a un maestro de negocio: al pasar esa
+// configuración a una fila por compañía, el cerrojo se rompió. Con tabla
+// propia el cerrojo es deliberadamente global —la numeración se serializa
+// entre todas las compañías— y no depende de qué filas de negocio existan.
+model CerrojoCorrelativo {
+  id            String   @id @default("1")
+  actualizadoEn DateTime @default(now())
+
+  @@map("cerrojo_correlativo")
+}
+
 model ConfiguracionEmpresa {
-  id                              String                     @id @default("1")
+  // Una fila por compañía. El id dejó de ser la constante "1": la fila
+  // histórica la conserva (es la de la compañía principal) y las nuevas
+  // reciben un cuid. La clave real de lectura es empresaId, única.
+  id                              String                     @id @default(cuid())
+  empresaId                       String                     @unique @default("1")
+  empresa                         Empresa                    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   razonSocial                     String                     @default("Mi Empresa S.A.C.")
   nombreComercial                 String?
   ruc                             String?
@@ -4423,6 +4444,7 @@ model Empresa {
   politicasTiempoTrabajo     PoliticaTiempoTrabajo[]
   planillaPeriodos           PlanillaPeriodo[]
   adjuntos                   Adjunto[]
+  configuracion              ConfiguracionEmpresa?
 
   @@map("empresas")
 }

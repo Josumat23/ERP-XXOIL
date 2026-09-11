@@ -1,5 +1,6 @@
 import type { $Enums } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
 // ---------------------------------------------------------------------------
 // Facturación electrónica SUNAT vía OSE (Operador de Servicios Electrónicos).
@@ -359,8 +360,10 @@ export async function enviarComprobanteElectronico(params: {
   datos: DatosComprobante;
 }): Promise<void> {
   try {
-    const config = await prisma.configuracionEmpresa.findUnique({ where: { id: "1" } });
-    const proveedor = config?.oseProveedor ?? "SIMULADO";
+    // Del emisor del comprobante: el certificado digital y las credenciales
+    // SOL pertenecen a esa sociedad, no al sistema.
+    const config = await obtenerConfiguracionEmpresa(params.empresaId);
+    const proveedor = config.oseProveedor;
     const adaptador = ADAPTADORES[proveedor] ?? adaptadorSimulado;
 
     const registro = await prisma.comprobanteElectronico.upsert({
@@ -384,14 +387,14 @@ export async function enviarComprobanteElectronico(params: {
     let resultado: ResultadoEnvioOse;
     try {
       resultado = await adaptador.enviar(params.datos, {
-        ruc: config?.ruc ?? "",
-        token: config?.oseToken ?? "",
-        razonSocial: config?.razonSocial ?? "",
-        direccion: config?.direccion,
-        sunatCertificadoBase64: config?.sunatCertificadoBase64,
-        sunatCertificadoPassword: config?.sunatCertificadoPassword,
-        sunatUsuarioSol: config?.sunatUsuarioSol,
-        sunatClaveSol: config?.sunatClaveSol,
+        ruc: config.ruc ?? "",
+        token: config.oseToken ?? "",
+        razonSocial: config.razonSocial ?? "",
+        direccion: config.direccion,
+        sunatCertificadoBase64: config.sunatCertificadoBase64,
+        sunatCertificadoPassword: config.sunatCertificadoPassword,
+        sunatUsuarioSol: config.sunatUsuarioSol,
+        sunatClaveSol: config.sunatClaveSol,
       });
     } catch (e) {
       resultado = {

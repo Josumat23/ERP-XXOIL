@@ -40,8 +40,8 @@ export async function registrarPagoProveedor(
   if (!Number.isFinite(monto) || monto <= 0) return { error: "El monto debe ser mayor a 0." };
   if (!MEDIOS_VALIDOS.includes(medioPago)) return { error: "Seleccione el medio de pago." };
 
-  const { montoAprobacionPagos } = await obtenerConfiguracionEmpresa();
   const empresaId = await obtenerEmpresaActivaId();
+  const { montoAprobacionPagos } = await obtenerConfiguracionEmpresa(empresaId);
 
   try {
     await prisma.$transaction(async (tx) => {
