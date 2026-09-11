@@ -2475,6 +2475,7 @@ enum TipoMovimientoCaja {
 model MovimientoCaja {
   id               String             @id @default(cuid())
   empresaId        String             @default("1")
+  empresa          Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   fecha            DateTime           @default(now())
   tipo             TipoMovimientoCaja
   concepto         String
@@ -2504,6 +2505,7 @@ enum EstadoConciliacionBancaria {
 model ConciliacionBancaria {
   id                   String                     @id @default(cuid())
   empresaId            String                     @default("1")
+  empresa              Empresa                    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   cuentaBancariaId     String
   fechaDesde           DateTime
   fechaHasta           DateTime
@@ -2577,6 +2579,7 @@ enum EstadoHojaRuta {
 model HojaRuta {
   id            String         @id @default(cuid())
   empresaId     String         @default("1")
+  empresa       Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero        String         @unique // HR-00001
   vendedorId    String
   fecha         DateTime
@@ -2626,6 +2629,7 @@ enum TipoDocumentoSerie {
 model SerieDocumento {
   id                String             @id @default(cuid())
   empresaId         String             @default("1")
+  empresa           Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   tipoDocumento     TipoDocumentoSerie
   serie             String // ej. F001, T001, FC01
   correlativoActual Int                @default(0)
@@ -4196,6 +4200,10 @@ model Empresa {
   guiasRemision              GuiaRemision[]
   cuentasPorPagar            CuentaPorPagar[]
   pagosProveedor             PagoProveedor[]
+  movimientosCaja            MovimientoCaja[]
+  conciliacionesBancarias    ConciliacionBancaria[]
+  hojasRuta                  HojaRuta[]
+  seriesDocumento            SerieDocumento[]
 
   @@map("empresas")
 }
