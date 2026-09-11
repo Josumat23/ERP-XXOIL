@@ -3354,6 +3354,7 @@ enum TipoCentroTrabajo {
 model CentroTrabajo {
   id                String            @id @default(cuid())
   empresaId         String            @default("1")
+  empresa           Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo            String
   nombre            String
   tipo              TipoCentroTrabajo
@@ -3380,6 +3381,7 @@ model CentroTrabajo {
 model Equipo {
   id              String   @id @default(cuid())
   empresaId       String   @default("1")
+  empresa         Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo          String // EQ-00001
   nombre          String
   almacenId       String
@@ -3512,6 +3514,7 @@ enum EstadoAvisoMantenimiento {
 model AvisoMantenimiento {
   id             String                      @id @default(cuid())
   empresaId      String                      @default("1")
+  empresa        Empresa                     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   equipoId       String
   prioridad      PrioridadAvisoMantenimiento @default(MEDIA)
   estado         EstadoAvisoMantenimiento    @default(ABIERTO)
@@ -3545,6 +3548,7 @@ enum TipoPlanMantenimiento {
 model PlanMantenimiento {
   id                      String                @id @default(cuid())
   empresaId               String                @default("1")
+  empresa                 Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   equipoId                String
   nombre                  String // ej. "Cambio de aceite de motor"
   tipo                    TipoPlanMantenimiento
@@ -3592,8 +3596,9 @@ model RepuestoOrdenMantenimiento {
 // competencia) + un factor macro de referencia (BCRP, best-effort).
 // ---------------------------------------------------------------------------
 model Proyeccion {
-  id            String @id @default(cuid())
-  empresaId     String @default("1")
+  id            String  @id @default(cuid())
+  empresaId     String  @default("1")
+  empresa       Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   anio          Int
   trimestre     Int // 1-4
   anioBase      Int // trimestre de referencia (normalmente el anterior)
@@ -4230,6 +4235,11 @@ model Empresa {
   centrosCostoControl        CentroCostoControl[]
   activosFijos               ActivoFijo[]
   proyectos                  Proyecto[]
+  centrosTrabajo             CentroTrabajo[]
+  equipos                    Equipo[]
+  avisosMantenimiento        AvisoMantenimiento[]
+  planesMantenimiento        PlanMantenimiento[]
+  proyecciones               Proyeccion[]
 
   @@map("empresas")
 }
