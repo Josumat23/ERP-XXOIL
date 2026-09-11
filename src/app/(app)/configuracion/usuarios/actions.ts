@@ -3,7 +3,12 @@
 import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { Prisma, type $Enums } from "@/generated/prisma/client";
-import { requerirRol, hashPassword } from "@/lib/auth";
+import { hashPassword } from "@/lib/auth";
+import {
+  obtenerEmpresaActivaId,
+  perteneceAEmpresaActiva,
+  requerirRolEmpresaActiva as requerirRol,
+} from "@/lib/empresas";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { existeGrupoSeguridadAsignable } from "@/lib/permisos";
 
@@ -30,16 +35,16 @@ export async function crearUsuario(
   }
   if (password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres." };
   if (!ROLES_VALIDOS.includes(rol)) return { error: "Seleccione el rol." };
-  if (!(await existeGrupoSeguridadAsignable(grupoSeguridadId))) {
+  if (!(await existeGrupoSeguridadAsignable(grupoSeguridadId, auth.usuario.empresaId))) {
     return { error: "Seleccione un grupo de seguridad activo y válido." };
   }
 
   try {
     await prisma.$transaction(async (tx) => {
       const creado = await tx.usuario.create({
-        data: { nombre, usuario, rol, grupoSeguridadId, passwordHash: hashPassword(password) },
+        data: { empresaId: auth.usuario.empresaId, nombre, usuario, rol, grupoSeguridadId, passwordHash: hashPassword(password) },
       });
-      await registrarAuditoriaMaestro(tx, { entidad: "Usuario", registroId: creado.id, accion: "CREAR", despues: creado, usuario: auth.usuario });
+      await registrarAuditoriaMaestro(tx, { empresaId: creado.empresaId, entidad: "Usuario", registroId: creado.id, accion: "CREAR", despues: creado, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -63,13 +68,20 @@ export async function restablecerPassword(
   const password = String(formData.get("password") ?? "");
   if (password.length < 8) return { error: "La contraseña debe tener al menos 8 caracteres." };
 
-  await prisma.$transaction(async (tx) => {
-    const antes = await tx.usuario.findUniqueOrThrow({ where: { id } });
+  // Restablecer una clave es una operación sensible: el id llega del
+  // navegador, así que el usuario se relee y se exige que sea de la compañía
+  // activa antes de tocarlo.
+  const empresaId = await obtenerEmpresaActivaId();
+  const permitido = await prisma.$transaction(async (tx) => {
+    const antes = await tx.usuario.findUnique({ where: { id } });
+    if (!perteneceAEmpresaActiva(antes, empresaId)) return false;
     const despues = await tx.usuario.update({ where: { id }, data: { passwordHash: hashPassword(password) } });
-    await registrarAuditoriaMaestro(tx, { entidad: "Usuario", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Usuario", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     // Cierra todas las sesiones abiertas del usuario afectado.
     await tx.sesion.deleteMany({ where: { usuarioId: id } });
+    return true;
   });
+  if (!permitido) return { error: "El usuario no pertenece a la compañía activa." };
 
   revalidatePath("/configuracion/usuarios");
   return {};
@@ -78,12 +90,14 @@ export async function restablecerPassword(
 export async function asignarGrupoUsuario(id: string, grupoSeguridadId: string | null) {
   const auth = await requerirRol([]); // solo ADMIN
   if ("error" in auth) return;
-  if (!(await existeGrupoSeguridadAsignable(grupoSeguridadId))) return;
+  const empresaId = await obtenerEmpresaActivaId();
+  if (!(await existeGrupoSeguridadAsignable(grupoSeguridadId, empresaId))) return;
 
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.usuario.findUniqueOrThrow({ where: { id } });
+    const antes = await tx.usuario.findUnique({ where: { id } });
+    if (!perteneceAEmpresaActiva(antes, empresaId)) return;
     const despues = await tx.usuario.update({ where: { id }, data: { grupoSeguridadId } });
-    await registrarAuditoriaMaestro(tx, { entidad: "Usuario", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Usuario", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/configuracion/usuarios");
 }
@@ -93,10 +107,12 @@ export async function alternarActivoUsuario(id: string, activo: boolean) {
   if ("error" in auth) return;
   if (auth.usuario.id === id) return; // nadie se desactiva a sí mismo
 
+  const empresaId = await obtenerEmpresaActivaId();
   await prisma.$transaction(async (tx) => {
-    const antes = await tx.usuario.findUniqueOrThrow({ where: { id } });
+    const antes = await tx.usuario.findUnique({ where: { id } });
+    if (!perteneceAEmpresaActiva(antes, empresaId)) return;
     const despues = await tx.usuario.update({ where: { id }, data: { activo } });
-    await registrarAuditoriaMaestro(tx, { entidad: "Usuario", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Usuario", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
     if (!activo) await tx.sesion.deleteMany({ where: { usuarioId: id } });
   });
   revalidatePath("/configuracion/usuarios");

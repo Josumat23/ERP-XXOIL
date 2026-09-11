@@ -2283,12 +2283,14 @@ test("permisos de grupo restringen la lectura financiera sin limitar al administ
   const predefinido = await prisma.grupoSeguridad.findFirstOrThrow({
     where: { esPredefinido: true },
   });
-  assert.equal(await existeGrupoSeguridadAsignable(null), true);
-  assert.equal(await existeGrupoSeguridadAsignable(grupo.id), true);
-  assert.equal(await existeGrupoSeguridadAsignable(predefinido.id), false);
-  assert.equal(await existeGrupoSeguridadAsignable("grupo-inexistente"), false);
+  assert.equal(await existeGrupoSeguridadAsignable(null, "1"), true);
+  assert.equal(await existeGrupoSeguridadAsignable(grupo.id, "1"), true);
+  assert.equal(await existeGrupoSeguridadAsignable(predefinido.id, "1"), false);
+  assert.equal(await existeGrupoSeguridadAsignable("grupo-inexistente", "1"), false);
+  // Un grupo de otra compañía tampoco es asignable, aunque esté activo.
+  assert.equal(await existeGrupoSeguridadAsignable(grupo.id, "empresa-ajena"), false);
   await prisma.grupoSeguridad.update({ where: { id: grupo.id }, data: { activo: false } });
-  assert.equal(await existeGrupoSeguridadAsignable(grupo.id), false);
+  assert.equal(await existeGrupoSeguridadAsignable(grupo.id, "1"), false);
 });
 test("aprobaciones separan al solicitante de quien resuelve", () => {
   assert.equal(puedeResolverSolicitud("usuario-solicitante", "usuario-gerencia"), true);
@@ -2689,7 +2691,7 @@ test("series y unidades de medida quedan acotadas a la compañía activa", async
   }
 });
 
-test("Configuración resuelve series, unidades y almacenes por la compañía activa, no por el id del navegador", async () => {
+test("los cinco módulos de Configuración resuelven por la compañía activa, no por el id del navegador", async () => {
   const series = await readFile(
     resolve(process.cwd(), "src/app/(app)/configuracion/series/actions.ts"),
     "utf8"
@@ -2702,13 +2704,23 @@ test("Configuración resuelve series, unidades y almacenes por la compañía act
     resolve(process.cwd(), "src/app/(app)/configuracion/almacenes/actions.ts"),
     "utf8"
   );
+  const grupos = await readFile(
+    resolve(process.cwd(), "src/app/(app)/configuracion/grupos-seguridad/actions.ts"),
+    "utf8"
+  );
+  const usuarios = await readFile(
+    resolve(process.cwd(), "src/app/(app)/configuracion/usuarios/actions.ts"),
+    "utf8"
+  );
 
-  for (const acciones of [series, unidades, almacenes]) {
+  for (const acciones of [series, unidades, almacenes, grupos, usuarios]) {
     assert.match(acciones, /requerirRolEmpresaActiva as requerirRol/);
-    assert.doesNotMatch(acciones, /from "@\/lib\/auth"/);
+    // `requerirRol` de @/lib/auth ya no se usa en ninguno; usuarios sigue
+    // importando `hashPassword` del mismo módulo, y eso es legítimo.
+    assert.doesNotMatch(acciones, /import \{[^}]*\brequerirRol\b[^}]*\} from "@\/lib\/auth"/);
     assert.match(acciones, /obtenerEmpresaActivaId/);
   }
-  for (const acciones of [series, unidades, almacenes]) {
+  for (const acciones of [series, unidades, almacenes, grupos, usuarios]) {
     assert.match(acciones, /empresaId: auth\.usuario\.empresaId/);
   }
 });
@@ -2779,6 +2791,76 @@ test("almacenes, zonas y calendario quedan acotados a la compañía activa", asy
     });
     await prisma.zonaAlmacen.deleteMany({ where: { almacen: { empresaId: { in: empresas } } } });
     await prisma.almacen.deleteMany({ where: { empresaId: { in: empresas } } });
+    await prisma.empresa.deleteMany({ where: { id: { in: empresas } } });
+  }
+});
+
+test("grupos de seguridad y usuarios quedan acotados a la compañía activa", async () => {
+  const sufijo = Date.now().toString(36);
+  const empresas = [`empresa-seguridad-a-${sufijo}`, `empresa-seguridad-b-${sufijo}`];
+  const [empresaA, empresaB] = empresas;
+  await prisma.empresa.createMany({ data: empresas.map((id) => ({ id, razonSocial: id })) });
+
+  try {
+    // (empresaId, codigo) y (empresaId, usuario) son los índices únicos: el
+    // mismo código de grupo y el mismo login conviven en ambas compañías.
+    const grupoA = await prisma.grupoSeguridad.create({
+      data: {
+        empresaId: empresaA,
+        codigo: "SOPORTE",
+        nombre: "Soporte",
+        permisos: { create: [{ modulo: "finanzas", puedeVer: false }] },
+      },
+      include: { permisos: true },
+    });
+    await prisma.grupoSeguridad.create({
+      data: { empresaId: empresaB, codigo: "SOPORTE", nombre: "Soporte" },
+    });
+    const usuarioA = await prisma.usuario.create({
+      data: {
+        empresaId: empresaA,
+        nombre: "Operador A",
+        usuario: "operador",
+        rol: "VENTAS",
+        passwordHash: "no-usado",
+      },
+    });
+    await prisma.usuario.create({
+      data: {
+        empresaId: empresaB,
+        nombre: "Operador B",
+        usuario: "operador",
+        rol: "VENTAS",
+        passwordHash: "no-usado",
+      },
+    });
+
+    // Las comprobaciones que hacen alternarActivoGrupo y las acciones de usuario.
+    assert.equal(perteneceAEmpresaActiva(grupoA, empresaA), true);
+    assert.equal(perteneceAEmpresaActiva(grupoA, empresaB), false);
+    assert.equal(perteneceAEmpresaActiva(usuarioA, empresaB), false);
+
+    // Un grupo de otra compañía no es asignable a un usuario.
+    assert.equal(await existeGrupoSeguridadAsignable(grupoA.id, empresaA), true);
+    assert.equal(await existeGrupoSeguridadAsignable(grupoA.id, empresaB), false);
+
+    // La consulta que hace actualizarPermiso: el permiso se resuelve por su grupo.
+    const permisoA = grupoA.permisos[0];
+    assert.notEqual(
+      await prisma.permisoGrupo.findFirst({ where: { id: permisoA.id, grupo: { empresaId: empresaA } } }),
+      null
+    );
+    assert.equal(
+      await prisma.permisoGrupo.findFirst({ where: { id: permisoA.id, grupo: { empresaId: empresaB } } }),
+      null
+    );
+
+    assert.equal(await prisma.usuario.count({ where: { empresaId: empresaA } }), 1);
+    assert.equal(await prisma.usuario.count({ where: { empresaId: empresaB } }), 1);
+  } finally {
+    await prisma.usuario.deleteMany({ where: { empresaId: { in: empresas } } });
+    await prisma.permisoGrupo.deleteMany({ where: { grupo: { empresaId: { in: empresas } } } });
+    await prisma.grupoSeguridad.deleteMany({ where: { empresaId: { in: empresas } } });
     await prisma.empresa.deleteMany({ where: { id: { in: empresas } } });
   }
 });
