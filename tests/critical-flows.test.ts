@@ -3206,3 +3206,22 @@ test("la pantalla de compañías no anuncia un alcance que ya no es cierto", asy
   assert.doesNotMatch(pantalla, /Alcance actual \(fase 1\)/);
   assert.doesNotMatch(pantalla, /todavía opera solo contra la compañía principal/);
 });
+
+test("todo generador de correlativo toma el cerrojo antes de leer el último", async () => {
+  // El correlativo se calcula leyendo el máximo actual y sumando uno. Sin un
+  // cerrojo previo, dos transacciones concurrentes leen el mismo máximo y
+  // generan el mismo número — y recién lo descubre el índice único, abortando
+  // una operación ya avanzada.
+  //
+  // `reservarCorrelativo` toma ese cerrojo con INSERT ... ON CONFLICT DO
+  // UPDATE sobre una fila fija, que es portable a PostgreSQL: es el control
+  // explícito que el roadmap exigía tener ANTES de plantear esa migración.
+  const fuente = await readFile(resolve(process.cwd(), "src/lib/correlativos.ts"), "utf8");
+  const generadores = [...fuente.matchAll(/export async function (siguiente\w+)[\s\S]*?\n\}/g)];
+  assert.ok(generadores.length >= 15, `Se esperaban los generadores y se hallaron ${generadores.length}`);
+
+  const sinCerrojo = generadores
+    .filter(([cuerpo]) => !cuerpo.includes("reservarCorrelativo(tx)"))
+    .map(([, nombre]) => nombre);
+  assert.deepEqual(sinCerrojo, []);
+});
