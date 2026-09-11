@@ -6,6 +6,11 @@ import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
 import { siguienteCodigoTraslado } from "@/lib/correlativos";
+import {
+  distribucionZonas,
+  MENSAJE_ERROR_ZONA,
+  validarMovimientoEntreZonas,
+} from "@/lib/saldosZona";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -153,6 +158,128 @@ export async function reubicarZona(
       }
     }
     await prisma.insumo.update({ where: { id: itemId }, data: { zonaAlmacenId: zonaDestinoId } });
+  }
+
+  revalidatePath("/inventario/traslados");
+  return { ok: true };
+}
+
+// Reparto de stock entre zonas del MISMO almacén. A diferencia de un traslado,
+// esto no toca el kardex ni el saldo del almacén: la mercadería no se mueve de
+// almacén, solo se dice en qué zona está. Por eso no genera movimiento —
+// inventar entradas y salidas para un cambio de estante ensuciaría la historia
+// de costos con ruido que no es un movimiento real.
+//
+// El origen puede ser una zona o el stock que todavía no se asignó a ninguna.
+export async function moverEntreZonas(
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
+
+  const empresaId = auth.usuario.empresaId;
+  const almacenId = String(formData.get("almacenId") ?? "");
+  const [tipoItem, itemId] = String(formData.get("item") ?? "").split(":");
+  const zonaOrigenId = String(formData.get("zonaOrigenId") ?? "") || null;
+  const zonaDestinoId = String(formData.get("zonaDestinoId") ?? "");
+  const cantidad = Number(formData.get("cantidad") ?? 0);
+
+  if (tipoItem !== "PRESENTACION" && tipoItem !== "INSUMO") return { error: "Seleccione el ítem." };
+  if (!itemId) return { error: "Seleccione el ítem." };
+  if (!almacenId) return { error: "Seleccione el almacén." };
+  if (!zonaDestinoId) return { error: "Seleccione la zona destino." };
+
+  const esPresentacion = tipoItem === "PRESENTACION";
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Todo se relee acotado a la compañía activa: almacén, zonas e ítem
+      // llegan del formulario.
+      const almacen = await tx.almacen.findFirst({
+        where: { id: almacenId, empresaId },
+        select: { id: true },
+      });
+      if (!almacen) throw new Error("El almacén no pertenece a la compañía activa.");
+
+      const zonas = await tx.zonaAlmacen.findMany({
+        where: { almacenId, activo: true },
+        select: { id: true },
+      });
+      const idsZona = new Set(zonas.map((z) => z.id));
+      if (!idsZona.has(zonaDestinoId)) throw new Error("La zona destino no pertenece a ese almacén.");
+      if (zonaOrigenId && !idsZona.has(zonaOrigenId)) {
+        throw new Error("La zona de origen no pertenece a ese almacén.");
+      }
+
+      const item = esPresentacion
+        ? await tx.presentacion.findFirst({ where: { id: itemId, empresaId }, select: { id: true } })
+        : await tx.insumo.findFirst({ where: { id: itemId, empresaId }, select: { id: true } });
+      if (!item) throw new Error("El ítem no pertenece a la compañía activa.");
+
+      const [saldoAlmacen, saldos] = await Promise.all([
+        tx.saldoAlmacen.findFirst({
+          where: {
+            almacenId,
+            tipoItem,
+            presentacionId: esPresentacion ? itemId : null,
+            insumoId: esPresentacion ? null : itemId,
+          },
+        }),
+        tx.saldoZona.findMany({ where: { itemId, zona: { almacenId } } }),
+      ]);
+
+      const distribucion = distribucionZonas(
+        saldoAlmacen?.cantidad.toNumber() ?? 0,
+        saldos.map((s) => ({ zonaAlmacenId: s.zonaAlmacenId, cantidad: s.cantidad.toNumber() }))
+      );
+      const error = validarMovimientoEntreZonas(
+        { zonaOrigenId, zonaDestinoId, cantidad },
+        distribucion
+      );
+      if (error) throw new Error(MENSAJE_ERROR_ZONA[error]);
+
+      if (zonaOrigenId) {
+        const saldoOrigen = saldos.find((s) => s.zonaAlmacenId === zonaOrigenId);
+        if (!saldoOrigen) throw new Error(MENSAJE_ERROR_ZONA.SIN_SALDO_EN_ORIGEN);
+        // Reclamo optimista sobre la cantidad leída: si otra sesión movió la
+        // misma zona entremedio, esto no aplica y el usuario reintenta.
+        const reclamo = await tx.saldoZona.updateMany({
+          where: { id: saldoOrigen.id, cantidad: saldoOrigen.cantidad },
+          data: { cantidad: { decrement: cantidad } },
+        });
+        if (reclamo.count !== 1) {
+          throw new Error("El saldo de la zona cambió durante el movimiento. Intente nuevamente.");
+        }
+      }
+
+      const saldoDestino = saldos.find((s) => s.zonaAlmacenId === zonaDestinoId);
+      if (saldoDestino) {
+        const reclamo = await tx.saldoZona.updateMany({
+          where: { id: saldoDestino.id, cantidad: saldoDestino.cantidad },
+          data: { cantidad: { increment: cantidad } },
+        });
+        if (reclamo.count !== 1) {
+          throw new Error("El saldo de la zona cambió durante el movimiento. Intente nuevamente.");
+        }
+      } else {
+        await tx.saldoZona.create({
+          data: {
+            zonaAlmacenId: zonaDestinoId,
+            tipoItem,
+            itemId,
+            presentacionId: esPresentacion ? itemId : null,
+            insumoId: esPresentacion ? null : itemId,
+            cantidad,
+          },
+        });
+      }
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo mover el stock entre zonas." };
   }
 
   revalidatePath("/inventario/traslados");

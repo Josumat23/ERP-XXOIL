@@ -34,20 +34,61 @@ mkdirSync(directorioDemo, { recursive: true });
 const databaseUrl = "file:" + baseDemo.replaceAll("\\", "/");
 const recienCreada = !existsSync(baseDemo);
 
-if (recienCreada) {
-  console.log("[demo] Aplicando migraciones a la base demo…");
+// Registro de migraciones aplicadas a la base demo. Sin esto, reutilizar una
+// base creada antes de una migración nueva levanta el servidor contra un
+// esquema incompleto, y el error recién aparece al abrir la pantalla afectada.
+//
+// Ante una base anterior al registro NO se intenta adivinar qué migraciones
+// corrieron: deducirlo del mensaje de error de SQLite ("already exists",
+// "duplicate column"...) enmascararía un fallo real. La base demo es
+// desechable, así que se pide recrearla.
+function aplicarMigracionesPendientes() {
   const Database = require("better-sqlite3");
   const db = new Database(baseDemo);
+  const aplicadas = [];
   try {
+    const tieneEsquema = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'empresas'")
+      .get();
+    const tieneRegistro = db
+      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_demo_migraciones'")
+      .get();
+    if (tieneEsquema && !tieneRegistro) {
+      throw new Error(
+        "La base demo es anterior al registro de migraciones y no se puede actualizar con seguridad.\n" +
+          "Recréela con:  npm run dev:demo -- --reset"
+      );
+    }
+
+    db.exec('CREATE TABLE IF NOT EXISTS "_demo_migraciones" ("nombre" TEXT NOT NULL PRIMARY KEY)');
+    const yaAplicada = db.prepare('SELECT 1 FROM "_demo_migraciones" WHERE "nombre" = ?');
+    const registrar = db.prepare('INSERT INTO "_demo_migraciones" ("nombre") VALUES (?)');
     for (const nombre of readdirSync(join(raiz, "prisma/migrations")).sort()) {
       const archivo = join(raiz, "prisma/migrations", nombre, "migration.sql");
       if (!existsSync(archivo)) continue;
+      if (yaAplicada.get(nombre)) continue;
       db.exec(readFileSync(archivo, "utf8"));
+      registrar.run(nombre);
+      aplicadas.push(nombre);
     }
   } finally {
     db.close();
   }
+  return aplicadas;
+}
 
+let pendientes = [];
+try {
+  pendientes = aplicarMigracionesPendientes();
+} catch (error) {
+  console.error(`[demo] ${error instanceof Error ? error.message : error}`);
+  process.exit(1);
+}
+if (pendientes.length > 0 && !recienCreada) {
+  console.log(`[demo] Migraciones nuevas aplicadas: ${pendientes.join(", ")}`);
+}
+
+if (recienCreada) {
   console.log("[demo] Sembrando datos de demostración…");
   const bootstrap = pathToFileURL(join(raiz, "scripts/tsx-windows-bootstrap.mjs")).href;
   const entorno = {

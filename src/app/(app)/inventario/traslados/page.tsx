@@ -5,6 +5,8 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import TrasladoFormulario from "./TrasladoFormulario";
 import ReubicarZonaFormulario from "./ReubicarZonaFormulario";
+import MoverZonaFormulario, { type ItemConDistribucion } from "./MoverZonaFormulario";
+import { distribucionZonas } from "@/lib/saldosZona";
 
 export default async function TrasladosPage({
   searchParams,
@@ -52,6 +54,43 @@ export default async function TrasladosPage({
     }),
   ]);
 
+  // Reparto por zona de cada ítem con stock, solo en almacenes que tengan
+  // zonas: sin zonas no hay nada que repartir.
+  const zonasPorAlmacen = new Map<string, typeof zonas>();
+  for (const zona of zonas) {
+    zonasPorAlmacen.set(zona.almacenId, [...(zonasPorAlmacen.get(zona.almacenId) ?? []), zona]);
+  }
+  const saldosZona = await prisma.saldoZona.findMany({
+    where: { zona: { almacen: { empresaId: usuario.empresaId } } },
+  });
+  const itemsConDistribucion: ItemConDistribucion[] = saldos
+    .filter((saldo) => zonasPorAlmacen.has(saldo.almacenId))
+    .map((saldo) => {
+      const itemId = saldo.presentacionId ?? saldo.insumoId ?? "";
+      const propios = saldosZona.filter(
+        (s) => s.itemId === itemId && zonasPorAlmacen.get(saldo.almacenId)?.some((z) => z.id === s.zonaAlmacenId)
+      );
+      const distribucion = distribucionZonas(
+        saldo.cantidad.toNumber(),
+        propios.map((s) => ({ zonaAlmacenId: s.zonaAlmacenId, cantidad: s.cantidad.toNumber() }))
+      );
+      const etiquetaItem = saldo.presentacion
+        ? `${saldo.presentacion.sku} — ${saldo.presentacion.producto.nombre}`
+        : `${saldo.insumo?.codigo} — ${saldo.insumo?.nombre}`;
+      return {
+        valor: `${saldo.tipoItem}:${itemId}`,
+        etiqueta: `${etiquetaItem} · ${saldo.almacen.nombre}`,
+        almacenId: saldo.almacenId,
+        porZona: distribucion.porZona.map((z) => ({
+          zonaAlmacenId: z.zonaAlmacenId,
+          etiqueta: zonas.find((zona) => zona.id === z.zonaAlmacenId)?.codigo ?? z.zonaAlmacenId,
+          cantidad: z.cantidad,
+        })),
+        sinZona: distribucion.sinZona,
+        total: distribucion.total,
+      };
+    });
+
   return (
     <div className="max-w-4xl">
       <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100">
@@ -86,13 +125,40 @@ export default async function TrasladosPage({
 
       <section className="mt-10">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
-          Reubicar entre zonas del mismo almacén
+          Repartir stock entre zonas del mismo almacén
         </h2>
         <p className="text-sm mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
-          Presentaciones e insumos guardan una sola ubicación estructurada (ej. &quot;A-01&quot;,
-          &quot;RACK-2&quot;) — esto no es un movimiento de cantidad de stock, es actualizar dónde
-          físicamente vive el ítem dentro del mismo almacén. Para mover cantidad entre almacenes
-          distintos, use el traslado de arriba.
+          Un mismo ítem puede tener cantidad en varias zonas a la vez. Repartirlo no mueve
+          mercadería entre almacenes ni genera kardex: el saldo del almacén no cambia, solo se
+          declara en qué estante está cada parte. Lo que todavía no se asignó figura como
+          &quot;sin zona&quot;.
+        </p>
+        {itemsConDistribucion.length === 0 ? (
+          <p className="text-sm mt-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+            No hay ítems con stock en almacenes que tengan zonas registradas.
+          </p>
+        ) : (
+          <div className="mt-4">
+            <MoverZonaFormulario
+              items={itemsConDistribucion}
+              zonas={zonas.map((z) => ({
+                id: z.id,
+                almacenId: z.almacenId,
+                etiqueta: `${z.codigo}${z.nombre ? ` — ${z.nombre}` : ""}`,
+              }))}
+            />
+          </div>
+        )}
+      </section>
+
+      <section className="mt-10">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+          Zona principal declarada del ítem
+        </h2>
+        <p className="text-sm mt-1" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Etiqueta de ubicación declarada en la ficha del ítem. Desde que existe el reparto por
+          zona, esta ya no es la verdad sobre dónde está el stock — sirve como zona de referencia
+          para quien busca el ítem. La cantidad real por zona es la de arriba.
         </p>
         {zonas.length === 0 ? (
           <p className="text-sm text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2 mt-4">
