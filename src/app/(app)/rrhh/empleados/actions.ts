@@ -12,6 +12,7 @@ import { saldoVacaciones } from "@/lib/vacaciones";
 import { generarLiquidacion } from "@/lib/planilla";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { esCambioSalarialValido } from "@/lib/cambiosSalariales";
+import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 import { creariaCicloJerarquico } from "@/lib/jerarquiaEmpleados";
 
 export type EstadoFormulario = { error?: string };
@@ -276,8 +277,13 @@ export async function aprobarVacaciones(
   }
 
   const empresaId = await obtenerEmpresaActivaId();
-  const pendiente = await prisma.solicitudVacaciones.findFirst({ where: { id, empleado: { empresaId } }, select: { empleadoId: true } });
+  const pendiente = await prisma.solicitudVacaciones.findFirst({ where: { id, empleado: { empresaId } }, select: { empleadoId: true, usuarioId: true } });
   if (!pendiente) return { error: "La solicitud no existe." };
+  // Misma regla de segregación que ya aplican pedidos, pagos y órdenes de
+  // compra: quien solicita no resuelve.
+  if (!puedeResolverSolicitud(pendiente.usuarioId, auth.usuario.id)) {
+    return { error: "El solicitante no puede resolver su propia solicitud de vacaciones." };
+  }
 
   try {
     await prisma.$transaction(async (tx) => {
@@ -332,6 +338,9 @@ export async function rechazarVacaciones(
   const empresaId = await obtenerEmpresaActivaId();
   const solicitud = await prisma.solicitudVacaciones.findFirst({ where: { id, empleado: { empresaId } } });
   if (!solicitud) return { error: "La solicitud no existe." };
+  if (!puedeResolverSolicitud(solicitud.usuarioId, auth.usuario.id)) {
+    return { error: "El solicitante no puede resolver su propia solicitud de vacaciones." };
+  }
   if (solicitud.estado !== "PENDIENTE") return { error: "Esta solicitud ya fue resuelta." };
 
   const reclamo = await prisma.solicitudVacaciones.updateMany({

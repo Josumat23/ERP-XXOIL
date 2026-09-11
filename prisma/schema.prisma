@@ -3031,6 +3031,7 @@ model CentroCosto {
   empleados            Empleado[]
   planesMantenimiento  PlanMantenimiento[]
   ordenesInternas      OrdenInterna[]
+  posiciones           PosicionOrganizativa[]
   proyectos            Proyecto[]
   centrosTrabajo       CentroTrabajo[]
 
@@ -3751,6 +3752,62 @@ enum Afp {
   PROFUTURO
 }
 
+// Posición organizativa (equivalente reducido a Stelle/Position de SAP HCM).
+// Existe con independencia de quién la ocupe: por eso se puede responder
+// "quién ocupaba esta posición en marzo" y "qué posiciones están vacantes",
+// cosa que Empleado.cargo (texto libre) nunca permitió.
+//
+// La jerarquía es de POSICIONES, no de personas: reportaAId sobrevive a la
+// rotación. Empleado.jefeDirectoId se conserva y sigue siendo la relación
+// operativa vigente; la posición es la estructura.
+model PosicionOrganizativa {
+  id            String   @id @default(cuid())
+  empresaId     String   @default("1")
+  empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  codigo        String
+  titulo        String
+  area          String
+  centroCostoId String?
+  reportaAId    String?
+  activa        Boolean  @default(true)
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime @default(now())
+
+  centroCosto  CentroCosto?           @relation(fields: [centroCostoId], references: [id])
+  reportaA     PosicionOrganizativa?  @relation("JerarquiaPosicion", fields: [reportaAId], references: [id], onDelete: Restrict)
+  subordinadas PosicionOrganizativa[] @relation("JerarquiaPosicion")
+  asignaciones AsignacionPosicion[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, activa])
+  @@map("posiciones_organizativas")
+}
+
+// Ocupación de una posición por un empleado durante un período. Es la parte
+// versionada: cerrar una asignación (vigenteHasta) y abrir otra conserva el
+// histórico en vez de sobrescribirlo, igual que el resto del esquema.
+model AsignacionPosicion {
+  id            String    @id @default(cuid())
+  empresaId     String    @default("1")
+  empresa       Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  posicionId    String
+  empleadoId    String
+  vigenteDesde  DateTime
+  vigenteHasta  DateTime? // null = ocupación vigente
+  motivo        String?
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime  @default(now())
+
+  posicion PosicionOrganizativa @relation(fields: [posicionId], references: [id], onDelete: Restrict)
+  empleado Empleado             @relation(fields: [empleadoId], references: [id], onDelete: Restrict)
+
+  @@index([empresaId, posicionId, vigenteDesde])
+  @@index([empresaId, empleadoId, vigenteDesde])
+  @@map("asignaciones_posicion")
+}
+
 model Empleado {
   id                     String                 @id @default(cuid())
   empresaId              String                 @default("1")
@@ -3795,6 +3852,7 @@ model Empleado {
   centroCosto            CentroCosto?               @relation(fields: [centroCostoId], references: [id])
   usuario                Usuario?                   @relation(fields: [usuarioId], references: [id])
   vacaciones             SolicitudVacaciones[]
+  asignacionesPosicion   AsignacionPosicion[]
   planillaDetalles       PlanillaDetalle[]
   liquidacion            LiquidacionDesvinculacion?
   proyectosResponsable   Proyecto[]
@@ -4299,6 +4357,8 @@ model Empresa {
   planesMantenimiento        PlanMantenimiento[]
   proyecciones               Proyeccion[]
   empleados                  Empleado[]
+  posicionesOrganizativas    PosicionOrganizativa[]
+  asignacionesPosicion       AsignacionPosicion[]
   turnosTrabajo              TurnoTrabajo[]
   registrosAsistencia        RegistroAsistencia[]
   parametrosPlanilla         ParametroPlanilla[]
