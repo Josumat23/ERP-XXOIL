@@ -51,6 +51,7 @@ export default async function PanelPage() {
     conteosRecientes,
     movimientosCasco,
     ordenesMantenimientoPendientes,
+    incidenciasContablesAbiertas,
   ] = await Promise.all([
     prisma.factura.findMany({
       where: { empresaId, estado: { not: "ANULADA" }, fechaEmision: { gte: inicioRango } },
@@ -115,6 +116,8 @@ export default async function PanelPage() {
       include: { equipo: true },
       orderBy: { fechaProgramada: "asc" },
     }),
+    // Operaciones que quedaron sin asiento contable y nadie resolvió todavía.
+    prisma.incidenciaContable.count({ where: { empresaId, resueltoEn: null } }),
   ]);
 
   // Conteos con diferencia grande (posible merma/robo): >= 10% del saldo del
@@ -374,10 +377,19 @@ export default async function PanelPage() {
     {
       modulo: "Finanzas",
       indicador:
-        facturasVencidas.length > 0
-          ? `${facturasVencidas.length} factura${facturasVencidas.length === 1 ? "" : "s"} vencida${facturasVencidas.length === 1 ? "" : "s"} (${formatMoneda(tramosCobrar.mas30 + tramosCobrar.dias30 + tramosCobrar.dias15)})`
-          : "Sin facturas vencidas",
-      estado: facturasVencidas.length === 0 ? "bien" : "atencion",
+        incidenciasContablesAbiertas > 0
+          ? `${incidenciasContablesAbiertas} operación${incidenciasContablesAbiertas === 1 ? "" : "es"} sin asiento contable`
+          : facturasVencidas.length > 0
+            ? `${facturasVencidas.length} factura${facturasVencidas.length === 1 ? "" : "s"} vencida${facturasVencidas.length === 1 ? "" : "s"} (${formatMoneda(tramosCobrar.mas30 + tramosCobrar.dias30 + tramosCobrar.dias15)})`
+            : "Sin facturas vencidas",
+      // Una operación sin asiento es crítica: los libros no cuadran y el hueco
+      // no se cierra solo. Una factura vencida es gestión de cobranza.
+      estado:
+        incidenciasContablesAbiertas > 0
+          ? "critico"
+          : facturasVencidas.length === 0
+            ? "bien"
+            : "atencion",
     },
     {
       modulo: "Inventario",

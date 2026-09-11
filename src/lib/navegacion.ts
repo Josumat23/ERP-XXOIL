@@ -116,6 +116,7 @@ export const MODULOS: Modulo[] = [
         titulo: "Contabilidad",
         enlaces: [
           { href: "/finanzas/asientos", etiqueta: "Asientos contables" },
+          { href: "/finanzas/incidencias-contables", etiqueta: "Incidencias contables" },
           { href: "/finanzas/balance", etiqueta: "Balance de comprobación" },
           { href: "/finanzas/plan-cuentas", etiqueta: "Plan de cuentas", roles: ["ADMIN"] },
           { href: "/finanzas/centros-costo", etiqueta: "Centros de costo" },

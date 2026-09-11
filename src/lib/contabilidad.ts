@@ -138,6 +138,15 @@ export async function reclamarPeriodoAbierto(tx: Tx, fecha: Date, empresaId: str
  * - Si el período fiscal del mes está CERRADO, tampoco postea (la operación
  *   comercial no debe bloquearse; el contador reabrirá el período o hará el
  *   asiento manual).
+ *
+ * Cada uno de esos fallos deja una `IncidenciaContable` en la misma
+ * transacción. Antes no dejaban ninguno: la operación seguía su curso, el
+ * `{ ok: false }` se descartaba en casi todos los llamadores y la transacción
+ * quedaba sin asiento en silencio hasta que alguien cuadrara libros.
+ *
+ * El registro lo hace esta función y no el llamador a propósito: son 83 puntos
+ * de llamada, y pedirle a cada uno que atienda el valor de retorno es
+ * exactamente cómo se perdía el aviso.
  */
 export async function postearAsiento(
   tx: Tx,
@@ -148,9 +157,27 @@ export async function postearAsiento(
   const anio = fecha.getFullYear();
   const mes = fecha.getMonth() + 1;
 
+  // Deja constancia del hueco y devuelve el mismo { ok: false } de siempre,
+  // para que ningún llamador cambie de comportamiento.
+  const sinAsiento = async (motivo: string) => {
+    await tx.incidenciaContable.create({
+      data: {
+        empresaId,
+        origen: params.origen,
+        glosa: params.glosa,
+        referencia: params.referencia ?? null,
+        motivo,
+        fecha,
+        usuarioId: params.usuarioId,
+        usuarioNombre: params.usuarioNombre,
+      },
+    });
+    return { ok: false as const, motivo };
+  };
+
   // La escritura condicional serializa el posteo contra el cierre del período.
   if (!(await reclamarPeriodoAbierto(tx, fecha, empresaId))) {
-    return { ok: false, motivo: `Período fiscal ${mes}/${anio} cerrado` };
+    return sinAsiento(`Período fiscal ${mes}/${anio} cerrado`);
   }
 
   // Resolver cuentas de control
@@ -161,7 +188,7 @@ export async function postearAsiento(
   const cuentaPorClave = new Map(controles.map((c) => [c.clave, c.cuentaId]));
   const faltantes = claves.filter((c) => !cuentaPorClave.has(c));
   if (faltantes.length > 0) {
-    return { ok: false, motivo: `Controles contables sin configurar: ${faltantes.join(", ")}` };
+    return sinAsiento(`Controles contables sin configurar: ${faltantes.join(", ")}`);
   }
 
   const r2 = (n: number) => Math.round(n * 100) / 100;
@@ -176,14 +203,14 @@ export async function postearAsiento(
     }))
     .filter((l) => l.debe > 0 || l.haber > 0);
 
-  if (lineas.length < 2) return { ok: false, motivo: "Asiento con menos de dos líneas" };
+  if (lineas.length < 2) return sinAsiento("Asiento con menos de dos líneas");
 
   const totalDebe = r2(lineas.reduce((acc, l) => acc + l.debe, 0));
   const totalHaber = r2(lineas.reduce((acc, l) => acc + l.haber, 0));
   const diferencia = r2(totalDebe - totalHaber);
 
   if (Math.abs(diferencia) > 0.05) {
-    return { ok: false, motivo: `Asiento descuadrado (debe ${totalDebe} vs haber ${totalHaber})` };
+    return sinAsiento(`Asiento descuadrado (debe ${totalDebe} vs haber ${totalHaber})`);
   }
   if (diferencia !== 0) {
     // Ajuste por redondeo en la última línea del lado menor
@@ -287,10 +314,9 @@ export async function postearAsiento(
     const presupuestado = presupuesto.montoPresupuestado.toNumber();
     if (gastoTotal > presupuestado) {
       const centro = await tx.centroCosto.findUnique({ where: { id: centroCostoId } });
-      return {
-        ok: false,
-        motivo: `Presupuesto excedido en centro de costo ${centro?.codigo ?? centroCostoId} (${mes}/${anio}): gasto acumulado S/ ${gastoTotal.toFixed(2)} superaría el presupuesto de S/ ${presupuestado.toFixed(2)}`,
-      };
+      return sinAsiento(
+        `Presupuesto excedido en centro de costo ${centro?.codigo ?? centroCostoId} (${mes}/${anio}): gasto acumulado S/ ${gastoTotal.toFixed(2)} superaría el presupuesto de S/ ${presupuestado.toFixed(2)}`
+      );
     }
   }
 

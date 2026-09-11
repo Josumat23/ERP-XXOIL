@@ -33,6 +33,43 @@ enum AlcanceAprobacionJerarquia {
   CADENA_MANDO
 }
 
+// Transacción operativa que no llegó a generar su asiento contable.
+//
+// `postearAsiento()` es best-effort a propósito: si falta un control contable,
+// el período está cerrado o el presupuesto se excede, la operación comercial NO
+// se revierte — el documento ya existe y revertirlo sería peor. El problema era
+// que ese fallo no dejaba rastro: la transacción quedaba sin asiento en
+// silencio y nadie se enteraba hasta cuadrar libros.
+//
+// La incidencia la escribe el propio `postearAsiento()`, no el llamador: son 83
+// puntos de llamada y pedirle a cada uno que atienda el valor de retorno es
+// justamente cómo se perdía el aviso.
+//
+// Se escribe dentro de la misma transacción que la operación: si la operación
+// se revierte, la incidencia desaparece con ella, que es lo correcto.
+model IncidenciaContable {
+  id            String        @id @default(cuid())
+  empresaId     String        @default("1")
+  empresa       Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  origen        OrigenAsiento
+  glosa         String
+  referencia    String?
+  motivo        String
+  fecha         DateTime      @default(now())
+  usuarioId     String
+  usuarioNombre String
+
+  // Se resuelve cuando el contador ya hizo el asiento a mano o configuró lo
+  // que faltaba. No se borra: el rastro de que hubo un hueco queda.
+  resueltoEn        DateTime?
+  resueltoPorId     String?
+  resueltoPorNombre String?
+  notaResolucion    String?
+
+  @@index([empresaId, resueltoEn, fecha])
+  @@map("incidencias_contables")
+}
+
 // Fila única que sirve de cerrojo para la numeración correlativa. No guarda
 // ningún dato de negocio: existe solo para que `reservarCorrelativo()` tome un
 // bloqueo de escritura antes de leer el último número.
@@ -4445,6 +4482,7 @@ model Empresa {
   planillaPeriodos           PlanillaPeriodo[]
   adjuntos                   Adjunto[]
   configuracion              ConfiguracionEmpresa?
+  incidenciasContables       IncidenciaContable[]
 
   @@map("empresas")
 }
