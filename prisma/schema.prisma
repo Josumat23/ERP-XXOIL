@@ -2997,6 +2997,7 @@ enum TipoCentroCosto {
 model CentroCosto {
   id        String          @id @default(cuid())
   empresaId String          @default("1")
+  empresa   Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo    String // CC-PLANTA, CC-VENTAS
   nombre    String
   tipo      TipoCentroCosto
@@ -3058,6 +3059,7 @@ enum EstadoOrdenInterna {
 model OrdenInterna {
   id               String             @id @default(cuid())
   empresaId        String             @default("1")
+  empresa          Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo           String             @unique // OI-00001
   descripcion      String
   // Destino sugerido al crear; se confirma (o cambia) recién al liquidar.
@@ -3129,6 +3131,7 @@ model ReglaAsignacionCostoDetalle {
 model CentroCostoControl {
   id            String  @id @default(cuid())
   empresaId     String  @default("1")
+  empresa       Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clave         String // mismo universo que ControlContable.clave
   centroCostoId String?
   reglaId       String?
@@ -3156,6 +3159,7 @@ enum CategoriaActivoFijo {
 model ActivoFijo {
   id                    String              @id @default(cuid())
   empresaId             String              @default("1")
+  empresa               Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo                String // AF-00001
   nombre                String
   categoria             CategoriaActivoFijo
@@ -3226,6 +3230,7 @@ enum EstadoProyecto {
 model Proyecto {
   id               String         @id @default(cuid())
   empresaId        String         @default("1")
+  empresa          Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo           String // PRY-00001
   nombre           String
   descripcion      String?
@@ -4220,6 +4225,11 @@ model Empresa {
   libros                     Libro[]
   asientosContables          AsientoContable[]
   controlesContables         ControlContable[]
+  centrosCosto               CentroCosto[]
+  ordenesInternas            OrdenInterna[]
+  centrosCostoControl        CentroCostoControl[]
+  activosFijos               ActivoFijo[]
+  proyectos                  Proyecto[]
 
   @@map("empresas")
 }
