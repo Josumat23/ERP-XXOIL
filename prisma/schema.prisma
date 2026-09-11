@@ -571,6 +571,7 @@ model ConteoInventarioDetalle {
 model Formula {
   id            String    @id @default(cuid())
   empresaId     String    @default("1")
+  empresa       Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   productoId    String
   version       Int
   rendimientoKg Decimal // kg de granel que produce un batch con las cantidades del detalle
@@ -645,6 +646,7 @@ enum EstadoOperacionLote {
 model LoteGranel {
   id                       String                    @id @default(cuid())
   empresaId                String                    @default("1")
+  empresa                  Empresa                   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo                   String                    @unique // LG-00001
   formulaId                String
   // Si este lote reprocesa un lote rechazado por calidad, referencia de dónde
@@ -835,6 +837,7 @@ enum EstadoNoConformidad {
 model NoConformidadCalidad {
   id                   String              @id @default(cuid())
   empresaId            String              @default("1")
+  empresa              Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   controlCalidadId     String              @unique
   estado               EstadoNoConformidad @default(ABIERTA)
   contencionInmediata  String?
@@ -875,6 +878,7 @@ model EventoNoConformidadCalidad {
 model PlanInspeccionCalidad {
   id            String    @id @default(cuid())
   empresaId     String    @default("1")
+  empresa       Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   productoId    String
   version       Int
   nombre        String
@@ -936,6 +940,7 @@ model ResultadoCaracteristicaCalidad {
 model CausaCalidad {
   id        String   @id @default(cuid())
   empresaId String   @default("1")
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre    String
   activo    Boolean  @default(true)
   creadoEn  DateTime @default(now())
@@ -960,6 +965,7 @@ enum EstadoReclamo {
 model ReclamoCliente {
   id               String        @id @default(cuid())
   empresaId        String        @default("1")
+  empresa          Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero           String        @unique // RCL-00001
   clienteId        String
   facturaId        String? // documento de origen, si aplica
@@ -988,6 +994,7 @@ model ReclamoCliente {
 model Envasado {
   id                  String    @id @default(cuid())
   empresaId           String    @default("1")
+  empresa             Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo              String    @unique // ENV-00001
   loteGranelId        String
   presentacionId      String
@@ -4124,6 +4131,13 @@ model Empresa {
   movimientosCasco  MovimientoCasco[]
   movimientosKardex MovimientoKardex[]
   conteosInventario ConteoInventario[]
+  formulas          Formula[]
+  lotesGranel       LoteGranel[]
+  noConformidades   NoConformidadCalidad[]
+  planesCalidad     PlanInspeccionCalidad[]
+  causasCalidad     CausaCalidad[]
+  reclamosCliente   ReclamoCliente[]
+  envasados         Envasado[]
 
   @@map("empresas")
 }
