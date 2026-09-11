@@ -6,6 +6,7 @@ import type { $Enums } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
@@ -26,10 +27,16 @@ export async function guardarDescuentoCanal(
   }
   const empresaId = await obtenerEmpresaActivaId();
 
-  await prisma.descuentoCanal.upsert({
-    where: { empresaId_canal: { empresaId, canal } },
-    update: { descuentoPct },
-    create: { empresaId, canal, descuentoPct },
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.descuentoCanal.findUnique({
+      where: { empresaId_canal: { empresaId, canal } },
+    });
+    const despues = await tx.descuentoCanal.upsert({
+      where: { empresaId_canal: { empresaId, canal } },
+      update: { descuentoPct },
+      create: { empresaId, canal, descuentoPct },
+    });
+    await registrarAuditoriaMaestro(tx, { empresaId, entidad: "DescuentoCanal", registroId: despues.id, accion: antes ? "ACTUALIZAR" : "CREAR", antes, despues, usuario: auth.usuario });
   });
 
   revalidatePath("/comercial/descuentos-canal");

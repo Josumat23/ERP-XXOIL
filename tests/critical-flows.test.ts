@@ -2981,3 +2981,67 @@ test("el certificado de análisis reporta la conformidad registrada, no la supue
   assert.match(certificado, /r\.conforme \? "Conforme" : "No conforme"/);
   assert.doesNotMatch(certificado, /className="text-green-700 font-medium">Conforme</);
 });
+
+// Maestros y parámetros que se sobrescriben en sitio: si cambian sin dejar
+// el valor anterior, no hay forma de reconstruir por qué un documento salió
+// como salió. Los transaccionales no entran: su historia es inmutable por
+// diseño y el propio registro guarda usuario y fecha.
+const MODULOS_QUE_DEBEN_AUDITAR = [
+  "catalogo/categorias",
+  "catalogo/insumos",
+  "catalogo/presentaciones",
+  "catalogo/productos",
+  "catalogo/proveedores",
+  "comercial/clientes",
+  "comercial/descuentos-canal",
+  "comercial/vendedores",
+  "comercial/zonas",
+  "configuracion/almacenes",
+  "configuracion/aprobaciones-compras",
+  "configuracion/calendario-fiscal",
+  "configuracion/empresa",
+  "configuracion/grupos-seguridad",
+  "configuracion/series",
+  "configuracion/unidades-medida",
+  "configuracion/usuarios",
+  "finanzas/centros-costo",
+  "finanzas/plan-cuentas",
+  "produccion/calidad/causas",
+  "produccion/centros-trabajo",
+  "produccion/equipos",
+  "produccion/formulas",
+  "produccion/mantenimiento/ubicaciones",
+];
+
+test("los maestros sensibles registran quién cambió qué", async () => {
+  const faltantes: string[] = [];
+  for (const modulo of MODULOS_QUE_DEBEN_AUDITAR) {
+    const acciones = await readFile(
+      resolve(process.cwd(), `src/app/(app)/${modulo}/actions.ts`),
+      "utf8"
+    );
+    if (!/registrarAuditoriaMaestro\(/.test(acciones)) faltantes.push(modulo);
+  }
+  assert.deepEqual(faltantes, []);
+});
+
+test("la auditoría de configuración no filtra las credenciales SUNAT", () => {
+  // guardarConfiguracionEmpresa audita el objeto completo, que incluye la
+  // clave SOL y la contraseña del certificado. Deben salir enmascaradas.
+  const serializado = serializarCambiosMaestro({
+    razonSocial: "XXOil",
+    tasaIgv: 18,
+    sunatUsuarioSol: "USUARIO01",
+    sunatClaveSol: "clave-real",
+    sunatCertificadoPassword: "password-real",
+    token: "token-ose",
+  });
+  assert.doesNotMatch(serializado ?? "", /clave-real|password-real|token-ose/);
+  assert.match(serializado ?? "", /"sunatClaveSol":"\[PROTEGIDO\]"/);
+  assert.match(serializado ?? "", /"sunatCertificadoPassword":"\[PROTEGIDO\]"/);
+  assert.match(serializado ?? "", /"token":"\[PROTEGIDO\]"/);
+  // Lo que no es secreto tiene que seguir siendo legible, o la auditoría
+  // no sirve para reconstruir el cambio.
+  assert.match(serializado ?? "", /"tasaIgv":18/);
+  assert.match(serializado ?? "", /"sunatUsuarioSol":"USUARIO01"/);
+});

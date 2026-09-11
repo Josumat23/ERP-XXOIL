@@ -7,6 +7,7 @@ import { validarArchivoCertificadoSunat } from "@/lib/certificadoSunat";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -161,10 +162,14 @@ export async function guardarConfiguracionEmpresa(
     sunatClaveSol,
   };
 
-  await prisma.configuracionEmpresa.upsert({
-    where: { id: "1" },
-    update: datos,
-    create: { id: "1", ...datos },
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.configuracionEmpresa.findUnique({ where: { id: "1" } });
+    const despues = await tx.configuracionEmpresa.upsert({
+      where: { id: "1" },
+      update: datos,
+      create: { id: "1", ...datos },
+    });
+    await registrarAuditoriaMaestro(tx, { entidad: "ConfiguracionEmpresa", registroId: despues.id, accion: antes ? "ACTUALIZAR" : "CREAR", antes, despues, usuario: auth.usuario });
   });
 
   revalidatePath("/", "layout");
