@@ -66,3 +66,9 @@ También se prueba que un archivo que no es una base SQLite se rechaza sin escri
 - **Réplica fuera del sitio.** El respaldo queda donde apunte `RESPALDO_DIR`. Llevarlo a otro edificio o a almacenamiento remoto es una decisión de infraestructura, no de la aplicación.
 - **Punto de recuperación.** Con respaldo diario, el peor caso es perder un día de operación. Bajar eso exige replicación o WAL archiving, y depende de cuánta pérdida tolera el negocio — un dato que no está en el código.
 - **Los archivos adjuntos en disco**, que viven fuera de la base y necesitan su propia copia.
+
+## Atado a SQLite
+
+`VACUUM INTO` y `PRAGMA integrity_check` son primitivas de SQLite. Es la decisión correcta mientras la base sea SQLite —son las herramientas que el motor da para esto—, pero conviene tenerlo anotado: **si alguna vez se migra a PostgreSQL, este módulo hay que reemplazarlo**, no adaptarlo. El equivalente sería `pg_dump` con su propia verificación.
+
+Queda registrado en el roadmap junto a la fila de esa migración, para que no se descubra a mitad del cambio de motor.
