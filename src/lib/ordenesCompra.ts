@@ -106,7 +106,15 @@ export async function crearOrdenCompraDesdeDatos(
     const numero = await siguienteNumeroOrdenCompra(tx);
     const total = datos.lineas.reduce((acc, l) => acc + l.cantidad * l.costoUnitario, 0);
     const totalPen = convertirAPen(total, datos.moneda, datos.tipoCambio);
-    const pasos = await pasosAplicablesCompra(tx, actor.empresaId, totalPen, montoAprobacionCompras.toNumber());
+    // La planta de destino decide si además corren los niveles propios de esa
+    // planta. Una OC sin almacén de destino solo recorre los generales.
+    const pasos = await pasosAplicablesCompra(
+      tx,
+      actor.empresaId,
+      totalPen,
+      montoAprobacionCompras.toNumber(),
+      datos.almacenId
+    );
     const oc = await tx.ordenCompra.create({
       data: {
         numero,
