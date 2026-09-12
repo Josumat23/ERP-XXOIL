@@ -3,7 +3,12 @@ import { test } from "node:test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { prisma } from "@/lib/prisma";
-import { ETIQUETA_CONTROL, postearAsiento, type ClaveControl } from "@/lib/contabilidad";
+import {
+  CLAVES_RECLASIFICABLES,
+  ETIQUETA_CONTROL,
+  postearAsiento,
+  type ClaveControl,
+} from "@/lib/contabilidad";
 
 // Seis claves de ControlContable se usaban en los asientos de planilla,
 // gratificación, CTS y liquidación pero nunca se sembraron. Como el posteo es
@@ -16,6 +21,9 @@ import { ETIQUETA_CONTROL, postearAsiento, type ClaveControl } from "@/lib/conta
 
 const CLAVES_PLANILLA: ClaveControl[] = [
   "GASTO_PERSONAL",
+  // Separada de GASTO_PERSONAL el 2026-09-13: el aporte patronal no es
+  // remuneración del trabajador y no puede compartir la cuenta de sueldos.
+  "GASTO_ESSALUD_PATRONAL",
   "ESSALUD_POR_PAGAR",
   "ONP_AFP_POR_PAGAR",
   "RETENCION_5TA_POR_PAGAR",
@@ -51,6 +59,7 @@ test("el plan sembrado trae las seis cuentas de planilla, con su naturaleza", as
   // imputado a una cuenta de pasivo cuadra el asiento y descuadra el balance.
   const esperadas: Array<[string, "GASTO" | "PASIVO"]> = [
     ["6211", "GASTO"],
+    ["6271", "GASTO"],
     ["4031", "PASIVO"],
     ["4032", "PASIVO"],
     // La retención de quinta es plata retenida a los trabajadores; el impuesto
@@ -83,12 +92,17 @@ test("un asiento de planilla ya genera libro, no una incidencia", async () => {
       origen: "PLANILLA",
       glosa: `Planilla de prueba ${sufijo}`,
       referencia: sufijo,
+      // Una planilla real en miniatura: al debe la remuneración y el aporte
+      // patronal; al haber los descuentos al trabajador, el patronal por pagar
+      // y el neto, que es la remuneración menos sus descuentos (1000 − 130 −
+      // 50 = 820). El patronal no se le descuenta a nadie: entra y sale.
       lineas: [
         { clave: "GASTO_PERSONAL", debe: 1000 },
+        { clave: "GASTO_ESSALUD_PATRONAL", debe: 90 },
         { clave: "ONP_AFP_POR_PAGAR", haber: 130 },
         { clave: "ESSALUD_POR_PAGAR", haber: 90 },
         { clave: "RETENCION_5TA_POR_PAGAR", haber: 50 },
-        { clave: "SUELDOS_POR_PAGAR", haber: 730 },
+        { clave: "SUELDOS_POR_PAGAR", haber: 820 },
       ],
       usuarioId: "u",
       usuarioNombre: "u",
@@ -101,12 +115,12 @@ test("un asiento de planilla ya genera libro, no una incidencia", async () => {
     include: { detalles: { include: { cuenta: true } } },
   });
   assert.ok(asiento, "no quedó asiento");
-  assert.equal(asiento.detalles.length, 5);
+  assert.equal(asiento.detalles.length, 6);
 
   const debe = asiento.detalles.reduce((t, d) => t + d.debe.toNumber(), 0);
   const haber = asiento.detalles.reduce((t, d) => t + d.haber.toNumber(), 0);
-  assert.equal(debe, 1000);
-  assert.equal(haber, 1000);
+  assert.equal(debe, 1090);
+  assert.equal(haber, 1090);
 
   // Y ninguna incidencia nueva: ese era el único rastro que quedaba antes.
   assert.equal(await prisma.incidenciaContable.count({ where: { empresaId: "1" } }), incidenciasAntes);
@@ -121,21 +135,69 @@ test("cada clave de control tiene etiqueta para poder reapuntarla", async () => 
   }
 });
 
+test("el aporte patronal no comparte cuenta con el sueldo", async () => {
+  // El aporte patronal es una contribución social de la empresa, no
+  // remuneración del trabajador: en el PCGE va a 627 y no a 621. Hasta el
+  // 2026-09-13 compartían clave, y por lo tanto cuenta.
+  const plan = await prisma.planCuentas.findFirstOrThrow({ where: { empresaId: "1" } });
+  const cuentas = await prisma.cuentaContable.findMany({
+    where: { planCuentasId: plan.id, codigo: { in: ["6211", "6271"] } },
+  });
+  assert.equal(cuentas.length, 2, "faltan las dos cuentas");
+  assert.notEqual(cuentas[0].id, cuentas[1].id);
+
+  // Y el asiento de planilla usa la clave nueva para el patronal.
+  const contabilidad = await readFile(resolve(process.cwd(), "src/lib/contabilidad.ts"), "utf8");
+  const bloque = contabilidad.slice(
+    contabilidad.indexOf("export async function postearPlanilla"),
+    contabilidad.indexOf("export async function postearGratificacion")
+  );
+  assert.ok(bloque.length > 0, "no se encontró postearPlanilla");
+  assert.match(
+    bloque,
+    /clave: "GASTO_ESSALUD_PATRONAL",\s*\n\s*glosa: `EsSalud/,
+    "el patronal debe imputarse a su propia clave"
+  );
+  // Una sola línea con GASTO_PERSONAL: la de la remuneración.
+  assert.equal((bloque.match(/clave: "GASTO_PERSONAL"/g) ?? []).length, 1);
+});
+
+test("el aporte patronal sigue siendo reclasificable entre centros", async () => {
+  // Antes de separarlo ya lo era, porque vivía dentro de GASTO_PERSONAL y
+  // lleva centro de costo. Sacarlo de la lista al separar la clave le habría
+  // quitado una capacidad que nadie pidió quitar.
+  assert.ok(CLAVES_RECLASIFICABLES.includes("GASTO_ESSALUD_PATRONAL"));
+  assert.ok(CLAVES_RECLASIFICABLES.includes("GASTO_PERSONAL"));
+});
+
 test("la migración alcanza a las compañías que ya existen", async () => {
   // El seed solo corre en instalaciones nuevas. Sin la migración, una base ya
   // instalada se quedaba sin los controles para siempre — el mismo hueco que
   // dejó `seed-ubigeos.ts` cuando nadie lo ejecutaba.
-  const sql = await readFile(
-    resolve(process.cwd(), "prisma/migrations/20260913170000_payroll_control_accounts/migration.sql"),
-    "utf8"
+  // Las claves se repartieron en dos migraciones: seis en la que saldó la
+  // deuda y la del aporte patronal al separarlo. Se comprueba la unión, no un
+  // archivo puntual, para que agregar una clave en una migración nueva no
+  // obligue a reescribir esta prueba.
+  const archivos = [
+    "20260913170000_payroll_control_accounts",
+    "20260913190000_employer_contribution_account",
+  ];
+  const sqls = await Promise.all(
+    archivos.map((dir) =>
+      readFile(resolve(process.cwd(), `prisma/migrations/${dir}/migration.sql`), "utf8")
+    )
   );
+  const todo = sqls.join("\n");
+
   for (const clave of CLAVES_PLANILLA) {
-    assert.match(sql, new RegExp(clave), `la migración no crea ${clave}`);
+    assert.match(todo, new RegExp(clave), `ninguna migración crea ${clave}`);
   }
-  // Idempotente y sin pisar lo que el contador ya haya configurado.
-  assert.match(sql, /WHERE NOT EXISTS/);
-  assert.doesNotMatch(sql, /UPDATE "controles_contables"/);
-  assert.doesNotMatch(sql, /UPDATE "cuentas_contables"/);
-  // Cada control apunta a la cuenta del plan de SU compañía, no a una ajena.
-  assert.match(sql, /c\."planCuentasId" = p\."id"/);
+  // Cada una idempotente, sin pisar lo que el contador ya haya configurado, y
+  // apuntando a la cuenta del plan de SU compañía.
+  for (const [i, sql] of sqls.entries()) {
+    assert.match(sql, /WHERE NOT EXISTS/, `${archivos[i]} no es idempotente`);
+    assert.doesNotMatch(sql, /UPDATE "controles_contables"/, `${archivos[i]} pisa controles`);
+    assert.doesNotMatch(sql, /UPDATE "cuentas_contables"/, `${archivos[i]} pisa cuentas`);
+    assert.match(sql, /c\."planCuentasId" = p\."id"/, `${archivos[i]} cruza compañías`);
+  }
 });

@@ -35,6 +35,11 @@ export type ClaveControl =
   | "INGRESO_VENTA_ACTIVO"
   | "PERDIDA_VENTA_ACTIVO"
   | "GASTO_PERSONAL"
+  // El aporte patronal es gasto de la empresa igual que el sueldo, pero en el
+  // PCGE va a 627 y no a 621: no es remuneración del trabajador, es una
+  // contribución social. Compartían cuenta hasta el 2026-09-13 porque el
+  // asiento usaba una sola clave para los dos.
+  | "GASTO_ESSALUD_PATRONAL"
   | "ONP_AFP_POR_PAGAR"
   | "ESSALUD_POR_PAGAR"
   | "RETENCION_5TA_POR_PAGAR"
@@ -68,6 +73,7 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   INGRESO_VENTA_ACTIVO: "Ingreso por venta de activo fijo",
   PERDIDA_VENTA_ACTIVO: "Pérdida por venta de activo fijo",
   GASTO_PERSONAL: "Gasto de personal (planilla)",
+  GASTO_ESSALUD_PATRONAL: "Aporte patronal a EsSalud",
   ONP_AFP_POR_PAGAR: "ONP / AFP por pagar",
   ESSALUD_POR_PAGAR: "EsSalud por pagar",
   RETENCION_5TA_POR_PAGAR: "Retención de renta de 5ta categoría por pagar",
@@ -910,6 +916,10 @@ export const CLAVES_RECLASIFICABLES: ClaveControl[] = [
   "GASTO_MANTENIMIENTO",
   "GASTO_ORDEN_INTERNA",
   "GASTO_PERSONAL",
+  // Se agrega junto con la clave: el aporte patronal lleva centro de costo y
+  // ya era reclasificable cuando vivía dentro de `GASTO_PERSONAL`. Separarlo
+  // sin ponerlo acá le habría quitado esa capacidad sin que nadie lo pidiera.
+  "GASTO_ESSALUD_PATRONAL",
   "GASTO_DEPRECIACION",
   "COSTO_VENTAS",
 ];
@@ -944,10 +954,15 @@ export async function postearReclasificacionCosto(
   });
 }
 
-// Planilla mensual: Gasto de personal (remuneración computable + EsSalud
-// patronal, por centro de costo del empleado) al debe / ONP-AFP por pagar +
-// EsSalud por pagar + retención de 5ta por pagar + sueldos por pagar (neto)
-// al haber. Se arma un solo asiento para todo el período.
+// Planilla mensual: Gasto de personal (remuneración computable) + Aporte
+// patronal a EsSalud, los dos por centro de costo del empleado, al debe /
+// ONP-AFP por pagar + EsSalud por pagar + retención de 5ta por pagar +
+// sueldos por pagar (neto) al haber. Se arma un solo asiento para todo el
+// período.
+//
+// El gasto y el aporte patronal usan claves distintas desde el 2026-09-13:
+// antes compartían `GASTO_PERSONAL` y el aporte terminaba imputado a la
+// cuenta de sueldos.
 export async function postearPlanilla(
   tx: Tx,
   datos: {
@@ -980,7 +995,7 @@ export async function postearPlanilla(
     });
     if (l.essaludPatronal > 0) {
       lineas.push({
-        clave: "GASTO_PERSONAL",
+        clave: "GASTO_ESSALUD_PATRONAL",
         glosa: `EsSalud — ${l.empleado}`,
         debe: l.essaludPatronal,
         centroCostoId: l.centroCostoId,

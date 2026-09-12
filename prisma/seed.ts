@@ -473,6 +473,9 @@ async function main() {
     // liquidación: pensiones, EsSalud, la retención de quinta y el neto que se
     // le debe al trabajador.
     { codigo: "6211", nombre: "Sueldos y salarios", tipo: "GASTO" },
+    // El aporte patronal no es remuneración del trabajador: es una
+    // contribución social de la empresa, y en el PCGE vive en 627.
+    { codigo: "6271", nombre: "Régimen de prestaciones de salud", tipo: "GASTO" },
     { codigo: "4031", nombre: "EsSalud por pagar", tipo: "PASIVO" },
     { codigo: "4032", nombre: "ONP / AFP por pagar", tipo: "PASIVO" },
     // Único código de cinco dígitos del plan sembrado: en cuatro, el 4017 es
@@ -536,11 +539,8 @@ async function main() {
     // best-effort, así que la operación no fallaba y solo quedaba la
     // incidencia contable.
     //
-    // GASTO_PERSONAL absorbe hoy la remuneración y el EsSalud de cargo del
-    // empleador, porque el asiento usa una sola clave para los dos. En el PCGE
-    // el aporte patronal va a 627 y no a 621; separarlo es trabajo del módulo
-    // de planilla, no de aquí, y hasta entonces conviven en 6211.
     ["GASTO_PERSONAL", "6211"],
+    ["GASTO_ESSALUD_PATRONAL", "6271"],
     ["ESSALUD_POR_PAGAR", "4031"],
     ["ONP_AFP_POR_PAGAR", "4032"],
     ["RETENCION_5TA_POR_PAGAR", "40173"],
