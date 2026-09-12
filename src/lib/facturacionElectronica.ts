@@ -93,6 +93,8 @@ type CredencialesOse = {
   token: string;
   razonSocial: string;
   direccion?: string | null;
+  /** Código SUNAT de 6 dígitos del distrito del emisor, para el XML. */
+  ubigeo?: string | null;
   sunatCertificadoBase64?: string | null;
   sunatCertificadoPassword?: string | null;
   sunatUsuarioSol?: string | null;
@@ -318,6 +320,9 @@ const adaptadorSunatDirecto: AdaptadorOse = {
         ruc: credenciales.ruc,
         razonSocial: credenciales.razonSocial,
         direccion: credenciales.direccion,
+        // El constructor UBL ya aceptaba este campo; hasta ahora nadie se lo
+        // pasaba, así que el XML salía sin el ubigeo del emisor.
+        ubigeo: credenciales.ubigeo,
       };
 
       // Cada tipo se nombra explícitamente. Con un ternario encadenado, un
@@ -431,6 +436,7 @@ export async function enviarComprobanteElectronico(params: {
         token: config.oseToken ?? "",
         razonSocial: config.razonSocial ?? "",
         direccion: config.direccion,
+        ubigeo: config.ubigeo?.codigo ?? null,
         sunatCertificadoBase64: config.sunatCertificadoBase64,
         sunatCertificadoPassword: config.sunatCertificadoPassword,
         sunatUsuarioSol: config.sunatUsuarioSol,
