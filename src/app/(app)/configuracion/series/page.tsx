@@ -10,6 +10,7 @@ import { alternarActivoSerie } from "./actions";
 
 const ETIQUETA_TIPO: Record<string, string> = {
   FACTURA: "Factura",
+  BOLETA: "Boleta de venta",
   NOTA_CREDITO: "Nota de crédito",
   GUIA_REMISION: "Guía de remisión",
 };

@@ -1499,30 +1499,45 @@ enum EstadoFactura {
 }
 
 // La factura se emite en el portal SUNAT; aquí solo se registra su número.
+// Comprobante de venta que corresponde emitir. Es el subconjunto del Catálogo
+// 01 de SUNAT que este sistema emite: 01 factura y 03 boleta.
+enum TipoComprobanteVenta {
+  FACTURA
+  BOLETA
+}
+
 model Factura {
-  id                String        @id @default(cuid())
-  empresaId         String        @default("1")
-  empresa           Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero            String // número SUNAT, ej. F001-00000123
+  id                String               @id @default(cuid())
+  empresaId         String               @default("1")
+  empresa           Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  numero            String // número SUNAT, ej. F001-00000123 / B001-00000123
+  // Qué comprobante es esta venta. Se DERIVA del documento del comprador al
+  // emitir (RUC peruano → factura; DNI o sin documento → boleta), no del canal
+  // comercial ni de una elección del usuario: un minorista que es empresa con
+  // RUC recibe factura igual. Ver src/lib/tipoComprobanteVenta.ts.
+  //
+  // Default FACTURA: todas las ventas anteriores a este campo lo eran — el
+  // sistema solo emitía factura — así que el valor histórico es correcto.
+  tipoComprobante   TipoComprobanteVenta @default(FACTURA)
   pedidoId          String
   clienteId         String
   vendedorId        String
-  moneda            String        @default("PEN")
-  tipoCambio        Decimal       @default(1)
-  monedaFuncional   String        @default("PEN")
+  moneda            String               @default("PEN")
+  tipoCambio        Decimal              @default(1)
+  monedaFuncional   String               @default("PEN")
   condicionPago     CondicionPago
-  fechaEmision      DateTime      @default(now())
+  fechaEmision      DateTime             @default(now())
   fechaVencimiento  DateTime
-  subtotal          Decimal       @default(0) // valor de venta (base imponible)
-  tasaIgv           Decimal       @default(0) // % vigente al emitir (congelado)
-  igv               Decimal       @default(0)
+  subtotal          Decimal              @default(0) // valor de venta (base imponible)
+  tasaIgv           Decimal              @default(0) // % vigente al emitir (congelado)
+  igv               Decimal              @default(0)
   total             Decimal // subtotal + IGV, en moneda del documento
   saldo             Decimal
-  subtotalFuncional Decimal       @default(0)
-  igvFuncional      Decimal       @default(0)
-  totalFuncional    Decimal       @default(0)
-  saldoFuncional    Decimal       @default(0)
-  estado            EstadoFactura @default(PENDIENTE)
+  subtotalFuncional Decimal              @default(0)
+  igvFuncional      Decimal              @default(0)
+  totalFuncional    Decimal              @default(0)
+  saldoFuncional    Decimal              @default(0)
+  estado            EstadoFactura        @default(PENDIENTE)
   motivoAnulacion   String?
   anuladaEn         DateTime?
   anuladaPor        String?
@@ -1632,6 +1647,7 @@ model AvisoCobranza {
 
 enum TipoComprobanteElectronico {
   FACTURA
+  BOLETA
   NOTA_CREDITO
   NOTA_DEBITO
   GUIA_REMISION
@@ -2845,6 +2861,7 @@ model HojaRutaVisita {
 
 enum TipoDocumentoSerie {
   FACTURA
+  BOLETA
   NOTA_CREDITO
   NOTA_DEBITO
   GUIA_REMISION

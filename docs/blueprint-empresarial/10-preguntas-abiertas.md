@@ -37,6 +37,7 @@ Preguntas ya resueltas por el negocio. Se dejan aquí, y no se borran de la tabl
 
 | # | Pregunta | Respuesta | Fecha | Consecuencia aplicada |
 |---|---|---|---|---|
+| — | ¿Hay canal minorista o venta de mostrador, es decir, se vende a personas sin RUC? | **Sí. Existen los canales minorista y mayorista.** | 2026-09-12 | Se construyó la **boleta de venta**. La regla quedó atada al **documento del comprador y no al canal**: un cliente minorista con RUC sigue recibiendo factura, y una persona con DNI recibe boleta compre lo que compre — confundir canal con documento habría emitido el comprobante equivocado a media cartera. No se construyó el **resumen diario de boletas**: emitirlas una por una es siempre válido, y agruparlas exige criterio contable sobre el corte. |
 | — | ¿Existe más de una organización de compras real (ej. una corporativa y otra por planta), o las compras son centralizadas? | **Centralizadas. No existe organización de compras como unidad propia.** | 2026-09-12 | El ítem "Esquema de liberación de compras multi-nivel" queda cubierto por completo con los niveles por monto y por planta ya construidos. No se modela `OrganizacionCompras`: agregar una unidad organizativa que nadie usa estorbaría en cada alta de orden de compra sin aportar control. Si el grupo abre una organización de compras separada, esto se reabre. |
 
 ---

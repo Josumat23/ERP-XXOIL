@@ -25,6 +25,7 @@ import {
   validarTipoCambio,
 } from "@/lib/multimoneda";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { codigoDocumentoIdentidad } from "@/lib/tipoComprobanteVenta";
 
 export type EstadoFormulario = { error?: string };
 
@@ -51,16 +52,23 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
   const [serie, numeroStr] = factura.numero.split("-");
   const numero = parseInt(numeroStr ?? "", 10);
 
+  const documentoComprador = {
+    tipoDocumentoFiscal: factura.cliente.tipoDocumentoFiscal,
+    documento: factura.cliente.ruc,
+  };
+
   await enviarComprobanteElectronico({
     empresaId: factura.empresaId,
-    tipoDocumento: "FACTURA",
+    tipoDocumento: factura.tipoComprobante,
     documentoId: factura.id,
     numeroDocumento: factura.numero,
     datos: {
-      tipoDocumento: "FACTURA",
+      tipoDocumento: factura.tipoComprobante,
       serie: serie || factura.numero,
       numero: Number.isFinite(numero) ? numero : 0,
       clienteRuc: factura.cliente.ruc ?? "",
+      // Catálogo 06 de SUNAT: antes iba fijo en RUC para todos.
+      clienteTipoDocumento: codigoDocumentoIdentidad(documentoComprador),
       clienteDenominacion: factura.cliente.razonSocial,
       clienteDireccion: factura.cliente.direccion,
       fechaEmision: factura.fechaEmision,
