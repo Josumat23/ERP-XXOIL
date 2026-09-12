@@ -1,6 +1,8 @@
 # Respaldo y restauración
 
-Estrategia de respaldo y recuperación de la base SQLite del ERP. Cubre el ítem transversal de Oleada 1: *"Backup automatizado programado + procedimiento de restauración probado al menos una vez"*.
+Estrategia de respaldo y recuperación de la base del ERP. Cubre el ítem transversal de Oleada 1: *"Backup automatizado programado + procedimiento de restauración probado al menos una vez"*.
+
+Hoy la base es SQLite, pero el módulo ya no está atado a ella: el núcleo es agnóstico del motor y las primitivas de cada base viven en un controlador aparte. Ver [Portabilidad](#portabilidad-qué-es-del-motor-y-qué-no).
 
 ## Por qué `VACUUM INTO` y no copiar el archivo
 
@@ -61,14 +63,47 @@ El roadmap exige que la restauración esté probada al menos una vez. Está ejer
 
 También se prueba que un archivo que no es una base SQLite se rechaza sin escribir nada, y que la retención elimina el respaldo más antiguo junto con su manifiesto, sin dejarlo huérfano.
 
+Y, para cualquier motor: si el controlador no verifica su propia copia, el archivo se descarta y **el directorio no queda con un respaldo aparente**.
+
 ## Qué no cubre
 
 - **Réplica fuera del sitio.** El respaldo queda donde apunte `RESPALDO_DIR`. Llevarlo a otro edificio o a almacenamiento remoto es una decisión de infraestructura, no de la aplicación.
 - **Punto de recuperación.** Con respaldo diario, el peor caso es perder un día de operación. Bajar eso exige replicación o WAL archiving, y depende de cuánta pérdida tolera el negocio — un dato que no está en el código.
 - **Los archivos adjuntos en disco**, que viven fuera de la base y necesitan su propia copia.
 
-## Atado a SQLite
+## Portabilidad: qué es del motor y qué no
 
-`VACUUM INTO` y `PRAGMA integrity_check` son primitivas de SQLite. Es la decisión correcta mientras la base sea SQLite —son las herramientas que el motor da para esto—, pero conviene tenerlo anotado: **si alguna vez se migra a PostgreSQL, este módulo hay que reemplazarlo**, no adaptarlo. El equivalente sería `pg_dump` con su propia verificación.
+El módulo está partido en dos.
 
-Queda registrado en el roadmap junto a la fila de esa migración, para que no se descubra a mitad del cambio de motor.
+**El núcleo es agnóstico del motor.** Cómo se llama el archivo, en qué orden quedan, cuántos se conservan, el manifiesto SHA256, escribir en `.parcial` y renombrar recién al verificar, negarse a pisar un archivo existente: nada de eso depende de que la base sea SQLite. Es la mayor parte del módulo y la que costaría rehacer.
+
+**El motor aporta tres operaciones**, reunidas en un `ControladorRespaldo`:
+
+| Operación | SQLite | PostgreSQL (cuando se implemente) |
+| --- | --- | --- |
+| `copiar` | `VACUUM INTO` | `pg_dump -Fc` |
+| `verificar` | `PRAGMA integrity_check` | `pg_restore --list` |
+| `restaurar` | `VACUUM INTO` sobre el destino | `pg_restore` |
+| `extension` | `.db` | `.dump` |
+
+El día de la migración hay que escribir ese objeto y nada más. Que eso sea cierto no es una promesa: la suite conduce el núcleo completo —respaldo, verificación, manifiesto, retención y restauración— con un controlador de prueba que **no toca SQLite** y declara motor `POSTGRES` y extensión `.dump`. Si alguna primitiva de SQLite vuelve a filtrarse a `crearRespaldo` o `restaurarRespaldo`, una guardia estructural falla.
+
+La retención respeta la extensión del motor, así que un respaldo `.db` y uno `.dump` pueden convivir en el mismo directorio sin que uno borre al otro durante la transición.
+
+### PostgreSQL se reconoce, pero todavía no se respalda
+
+Si `DATABASE_URL` apunta a PostgreSQL, el respaldo **falla con un mensaje que dice exactamente qué falta**:
+
+> DATABASE_URL apunta a PostgreSQL y el respaldo todavía no tiene controlador para ese motor. Hace falta implementarlo con pg_dump/pg_restore y probarlo contra una base real antes de confiar en él.
+
+Antes el mensaje era *"DATABASE_URL no apunta a un archivo SQLite"* — cierto, y a la vez inútil el día de migrar, porque no distingue una URL de PostgreSQL de una cadena sin sentido.
+
+**Por qué no viene escrito el controlador de PostgreSQL.** Porque en esta máquina no hay `pg_dump`, `psql` ni Docker: no habría forma de ejecutarlo ni una sola vez. Un respaldo que nunca corrió contra una base real no es un respaldo, es una creencia — y creer que hay copias cuando no las hay es peor que saber que no las hay, porque el error se descubre el día que ya es tarde. El controlador se escribe junto con la migración de motor, contra la base real, y se prueba restaurando.
+
+La restauración elige el controlador por la extensión del artefacto: intentar restaurar un `.dump` con el driver de SQLite diría *"no pasó la verificación de integridad"* y mandaría a buscar el problema donde no está.
+
+## Los comandos funcionaban solo en el papel
+
+`npm run respaldo` y `npm run restaurar` morían al arrancar, con `ERR_MODULE_NOT_FOUND`, desde que existen: definían `NODE_OPTIONS` **dentro de un proceso que ya había arrancado** —Node esa variable la lee al iniciar— y después importaban TypeScript, así que nadie registraba `tsx` y el alias `@/` no resolvía. Ninguna prueba lo notaba porque todas importaban la librería directamente, y la tarea programada sí funcionaba porque corre dentro del servidor.
+
+Ahora cada comando es un lanzador que ejecuta su lógica en un proceso hijo bajo `tsx` —el mismo patrón del runner de pruebas y de la demo—, y la suite ejecuta ambos comandos tal cual los corre una persona: si vuelven a no arrancar, la prueba lo dice.

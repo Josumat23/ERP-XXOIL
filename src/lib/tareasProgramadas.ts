@@ -4,7 +4,7 @@ import { ejecutarDepreciacionDelMes } from "@/lib/depreciacion";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
 import { obtenerTipoCambioVigente } from "@/lib/tipoCambio";
 import { generarOrdenesPreventivasVencidas } from "@/lib/mantenimientoPreventivo";
-import { crearRespaldo, rutaDesdeUrlSqlite } from "@/lib/respaldo";
+import { crearRespaldo, resolverOrigen } from "@/lib/respaldo";
 
 export type ClaveTarea = $Enums.ClaveTareaProgramada;
 
@@ -124,7 +124,10 @@ async function ejecutarMantenimientoPreventivo() {
 // ruta que nadie eligió.
 async function ejecutarRespaldoBase() {
   const directorio = process.env.RESPALDO_DIR?.trim();
-  const origen = rutaDesdeUrlSqlite(process.env.DATABASE_URL);
+  // El motor sale de DATABASE_URL. Si es uno reconocido pero sin controlador
+  // —PostgreSQL, hoy— el error que queda registrado lo dice con esas palabras,
+  // en vez del viejo «no apunta a un archivo SQLite», que era cierto e inútil.
+  const origen = resolverOrigen(process.env.DATABASE_URL);
   try {
     if (!directorio) {
       await registrarEjecucion(
@@ -135,7 +138,9 @@ async function ejecutarRespaldoBase() {
       return;
     }
     if (!origen) {
-      throw new Error("DATABASE_URL no apunta a un archivo SQLite: no hay qué respaldar.");
+      throw new Error(
+        "DATABASE_URL no declara un motor de base reconocido: no hay qué respaldar."
+      );
     }
 
     const resumen = await crearRespaldo({ origen, directorio, retencion: RETENCION_RESPALDOS });
