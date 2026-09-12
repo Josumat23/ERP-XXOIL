@@ -8,7 +8,9 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
 import ContadorFormulario from "./ContadorFormulario";
 import PlanMantenimientoFormulario from "./PlanMantenimientoFormulario";
-import { alternarActivoPlan } from "../actions";
+import RepuestosPlanFormulario from "./RepuestosPlanFormulario";
+import { costoAnualPlanificado, costoPlanificado, ejecucionesPorAnio } from "@/lib/repuestosPlanificados";
+import { agregarRepuestoPlan, alternarActivoPlan, quitarRepuestoPlan } from "../actions";
 import { planVencido } from "@/lib/mantenimientoPreventivo";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
@@ -35,7 +37,7 @@ export default async function DetalleEquipoPage({
 
   const { id } = await params;
 
-  const [equipo, equipos] = await Promise.all([
+  const [equipo, equipos, insumos] = await Promise.all([
     prisma.equipo.findFirst({
       where: { id, empresaId: usuario.empresaId },
       include: {
@@ -45,11 +47,20 @@ export default async function DetalleEquipoPage({
         centroTrabajo: true,
         ubicacionTecnica: { select: { codigo: true, nombre: true } },
         ordenesMantenimiento: { orderBy: { fechaProgramada: "desc" } },
-        planesMantenimiento: { orderBy: { creadoEn: "desc" } },
+        planesMantenimiento: {
+          orderBy: { creadoEn: "desc" },
+          include: { repuestos: { include: { insumo: true }, orderBy: { creadoEn: "asc" } } },
+        },
         lecturasContador: { orderBy: { creadoEn: "desc" }, take: 20 },
       },
     }),
     prisma.equipo.findMany({ where: { empresaId: usuario.empresaId }, orderBy: { creadoEn: "desc" } }),
+    // Catálogo de la compañía activa para elegir repuestos previstos.
+    prisma.insumo.findMany({
+      where: { empresaId: usuario.empresaId, activo: true },
+      select: { id: true, nombre: true, unidadMedida: true },
+      orderBy: { nombre: "asc" },
+    }),
   ]);
   if (!equipo) notFound();
 
@@ -138,6 +149,7 @@ export default async function DetalleEquipoPage({
                 <th>Plan</th>
                 <th>Ciclo</th>
                 <th>Última ejecución</th>
+                <th className="text-right">Repuestos previstos</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
@@ -174,6 +186,35 @@ export default async function DetalleEquipoPage({
                           ? `${p.ultimaEjecucionContador.toString()} ${equipo.unidadContador ?? ""}`
                           : "Nunca"}
                     </td>
+                    <td className="text-right text-sm">
+                      {(() => {
+                        const { porEjecucion } = costoPlanificado(
+                          p.repuestos.map((r) => ({
+                            insumoId: r.insumoId,
+                            nombre: r.insumo.nombre,
+                            cantidad: r.cantidad.toNumber(),
+                            costoUnitario: r.insumo.costoUnitario.toNumber(),
+                          }))
+                        );
+                        if (p.repuestos.length === 0) {
+                          return <span className="text-neutral-500">Sin lista</span>;
+                        }
+                        const anual = costoAnualPlanificado(
+                          porEjecucion,
+                          ejecucionesPorAnio(p.tipo, p.frecuenciaDias)
+                        );
+                        return (
+                          <>
+                            <div>{formatMoneda(porEjecucion)}</div>
+                            <div className="text-xs text-neutral-500">
+                              {anual === null
+                                ? "anual no estimable"
+                                : `${formatMoneda(anual)} al año`}
+                            </div>
+                          </>
+                        );
+                      })()}
+                    </td>
                     <td>
                       {!p.activo ? (
                         <span className="insignia bg-neutral-100 text-neutral-500 dark:bg-neutral-800">
@@ -204,9 +245,65 @@ export default async function DetalleEquipoPage({
                   </tr>
                 );
               })}
+              {equipo.planesMantenimiento
+                .filter((p) => p.activo)
+                .map((p) => (
+                  <tr key={`repuestos-${p.id}`}>
+                    <td colSpan={6} className="bg-black/[0.02] dark:bg-white/[0.02]">
+                      <div className="flex flex-col gap-2 py-2">
+                        <p className="text-xs font-medium text-neutral-700 dark:text-neutral-300">
+                          Lista técnica de «{p.nombre}»
+                        </p>
+                        {p.repuestos.length > 0 ? (
+                          <ul className="flex flex-col gap-1">
+                            {p.repuestos.map((r) => (
+                              <li key={r.id} className="flex items-center gap-2 text-xs">
+                                <span className="flex-1">
+                                  {r.cantidad.toString()} {r.insumo.unidadMedida} · {r.insumo.nombre}
+                                  {r.notas ? ` — ${r.notas}` : ""}
+                                </span>
+                                <span className="text-neutral-500">
+                                  {formatMoneda(
+                                    Math.round(
+                                      r.cantidad.toNumber() * r.insumo.costoUnitario.toNumber() * 100
+                                    ) / 100
+                                  )}
+                                </span>
+                                <form
+                                  action={async () => {
+                                    "use server";
+                                    await quitarRepuestoPlan(r.id, equipo.id);
+                                  }}
+                                >
+                                  <button
+                                    type="submit"
+                                    className="text-neutral-500 hover:underline text-xs no-imprimir"
+                                  >
+                                    Quitar
+                                  </button>
+                                </form>
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <p className="text-xs text-neutral-500">
+                            Sin repuestos previstos. Cargarlos permite presupuestar el
+                            mantenimiento antes de ejecutarlo.
+                          </p>
+                        )}
+                        <div className="no-imprimir">
+                          <RepuestosPlanFormulario
+                            accion={agregarRepuestoPlan.bind(null, p.id, equipo.id)}
+                            insumos={insumos}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
               {equipo.planesMantenimiento.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="text-center text-neutral-500 py-4">
+                  <td colSpan={6} className="text-center text-neutral-500 py-4">
                     Sin planes preventivos registrados — todo el mantenimiento es correctivo.
                   </td>
                 </tr>
