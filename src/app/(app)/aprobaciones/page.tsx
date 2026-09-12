@@ -21,7 +21,7 @@ export default async function AprobacionesPage() {
   // ADMIN/GERENCIA, pero el rol no es la compañía.
   const empresaId = usuario.empresaId;
 
-  const [creditos, compras, pagos] = await Promise.all([
+  const [creditos, compras, pagos, limites] = await Promise.all([
     prisma.pedido.findMany({
       where: { empresaId, estado: "PENDIENTE", estadoAprobacionCredito: "PENDIENTE" },
       include: { cliente: true },
@@ -37,9 +37,14 @@ export default async function AprobacionesPage() {
       include: { cuentaPorPagar: { include: { proveedor: true } } },
       orderBy: { fecha: "asc" },
     }),
+    prisma.solicitudCambioCredito.findMany({
+      where: { empresaId, estado: "PENDIENTE" },
+      include: { cliente: { select: { razonSocial: true } } },
+      orderBy: { solicitadoEn: "asc" },
+    }),
   ]);
 
-  const total = creditos.length + compras.length + pagos.length;
+  const total = creditos.length + compras.length + pagos.length + limites.length;
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -55,8 +60,9 @@ export default async function AprobacionesPage() {
         </span>
       </div>
 
-      <div className="mt-6 grid gap-3 sm:grid-cols-3">
+      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <Tarjeta titulo="Excepciones de crédito" cantidad={creditos.length} detalle="Pedidos sobre el límite del cliente" />
+        <Tarjeta titulo="Límites de crédito" cantidad={limites.length} detalle="Aumentos del límite de un cliente" />
         <Tarjeta titulo="Órdenes de compra" cantidad={compras.length} detalle="Compras sobre el umbral configurado" />
         <Tarjeta titulo="Pagos a proveedores" cantidad={pagos.length} detalle="Egresos que requieren autorización" />
       </div>
@@ -72,6 +78,14 @@ export default async function AprobacionesPage() {
             <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>Pedido</th><th>Cliente</th><th className="text-right">Deuda</th><th className="text-right">Factura</th><th className="text-right">Límite</th><th /></tr></thead><tbody>
               {creditos.map((pedido) => <tr key={pedido.id}><td className="font-mono">{pedido.numero}</td><td>{pedido.cliente.razonSocial}</td><td className="text-right">{formatMoneda(pedido.deudaCreditoEvaluada ?? 0)}</td><td className="text-right">{formatMoneda(pedido.montoCreditoEvaluado ?? 0)}</td><td className="text-right">{formatMoneda(pedido.limiteCreditoEvaluado ?? 0)}</td><td className="text-right"><Link className="text-[var(--epicor-azul)] hover:underline" href={`/comercial/pedidos/${pedido.id}`}>Revisar</Link></td></tr>)}
               {creditos.length === 0 && <tr><td colSpan={6} className="text-center text-[var(--epicor-texto-tenue)]">Sin excepciones pendientes</td></tr>}
+            </tbody></table></div>
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-lg font-semibold text-[var(--epicor-texto)]">Límites de crédito</h2>
+            <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>Cliente</th><th className="text-right">Límite actual</th><th className="text-right">Solicitado</th><th>Motivo</th><th>Solicitó</th><th /></tr></thead><tbody>
+              {limites.map((solicitud) => <tr key={solicitud.id}><td>{solicitud.cliente.razonSocial}</td><td className="text-right">{formatMoneda(solicitud.limiteAnterior)}</td><td className="text-right">{formatMoneda(solicitud.limiteSolicitado)}</td><td className="text-xs">{solicitud.motivo}</td><td>{solicitud.solicitadoPorNombre}</td><td className="text-right"><Link className="text-[var(--epicor-azul)] hover:underline" href={`/comercial/clientes/${solicitud.clienteId}`}>Revisar</Link></td></tr>)}
+              {limites.length === 0 && <tr><td colSpan={6} className="text-center text-[var(--epicor-texto-tenue)]">Sin aumentos pendientes</td></tr>}
             </tbody></table></div>
           </section>
 

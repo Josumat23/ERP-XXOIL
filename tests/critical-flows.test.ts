@@ -3107,8 +3107,11 @@ test("la bandeja de aprobaciones se acota a la compañía activa", async () => {
     "utf8"
   );
   assert.match(bandeja, /obtenerUsuarioEmpresaActiva/);
-  // Las tres consultas de la bandeja, no solo la primera.
-  assert.equal((bandeja.match(/where: \{ empresaId,/g) ?? []).length, 3);
+  // TODAS las consultas de la bandeja, no solo la primera. Se cuentan contra
+  // los findMany para que agregar una sección nueva sin acotarla falle aquí.
+  const consultas = (bandeja.match(/\.findMany\(\{/g) ?? []).length;
+  assert.ok(consultas >= 3, "la bandeja debería seguir teniendo sus consultas");
+  assert.equal((bandeja.match(/where: \{ empresaId,/g) ?? []).length, consultas);
 });
 
 test("la semilla deja al menos una planta que pueda producir", async () => {

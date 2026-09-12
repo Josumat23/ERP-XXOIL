@@ -1,10 +1,11 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import FichaTabs from "@/components/FichaTabs";
 import SelectorUbigeo from "@/components/SelectorUbigeo";
 import type { ArbolUbigeos, UbigeoSeleccionado } from "@/lib/ubigeos";
 import { ETIQUETA_CANAL_CLIENTE } from "@/lib/etiquetas";
+import { creacionRequiereAprobacion, decidirCambioLimiteCredito } from "@/lib/aprobacionCredito";
 import type { EstadoFormulario } from "./actions";
 
 const CANALES = Object.keys(ETIQUETA_CANAL_CLIENTE) as (keyof typeof ETIQUETA_CANAL_CLIENTE)[];
@@ -28,6 +29,8 @@ type Props = {
   vendedores: Opcion[];
   arbolUbigeos: ArbolUbigeos;
   ubigeoSeleccionado?: UbigeoSeleccionado | null;
+  /** Umbral de aprobación del límite de crédito; `null` = control apagado. */
+  umbralAprobacionCredito?: number | null;
   valoresIniciales?: {
     razonSocial: string;
     nombreComercial: string | null;
@@ -58,16 +61,32 @@ export default function ClienteFormulario({
   vendedores,
   arbolUbigeos,
   ubigeoSeleccionado,
+  umbralAprobacionCredito = null,
   valoresIniciales,
   textoBoton,
 }: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
+
+  // El campo del motivo aparece solo cuando hace falta. La decisión se repite
+  // en el servidor sobre el límite guardado: esto es comodidad de pantalla, no
+  // el control.
+  const limiteInicial = valoresIniciales?.limiteCredito ?? 0;
+  const [limite, setLimite] = useState(limiteInicial);
+  const esAlta = !valoresIniciales;
+  const aumentoNecesitaAprobacion = esAlta
+    ? creacionRequiereAprobacion(limite, umbralAprobacionCredito)
+    : decidirCambioLimiteCredito(limiteInicial, limite, umbralAprobacionCredito).requiereAprobacion;
 
   return (
     <form action={formAction} className="flex flex-col gap-5 max-w-2xl">
       {estado.error && (
         <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
           {estado.error}
+        </p>
+      )}
+      {estado.aviso && (
+        <p role="status" className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2">
+          {estado.aviso}
         </p>
       )}
 
@@ -239,7 +258,8 @@ export default function ClienteFormulario({
                       type="number"
                       step="0.01"
                       min="0"
-                      defaultValue={valoresIniciales?.limiteCredito ?? 0}
+                      defaultValue={limiteInicial}
+                      onChange={(e) => setLimite(Number(e.target.value))}
                       className="campo-input"
                     />
                   </Campo>
@@ -255,6 +275,27 @@ export default function ClienteFormulario({
                     </select>
                   </Campo>
                 </div>
+                {aumentoNecesitaAprobacion && (esAlta ? (
+                  <p className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2">
+                    Un límite de S/ {limite === 0 ? "sin tope" : limite} supera el umbral que
+                    requiere aprobación. Dé de alta el cliente con un límite dentro del umbral y
+                    solicite el aumento desde su ficha.
+                  </p>
+                ) : (
+                  <Campo etiqueta="Motivo del aumento del límite">
+                    <textarea
+                      name="motivoLimiteCredito"
+                      rows={2}
+                      maxLength={500}
+                      className="campo-input"
+                      placeholder="Historial de pago, garantía recibida, crecimiento de compras…"
+                    />
+                    <p className="mt-1 text-xs text-[var(--epicor-texto-tenue)]">
+                      Este aumento requiere aprobación: el resto de la ficha se guarda ahora y el
+                      límite se mantiene en S/ {limiteInicial} hasta que Gerencia lo resuelva.
+                    </p>
+                  </Campo>
+                ))}
                 <Campo etiqueta="Notas">
                   <textarea
                     name="notas"
