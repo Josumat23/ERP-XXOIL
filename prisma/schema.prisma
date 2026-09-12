@@ -386,8 +386,8 @@ model Presentacion {
   creadoEn          DateTime @default(now())
   actualizadoEn     DateTime @updatedAt
 
-  producto           Producto                  @relation(fields: [productoId], references: [id])
-  zonaAlmacen        ZonaAlmacen?              @relation(fields: [zonaAlmacenId], references: [id])
+  producto           Producto                      @relation(fields: [productoId], references: [id])
+  zonaAlmacen        ZonaAlmacen?                  @relation(fields: [zonaAlmacenId], references: [id])
   movimientos        MovimientoKardex[]
   saldosAlmacen      SaldoAlmacen[]
   envasados          Envasado[]
@@ -395,6 +395,7 @@ model Presentacion {
   facturaDetalles    FacturaDetalle[]
   guiaDetalles       GuiaRemisionDetalle[]
   pickingLineas      PickingLinea[]
+  contenidosHu       UnidadManipulacionContenido[]
   proyeccionDetalles ProyeccionDetalle[]
   escalonesPrecio    EscalonPrecio[]
   conteoDetalles     ConteoInventarioDetalle[]
@@ -2642,6 +2643,81 @@ enum ModalidadTransporte {
   PRIVADO
 }
 
+enum TipoUnidadManipulacion {
+  PALLET
+  CAJA
+  CONTENEDOR
+  JAULA
+}
+
+enum EstadoUnidadManipulacion {
+  // Armada y en una zona del almacén.
+  EN_ALMACEN
+  // Preparada y esperando en la playa de despacho: ya no está en una zona.
+  EN_PLAYA
+  // Vacía: su contenido volvió a granel o salió en una guía.
+  VACIA
+}
+
+// Unidad de manipulación: el pallet, la caja o la jaula como cosa con nombre.
+//
+// Es una TERCERA capa aditiva sobre el stock, con la misma forma que las dos
+// que ya existían. El reparto completo queda:
+//
+//     saldoAlmacen = suma(saldoZona) + sinZona
+//     saldoZona    = suma(contenido de las HU de esa zona) + suelto
+//
+// Es decir: lo que hay en una HU **ya está contado** en el saldo de su zona.
+// Armar una HU no crea ni destruye stock, solo dice que esas unidades están
+// sobre un pallet en vez de sueltas en el rack.
+//
+// Lo que NO lleva: el lote. La trazabilidad de lote de una venta ya existe por
+// `Envasado` → `AsignacionLoteVenta`, atada al documento. Repetirla acá daría
+// dos respuestas a «qué lote salió», y la que valdría sería la del documento.
+model UnidadManipulacion {
+  id        String                 @id @default(cuid())
+  empresaId String                 @default("1")
+  empresa   Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  // La etiqueta que se pega al pallet: es lo que alguien lee o escanea.
+  codigo    String
+  tipo      TipoUnidadManipulacion @default(PALLET)
+
+  // Dónde está. `null` cuando salió de la zona: en la playa de despacho o ya
+  // despachada. Una HU sin zona no suma al saldo de ninguna.
+  zonaAlmacenId String?
+  zona          ZonaAlmacen? @relation(fields: [zonaAlmacenId], references: [id], onDelete: Restrict)
+
+  estado EstadoUnidadManipulacion @default(EN_ALMACEN)
+  notas  String?
+
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  contenidos UnidadManipulacionContenido[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, estado])
+  @@index([zonaAlmacenId])
+  @@map("unidades_manipulacion")
+}
+
+model UnidadManipulacionContenido {
+  id             String  @id @default(cuid())
+  unidadId       String
+  presentacionId String
+  cantidad       Decimal
+
+  unidad       UnidadManipulacion @relation(fields: [unidadId], references: [id], onDelete: Cascade)
+  presentacion Presentacion       @relation(fields: [presentacionId], references: [id], onDelete: Restrict)
+
+  // Una línea por presentación: dos filas del mismo ítem en el mismo pallet
+  // serían dos verdades sobre cuántas unidades tiene encima.
+  @@unique([unidadId, presentacionId])
+  @@map("unidad_manipulacion_contenidos")
+}
+
 enum EstadoOleadaPicking {
   ABIERTA
   COMPLETADA
@@ -3382,12 +3458,13 @@ model ZonaAlmacen {
   parentId  String?
   activo    Boolean @default(true)
 
-  almacen        Almacen        @relation(fields: [almacenId], references: [id])
-  parent         ZonaAlmacen?   @relation("JerarquiaZonaAlmacen", fields: [parentId], references: [id], onDelete: Restrict)
-  subzonas       ZonaAlmacen[]  @relation("JerarquiaZonaAlmacen")
-  presentaciones Presentacion[]
-  insumos        Insumo[]
-  saldos         SaldoZona[]
+  almacen              Almacen              @relation(fields: [almacenId], references: [id])
+  parent               ZonaAlmacen?         @relation("JerarquiaZonaAlmacen", fields: [parentId], references: [id], onDelete: Restrict)
+  subzonas             ZonaAlmacen[]        @relation("JerarquiaZonaAlmacen")
+  presentaciones       Presentacion[]
+  insumos              Insumo[]
+  saldos               SaldoZona[]
+  unidadesManipulacion UnidadManipulacion[]
 
   @@unique([almacenId, codigo])
   @@index([almacenId, parentId])
@@ -5051,6 +5128,7 @@ model Empresa {
   politicaCobranza           PoliticaCobranza?
   licitacionesFlete          LicitacionFlete[]
   oleadasPicking             OleadaPicking[]
+  unidadesManipulacion       UnidadManipulacion[]
   transportistas             Transportista[]
   comprobantes               ComprobanteElectronico[]
   cobros                     Cobro[]

@@ -6,6 +6,7 @@ import {
   completarOleada,
   crearOleada,
   registrarPick,
+  pickearUnidad,
   type EstadoFormulario,
 } from "./actions";
 
@@ -164,6 +165,45 @@ export function PickFormulario({
         {enviando ? "…" : "Registrar"}
       </button>
       <Error estado={estado} />
+    </form>
+  );
+}
+
+export function PickearUnidadFormulario({
+  oleadaId,
+  unidades,
+}: {
+  oleadaId: string;
+  unidades: { id: string; etiqueta: string }[];
+}) {
+  const accion = pickearUnidad.bind(null, oleadaId);
+  const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
+
+  if (unidades.length === 0) return null;
+
+  return (
+    <form action={formAction} className="flex flex-wrap items-end gap-2">
+      <label className="flex flex-col gap-1 text-xs">
+        <span className="text-neutral-500">Bajar una unidad completa</span>
+        <select name="unidadId" required defaultValue="" className="campo-input text-xs w-80">
+          <option value="" disabled>
+            Seleccione
+          </option>
+          {unidades.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.etiqueta}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button type="submit" disabled={enviando} className="boton-secundario text-xs">
+        {enviando ? "…" : "Preparar unidad"}
+      </button>
+      <Error estado={estado} />
+      <p className="w-full text-xs text-neutral-500">
+        Solo se listan las unidades del almacén de la oleada. Si una trae más de lo pendiente o un
+        ítem que esta oleada no pide, se rechaza: para eso está la preparación por cantidad.
+      </p>
     </form>
   );
 }
