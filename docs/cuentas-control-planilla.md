@@ -42,11 +42,11 @@ Son un **valor inicial razonable del PCGE, no una afirmación**: el control se r
 
 **40173 es la única cuenta de cinco dígitos del plan sembrado.** En cuatro, el 4017 es «Impuesto a la renta» a secas, y ahí terminaría mezclada la plata retenida a los trabajadores con el impuesto propio de la empresa. Son dos cosas distintas y no pueden compartir cuenta.
 
-## Una simplificación que queda a la vista
+## El aporte patronal tuvo cuenta propia el mismo día
 
-`GASTO_PERSONAL` absorbe la remuneración **y** el EsSalud de cargo del empleador, porque el asiento usa una sola clave para los dos. En el PCGE el aporte patronal va a 627 y no a 621.
+Al sembrar las cuentas quedó a la vista que `GASTO_PERSONAL` absorbía la remuneración **y** el aporte patronal de EsSalud, porque el asiento usaba una sola clave para los dos. En el PCGE el aporte patronal es una contribución social de la empresa y vive en **627**, no en 621: no es remuneración del trabajador.
 
-No se arregló aquí: separarlo cambia cómo postea el módulo de planilla, y eso es trabajo de ese módulo. Se ve en el asiento real de la verificación —2500 de sueldo y 225 de EsSalud patronal, ambos en 6211— y queda como tarea aparte.
+Se separó en el ciclo siguiente, con la clave `GASTO_ESSALUD_PATRONAL` contra la cuenta **6271**. Véase `docs/aporte-patronal-cuenta-propia.md`.
 
 ## La migración
 
