@@ -18,7 +18,7 @@ export default async function NuevaGuiaPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
   const empresaId = await obtenerEmpresaActivaId();
 
-  const [pedidosRaw, facturas, clientes, presentaciones, equipos, series, guias, ubigeos] = await Promise.all([
+  const [pedidosRaw, facturas, clientes, presentaciones, equipos, series, guias, ubigeos, transportistas] = await Promise.all([
     prisma.pedido.findMany({
       where: { empresaId, requiereEntrega: true, estado: { not: "ANULADO" } },
       include: {
@@ -53,6 +53,24 @@ export default async function NuevaGuiaPage({
     seriesActivas("GUIA_REMISION", empresaId),
     prisma.guiaRemision.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { creadoEn: "desc" } }),
     prisma.ubigeo.findMany({ orderBy: [{ departamento: "asc" }, { provincia: "asc" }, { distrito: "asc" }] }),
+    // `select` explícito: el formulario es un componente cliente y solo
+    // necesita esto para armar las listas.
+    prisma.transportista.findMany({
+      where: { empresaId, activo: true },
+      select: {
+        id: true,
+        codigo: true,
+        razonSocial: true,
+        ruc: true,
+        vehiculos: { where: { activo: true }, select: { id: true, placa: true }, orderBy: { placa: "asc" } },
+        conductores: {
+          where: { activo: true },
+          select: { id: true, nombres: true, dni: true },
+          orderBy: { nombres: "asc" },
+        },
+      },
+      orderBy: { razonSocial: "asc" },
+    }),
   ]);
 
 const pedidos = pedidosRaw
@@ -121,6 +139,7 @@ const pedidos = pedidosRaw
             etiqueta: `${p.producto.nombre} — ${p.nombre}`,
           }))}
           equipos={equipos.map((e) => ({ id: e.id, etiqueta: `${e.codigo} — ${e.nombre}` }))}
+          transportistas={transportistas}
           ubigeos={ubigeos.map((u) => ({
             id: u.id,
             codigo: u.codigo,

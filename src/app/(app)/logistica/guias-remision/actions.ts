@@ -58,8 +58,9 @@ export async function crearGuiaRemision(
   const motivoTraslado = String(formData.get("motivoTraslado") ?? "Venta").trim();
   const pesoBrutoTotal = Number(formData.get("pesoBrutoTotal"));
   const modalidadTransporte = String(formData.get("modalidadTransporte") ?? "PRIVADO") as $Enums.ModalidadTransporte;
-  const transportista = String(formData.get("transportista") ?? "").trim() || null;
-  const transportistaRuc = String(formData.get("transportistaRuc") ?? "").trim() || null;
+  const transportistaId = String(formData.get("transportistaId") ?? "").trim() || null;
+  let transportista = String(formData.get("transportista") ?? "").trim() || null;
+  let transportistaRuc = String(formData.get("transportistaRuc") ?? "").trim() || null;
   const placaVehiculo = String(formData.get("placaVehiculo") ?? "").trim().toUpperCase() || null;
   const dniConductor = String(formData.get("dniConductor") ?? "").trim() || null;
   const equipoId = String(formData.get("equipoId") ?? "") || null;
@@ -92,8 +93,28 @@ export async function crearGuiaRemision(
   if (!MODALIDADES_VALIDAS.includes(modalidadTransporte)) {
     return { error: "Seleccione la modalidad de transporte." };
   }
+  // El id del transportista llega del navegador: se relee acotado a la
+  // compañía activa, y de la ficha salen la razón social y el RUC. Nunca se
+  // persiste lo que el formulario diga de ellos — ese texto termina impreso en
+  // la guía y declarado ante SUNAT.
+  const empresaIdGuia = await obtenerEmpresaActivaId();
+  if (transportistaId) {
+    const ficha = await prisma.transportista.findFirst({
+      where: { id: transportistaId, empresaId: empresaIdGuia, activo: true },
+      select: { razonSocial: true, ruc: true },
+    });
+    if (!ficha) {
+      return { error: "El transportista no pertenece a la compañía activa o está desactivado." };
+    }
+    transportista = ficha.razonSocial;
+    transportistaRuc = ficha.ruc;
+  }
   if (modalidadTransporte === "PUBLICO" && !transportistaRuc) {
-    return { error: "El RUC del transportista es obligatorio en transporte público." };
+    return {
+      error: transportistaId
+        ? "El transportista elegido no tiene RUC registrado y el transporte público lo exige. Complételo en Logística → Transportistas."
+        : "El RUC del transportista es obligatorio en transporte público.",
+    };
   }
   if (modalidadTransporte === "PRIVADO" && (!placaVehiculo || !dniConductor)) {
     return { error: "La placa del vehículo y el DNI del conductor son obligatorios en transporte privado." };
@@ -197,6 +218,7 @@ export async function crearGuiaRemision(
           motivoTraslado,
           pesoBrutoTotal,
           modalidadTransporte,
+          transportistaId,
           transportista,
           transportistaRuc,
           placaVehiculo,

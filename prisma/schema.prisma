@@ -2641,6 +2641,76 @@ enum ModalidadTransporte {
   PRIVADO
 }
 
+// Maestro de transportistas contratados.
+//
+// La distribución no es 100% flota propia: el negocio confirmó el 2026-09-13
+// que tiene flota, terceriza y además contrata para despacho. Hasta ahora cada
+// guía capturaba razón social, RUC, placa y DNI **sueltos**, retipeados en cada
+// emisión: el mismo transportista escrito de cinco maneras distintas, sin forma
+// de saber cuánto se le despachó ni de validar su RUC contra nada.
+//
+// Esto NO reemplaza los campos de texto de la guía: los conserva, por la misma
+// razón que el ubigeo conserva la dirección escrita. Guardan lo que se emitió y
+// son el respaldo de las guías que el backfill no logre emparejar.
+model Transportista {
+  id             String   @id @default(cuid())
+  empresaId      String   @default("1")
+  empresa        Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  codigo         String
+  razonSocial    String
+  // El RUC identifica al transportista ante SUNAT y va en el XML de la guía.
+  // Único por compañía cuando está presente; SQLite y PostgreSQL tratan cada
+  // NULL como distinto, así que varios sin RUC conviven sin chocar.
+  ruc            String?
+  // Registro del MTC que SUNAT pide al transportista de carga. Referencia
+  // informativa: el sistema no valida su vigencia ni bloquea por él, porque
+  // eso exige consultar al MTC y nadie lo pidió.
+  registroMtc    String?
+  telefono       String?
+  email          String?
+  contactoNombre String?
+  notas          String?
+  activo         Boolean  @default(true)
+  creadoEn       DateTime @default(now())
+
+  vehiculos   TransportistaVehiculo[]
+  conductores TransportistaConductor[]
+  guias       GuiaRemision[]
+
+  @@unique([empresaId, codigo])
+  @@unique([empresaId, ruc])
+  @@map("transportistas")
+}
+
+// Vehículo de un transportista contratado. La flota propia no vive aquí: es
+// `Equipo`, que además lleva su historial de mantenimiento.
+model TransportistaVehiculo {
+  id              String  @id @default(cuid())
+  transportistaId String
+  placa           String
+  descripcion     String?
+  activo          Boolean @default(true)
+
+  transportista Transportista @relation(fields: [transportistaId], references: [id], onDelete: Cascade)
+
+  @@unique([transportistaId, placa])
+  @@map("transportista_vehiculos")
+}
+
+model TransportistaConductor {
+  id              String  @id @default(cuid())
+  transportistaId String
+  nombres         String
+  dni             String
+  licencia        String?
+  activo          Boolean @default(true)
+
+  transportista Transportista @relation(fields: [transportistaId], references: [id], onDelete: Cascade)
+
+  @@unique([transportistaId, dni])
+  @@map("transportista_conductores")
+}
+
 model GuiaRemision {
   id                  String              @id @default(cuid())
   empresaId           String              @default("1")
@@ -2661,6 +2731,11 @@ model GuiaRemision {
   // de la guía es inválido.
   pesoBrutoTotal      Decimal             @default(0)
   modalidadTransporte ModalidadTransporte @default(PRIVADO)
+  // Transportista del maestro. Opcional: las guías anteriores al maestro no lo
+  // tienen, y un transportista puntual puede seguir escribiéndose a mano.
+  // Cuando está, sus datos alimentan los campos de texto de abajo, que son los
+  // que se imprimen y los que viajan en el XML.
+  transportistaId     String?
   transportista       String?
   // RUC de la empresa transportista — obligatorio cuando modalidadTransporte
   // = PUBLICO (transporte contratado a terceros, no flota propia).
@@ -2684,13 +2759,16 @@ model GuiaRemision {
   usuarioNombre       String
   creadoEn            DateTime            @default(now())
 
-  factura       Factura?              @relation(fields: [facturaId], references: [id])
-  pedido        Pedido?               @relation(fields: [pedidoId], references: [id])
-  cliente       Cliente               @relation(fields: [clienteId], references: [id])
-  equipo        Equipo?               @relation(fields: [equipoId], references: [id])
-  ubigeoPartida Ubigeo?               @relation("UbigeoPartida", fields: [ubigeoPartidaId], references: [id])
-  ubigeoLlegada Ubigeo?               @relation("UbigeoLlegada", fields: [ubigeoLlegadaId], references: [id])
-  detalles      GuiaRemisionDetalle[]
+  factura          Factura?              @relation(fields: [facturaId], references: [id])
+  pedido           Pedido?               @relation(fields: [pedidoId], references: [id])
+  cliente          Cliente               @relation(fields: [clienteId], references: [id])
+  equipo           Equipo?               @relation(fields: [equipoId], references: [id])
+  // Restrict: una guía es un documento emitido, y borrar el transportista no
+  // puede dejarla apuntando a nada ni reescribir lo que se imprimió.
+  transportistaRef Transportista?        @relation(fields: [transportistaId], references: [id], onDelete: Restrict)
+  ubigeoPartida    Ubigeo?               @relation("UbigeoPartida", fields: [ubigeoPartidaId], references: [id])
+  ubigeoLlegada    Ubigeo?               @relation("UbigeoLlegada", fields: [ubigeoLlegadaId], references: [id])
+  detalles         GuiaRemisionDetalle[]
 
   @@unique([empresaId, numero])
   @@index([pedidoId])
@@ -4784,6 +4862,7 @@ model Empresa {
   facturas                   Factura[]
   avisosCobranza             AvisoCobranza[]
   politicaCobranza           PoliticaCobranza?
+  transportistas             Transportista[]
   comprobantes               ComprobanteElectronico[]
   cobros                     Cobro[]
   notasCredito               NotaCredito[]
