@@ -61,6 +61,10 @@ export async function guardarConfiguracionEmpresa(
   const montoAprobacionCompras = Number(formData.get("montoAprobacionCompras"));
   const alcanceAprobacionJerarquia = String(formData.get("alcanceAprobacionJerarquia") ?? "");
   const montoAprobacionPagos = Number(formData.get("montoAprobacionPagos"));
+  // Campo vacío = control apagado. Es la diferencia entre "no hay política de
+  // crédito configurada" y "la política es cero", que no significan lo mismo.
+  const montoAprobacionCreditoRaw = String(formData.get("montoAprobacionCredito") ?? "").trim();
+  const montoAprobacionCredito = montoAprobacionCreditoRaw ? Number(montoAprobacionCreditoRaw) : null;
   const tasaDescuentoCxC = Number(formData.get("tasaDescuentoCxC"));
   const tasaCreditoCortoPlazo = Number(formData.get("tasaCreditoCortoPlazo"));
   const limiteCreditoCortoPlazo = Number(formData.get("limiteCreditoCortoPlazo"));
@@ -96,6 +100,12 @@ export async function guardarConfiguracionEmpresa(
   }
   if (!Number.isFinite(montoAprobacionPagos) || montoAprobacionPagos < 0) {
     return { error: "El monto de aprobación de pagos debe ser mayor o igual a 0." };
+  }
+  if (
+    montoAprobacionCredito !== null &&
+    (!Number.isFinite(montoAprobacionCredito) || montoAprobacionCredito < 0)
+  ) {
+    return { error: "El umbral de aprobación de crédito debe ser mayor o igual a 0, o quedar vacío." };
   }
   if (
     !Number.isFinite(tasaDescuentoCxC) ||
@@ -177,6 +187,7 @@ export async function guardarConfiguracionEmpresa(
     montoAprobacionCompras,
     alcanceAprobacionJerarquia,
     montoAprobacionPagos,
+    montoAprobacionCredito,
     tasaDescuentoCxC,
     tasaCreditoCortoPlazo,
     limiteCreditoCortoPlazo,

@@ -62,6 +62,7 @@ export default async function EmpresaPage() {
             montoAprobacionCompras: config.montoAprobacionCompras.toNumber(),
             alcanceAprobacionJerarquia: config.alcanceAprobacionJerarquia,
             montoAprobacionPagos: config.montoAprobacionPagos.toNumber(),
+            montoAprobacionCredito: config.montoAprobacionCredito?.toNumber() ?? null,
             tasaDescuentoCxC: config.tasaDescuentoCxC.toNumber(),
             tasaCreditoCortoPlazo: config.tasaCreditoCortoPlazo.toNumber(),
             limiteCreditoCortoPlazo: config.limiteCreditoCortoPlazo.toNumber(),

@@ -143,6 +143,15 @@ model ConfiguracionEmpresa {
   // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
   montoAprobacionCompras          Decimal                    @default(5000)
   montoAprobacionPagos            Decimal                    @default(5000)
+  // Un aumento del límite de crédito de un cliente necesita aprobación cuando
+  // el límite RESULTANTE supera este monto. La exposición es el límite que
+  // queda, no cuánto subió: un cliente con 200 000 de límite son 200 000 de
+  // riesgo venga de donde venga.
+  //
+  // null = el control está apagado y el límite se edita directo, que es como
+  // venía funcionando. Ponerle un número lo enciende; es una decisión de
+  // política de crédito y el sistema no elige una por su cuenta.
+  montoAprobacionCredito          Decimal?
   // Tasas para la cascada de financiamiento en Proyecciones → Finanzas
   // (mismo orden que un modelo de tesorería típico: lo más barato/disponible primero).
   tasaDescuentoCxC                Decimal                    @default(9) // % (misma convención que tasaIgv: número entero, no fracción)
@@ -1303,6 +1312,40 @@ model DescuentoCanal {
   @@map("descuentos_canal")
 }
 
+// Solicitud de cambio del límite de crédito de un cliente.
+//
+// Un aumento del límite es exposición financiera nueva, y hasta ahora se
+// aplicaba con solo tener permiso de edición (quedaba auditado, pero ya
+// aplicado). Con el control activo, **el límite no cambia hasta que alguien lo
+// aprueba**: aplicar primero y aprobar después vaciaría el control.
+//
+// Solo los AUMENTOS pasan por aquí. Bajar un límite reduce la exposición y no
+// necesita permiso de nadie — pedirlo solo lograría que nadie los baje.
+model SolicitudCambioCredito {
+  id                  String           @id @default(cuid())
+  empresaId           String           @default("1")
+  empresa             Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  clienteId           String
+  limiteAnterior      Decimal
+  limiteSolicitado    Decimal
+  // Obligatorio: quien aprueba necesita saber por qué se pide, y el histórico
+  // sin motivo no sirve para revisar una cartera después.
+  motivo              String
+  estado              EstadoAprobacion @default(PENDIENTE)
+  solicitadoPorId     String
+  solicitadoPorNombre String
+  solicitadoEn        DateTime         @default(now())
+  resueltoPorId       String?
+  resueltoPorNombre   String?
+  resueltoEn          DateTime?
+  motivoResolucion    String?
+
+  cliente Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([empresaId, estado, solicitadoEn])
+  @@map("solicitudes_cambio_credito")
+}
+
 model Cliente {
   id                   String              @id @default(cuid())
   empresaId            String              @default("1")
@@ -1341,18 +1384,19 @@ model Cliente {
   bloqueadoCobranzaPor String?
   creadoEn             DateTime            @default(now())
 
-  ubigeo           Ubigeo?           @relation(fields: [ubigeoId], references: [id])
-  zona             Zona?             @relation(fields: [zonaId], references: [id])
-  vendedorAsignado Vendedor?         @relation("ClienteVendedor", fields: [vendedorId], references: [id])
-  pedidos          Pedido[]
-  facturas         Factura[]
-  guias            GuiaRemision[]
-  visitas          HojaRutaVisita[]
-  cotizaciones     Cotizacion[]
-  movimientosCasco MovimientoCasco[]
-  avisosCobranza   AvisoCobranza[]
-  reclamos         ReclamoCliente[]
-  creditosCliente  CreditoCliente[]
+  ubigeo             Ubigeo?                  @relation(fields: [ubigeoId], references: [id])
+  solicitudesCredito SolicitudCambioCredito[]
+  zona               Zona?                    @relation(fields: [zonaId], references: [id])
+  vendedorAsignado   Vendedor?                @relation("ClienteVendedor", fields: [vendedorId], references: [id])
+  pedidos            Pedido[]
+  facturas           Factura[]
+  guias              GuiaRemision[]
+  visitas            HojaRutaVisita[]
+  cotizaciones       Cotizacion[]
+  movimientosCasco   MovimientoCasco[]
+  avisosCobranza     AvisoCobranza[]
+  reclamos           ReclamoCliente[]
+  creditosCliente    CreditoCliente[]
 
   @@unique([empresaId, ruc])
   @@unique([empresaId, codigo])
@@ -4660,6 +4704,7 @@ model Empresa {
   cobros                     Cobro[]
   notasCredito               NotaCredito[]
   notasDebito                NotaDebito[]
+  solicitudesCambioCredito   SolicitudCambioCredito[]
   creditosCliente            CreditoCliente[]
   aplicacionesCreditoCliente AplicacionCreditoCliente[]
   reembolsosCliente          ReembolsoCliente[]

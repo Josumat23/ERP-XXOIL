@@ -38,6 +38,7 @@ type Props = {
     tarifaHoraManoObra: number;
     montoAprobacionCompras: number;
     montoAprobacionPagos: number;
+    montoAprobacionCredito: number | null;
     alcanceAprobacionJerarquia: string;
     tasaDescuentoCxC: number;
     tasaCreditoCortoPlazo: number;
@@ -277,6 +278,24 @@ export default function EmpresaFormulario({
               defaultValue={valores.montoAprobacionPagos}
               className="campo-input"
             />
+          </Campo>
+        </div>
+        <div className="mt-4">
+          <Campo etiqueta="Límite de crédito de un cliente a partir de (S/)">
+            <input
+              name="montoAprobacionCredito"
+              type="number"
+              step="0.01"
+              min="0"
+              defaultValue={valores.montoAprobacionCredito ?? ""}
+              className="campo-input"
+            />
+            <p className="mt-1 text-xs text-[var(--epicor-texto-tenue)]">
+              Un aumento que deje el límite del cliente por encima de este monto queda pendiente de
+              aprobación, y el límite no cambia hasta que se resuelva. Bajar un límite nunca
+              requiere aprobación. <strong>Déjelo vacío</strong> para que los límites se editen
+              directo, sin control.
+            </p>
           </Campo>
         </div>
         <div className="mt-4">
