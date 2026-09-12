@@ -176,6 +176,7 @@ export const MODULOS: Modulo[] = [
       { href: "/configuracion/almacenes", etiqueta: "Almacenes y zonas", roles: ["ADMIN", "ALMACEN"] },
       { href: "/configuracion/unidades-medida", etiqueta: "Unidades de medida", roles: ["ADMIN"] },
       { href: "/configuracion/grupos-seguridad", etiqueta: "Grupos de seguridad", roles: ["ADMIN"] },
+      { href: "/configuracion/certificacion-accesos", etiqueta: "Certificación de accesos", roles: ["ADMIN"] },
       { href: "/configuracion/calendario-fiscal", etiqueta: "Calendario fiscal", roles: ["ADMIN"] },
       { href: "/configuracion/auditoria", etiqueta: "Auditoría de maestros", roles: ["ADMIN", "GERENCIA"] },
       { href: "/configuracion/monitoreo", etiqueta: "Monitoreo", roles: ["ADMIN"] },
