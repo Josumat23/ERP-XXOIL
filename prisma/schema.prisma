@@ -3009,15 +3009,46 @@ enum EstadoPeriodoFiscal {
   CERRADO
 }
 
+// Tarea propia del cierre de un período. El sistema no trae una lista de
+// tareas predefinida: qué incluye un cierre contable es criterio del contador,
+// y este código no lo inventa. Lo que sí aporta es el mecanismo — orden,
+// dependencia y constancia de quién la dio por hecha.
+//
+// La "dependencia" es el orden: una tarea no se puede completar si queda
+// alguna anterior pendiente. Es lo que hace falta para un cierre —que es una
+// secuencia— sin la complejidad de un grafo arbitrario que nadie pidió.
+model TareaCierrePeriodo {
+  id                  String    @id @default(cuid())
+  periodoFiscalId     String
+  orden               Int
+  descripcion         String
+  completadaEn        DateTime?
+  completadaPorId     String?
+  completadaPorNombre String?
+  nota                String?
+  creadoEn            DateTime  @default(now())
+
+  periodo PeriodoFiscal @relation(fields: [periodoFiscalId], references: [id], onDelete: Cascade)
+
+  @@unique([periodoFiscalId, orden])
+  @@map("tareas_cierre_periodo")
+}
+
 model PeriodoFiscal {
-  id         String              @id @default(cuid())
-  empresaId  String              @default("1")
-  empresa    Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  anio       Int
-  mes        Int // 1-12
-  estado     EstadoPeriodoFiscal @default(ABIERTO)
-  cerradoEn  DateTime?
-  cerradoPor String?
+  id                 String              @id @default(cuid())
+  empresaId          String              @default("1")
+  empresa            Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  anio               Int
+  mes                Int // 1-12
+  estado             EstadoPeriodoFiscal @default(ABIERTO)
+  cerradoEn          DateTime?
+  cerradoPor         String?
+  // Cuántos puntos quedaban sin resolver en el momento de cerrar. Cerrar sigue
+  // siendo decisión del contador —bloquearlo podría dejar los libros sin poder
+  // cerrarse por un dato menor— pero la decisión queda registrada.
+  pendientesAlCerrar Int?
+
+  tareasCierre TareaCierrePeriodo[]
 
   @@unique([empresaId, anio, mes])
   @@map("periodos_fiscales")
