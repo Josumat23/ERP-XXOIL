@@ -102,6 +102,7 @@ export async function crearEnvasado(
 
       const envasado = await tx.envasado.create({
         data: {
+          empresaId: auth.usuario.empresaId,
           codigo,
           loteGranelId,
           presentacionId,

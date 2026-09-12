@@ -61,6 +61,7 @@ export async function subirAdjunto(
   try {
     await prisma.adjunto.create({
       data: {
+        empresaId,
         entidadTipo,
         entidadId,
         nombreArchivo,
