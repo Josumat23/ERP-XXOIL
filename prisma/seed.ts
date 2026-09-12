@@ -469,6 +469,19 @@ async function main() {
     { codigo: "7761", nombre: "Ganancia por diferencia de cambio", tipo: "INGRESO" },
     { codigo: "7721", nombre: "Intereses por mora comercial", tipo: "INGRESO" },
     { codigo: "7599", nombre: "Otros ingresos de gestión", tipo: "INGRESO" },
+    // Planilla. El gasto de personal y las cuatro deudas que deja cada
+    // liquidación: pensiones, EsSalud, la retención de quinta y el neto que se
+    // le debe al trabajador.
+    { codigo: "6211", nombre: "Sueldos y salarios", tipo: "GASTO" },
+    { codigo: "4031", nombre: "EsSalud por pagar", tipo: "PASIVO" },
+    { codigo: "4032", nombre: "ONP / AFP por pagar", tipo: "PASIVO" },
+    // Único código de cinco dígitos del plan sembrado: en cuatro, el 4017 es
+    // "Impuesto a la renta" a secas, y ahí terminaría mezclada la retención a
+    // los trabajadores con el impuesto propio de la empresa. Son dos cosas
+    // distintas y no pueden compartir cuenta.
+    { codigo: "40173", nombre: "Renta de quinta categoría por pagar", tipo: "PASIVO" },
+    { codigo: "4111", nombre: "Sueldos y salarios por pagar", tipo: "PASIVO" },
+    { codigo: "4151", nombre: "Compensación por tiempo de servicios por pagar", tipo: "PASIVO" },
     { codigo: "7911", nombre: "Cargas imputables a cuentas de costos", tipo: "INGRESO" },
     { codigo: "6599", nombre: "Otras pérdidas de gestión — producción rechazada", tipo: "GASTO" },
   ];
@@ -518,6 +531,21 @@ async function main() {
     // contador y se reapunta desde Finanzas → Plan de cuentas; esto es el
     // valor inicial.
     ["INGRESO_PENALIDAD", "7599"],
+    // Planilla. Sin estos seis controles, cada asiento de planilla,
+    // gratificación, CTS y liquidación se descartaba en silencio: el posteo es
+    // best-effort, así que la operación no fallaba y solo quedaba la
+    // incidencia contable.
+    //
+    // GASTO_PERSONAL absorbe hoy la remuneración y el EsSalud de cargo del
+    // empleador, porque el asiento usa una sola clave para los dos. En el PCGE
+    // el aporte patronal va a 627 y no a 621; separarlo es trabajo del módulo
+    // de planilla, no de aquí, y hasta entonces conviven en 6211.
+    ["GASTO_PERSONAL", "6211"],
+    ["ESSALUD_POR_PAGAR", "4031"],
+    ["ONP_AFP_POR_PAGAR", "4032"],
+    ["RETENCION_5TA_POR_PAGAR", "40173"],
+    ["SUELDOS_POR_PAGAR", "4111"],
+    ["CTS_POR_PAGAR", "4151"],
   ];
   for (const [clave, codigo] of controlesSemilla) {
     const cuentaId = cuentaPorCodigo.get(codigo)!;

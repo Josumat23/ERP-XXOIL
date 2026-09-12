@@ -213,36 +213,23 @@ test("cada clave de control que se postea está sembrada", async () => {
   const contabilidad = await readFile(resolve(process.cwd(), "src/lib/contabilidad.ts"), "utf8");
   const seed = await readFile(resolve(process.cwd(), "prisma/seed.ts"), "utf8");
 
+  // `[A-Z0-9_]` y no `[A-Z_]`: con la clase sin dígitos, una clave como
+  // RETENCION_5TA_POR_PAGAR era invisible para la guardia — ni se contaba como
+  // usada ni como sembrada, así que pasaba sin que nadie la mirara. Fue
+  // exactamente lo que ocurrió: se detectó al ir a saldar la deuda.
   const usadas = new Set(
-    [...contabilidad.matchAll(/clave:\s*"([A-Z_]+)"/g)].map((m) => m[1])
+    [...contabilidad.matchAll(/clave:\s*"([A-Z0-9_]+)"/g)].map((m) => m[1])
   );
   assert.ok(usadas.size > 10, "no se encontraron claves de control");
-
-  const sembradas = new Set(
-    [...seed.matchAll(/\["([A-Z_]+)",\s*"\d+"\]/g)].map((m) => m[1])
+  assert.ok(
+    usadas.has("RETENCION_5TA_POR_PAGAR"),
+    "la clave con dígitos tiene que ser visible para esta guardia"
   );
 
-  // Deuda preexistente, ajena a este ciclo y detectada por esta misma guardia:
-  // las cinco claves de planilla se postean pero nunca se sembraron, así que en
-  // una instalación nueva los asientos de planilla no salen y solo queda la
-  // incidencia contable. Se dejan anotadas en vez de arreglarse aquí —elegir
-  // sus cuentas del PCGE es trabajo del módulo de planilla, no del de notas de
-  // débito— y la guardia sigue fallando ante cualquier clave nueva.
-  const DEUDA_CONOCIDA = new Set([
-    "GASTO_PERSONAL",
-    "ONP_AFP_POR_PAGAR",
-    "ESSALUD_POR_PAGAR",
-    "SUELDOS_POR_PAGAR",
-    "CTS_POR_PAGAR",
-  ]);
+  const sembradas = new Set(
+    [...seed.matchAll(/\["([A-Z0-9_]+)",\s*"\d+"\]/g)].map((m) => m[1])
+  );
 
-  const faltantes = [...usadas]
-    .filter((clave) => !sembradas.has(clave))
-    .filter((clave) => !DEUDA_CONOCIDA.has(clave));
+  const faltantes = [...usadas].filter((clave) => !sembradas.has(clave));
   assert.deepEqual(faltantes, [], `claves usadas en asientos pero no sembradas: ${faltantes}`);
-
-  // Y si alguna de la deuda conocida se siembra, hay que sacarla de la lista:
-  // una excepción que sobrevive a su causa termina tapando el próximo caso.
-  const yaResueltas = [...DEUDA_CONOCIDA].filter((clave) => sembradas.has(clave));
-  assert.deepEqual(yaResueltas, [], `ya están sembradas, quítelas de DEUDA_CONOCIDA: ${yaResueltas}`);
 });
