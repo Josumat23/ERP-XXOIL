@@ -1,40 +1,26 @@
-// Respaldo manual de la base. Uso:
-//   npm run respaldo -- [--dir <directorio>] [--retencion <n>]
+// Lanzador de `npm run respaldo`. El trabajo real está en `respaldo.ts`.
 //
-// Sin --dir toma RESPALDO_DIR. El origen sale de DATABASE_URL: este script
-// nunca adivina qué base respaldar.
-import { pathToFileURL } from "node:url";
+// Existe porque `node` a secas no resuelve TypeScript ni el alias `@/`: hay que
+// arrancar un proceso con `--import tsx`. Definir NODE_OPTIONS dentro del
+// proceso que ya arrancó no sirve —Node la lee al iniciar—, así que el trabajo
+// va a un hijo, igual que en el runner de pruebas y en la demo.
+import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 
 const bootstrap = pathToFileURL(resolve("scripts/tsx-windows-bootstrap.mjs")).href;
-process.env.NODE_OPTIONS = [process.env.NODE_OPTIONS, `--import=${bootstrap}`]
-  .filter(Boolean)
-  .join(" ");
 
-const { crearRespaldo, rutaDesdeUrlSqlite } = await import("../src/lib/respaldo.ts");
+const resultado = spawnSync(
+  process.execPath,
+  ["--import", "tsx", resolve("scripts/respaldo.ts"), ...process.argv.slice(2)],
+  {
+    stdio: "inherit",
+    env: {
+      ...process.env,
+      NODE_OPTIONS: [process.env.NODE_OPTIONS, `--import=${bootstrap}`].filter(Boolean).join(" "),
+    },
+  }
+);
 
-function argumento(nombre) {
-  const indice = process.argv.indexOf(`--${nombre}`);
-  return indice === -1 ? undefined : process.argv[indice + 1];
-}
-
-const directorio = argumento("dir") ?? process.env.RESPALDO_DIR;
-const retencion = Number(argumento("retencion") ?? process.env.RESPALDO_RETENCION ?? 7);
-const origen = rutaDesdeUrlSqlite(process.env.DATABASE_URL);
-
-if (!directorio) {
-  console.error("Falta el directorio de respaldo: use --dir <ruta> o defina RESPALDO_DIR.");
-  process.exit(1);
-}
-if (!origen) {
-  console.error("DATABASE_URL no apunta a un archivo SQLite.");
-  process.exit(1);
-}
-
-const resumen = await crearRespaldo({ origen, directorio, retencion });
-console.log(`Respaldo verificado: ${resumen.archivo}`);
-console.log(`  Tamaño: ${(resumen.bytes / 1024 / 1024).toFixed(2)} MB`);
-console.log(`  SHA256: ${resumen.sha256}`);
-if (resumen.eliminados.length > 0) {
-  console.log(`  Eliminados por retención (${retencion}): ${resumen.eliminados.join(", ")}`);
-}
+if (resultado.error) throw resultado.error;
+process.exit(resultado.status ?? 1);

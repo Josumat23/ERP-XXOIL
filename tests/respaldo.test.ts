@@ -1,20 +1,27 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "@/generated/prisma/client";
 import {
+  CONTROLADOR_SQLITE,
+  controladorDeArtefacto,
+  controladorPara,
   crearRespaldo,
+  detectarMotor,
   esNombreRespaldo,
   nombreRespaldo,
+  resolverOrigen,
   respaldosAEliminar,
   restaurarRespaldo,
   rutaDentroDe,
   rutaDesdeUrlSqlite,
   sha256DeArchivo,
   verificarIntegridad,
+  type ControladorRespaldo,
 } from "@/lib/respaldo";
 
 // El respaldo se ejerce SIEMPRE contra bases efímeras en el temporal del
@@ -123,7 +130,7 @@ test("el respaldo produce una copia verificada, con manifiesto y retención", as
     });
     assert.deepEqual(tercero.eliminados, ["erp-20260101-010000.db"]);
 
-    const quedan = (await readdir(destino)).filter(esNombreRespaldo).sort();
+    const quedan = (await readdir(destino)).filter((n) => esNombreRespaldo(n)).sort();
     assert.deepEqual(quedan, ["erp-20260102-010000.db", "erp-20260103-010000.db"]);
     // El manifiesto del eliminado se va con él, no queda huérfano.
     assert.equal((await readdir(destino)).includes("erp-20260101-010000.db.sha256"), false);
@@ -196,4 +203,262 @@ test("la tarea de respaldo no corre sin RESPALDO_DIR configurado", async () => {
   assert.match(tareas, /RESPALDO_DIR/);
   assert.match(tareas, /Respaldo no configurado/);
   assert.match(tareas, /RESPALDO_BASE: ejecutarRespaldoBase/);
+});
+
+// --- El seam entre el núcleo y el motor ------------------------------------
+//
+// El módulo está partido en dos: un núcleo agnóstico —nombre, retención, hash,
+// manifiesto, escribir en temporal y renombrar recién al verificar— y un
+// controlador por motor. Estas pruebas ejercen el núcleo SIN SQLite, que es lo
+// único que demuestra que la parte portable es de verdad portable.
+
+function controladorFalso(registro: string[], integro = true): ControladorRespaldo {
+  return {
+    motor: "POSTGRES",
+    extension: ".dump",
+    copiar: async (origen, destino) => {
+      assert.equal(origen.motor, "POSTGRES");
+      registro.push("copiar");
+      await writeFile(destino, `volcado de ${origen.motor}`, "utf8");
+    },
+    verificar: async () => {
+      registro.push("verificar");
+      return integro;
+    },
+    restaurar: async (respaldo, destino) => {
+      registro.push("restaurar");
+      await writeFile(destino, await readFile(respaldo, "utf8"), "utf8");
+    },
+  };
+}
+
+const URL_POSTGRES = "postgresql://erp:clave@localhost:5432/erp";
+
+test("el motor se deduce de DATABASE_URL y PostgreSQL se reconoce", () => {
+  // Antes esta pregunta no existía: rutaDesdeUrlSqlite devolvía null tanto para
+  // una URL de PostgreSQL como para una cadena sin sentido, y el operador leía
+  // "no apunta a un archivo SQLite" — cierto, pero inútil el día de migrar.
+  assert.equal(detectarMotor("file:./dev.db"), "SQLITE");
+  assert.equal(detectarMotor("postgres://h/db"), "POSTGRES");
+  assert.equal(detectarMotor(URL_POSTGRES), "POSTGRES");
+  assert.equal(detectarMotor("mysql://h/db"), null);
+  assert.equal(detectarMotor(undefined), null);
+
+  assert.deepEqual(resolverOrigen("file:C:/datos/erp.db?mode=rwc"), {
+    motor: "SQLITE",
+    archivo: "C:/datos/erp.db",
+  });
+  assert.deepEqual(resolverOrigen(URL_POSTGRES), { motor: "POSTGRES", url: URL_POSTGRES });
+  assert.equal(resolverOrigen("file:"), null);
+  assert.equal(resolverOrigen("mysql://h/db"), null);
+});
+
+test("PostgreSQL se reconoce pero no tiene controlador, y lo dice", () => {
+  // Un respaldo que nunca se ejecutó contra una base real no es un respaldo:
+  // es una creencia. El error nombra las herramientas que faltan para que
+  // escribirlo no sea una investigación.
+  assert.equal(controladorPara({ motor: "SQLITE", archivo: "x.db" }), CONTROLADOR_SQLITE);
+  assert.throws(
+    () => controladorPara({ motor: "POSTGRES", url: URL_POSTGRES }),
+    /todavía no tiene controlador/
+  );
+  assert.throws(
+    () => controladorPara({ motor: "POSTGRES", url: URL_POSTGRES }),
+    /pg_dump\/pg_restore/
+  );
+});
+
+test("el respaldo de PostgreSQL se niega antes de crear nada", async () => {
+  const directorio = await mkdtemp(join(tmpdir(), "erp-respaldo-pg-"));
+  const destino = join(directorio, "respaldos");
+  try {
+    await assert.rejects(
+      crearRespaldo({ origen: { motor: "POSTGRES", url: URL_POSTGRES }, directorio: destino }),
+      /pg_dump/
+    );
+    // Ni siquiera se crea el directorio: un directorio de respaldos vacío
+    // aparenta una cobertura que no existe.
+    await assert.rejects(readdir(destino));
+  } finally {
+    await rm(directorio, { recursive: true, force: true });
+  }
+});
+
+test("el núcleo conduce un motor que no es SQLite sin cambiar una línea", async () => {
+  const directorio = await mkdtemp(join(tmpdir(), "erp-respaldo-nucleo-"));
+  const destino = join(directorio, "respaldos");
+  const registro: string[] = [];
+  const controlador = controladorFalso(registro);
+  const origen = { motor: "POSTGRES", url: URL_POSTGRES } as const;
+  try {
+    const primero = await crearRespaldo({
+      origen,
+      controlador,
+      directorio: destino,
+      retencion: 2,
+      ahora: new Date(2026, 0, 1, 1, 0, 0),
+    });
+
+    // Nombre y extensión los pone el motor; el orden cronológico, el núcleo.
+    assert.equal(primero.archivo, join(destino, "erp-20260101-010000.dump"));
+    assert.equal(primero.sha256, await sha256DeArchivo(primero.archivo));
+    assert.ok(primero.bytes > 0);
+    // Se verifica antes de renombrar: no queda ningún .parcial.
+    assert.deepEqual(registro, ["copiar", "verificar"]);
+    assert.equal(
+      (await readdir(destino)).some((n) => n.endsWith(".parcial")),
+      false
+    );
+
+    const manifiesto = await readFile(`${primero.archivo}.sha256`, "utf8");
+    assert.match(manifiesto, new RegExp(primero.sha256));
+
+    // La retención es del núcleo y respeta la extensión del motor: un respaldo
+    // de otro motor en el mismo directorio no se borra por error.
+    await writeFile(join(destino, "erp-20250101-010000.db"), "respaldo de otro motor", "utf8");
+    await crearRespaldo({
+      origen,
+      controlador,
+      directorio: destino,
+      retencion: 2,
+      ahora: new Date(2026, 0, 2, 1, 0, 0),
+    });
+    const tercero = await crearRespaldo({
+      origen,
+      controlador,
+      directorio: destino,
+      retencion: 2,
+      ahora: new Date(2026, 0, 3, 1, 0, 0),
+    });
+    assert.deepEqual(tercero.eliminados, ["erp-20260101-010000.dump"]);
+    assert.deepEqual(
+      (await readdir(destino)).filter((n) => esNombreRespaldo(n, ".dump")).sort(),
+      ["erp-20260102-010000.dump", "erp-20260103-010000.dump"]
+    );
+    assert.ok((await readdir(destino)).includes("erp-20250101-010000.db"));
+
+    // Y la restauración pasa por el mismo controlador.
+    const copia = join(directorio, "restaurado.dump");
+    await restaurarRespaldo({ respaldo: tercero.archivo, destino: copia, controlador });
+    assert.equal(await readFile(copia, "utf8"), "volcado de POSTGRES");
+    assert.ok(registro.includes("restaurar"));
+  } finally {
+    await rm(directorio, { recursive: true, force: true });
+  }
+});
+
+test("si el motor no verifica su propia copia, no queda un respaldo aparente", async () => {
+  // Un respaldo corrupto que queda con nombre válido es peor que ninguno:
+  // aparenta cobertura. Vale para cualquier motor, no solo para SQLite.
+  const directorio = await mkdtemp(join(tmpdir(), "erp-respaldo-falla-"));
+  const destino = join(directorio, "respaldos");
+  try {
+    await assert.rejects(
+      crearRespaldo({
+        origen: { motor: "POSTGRES", url: URL_POSTGRES },
+        controlador: controladorFalso([], false),
+        directorio: destino,
+      }),
+      /integridad/
+    );
+    assert.deepEqual(await readdir(destino), []);
+  } finally {
+    await rm(directorio, { recursive: true, force: true });
+  }
+});
+
+test("un controlador de otro motor no respalda este origen", async () => {
+  const directorio = await mkdtemp(join(tmpdir(), "erp-respaldo-cruce-"));
+  try {
+    await assert.rejects(
+      crearRespaldo({
+        origen: { motor: "SQLITE", archivo: join(directorio, "x.db") },
+        controlador: controladorFalso([]),
+        directorio,
+      }),
+      /controlador es de POSTGRES/
+    );
+  } finally {
+    await rm(directorio, { recursive: true, force: true });
+  }
+});
+
+// --- Guardias estructurales -------------------------------------------------
+
+test("las primitivas de SQLite no se filtran al núcleo", async () => {
+  // Si VACUUM INTO vuelve a meterse en crearRespaldo, el día de migrar hay que
+  // reescribir la retención y el manifiesto junto con el driver.
+  const fuente = (await readFile(resolve(process.cwd(), "src/lib/respaldo.ts"), "utf8")).replace(
+    /^\s*\/\/.*$/gm,
+    ""
+  );
+  const nucleo = fuente.slice(fuente.indexOf("export async function crearRespaldo"));
+  assert.ok(nucleo.length > 0, "no se encontró el núcleo");
+  for (const primitiva of ["VACUUM", "integrity_check", "conClienteSqlite", "PrismaClient"]) {
+    assert.ok(!nucleo.includes(primitiva), `${primitiva} volvió a filtrarse al núcleo`);
+  }
+  // Y el controlador sí las tiene: la guardia no pasa por haberlas borrado.
+  const controlador = fuente.slice(
+    fuente.indexOf("export const CONTROLADOR_SQLITE"),
+    fuente.indexOf("export function controladorPara")
+  );
+  assert.match(controlador, /VACUUM INTO/);
+});
+
+test("quien opera el respaldo ya no lee que la URL no es un archivo SQLite", async () => {
+  // El mensaje viejo era cierto y a la vez inútil: lo que hace falta saber es
+  // que el motor se reconoce y que falta su controlador.
+  for (const ruta of ["src/lib/tareasProgramadas.ts", "scripts/respaldo.ts"]) {
+    // Sin los comentarios: la guardia es sobre lo que se ejecuta, y el porqué
+    // del cambio sí menciona el mensaje viejo.
+    const fuente = (await readFile(resolve(process.cwd(), ruta), "utf8")).replace(
+      /^\s*\/\/.*$/gm,
+      ""
+    );
+    assert.ok(
+      !fuente.includes("no apunta a un archivo SQLite"),
+      `${ruta} sigue con el mensaje viejo`
+    );
+    assert.match(fuente, /resolverOrigen/, `${ruta} no resuelve el motor`);
+  }
+});
+
+test("el artefacto se restaura con el controlador de su propia extensión", () => {
+  assert.equal(controladorDeArtefacto("erp-20260101-010000.db"), CONTROLADOR_SQLITE);
+  assert.throws(
+    () => controladorDeArtefacto("erp-20260101-010000.dump"),
+    /no corresponde a ningún motor con soporte/
+  );
+});
+
+// --- Los comandos del operador arrancan de verdad ---------------------------
+//
+// `npm run respaldo` y `npm run restaurar` morían al importar TypeScript:
+// definían NODE_OPTIONS dentro de un proceso que ya había arrancado, así que
+// nadie registraba tsx y el alias `@/` no resolvía. Ninguna prueba lo notaba
+// porque todas importaban la librería directamente. Estas dos ejecutan los
+// comandos tal cual los corre una persona.
+
+function correrComando(script: string, argumentos: string[], databaseUrl: string) {
+  return spawnSync(process.execPath, [resolve(process.cwd(), script), ...argumentos], {
+    cwd: process.cwd(),
+    encoding: "utf8",
+    env: { ...process.env, DATABASE_URL: databaseUrl },
+  });
+}
+
+test("el comando de respaldo arranca y explica qué falta para PostgreSQL", () => {
+  const resultado = correrComando("scripts/respaldo.mjs", ["--dir", "sin-usar"], URL_POSTGRES);
+  assert.equal(resultado.status, 1);
+  // El mensaje llega al operador entero: si el script no arrancara, aquí
+  // habría un ERR_MODULE_NOT_FOUND en vez de esto.
+  assert.match(resultado.stderr, /pg_dump\/pg_restore/);
+  assert.ok(!resultado.stderr.includes("ERR_MODULE_NOT_FOUND"), resultado.stderr);
+});
+
+test("el comando de restauración arranca y explica su uso", () => {
+  const resultado = correrComando("scripts/restaurar.mjs", [], "file:sin-usar.db");
+  assert.equal(resultado.status, 1);
+  assert.match(resultado.stderr, /npm run restaurar -- --respaldo/);
+  assert.ok(!resultado.stderr.includes("ERR_MODULE_NOT_FOUND"), resultado.stderr);
 });
