@@ -194,6 +194,78 @@ export async function crearPlanMantenimiento(
   return {};
 }
 
+/**
+ * Agrega un repuesto a la lista técnica planificada de un plan preventivo.
+ *
+ * La lista es una previsión para presupuestar, no un consumo: no mueve kardex
+ * ni costo. Lo que se gasta de verdad se registra al cerrar la orden.
+ */
+export async function agregarRepuestoPlan(
+  planId: string,
+  equipoId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Producción." };
+  }
+
+  const insumoId = String(formData.get("insumoId") ?? "").trim();
+  const cantidad = Number(formData.get("cantidad") ?? 0);
+  const notas = String(formData.get("notas") ?? "").trim() || null;
+
+  if (!insumoId) return { error: "Seleccione el repuesto." };
+  if (!Number.isFinite(cantidad) || cantidad <= 0) {
+    return { error: "La cantidad prevista debe ser mayor a 0." };
+  }
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // El plan, el equipo y el insumo vienen del navegador: los tres tienen
+      // que ser de la compañía activa.
+      const plan = await tx.planMantenimiento.findFirst({
+        where: { id: planId, equipoId, equipo: { empresaId: auth.usuario.empresaId } },
+        select: { id: true },
+      });
+      if (!plan) throw new Error("El plan no pertenece a la compañía activa.");
+
+      const insumo = await tx.insumo.findFirst({
+        where: { id: insumoId, empresaId: auth.usuario.empresaId, activo: true },
+        select: { id: true },
+      });
+      if (!insumo) throw new Error("El repuesto no pertenece a la compañía activa.");
+
+      await tx.repuestoPlanMantenimiento.create({
+        data: { planMantenimientoId: planId, insumoId, cantidad, notas },
+      });
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: "Ese repuesto ya está en la lista del plan. Edite su cantidad en vez de repetirlo." };
+    }
+    return { error: e instanceof Error ? e.message : "No se pudo agregar el repuesto." };
+  }
+
+  revalidatePath(`/produccion/equipos/${equipoId}`);
+  return {};
+}
+
+/** Quita un repuesto de la lista planificada. No afecta órdenes ya emitidas. */
+export async function quitarRepuestoPlan(id: string, equipoId: string) {
+  const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
+  if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
+
+  // Condicionado a la compañía activa en la misma escritura: el id llega del
+  // navegador y no se confía en él.
+  await prisma.repuestoPlanMantenimiento.deleteMany({
+    where: { id, plan: { equipo: { empresaId: auth.usuario.empresaId } } },
+  });
+  revalidatePath(`/produccion/equipos/${equipoId}`);
+}
+
 export async function alternarActivoPlan(id: string, equipoId: string, activo: boolean) {
   const auth = await requerirRol(["PRODUCCION", "ALMACEN"]);
   if ("error" in auth) return;

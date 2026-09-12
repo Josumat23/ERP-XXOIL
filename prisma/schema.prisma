@@ -493,6 +493,7 @@ model Insumo {
   conteoDetalles         ConteoInventarioDetalle[]
   movimientosCasco       MovimientoCasco[]
   repuestosMantenimiento RepuestoOrdenMantenimiento[]
+  repuestosPlanificados  RepuestoPlanMantenimiento[]
   reservasProduccion     ReservaInsumoProduccion[]
   movimientosProduccion  MovimientoMaterialProduccion[]
   planesInspeccion       PlanInspeccionInsumo[]
@@ -3764,9 +3765,10 @@ model PlanMantenimiento {
   usuarioNombre           String
   creadoEn                DateTime              @default(now())
 
-  equipo      Equipo               @relation(fields: [equipoId], references: [id])
-  centroCosto CentroCosto?         @relation(fields: [centroCostoId], references: [id])
+  equipo      Equipo                      @relation(fields: [equipoId], references: [id])
+  centroCosto CentroCosto?                @relation(fields: [centroCostoId], references: [id])
   ordenes     OrdenMantenimiento[]
+  repuestos   RepuestoPlanMantenimiento[]
 
   @@map("planes_mantenimiento")
 }
@@ -3776,6 +3778,30 @@ model PlanMantenimiento {
 // promedio del insumo cambia después, el histórico de esta orden no se altera.
 // Al crearse, descuenta stock real vía registrarMovimiento (origen AJUSTE),
 // así el costoRepuestos de la orden queda como la suma de estas líneas.
+// Repuestos que un plan preventivo PREVÉ consumir. Es la lista técnica
+// planificada: sirve para presupuestar el mantenimiento antes de ejecutarlo.
+//
+// Deliberadamente separada de RepuestoOrdenMantenimiento, que registra lo que
+// se consumió DE VERDAD. Prellenar el consumo real desde el plan haría que el
+// sistema diera por gastados repuestos que quizá no se usaron, y ese consumo
+// mueve kardex y costo. El plan es referencia; el operario confirma qué usó.
+model RepuestoPlanMantenimiento {
+  id                  String   @id @default(cuid())
+  planMantenimientoId String
+  insumoId            String
+  cantidad            Decimal
+  notas               String?
+  creadoEn            DateTime @default(now())
+
+  plan   PlanMantenimiento @relation(fields: [planMantenimientoId], references: [id], onDelete: Cascade)
+  insumo Insumo            @relation(fields: [insumoId], references: [id])
+
+  // Un repuesto aparece una sola vez por plan: si hacen falta dos unidades, va
+  // en la cantidad, no en dos filas.
+  @@unique([planMantenimientoId, insumoId])
+  @@map("repuestos_plan_mantenimiento")
+}
+
 model RepuestoOrdenMantenimiento {
   id                   String   @id @default(cuid())
   ordenMantenimientoId String
