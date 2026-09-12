@@ -1,10 +1,16 @@
+import { readdir } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import type { $Enums } from "@/generated/prisma/client";
 import { ejecutarDepreciacionDelMes } from "@/lib/depreciacion";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
 import { obtenerTipoCambioVigente } from "@/lib/tipoCambio";
 import { generarOrdenesPreventivasVencidas } from "@/lib/mantenimientoPreventivo";
-import { crearRespaldo, resolverOrigen } from "@/lib/respaldo";
+import {
+  controladorPara,
+  crearRespaldo,
+  resolverOrigen,
+  respaldoPendiente,
+} from "@/lib/respaldo";
 
 export type ClaveTarea = $Enums.ClaveTareaProgramada;
 
@@ -16,8 +22,12 @@ export const ETIQUETA_TAREA: Record<ClaveTarea, string> = {
   RESPALDO_BASE: "Respaldo verificado de la base de datos",
 };
 
-// Cuántos respaldos se conservan. 7 con la tarea diaria cubre una semana.
+// Cuántos respaldos se conservan. 7 con un respaldo diario cubre una semana.
 const RETENCION_RESPALDOS = Number(process.env.RESPALDO_RETENCION ?? 7);
+// Cada cuánto corresponde un respaldo nuevo. La tarea se ejecuta cada hora y en
+// cada arranque, así que sin este intervalo la retención se consumiría en horas
+// en vez de días.
+const INTERVALO_RESPALDO_HORAS = Number(process.env.RESPALDO_INTERVALO_HORAS ?? 24);
 
 const ACTOR_SISTEMA = { usuarioId: "sistema", usuarioNombre: "Sistema (tarea programada)" };
 
@@ -141,6 +151,29 @@ async function ejecutarRespaldoBase() {
       throw new Error(
         "DATABASE_URL no declara un motor de base reconocido: no hay qué respaldar."
       );
+    }
+
+    // Idempotencia, que es lo que la pantalla promete de todas las tareas: sin
+    // esto cada corrida —cada hora, y en cada arranque del servidor— crearía un
+    // respaldo y borraría uno viejo por retención, dejando horas de historial
+    // donde debería haber días. El directorio es la fuente de verdad: si nunca
+    // se creó, no hay respaldo que valga.
+    const controlador = controladorPara(origen);
+    const existentes = await readdir(directorio).catch(() => [] as string[]);
+    if (
+      !respaldoPendiente({
+        nombres: existentes,
+        ahora: new Date(),
+        intervaloHoras: INTERVALO_RESPALDO_HORAS,
+        extension: controlador.extension,
+      })
+    ) {
+      await registrarEjecucion(
+        "RESPALDO_BASE",
+        true,
+        `Ya hay un respaldo de hace menos de ${INTERVALO_RESPALDO_HORAS} h: no corresponde otro.`
+      );
+      return;
     }
 
     const resumen = await crearRespaldo({ origen, directorio, retencion: RETENCION_RESPALDOS });

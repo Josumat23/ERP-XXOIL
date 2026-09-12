@@ -33,8 +33,10 @@ export default async function TareasProgramadasPage() {
       <p className="text-sm mb-6" style={{ color: "var(--epicor-texto-tenue)" }}>
         Equivalente reducido a System Agent: estos trabajos corren solos dentro del servidor (cada
         hora) sin que nadie los dispare — depreciación mensual, recargo por mora en facturas
-        vencidas y actualización del tipo de cambio. Cada uno revisa primero si ya hizo lo que
-        tenía que hacer, así que &quot;Ejecutar ahora&quot; nunca duplica nada.
+        vencidas, actualización del tipo de cambio, órdenes de mantenimiento preventivo y respaldo
+        de la base. Cada uno revisa primero si ya hizo lo que tenía que hacer, así que
+        &quot;Ejecutar ahora&quot; nunca duplica nada: el respaldo, en concreto, no crea otra copia
+        si ya hay una de hace menos del intervalo configurado (24 h por defecto).
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
