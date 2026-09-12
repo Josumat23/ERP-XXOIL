@@ -1535,6 +1535,7 @@ model Factura {
   cobros              Cobro[]
   avisosCobranza      AvisoCobranza[]
   notasCredito        NotaCredito[]
+  notasDebito         NotaDebito[]
   comisiones          Comision[]
   guias               GuiaRemision[]
   devolucionesCliente DevolucionCliente[]
@@ -1598,7 +1599,8 @@ model RecargoMora {
   usuarioId      String
   usuarioNombre  String
 
-  factura Factura @relation(fields: [facturaId], references: [id])
+  factura    Factura     @relation(fields: [facturaId], references: [id])
+  notaDebito NotaDebito?
 
   @@map("recargos_mora")
 }
@@ -1631,6 +1633,7 @@ model AvisoCobranza {
 enum TipoComprobanteElectronico {
   FACTURA
   NOTA_CREDITO
+  NOTA_DEBITO
   GUIA_REMISION
 }
 
@@ -1717,6 +1720,55 @@ enum TipoNotaCredito {
   BONIFICACION // 08
   DISMINUCION_VALOR // 09
   OTROS_CONCEPTOS // 10
+}
+
+// Catálogo 10 de SUNAT: tipo de nota de débito.
+//
+// Los tres códigos están para que el catálogo quede completo y correcto, pero
+// **hoy solo se emite INTERES_MORA**, que es el único concepto que el sistema
+// calcula por su cuenta (el recargo por mora sobre facturas vencidas).
+//
+// Emitir una nota de débito por aumento de valor o por penalidad exige decidir
+// cuándo corresponde y sobre qué base — decisión del negocio que este código
+// no inventa. El día que se defina, el código ya está.
+enum TipoNotaDebito {
+  INTERES_MORA // 01
+  AUMENTO_VALOR // 02
+  PENALIDAD_OTROS // 03
+}
+
+// Documento formal del recargo por mora.
+//
+// IMPORTANTE: la nota de débito NO vuelve a cargar nada. El recargo ya
+// aumentó el saldo de la factura y ya generó su asiento cuando se aplicó
+// (`aplicarRecargoAFactura`); esto es el comprobante de ese recargo, no un
+// segundo cobro. Emitirla no toca saldo ni contabilidad, y una prueba lo exige.
+//
+// Por eso cuelga de un RecargoMora concreto y con relación 1 a 1: un recargo
+// tiene a lo sumo una nota de débito, y una nota de débito documenta un
+// recargo.
+model NotaDebito {
+  id             String         @id @default(cuid())
+  empresaId      String         @default("1")
+  empresa        Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  numero         String // número SUNAT de la ND
+  facturaId      String
+  recargoMoraId  String         @unique
+  fecha          DateTime       @default(now())
+  monto          Decimal
+  moneda         String         @default("PEN")
+  tipoCambio     Decimal        @default(1)
+  montoFuncional Decimal        @default(0)
+  motivo         String
+  tipoNota       TipoNotaDebito @default(INTERES_MORA)
+  usuarioId      String
+  usuarioNombre  String
+
+  factura     Factura     @relation(fields: [facturaId], references: [id])
+  recargoMora RecargoMora @relation(fields: [recargoMoraId], references: [id])
+
+  @@unique([empresaId, numero])
+  @@map("notas_debito")
 }
 
 model NotaCredito {
@@ -2794,6 +2846,7 @@ model HojaRutaVisita {
 enum TipoDocumentoSerie {
   FACTURA
   NOTA_CREDITO
+  NOTA_DEBITO
   GUIA_REMISION
 }
 
@@ -4580,6 +4633,7 @@ model Empresa {
   comprobantes               ComprobanteElectronico[]
   cobros                     Cobro[]
   notasCredito               NotaCredito[]
+  notasDebito                NotaDebito[]
   creditosCliente            CreditoCliente[]
   aplicacionesCreditoCliente AplicacionCreditoCliente[]
   reembolsosCliente          ReembolsoCliente[]

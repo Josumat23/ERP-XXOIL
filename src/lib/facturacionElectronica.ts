@@ -117,6 +117,7 @@ const adaptadorSimulado: AdaptadorOse = {
 const TIPO_COMPROBANTE_NUBEFACT: Record<$Enums.TipoComprobanteElectronico, number> = {
   FACTURA: 1,
   NOTA_CREDITO: 3,
+  NOTA_DEBITO: 4,
   GUIA_REMISION: 7,
 };
 
@@ -156,6 +157,15 @@ function armarBodyFacturaONotaCredito(datos: DatosComprobante, fechaDeEmision: s
     // del tipoNota elegido) — antes se mandaba siempre "8 - Otros" sin
     // importar el motivo real.
     body.tipo_de_nota_de_credito = Number(datos.tipoNota ?? "10");
+    body.documento_que_se_modifica_tipo = 1; // Factura
+    body.documento_que_se_modifica_serie = datos.facturaAfectadaSerie;
+    body.documento_que_se_modifica_numero = datos.facturaAfectadaNumero;
+    body.motivo = datos.motivo;
+  }
+
+  if (datos.tipoDocumento === "NOTA_DEBITO") {
+    // Catálogo 10 SUNAT. El sistema solo emite "01 — intereses por mora".
+    body.tipo_de_nota_de_debito = Number(datos.tipoNota ?? "01");
     body.documento_que_se_modifica_tipo = 1; // Factura
     body.documento_que_se_modifica_serie = datos.facturaAfectadaSerie;
     body.documento_que_se_modifica_numero = datos.facturaAfectadaNumero;
@@ -301,12 +311,30 @@ const adaptadorSunatDirecto: AdaptadorOse = {
         direccion: credenciales.direccion,
       };
 
-      const xmlSinFirmar =
-        datos.tipoDocumento === "FACTURA"
-          ? construirFacturaUBL(datos, emisor)
-          : datos.tipoDocumento === "NOTA_CREDITO"
-            ? construirNotaCreditoUBL(datos, emisor)
-            : construirGuiaRemisionUBL(datos, emisor);
+      // Cada tipo se nombra explícitamente. Con un ternario encadenado, un
+      // tipo nuevo caía en la última rama y se enviaba a SUNAT con la
+      // estructura equivocada, sin que nada lo advirtiera.
+      //
+      // La nota de débito (UBL DebitNote) todavía no está construida: hacerlo
+      // sin poder probarlo contra SUNAT —lo que exige el certificado digital
+      // real, que es un trámite externo pendiente— sería adivinar la
+      // estructura de un documento tributario. Se rechaza con un motivo claro
+      // en vez de mandar un XML inventado.
+      let xmlSinFirmar: string;
+      if (datos.tipoDocumento === "FACTURA") {
+        xmlSinFirmar = construirFacturaUBL(datos, emisor);
+      } else if (datos.tipoDocumento === "NOTA_CREDITO") {
+        xmlSinFirmar = construirNotaCreditoUBL(datos, emisor);
+      } else if (datos.tipoDocumento === "GUIA_REMISION") {
+        xmlSinFirmar = construirGuiaRemisionUBL(datos, emisor);
+      } else {
+        return {
+          ok: false,
+          estado: "ERROR",
+          sunatDescripcion:
+            "El envío directo a SUNAT todavía no arma el UBL de una nota de débito. Emítala por un OSE, o hágalo en el portal de SUNAT y registre aquí el número.",
+        };
+      }
 
       const xmlFirmado = firmarXml(
         xmlSinFirmar,

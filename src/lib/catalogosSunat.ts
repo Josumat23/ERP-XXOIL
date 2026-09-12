@@ -28,6 +28,22 @@ export const ETIQUETA_TIPO_NOTA_CREDITO: Record<$Enums.TipoNotaCredito, string> 
   OTROS_CONCEPTOS: "Otros conceptos",
 };
 
+// Catálogo 10 de SUNAT (tipo de nota de débito). Hoy el sistema solo emite
+// INTERES_MORA: es el único concepto que calcula por su cuenta. Los otros dos
+// códigos están para que el catálogo quede completo y correcto.
+export const CODIGO_TIPO_NOTA_DEBITO: Record<$Enums.TipoNotaDebito, string> = {
+  INTERES_MORA: "01",
+  AUMENTO_VALOR: "02",
+  PENALIDAD_OTROS: "03",
+};
+
+export const ETIQUETA_TIPO_NOTA_DEBITO: Record<$Enums.TipoNotaDebito, string> = {
+  INTERES_MORA: "Intereses por mora",
+  AUMENTO_VALOR: "Aumento en el valor",
+  PENALIDAD_OTROS: "Penalidades / otros conceptos",
+};
+
+
 // Catálogo 20 de SUNAT (modalidad de transporte de la guía de remisión).
 export const CODIGO_MODALIDAD_TRANSPORTE: Record<$Enums.ModalidadTransporte, string> = {
   PUBLICO: "01",

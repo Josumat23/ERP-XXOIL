@@ -15,7 +15,7 @@ import {
 import BotonImprimir from "@/components/BotonImprimir";
 import MembreteEmpresa from "@/components/MembreteEmpresa";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
-import { seriesActivas } from "@/lib/series";
+import { formatearNumeroSerie, seriesActivas } from "@/lib/series";
 import { ETIQUETA_TIPO_NOTA_CREDITO } from "@/lib/catalogosSunat";
 import {
   CobroFormulario,
@@ -26,9 +26,11 @@ import {
   RecargoMoraFormulario,
 } from "./FormulariosFactura";
 import {
+  emitirNotaDebitoMora,
   enviarComprobanteFactura,
   enviarComprobanteNotaCredito,
 } from "../actions";
+import NotaDebitoFormulario from "./NotaDebitoFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
@@ -80,7 +82,7 @@ export default async function DetalleFacturaPage({
         notasCredito: { orderBy: { fecha: "asc" }, include: { credito: true } },
         comisiones: { orderBy: { creadoEn: "asc" } },
         guias: true,
-        recargosMora: { orderBy: { fecha: "asc" } },
+        recargosMora: { orderBy: { fecha: "asc" }, include: { notaDebito: true } },
         devolucionesCliente: {
           orderBy: { fechaRecepcion: "asc" },
           include: {
@@ -165,6 +167,17 @@ export default async function DetalleFacturaPage({
   );
   const puedeCrearNotaCredito = puedeOperar && hayLineasAcreditables;
   const seriesNC = puedeCrearNotaCredito ? await seriesActivas("NOTA_CREDITO", empresaId) : [];
+
+  // Series de nota de débito: solo hacen falta si hay algún recargo sin
+  // documentar.
+  const hayRecargoSinNotaDebito = factura.recargosMora.some((r) => !r.notaDebito);
+  const seriesNotaDebito = hayRecargoSinNotaDebito
+    ? (await seriesActivas("NOTA_DEBITO", empresaId)).map((s) => ({
+        id: s.id,
+        serie: s.serie,
+        sugerido: formatearNumeroSerie(s.serie, s.correlativoActual + 1),
+      }))
+    : [];
 
   // El documento de devolución es la fuente; lo retornado físicamente al
   // cliente vuelve a quedar disponible para una recepción posterior.
@@ -446,6 +459,7 @@ export default async function DetalleFacturaPage({
                   <th className="text-right">Días</th>
                   <th className="text-right">Tasa</th>
                   <th className="text-right">Monto</th>
+                  <th>Nota de débito</th>
                 </tr>
               </thead>
               <tbody>
@@ -461,6 +475,18 @@ export default async function DetalleFacturaPage({
                       <span className="block text-xs text-neutral-400">
                         {formatMoneda(r.montoFuncional, factura.monedaFuncional)} · TC {r.tipoCambio.toString()}
                       </span>
+                    </td>
+                    <td>
+                      {r.notaDebito ? (
+                        <span className="font-mono text-xs">{r.notaDebito.numero}</span>
+                      ) : (
+                        <div className="no-imprimir">
+                          <NotaDebitoFormulario
+                            accion={emitirNotaDebitoMora.bind(null, r.id)}
+                            series={seriesNotaDebito}
+                          />
+                        </div>
+                      )}
                     </td>
                   </tr>
                 ))}

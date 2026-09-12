@@ -17,7 +17,8 @@ import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
 import { calcularSaldoAcreditableDevolucion, crearDocumentoDevolucion, inspeccionarDetalleDevolucion } from "@/lib/devolucionesCliente";
 import { calcularDistribucionNotaCredito } from "@/lib/creditosCliente";
-import { CODIGO_TIPO_NOTA_CREDITO } from "@/lib/catalogosSunat";
+import { CODIGO_TIPO_NOTA_CREDITO, CODIGO_TIPO_NOTA_DEBITO } from "@/lib/catalogosSunat";
+import { siguienteNumeroNotaDebito } from "@/lib/correlativos";
 import {
   calcularAplicacionCobro,
   calcularImportesFuncionales,
@@ -844,6 +845,134 @@ export async function aplicarRecargoMora(
     if (e instanceof Error) return { error: e.message };
     throw e;
   }
+
+  revalidatePath(`/comercial/facturas/${facturaId}`);
+  return {};
+}
+
+/**
+ * Arma los datos SUNAT de una nota de débito ya creada y la envía al OSE.
+ * Best-effort, igual que el resto: nunca lanza.
+ *
+ * El recargo por mora no lleva IGV como una venta de bienes: el monto va
+ * íntegro como total, sin desagregar base e impuesto. No se inventa un
+ * tratamiento tributario del interés moratorio — el sistema manda el importe
+ * tal como lo calculó, y el detalle fiscal es criterio del contador.
+ */
+async function enviarNotaDebitoASunat(notaDebitoId: string) {
+  const nd = await prisma.notaDebito.findUnique({
+    where: { id: notaDebitoId },
+    include: { factura: { include: { cliente: true } } },
+  });
+  if (!nd) return;
+
+  const [serie, numeroStr] = nd.numero.split("-");
+  const numero = parseInt(numeroStr ?? "", 10);
+  const [facturaSerie, facturaNumeroStr] = nd.factura.numero.split("-");
+
+  await enviarComprobanteElectronico({
+    empresaId: nd.empresaId,
+    tipoDocumento: "NOTA_DEBITO",
+    documentoId: nd.id,
+    numeroDocumento: nd.numero,
+    datos: {
+      tipoDocumento: "NOTA_DEBITO",
+      serie: serie || nd.numero,
+      numero: Number.isFinite(numero) ? numero : 0,
+      clienteRuc: nd.factura.cliente.ruc ?? "",
+      clienteDenominacion: nd.factura.cliente.razonSocial,
+      clienteDireccion: nd.factura.cliente.direccion,
+      fechaEmision: nd.fecha,
+      moneda: nd.moneda,
+      totalGravada: 0,
+      totalIgv: 0,
+      total: nd.monto.toNumber(),
+      items: [
+        {
+          descripcion: nd.motivo,
+          unidadMedida: "ZZ", // "servicio" en el Catálogo 03 de SUNAT
+          cantidad: 1,
+          valorUnitario: nd.monto.toNumber(),
+        },
+      ],
+      facturaAfectadaSerie: facturaSerie || nd.factura.numero,
+      facturaAfectadaNumero: facturaNumeroStr || "",
+      motivo: nd.motivo,
+      tipoNota: CODIGO_TIPO_NOTA_DEBITO[nd.tipoNota],
+    },
+  });
+}
+
+/**
+ * Emite la nota de débito que documenta un recargo por mora ya aplicado.
+ *
+ * **No vuelve a cargar nada.** El recargo ya aumentó el saldo de la factura y
+ * ya generó su asiento cuando se aplicó; esto es el comprobante de ese
+ * recargo. Por eso aquí no hay `factura.update` de saldo ni `postearAsiento`:
+ * hacerlo cobraría dos veces lo mismo.
+ */
+export async function emitirNotaDebitoMora(
+  recargoMoraId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Ventas." };
+  }
+  const empresaId = await obtenerEmpresaActivaId();
+
+  const serieId = String(formData.get("serieId") ?? "") || null;
+  const numeroIngresado = String(formData.get("numero") ?? "").trim();
+
+  let notaDebitoId = "";
+  let facturaId = "";
+  try {
+    await prisma.$transaction(async (tx) => {
+      // El id llega del navegador: el recargo tiene que ser de una factura de
+      // la compañía activa.
+      const recargo = await tx.recargoMora.findFirst({
+        where: { id: recargoMoraId, factura: { empresaId } },
+        include: { factura: true, notaDebito: true },
+      });
+      if (!recargo) throw new Error("El recargo no pertenece a la compañía activa.");
+      if (recargo.notaDebito) {
+        throw new Error(`Ese recargo ya tiene la nota de débito ${recargo.notaDebito.numero}.`);
+      }
+
+      const numero =
+        numeroIngresado || (await siguienteNumeroNotaDebito(tx, empresaId));
+      await avanzarSerie(tx, serieId, empresaId);
+
+      const nd = await tx.notaDebito.create({
+        data: {
+          empresaId,
+          numero,
+          facturaId: recargo.facturaId,
+          recargoMoraId: recargo.id,
+          monto: recargo.monto,
+          moneda: recargo.moneda,
+          tipoCambio: recargo.tipoCambio,
+          montoFuncional: recargo.montoFuncional,
+          motivo: `Intereses por mora de ${recargo.diasCalculados} día(s) sobre la factura ${recargo.factura.numero}`,
+          tipoNota: "INTERES_MORA",
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+      notaDebitoId = nd.id;
+      facturaId = recargo.facturaId;
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: `Ya existe una nota de débito con el número ${numeroIngresado}.` };
+    }
+    return { error: e instanceof Error ? e.message : "No se pudo emitir la nota de débito." };
+  }
+
+  // Fuera de la transacción: es una llamada de red.
+  await enviarNotaDebitoASunat(notaDebitoId);
 
   revalidatePath(`/comercial/facturas/${facturaId}`);
   return {};

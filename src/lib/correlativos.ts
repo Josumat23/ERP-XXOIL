@@ -223,3 +223,12 @@ export async function siguienteCodigoProyecto(tx: Tx, empresaId: string): Promis
   });
   return siguiente("PRY", ultimo?.codigo ?? null);
 }
+
+export async function siguienteNumeroNotaDebito(tx: Tx, empresaId: string): Promise<string> {
+  await reservarCorrelativo(tx);
+  const ultimo = await tx.notaDebito.findFirst({
+    where: { empresaId },
+    orderBy: { numero: "desc" },
+  });
+  return siguiente("ND", ultimo?.numero ?? null);
+}
