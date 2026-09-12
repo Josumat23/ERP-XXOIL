@@ -18,7 +18,14 @@ export default async function NuevaOrdenMantenimientoPage({
   const { equipoId, avisoId } = await searchParams;
 
   const [equipos, centrosCosto, ordenes] = await Promise.all([
-    prisma.equipo.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    // select explícito: el formulario es un componente cliente y una fila
+    // completa le mandaría `contadorActual` como Decimal de Prisma, que React no
+    // sabe serializar — avisa en consola y no es un valor que el formulario use.
+    prisma.equipo.findMany({
+      where: { empresaId: usuario.empresaId, activo: true },
+      select: { id: true, codigo: true, nombre: true, centroCostoId: true },
+      orderBy: { nombre: "asc" },
+    }),
     prisma.centroCosto.findMany({ where: { empresaId: usuario.empresaId, activo: true }, orderBy: { codigo: "asc" } }),
     prisma.ordenMantenimiento.findMany({
       where: { equipo: { empresaId: usuario.empresaId } },

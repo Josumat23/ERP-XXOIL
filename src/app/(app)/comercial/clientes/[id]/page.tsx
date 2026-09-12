@@ -27,8 +27,19 @@ export default async function EditarClientePage({
   const [cliente, clientes, zonas, vendedores, facturasPendientes, arbol] = await Promise.all([
     prisma.cliente.findFirst({ where: { id, empresaId }, include: { ubigeo: true } }),
     prisma.cliente.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
-    prisma.zona.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
+    prisma.zona.findMany({
+      where: { empresaId, activo: true },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: "asc" },
+    }),
+    // select explícito: el formulario es un componente cliente y una fila
+    // completa le mandaría `tasaComision` como Decimal de Prisma, que React no
+    // sabe serializar — avisa en consola y no es un valor que el cliente use.
+    prisma.vendedor.findMany({
+      where: { empresaId, activo: true },
+      select: { id: true, nombre: true },
+      orderBy: { nombre: "asc" },
+    }),
     prisma.factura.findMany({ where: { clienteId: id, empresaId, estado: "PENDIENTE" } }),
     arbolUbigeos(),
   ]);
