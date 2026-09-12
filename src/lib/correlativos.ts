@@ -129,6 +129,15 @@ export async function siguienteCodigoCliente(tx: Tx, empresaId: string): Promise
   return siguiente("CLI", ultimo?.codigo ?? null);
 }
 
+export async function siguienteNumeroLicitacionFlete(tx: Tx, empresaId: string): Promise<string> {
+  await reservarCorrelativo(tx);
+  const ultimo = await tx.licitacionFlete.findFirst({
+    where: { empresaId },
+    orderBy: { numero: "desc" },
+  });
+  return siguiente("LF", ultimo?.numero ?? null);
+}
+
 export async function siguienteCodigoTransportista(tx: Tx, empresaId: string): Promise<string> {
   await reservarCorrelativo(tx);
   const ultimo = await tx.transportista.findFirst({

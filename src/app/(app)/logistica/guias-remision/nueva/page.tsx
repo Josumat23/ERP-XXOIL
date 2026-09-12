@@ -18,7 +18,7 @@ export default async function NuevaGuiaPage({
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
   const empresaId = await obtenerEmpresaActivaId();
 
-  const [pedidosRaw, facturas, clientes, presentaciones, equipos, series, guias, ubigeos, transportistas] = await Promise.all([
+  const [pedidosRaw, facturas, clientes, presentaciones, equipos, series, guias, ubigeos, transportistas, licitacionesRaw] = await Promise.all([
     prisma.pedido.findMany({
       where: { empresaId, requiereEntrega: true, estado: { not: "ANULADO" } },
       include: {
@@ -71,7 +71,38 @@ export default async function NuevaGuiaPage({
       },
       orderBy: { razonSocial: "asc" },
     }),
+    // Licitaciones adjudicadas: son las que este despacho puede estar
+    // cumpliendo. No se excluyen las que ya tienen guía — un tramo licitado
+    // puede despacharse varias veces.
+    prisma.licitacionFlete.findMany({
+      where: { empresaId, estado: "ADJUDICADA" },
+      select: {
+        id: true,
+        numero: true,
+        titulo: true,
+        ofertas: {
+          where: { estado: "ADJUDICADA" },
+          select: { transportistaId: true, transportista: { select: { razonSocial: true } } },
+        },
+      },
+      orderBy: { adjudicadaEn: "desc" },
+      take: 50,
+    }),
   ]);
+
+  // Solo las que tienen oferta adjudicada: sin ella no hay transportista
+  // que fijar.
+  const licitaciones = licitacionesRaw.flatMap((l) => {
+    const ganadora = l.ofertas[0];
+    if (!ganadora) return [];
+    return [{
+      id: l.id,
+      numero: l.numero,
+      titulo: l.titulo,
+      transportistaId: ganadora.transportistaId,
+      transportistaRazonSocial: ganadora.transportista.razonSocial,
+    }];
+  });
 
 const pedidos = pedidosRaw
     .map((pedido) => ({
@@ -140,6 +171,7 @@ const pedidos = pedidosRaw
           }))}
           equipos={equipos.map((e) => ({ id: e.id, etiqueta: `${e.codigo} — ${e.nombre}` }))}
           transportistas={transportistas}
+          licitaciones={licitaciones}
           ubigeos={ubigeos.map((u) => ({
             id: u.id,
             codigo: u.codigo,
