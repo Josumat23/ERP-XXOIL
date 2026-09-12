@@ -58,7 +58,8 @@ export async function crearGuiaRemision(
   const motivoTraslado = String(formData.get("motivoTraslado") ?? "Venta").trim();
   const pesoBrutoTotal = Number(formData.get("pesoBrutoTotal"));
   const modalidadTransporte = String(formData.get("modalidadTransporte") ?? "PRIVADO") as $Enums.ModalidadTransporte;
-  const transportistaId = String(formData.get("transportistaId") ?? "").trim() || null;
+  const licitacionFleteId = String(formData.get("licitacionFleteId") ?? "").trim() || null;
+  let transportistaId = String(formData.get("transportistaId") ?? "").trim() || null;
   let transportista = String(formData.get("transportista") ?? "").trim() || null;
   let transportistaRuc = String(formData.get("transportistaRuc") ?? "").trim() || null;
   const placaVehiculo = String(formData.get("placaVehiculo") ?? "").trim().toUpperCase() || null;
@@ -98,6 +99,23 @@ export async function crearGuiaRemision(
   // persiste lo que el formulario diga de ellos — ese texto termina impreso en
   // la guía y declarado ante SUNAT.
   const empresaIdGuia = await obtenerEmpresaActivaId();
+
+  // Si la guía sale de una licitación, el transportista es el de la oferta
+  // ADJUDICADA, no el que venga en el formulario. Adjudicar a uno y despachar
+  // con otro vaciaría la licitación entera.
+  if (licitacionFleteId) {
+    const licitacion = await prisma.licitacionFlete.findFirst({
+      where: { id: licitacionFleteId, empresaId: empresaIdGuia, estado: "ADJUDICADA" },
+      select: { ofertas: { where: { estado: "ADJUDICADA" }, select: { transportistaId: true } } },
+    });
+    if (!licitacion) {
+      return { error: "La licitación no pertenece a la compañía activa o no está adjudicada." };
+    }
+    const ganadora = licitacion.ofertas[0];
+    if (!ganadora) return { error: "La licitación no tiene una oferta adjudicada." };
+    transportistaId = ganadora.transportistaId;
+  }
+
   if (transportistaId) {
     const ficha = await prisma.transportista.findFirst({
       where: { id: transportistaId, empresaId: empresaIdGuia, activo: true },
@@ -219,6 +237,7 @@ export async function crearGuiaRemision(
           pesoBrutoTotal,
           modalidadTransporte,
           transportistaId,
+          licitacionFleteId,
           transportista,
           transportistaRuc,
           placaVehiculo,

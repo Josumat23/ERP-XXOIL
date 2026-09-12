@@ -28,6 +28,14 @@ type PedidoOpcion = {
   }[];
 };
 type Opcion = { id: string; etiqueta: string };
+/** Licitación ya adjudicada: su oferta ganadora fija el transportista. */
+type LicitacionAdjudicada = {
+  id: string;
+  numero: string;
+  titulo: string;
+  transportistaId: string;
+  transportistaRazonSocial: string;
+};
 type UbigeoOpcion = { id: string; codigo: string; departamento: string; etiqueta: string };
 type Serie = { id: string; serie: string; correlativoActual: number };
 
@@ -49,6 +57,7 @@ type Props = {
   presentaciones: Opcion[];
   equipos: Opcion[];
   transportistas: TransportistaSeleccionable[];
+  licitaciones: LicitacionAdjudicada[];
   ubigeos: UbigeoOpcion[];
   puntoPartidaDefecto: string;
   pedidoInicialId?: string;
@@ -84,6 +93,7 @@ export default function GuiaFormulario({
   presentaciones,
   equipos,
   transportistas,
+  licitaciones,
   ubigeos,
   puntoPartidaDefecto,
   pedidoInicialId,
@@ -110,6 +120,7 @@ export default function GuiaFormulario({
   // vacía significa "otro, lo escribo a mano".
   const [placaElegida, setPlacaElegida] = useState("");
   const [dniElegido, setDniElegido] = useState("");
+  const [licitacionId, setLicitacionId] = useState("");
 
   const lineasJson = JSON.stringify(
     lineas.map((l) => ({ pedidoDetalleId: l.pedidoDetalleId, presentacionId: l.presentacionId, cantidad: Number(l.cantidad) }))
@@ -138,6 +149,15 @@ export default function GuiaFormulario({
     const t = transportistas.find((x) => x.id === id) ?? null;
     setPlacaElegida(t?.vehiculos[0]?.placa ?? "");
     setDniElegido(t?.conductores[0]?.dni ?? "");
+  }
+
+  // Elegir licitación fija el transportista de la oferta ganadora. El servidor
+  // lo vuelve a derivar por su cuenta; esto es para que la pantalla no muestre
+  // una cosa y se guarde otra.
+  function elegirLicitacion(id: string) {
+    setLicitacionId(id);
+    const l = licitaciones.find((x) => x.id === id);
+    elegirTransportista(l ? l.transportistaId : "");
   }
 
   function elegirFactura(id: string) {
@@ -293,6 +313,7 @@ export default function GuiaFormulario({
               name="transportistaId"
               value={transportistaId}
               onChange={(e) => elegirTransportista(e.target.value)}
+              disabled={licitacionId !== ""}
               className="campo-input"
             >
               <option value="">Otro — escribirlo a mano</option>
@@ -311,6 +332,33 @@ export default function GuiaFormulario({
           </label>
         )}
       </div>
+
+      {modalidadTransporte === "PUBLICO" && licitaciones.length > 0 && (
+        <label className="flex flex-col gap-1 text-sm max-w-md">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Licitación de flete adjudicada (opcional)
+          </span>
+          <select
+            name="licitacionFleteId"
+            value={licitacionId}
+            onChange={(e) => elegirLicitacion(e.target.value)}
+            className="campo-input"
+          >
+            <option value="">Sin licitación</option>
+            {licitaciones.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.numero} — {l.titulo} · {l.transportistaRazonSocial}
+              </option>
+            ))}
+          </select>
+          {licitacionId !== "" && (
+            <span className="text-xs text-neutral-500">
+              El transportista lo fija la oferta adjudicada: despachar con otro vaciaría la
+              licitación.
+            </span>
+          )}
+        </label>
+      )}
 
       {/* Sin transportista del maestro: los datos se escriben, como siempre. La
           razón social y el RUC del elegido los deriva el servidor de la ficha,

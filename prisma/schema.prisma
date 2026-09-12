@@ -2641,6 +2641,100 @@ enum ModalidadTransporte {
   PRIVADO
 }
 
+enum EstadoLicitacionFlete {
+  ABIERTA
+  ADJUDICADA
+  // Sin ofertas suficientes o ninguna aceptable. No es un fracaso silencioso:
+  // se declara con motivo, para que quede por qué no se contrató.
+  DESIERTA
+}
+
+enum EstadoOfertaFlete {
+  PRESENTADA
+  ADJUDICADA
+  NO_SELECCIONADA
+}
+
+// Licitación de flete: comparar cotizaciones de transportistas para un tramo
+// antes de contratarlo.
+//
+// Mismas reglas que el RFQ de compras, y por las mismas razones: dos ofertas
+// como mínimo, justificación escrita, y quien solicita no adjudica. Contratar
+// flete es comprar un servicio; que sea un camión y no un insumo no cambia el
+// control que hace falta.
+//
+// Lo que NO hace al adjudicar: crear la guía de remisión. Una guía es un
+// documento fiscal de un traslado que ocurre, con su fecha, su peso y sus
+// ítems reales; emitirla al adjudicar sería fabricar un traslado que todavía
+// no pasó. La guía se emite cuando el camión sale y recién ahí referencia la
+// licitación.
+model LicitacionFlete {
+  id        String  @id @default(cuid())
+  empresaId String  @default("1")
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  numero    String
+  titulo    String
+
+  // El tramo. El ubigeo es opcional igual que en la guía: hay tramos que no
+  // caen en un distrito del catálogo.
+  origen          String
+  destino         String
+  ubigeoOrigenId  String?
+  ubigeoDestinoId String?
+
+  fechaRequerida DateTime
+  pesoEstimadoKg Decimal
+  fechaLimite    DateTime?
+  notas          String?
+
+  estado                    EstadoLicitacionFlete @default(ABIERTA)
+  justificacionAdjudicacion String?
+  motivoDesierta            String?
+  adjudicadaEn              DateTime?
+  adjudicadaPorId           String?
+  adjudicadaPorNombre       String?
+
+  // Quien la solicitó. No puede ser quien la adjudique.
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime @default(now())
+
+  ubigeoOrigen  Ubigeo?        @relation("UbigeoOrigenFlete", fields: [ubigeoOrigenId], references: [id])
+  ubigeoDestino Ubigeo?        @relation("UbigeoDestinoFlete", fields: [ubigeoDestinoId], references: [id])
+  ofertas       OfertaFlete[]
+  guias         GuiaRemision[]
+
+  @@unique([empresaId, numero])
+  @@map("licitaciones_flete")
+}
+
+model OfertaFlete {
+  id              String @id @default(cuid())
+  licitacionId    String
+  transportistaId String
+
+  monto        Decimal
+  moneda       String    @default("PEN")
+  tipoCambio   Decimal   @default(1)
+  // Tránsito ofrecido: el precio no es lo único que se compara.
+  diasTransito Int
+  validaHasta  DateTime?
+  notas        String?
+
+  estado        EstadoOfertaFlete @default(PRESENTADA)
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime          @default(now())
+
+  licitacion    LicitacionFlete @relation(fields: [licitacionId], references: [id], onDelete: Cascade)
+  transportista Transportista   @relation(fields: [transportistaId], references: [id], onDelete: Restrict)
+
+  // Una oferta por transportista: dos cotizaciones del mismo no son dos
+  // ofertas, y contarlas como tales vaciaría el mínimo de dos.
+  @@unique([licitacionId, transportistaId])
+  @@map("ofertas_flete")
+}
+
 // Maestro de transportistas contratados.
 //
 // La distribución no es 100% flota propia: el negocio confirmó el 2026-09-13
@@ -2673,9 +2767,10 @@ model Transportista {
   activo         Boolean  @default(true)
   creadoEn       DateTime @default(now())
 
-  vehiculos   TransportistaVehiculo[]
-  conductores TransportistaConductor[]
-  guias       GuiaRemision[]
+  vehiculos    TransportistaVehiculo[]
+  conductores  TransportistaConductor[]
+  guias        GuiaRemision[]
+  ofertasFlete OfertaFlete[]
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, ruc])
@@ -2736,6 +2831,10 @@ model GuiaRemision {
   // Cuando está, sus datos alimentan los campos de texto de abajo, que son los
   // que se imprimen y los que viajan en el XML.
   transportistaId     String?
+  // Licitación de la que salió este flete, si se licitó. El monto acordado NO
+  // se copia aquí: se lee de la oferta adjudicada. Copiarlo crearía dos
+  // números para el mismo precio, y tarde o temprano uno queda viejo.
+  licitacionFleteId   String?
   transportista       String?
   // RUC de la empresa transportista — obligatorio cuando modalidadTransporte
   // = PUBLICO (transporte contratado a terceros, no flota propia).
@@ -2766,6 +2865,7 @@ model GuiaRemision {
   // Restrict: una guía es un documento emitido, y borrar el transportista no
   // puede dejarla apuntando a nada ni reescribir lo que se imprimió.
   transportistaRef Transportista?        @relation(fields: [transportistaId], references: [id], onDelete: Restrict)
+  licitacionFlete  LicitacionFlete?      @relation(fields: [licitacionFleteId], references: [id], onDelete: Restrict)
   ubigeoPartida    Ubigeo?               @relation("UbigeoPartida", fields: [ubigeoPartidaId], references: [id])
   ubigeoLlegada    Ubigeo?               @relation("UbigeoLlegada", fields: [ubigeoLlegadaId], references: [id])
   detalles         GuiaRemisionDetalle[]
@@ -2786,12 +2886,14 @@ model Ubigeo {
   provincia    String
   distrito     String
 
-  guiasPartida    GuiaRemision[]         @relation("UbigeoPartida")
-  guiasLlegada    GuiaRemision[]         @relation("UbigeoLlegada")
-  clientes        Cliente[]
-  proveedores     Proveedor[]
-  almacenes       Almacen[]
-  configuraciones ConfiguracionEmpresa[]
+  guiasPartida        GuiaRemision[]         @relation("UbigeoPartida")
+  guiasLlegada        GuiaRemision[]         @relation("UbigeoLlegada")
+  licitacionesOrigen  LicitacionFlete[]      @relation("UbigeoOrigenFlete")
+  licitacionesDestino LicitacionFlete[]      @relation("UbigeoDestinoFlete")
+  clientes            Cliente[]
+  proveedores         Proveedor[]
+  almacenes           Almacen[]
+  configuraciones     ConfiguracionEmpresa[]
 
   @@map("ubigeos")
 }
@@ -4862,6 +4964,7 @@ model Empresa {
   facturas                   Factura[]
   avisosCobranza             AvisoCobranza[]
   politicaCobranza           PoliticaCobranza?
+  licitacionesFlete          LicitacionFlete[]
   transportistas             Transportista[]
   comprobantes               ComprobanteElectronico[]
   cobros                     Cobro[]
