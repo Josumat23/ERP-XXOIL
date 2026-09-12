@@ -12,6 +12,7 @@ import {
   postearCobro,
   postearNotaCredito,
   postearAnulacionFactura,
+  postearNotaDebito,
 } from "@/lib/contabilidad";
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
@@ -19,6 +20,12 @@ import { calcularSaldoAcreditableDevolucion, crearDocumentoDevolucion, inspeccio
 import { calcularDistribucionNotaCredito } from "@/lib/creditosCliente";
 import { CODIGO_TIPO_NOTA_CREDITO, CODIGO_TIPO_NOTA_DEBITO } from "@/lib/catalogosSunat";
 import { siguienteNumeroNotaDebito } from "@/lib/correlativos";
+import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import {
+  calcularImporte,
+  validarNotaDebitoManual,
+  type TipoNotaDebitoManual,
+} from "@/lib/notaDebitoManual";
 import {
   calcularAplicacionCobro,
   calcularImportesFuncionales,
@@ -959,6 +966,9 @@ export async function emitirNotaDebitoMora(
           numero,
           facturaId: recargo.facturaId,
           recargoMoraId: recargo.id,
+          // La nota por mora conserva su tratamiento: el recargo nunca llevó IGV,
+          // y este ciclo no reinterpreta lo ya emitido.
+          baseImponible: recargo.monto,
           monto: recargo.monto,
           moneda: recargo.moneda,
           tipoCambio: recargo.tipoCambio,
@@ -971,6 +981,128 @@ export async function emitirNotaDebitoMora(
       });
       notaDebitoId = nd.id;
       facturaId = recargo.facturaId;
+    });
+  } catch (e) {
+    if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
+      return { error: `Ya existe una nota de débito con el número ${numeroIngresado}.` };
+    }
+    return { error: e instanceof Error ? e.message : "No se pudo emitir la nota de débito." };
+  }
+
+  // Fuera de la transacción: es una llamada de red.
+  await enviarNotaDebitoASunat(notaDebitoId);
+
+  revalidatePath(`/comercial/facturas/${facturaId}`);
+  return {};
+}
+
+// Nota de débito emitida a mano: aumento de valor (02) o penalidad (03).
+//
+// La diferencia con la de mora no es cosmética. El recargo por mora YA aumentó
+// el saldo y YA posteó su asiento cuando se aplicó, así que su nota solo lo
+// documenta y tiene prohibido volver a cargar nada. Aquí el documento ES el
+// hecho económico: nada había ocurrido antes de emitirlo, y por eso esta sí
+// aumenta el saldo de la factura y postea.
+export async function emitirNotaDebitoManual(
+  facturaId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "ventas", "crear"))) {
+    return { error: "Su grupo de seguridad no permite crear registros en Ventas." };
+  }
+  const empresaId = await obtenerEmpresaActivaId();
+
+  const tipoNota = String(formData.get("tipoNota") ?? "");
+  const baseImponible = Number(formData.get("baseImponible"));
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  const afectoIgvDeclarado = String(formData.get("afectoIgv") ?? "") || null;
+  const serieId = String(formData.get("serieId") ?? "") || null;
+  const numeroIngresado = String(formData.get("numero") ?? "").trim();
+
+  const error = validarNotaDebitoManual({ tipoNota, baseImponible, motivo, afectoIgvDeclarado });
+  if (error) return { error };
+  const afectoIgv = afectoIgvDeclarado === "SI";
+
+  let notaDebitoId = "";
+  try {
+    await prisma.$transaction(async (tx) => {
+      // El id llega del navegador: la factura tiene que ser de la compañía
+      // activa.
+      const factura = await tx.factura.findFirst({ where: { id: facturaId, empresaId } });
+      if (!factura) throw new Error("La factura no pertenece a la compañía activa.");
+      if (factura.estado === "ANULADA") {
+        throw new Error("No se puede cargar una nota de débito sobre una factura anulada.");
+      }
+
+      // La tasa es la de la compañía dueña de la factura, la misma con la que
+      // se facturó.
+      const config = await obtenerConfiguracionEmpresa(empresaId, tx);
+      const importe = calcularImporte(baseImponible, afectoIgv, config.tasaIgv.toNumber());
+
+      const tipoCambio = factura.tipoCambio.toNumber();
+      const { subtotalFuncional, igvFuncional, totalFuncional } = calcularImportesFuncionales({
+        moneda: factura.moneda,
+        tipoCambio,
+        monedaFuncional: factura.monedaFuncional,
+        subtotal: importe.baseImponible,
+        igv: importe.igv,
+        total: importe.total,
+      });
+
+      const numero = numeroIngresado || (await siguienteNumeroNotaDebito(tx, empresaId));
+      await avanzarSerie(tx, serieId, empresaId);
+
+      const nd = await tx.notaDebito.create({
+        data: {
+          empresaId,
+          numero,
+          facturaId,
+          // Sin recargo detrás: es lo que distingue a esta de la de mora. Se
+          // omite en vez de pasar null, que Prisma no acepta en el FK de una
+          // relación opcional.
+          baseImponible: importe.baseImponible,
+          igv: importe.igv,
+          afectoIgv,
+          monto: importe.total,
+          moneda: factura.moneda,
+          tipoCambio,
+          montoFuncional: totalFuncional,
+          motivo,
+          tipoNota: tipoNota as TipoNotaDebitoManual,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+      notaDebitoId = nd.id;
+
+      // Reclamo optimista sobre el saldo leído: si la factura cambió entre la
+      // lectura y esta escritura, no se carga sobre un saldo que ya no existe.
+      const actualizada = await tx.factura.updateMany({
+        where: { id: facturaId, empresaId, saldo: factura.saldo, saldoFuncional: factura.saldoFuncional },
+        data: {
+          saldo: { increment: importe.total },
+          saldoFuncional: { increment: totalFuncional },
+        },
+      });
+      if (actualizada.count !== 1) {
+        throw new Error("La factura cambió mientras se emitía la nota. Intente nuevamente.");
+      }
+
+      await postearNotaDebito(
+        tx,
+        {
+          numero,
+          numeroFactura: factura.numero,
+          esAumentoDeValor: tipoNota === "AUMENTO_VALOR",
+          baseFuncional: subtotalFuncional,
+          igvFuncional,
+          totalFuncional,
+        },
+        { usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre, empresaId }
+      );
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {

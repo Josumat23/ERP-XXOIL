@@ -27,6 +27,7 @@ export const ETIQUETA_ORIGEN_ASIENTO: Record<$Enums.OrigenAsiento, string> = {
   DEVOLUCION_CLIENTE: "Devolución de cliente",
   COBRO: "Cobro",
   NOTA_CREDITO: "Nota de crédito",
+  NOTA_DEBITO: "Nota de débito",
   APLICACION_CREDITO_CLIENTE: "Aplicación de saldo a favor",
   REEMBOLSO_CLIENTE: "Reembolso a cliente",
   RECARGO_MORA: "Recargo por mora",

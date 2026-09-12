@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
-import { formatMoneda } from "@/lib/format";
+import { formatMoneda, formatFecha } from "@/lib/format";
 import {
   ETIQUETA_ESTADO_FACTURA,
   ETIQUETA_CONDICION_PAGO,
@@ -27,10 +27,12 @@ import {
 } from "./FormulariosFactura";
 import {
   emitirNotaDebitoMora,
+  emitirNotaDebitoManual,
   enviarComprobanteFactura,
   enviarComprobanteNotaCredito,
 } from "../actions";
 import NotaDebitoFormulario from "./NotaDebitoFormulario";
+import NotaDebitoManualFormulario from "./NotaDebitoManualFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 
@@ -83,6 +85,9 @@ export default async function DetalleFacturaPage({
         comisiones: { orderBy: { creadoEn: "asc" } },
         guias: true,
         recargosMora: { orderBy: { fecha: "asc" }, include: { notaDebito: true } },
+        // Las emitidas a mano no cuelgan de ningún recargo, así que no llegan
+        // por `recargosMora`.
+        notasDebito: { orderBy: { fecha: "asc" } },
         devolucionesCliente: {
           orderBy: { fechaRecepcion: "asc" },
           include: {
@@ -174,16 +179,22 @@ export default async function DetalleFacturaPage({
   const puedeCrearNotaCredito = puedeOperar && hayLineasAcreditables;
   const seriesNC = puedeCrearNotaCredito ? await seriesActivas("NOTA_CREDITO", empresaId) : [];
 
-  // Series de nota de débito: solo hacen falta si hay algún recargo sin
-  // documentar.
-  const hayRecargoSinNotaDebito = factura.recargosMora.some((r) => !r.notaDebito);
-  const seriesNotaDebito = hayRecargoSinNotaDebito
+  // Series de nota de débito. Desde que también se emiten a mano hacen falta
+  // aunque no haya ningún recargo sin documentar.
+  //
+  // El permiso es `puedeOperar` y NO `puedeCrearNotaCredito`: ese exige líneas
+  // acreditables, que es la condición para devolver valor. Cobrar de más no
+  // depende de que quede algo por acreditar — una factura totalmente
+  // acreditada admite igual una penalidad.
+  const seriesNotaDebito = puedeOperar
     ? (await seriesActivas("NOTA_DEBITO", empresaId)).map((s) => ({
         id: s.id,
         serie: s.serie,
         sugerido: formatearNumeroSerie(s.serie, s.correlativoActual + 1),
       }))
     : [];
+  // Las emitidas a mano; las de mora ya se muestran junto a su recargo.
+  const notasDebitoManuales = factura.notasDebito.filter((n) => n.recargoMoraId === null);
 
   // El documento de devolución es la fuente; lo retornado físicamente al
   // cliente vuelve a quedar disponible para una recepción posterior.
@@ -512,6 +523,58 @@ export default async function DetalleFacturaPage({
           )}
         </section>
       )}
+
+      <section className="mt-8">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100">
+          Notas de débito emitidas a mano
+        </h2>
+        <p className="text-sm text-neutral-500 mt-1">
+          Aumento de valor y penalidad (tipos 02 y 03 del Catálogo 10). El sistema no las calcula:
+          cuándo corresponden y sobre qué base es criterio del negocio.
+        </p>
+        {notasDebitoManuales.length > 0 && (
+          <table className="tabla mt-2">
+            <thead>
+              <tr>
+                <th>Número</th>
+                <th>Fecha</th>
+                <th>Tipo</th>
+                <th>Motivo</th>
+                <th className="text-right">Base</th>
+                <th className="text-right">IGV</th>
+                <th className="text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {notasDebitoManuales.map((n) => (
+                <tr key={n.id}>
+                  <td className="font-mono text-xs">{n.numero}</td>
+                  <td>{formatFecha(n.fecha)}</td>
+                  <td>
+                    {n.tipoNota === "AUMENTO_VALOR" ? "Aumento de valor" : "Penalidad u otros"}
+                  </td>
+                  <td className="text-xs">{n.motivo}</td>
+                  <td className="text-right">{formatMoneda(n.baseImponible, n.moneda)}</td>
+                  <td className="text-right">
+                    {n.afectoIgv ? formatMoneda(n.igv, n.moneda) : "No afecto"}
+                  </td>
+                  <td className="text-right font-medium">{formatMoneda(n.monto, n.moneda)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        {puedeOperar && (
+          <div className="no-imprimir mt-3 max-w-2xl rounded-lg border border-[var(--epicor-borde)] p-4">
+            <NotaDebitoManualFormulario
+              accion={emitirNotaDebitoManual.bind(null, factura.id)}
+              series={seriesNotaDebito}
+              tasaIgv={config?.tasaIgv.toNumber() ?? 18}
+              moneda={factura.moneda}
+            />
+          </div>
+        )}
+      </section>
 
       <section className="mt-8">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100">Notas de crédito</h2>

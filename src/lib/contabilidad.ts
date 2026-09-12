@@ -43,7 +43,8 @@ export type ClaveControl =
   | "GASTO_ORDEN_INTERNA"
   | "GANANCIA_DIFERENCIA_CAMBIO"
   | "PERDIDA_DIFERENCIA_CAMBIO"
-  | "INGRESO_MORA";
+  | "INGRESO_MORA"
+  | "INGRESO_PENALIDAD";
 
 export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   CUENTAS_POR_COBRAR: "Cuentas por cobrar comerciales",
@@ -76,6 +77,7 @@ export const ETIQUETA_CONTROL: Record<ClaveControl, string> = {
   GANANCIA_DIFERENCIA_CAMBIO: "Ganancia por diferencia de cambio",
   PERDIDA_DIFERENCIA_CAMBIO: "Pérdida por diferencia de cambio",
   INGRESO_MORA: "Ingresos financieros por mora",
+  INGRESO_PENALIDAD: "Otros ingresos — penalidades a clientes",
 };
 
 type LineaAsiento = {
@@ -593,6 +595,46 @@ export async function postearRecargoMora(
       { clave: "CUENTAS_POR_COBRAR", debe: datos.montoFuncional },
       { clave: "INGRESO_MORA", haber: datos.montoFuncional },
     ],
+    ...audit,
+  });
+}
+
+// Nota de débito emitida a mano: aumento de valor (tipo 02) o penalidad
+// (tipo 03) del Catálogo 10.
+//
+// La asimetría con la nota por mora es lo importante: **el recargo por mora ya
+// aumentó el saldo y ya posteó su asiento cuando se aplicó**, así que su nota
+// solo lo documenta y no vuelve a cargar nada. Un aumento de valor o una
+// penalidad **no existían** hasta que alguien los emite: aquí el documento es
+// el hecho económico, y por eso sí postea.
+//
+// El ingreso va a VENTAS cuando es más valor de la misma venta, y a
+// INGRESO_PENALIDAD cuando no lo es — una penalidad no es venta ni interés.
+export async function postearNotaDebito(
+  tx: Tx,
+  datos: {
+    numero: string;
+    numeroFactura: string;
+    esAumentoDeValor: boolean;
+    baseFuncional: number;
+    igvFuncional: number;
+    totalFuncional: number;
+  },
+  audit: Auditoria
+) {
+  const lineas: LineaAsiento[] = [
+    { clave: "CUENTAS_POR_COBRAR", debe: datos.totalFuncional },
+    { clave: datos.esAumentoDeValor ? "VENTAS" : "INGRESO_PENALIDAD", haber: datos.baseFuncional },
+  ];
+  // Sin IGV no se agrega la línea: un renglón en cero solo ensucia el asiento.
+  if (datos.igvFuncional > 0) {
+    lineas.push({ clave: "IGV_POR_PAGAR", haber: datos.igvFuncional });
+  }
+  await postearAsiento(tx, {
+    origen: "NOTA_DEBITO",
+    glosa: `Nota de débito ${datos.numero} sobre factura ${datos.numeroFactura}`,
+    referencia: datos.numero,
+    lineas,
     ...audit,
   });
 }

@@ -1881,8 +1881,23 @@ model NotaDebito {
   empresa        Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero         String // número SUNAT de la ND
   facturaId      String
-  recargoMoraId  String         @unique
+  // Solo la nota de tipo 01 nace de un recargo por mora ya aplicado. Las de
+  // tipo 02 y 03 las emite una persona y no tienen recargo detrás, así que
+  // aquí va NULL. El índice único se mantiene: SQLite y PostgreSQL tratan cada
+  // NULL como distinto, de modo que muchas notas pueden no tener recargo pero
+  // un recargo sigue admitiendo una sola nota.
+  recargoMoraId  String?        @unique
   fecha          DateTime       @default(now())
+  // `monto` es el TOTAL del documento. El desglose existe porque una nota por
+  // aumento de valor sí puede estar afecta a IGV; la de mora documenta un
+  // recargo ya aplicado y nunca llevó.
+  //
+  // `afectoIgv` no tiene un valor que el sistema pueda asumir: si un concepto
+  // está afecto es criterio tributario del contador, distinto para un ajuste
+  // de precio que para una penalidad. Quien emite lo declara explícitamente.
+  baseImponible  Decimal
+  igv            Decimal        @default(0)
+  afectoIgv      Boolean        @default(false)
   monto          Decimal
   moneda         String         @default("PEN")
   tipoCambio     Decimal        @default(1)
@@ -1892,8 +1907,12 @@ model NotaDebito {
   usuarioId      String
   usuarioNombre  String
 
-  factura     Factura     @relation(fields: [facturaId], references: [id])
-  recargoMora RecargoMora @relation(fields: [recargoMoraId], references: [id])
+  factura     Factura      @relation(fields: [facturaId], references: [id])
+  // Restrict y no el SET NULL que Prisma pone por defecto en una relación
+  // opcional: si al borrar un recargo la nota quedara con NULL, pasaría a ser
+  // indistinguible de una emitida a mano, que es justo lo contrario de lo que
+  // documenta.
+  recargoMora RecargoMora? @relation(fields: [recargoMoraId], references: [id], onDelete: Restrict)
 
   @@unique([empresaId, numero])
   @@map("notas_debito")
@@ -3307,6 +3326,10 @@ enum OrigenAsiento {
   DEVOLUCION_CLIENTE
   COBRO
   NOTA_CREDITO
+  // Solo las notas emitidas a mano (aumento de valor, penalidad) postean con
+  // este origen. La de mora no: su asiento ya lo hizo el recargo, con origen
+  // RECARGO_MORA, cuando se aplicó.
+  NOTA_DEBITO
   APLICACION_CREDITO_CLIENTE
   REEMBOLSO_CLIENTE
   ANULACION_VENTA

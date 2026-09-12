@@ -468,6 +468,7 @@ async function main() {
     { codigo: "6761", nombre: "Pérdida por diferencia de cambio", tipo: "GASTO" },
     { codigo: "7761", nombre: "Ganancia por diferencia de cambio", tipo: "INGRESO" },
     { codigo: "7721", nombre: "Intereses por mora comercial", tipo: "INGRESO" },
+    { codigo: "7599", nombre: "Otros ingresos de gestión", tipo: "INGRESO" },
     { codigo: "7911", nombre: "Cargas imputables a cuentas de costos", tipo: "INGRESO" },
     { codigo: "6599", nombre: "Otras pérdidas de gestión — producción rechazada", tipo: "GASTO" },
   ];
@@ -513,6 +514,10 @@ async function main() {
     ["GANANCIA_DIFERENCIA_CAMBIO", "7761"],
     ["PERDIDA_DIFERENCIA_CAMBIO", "6761"],
     ["INGRESO_MORA", "7721"],
+    // Una penalidad no es venta ni interés. La cuenta exacta es criterio del
+    // contador y se reapunta desde Finanzas → Plan de cuentas; esto es el
+    // valor inicial.
+    ["INGRESO_PENALIDAD", "7599"],
   ];
   for (const [clave, codigo] of controlesSemilla) {
     const cuentaId = cuentaPorCodigo.get(codigo)!;
