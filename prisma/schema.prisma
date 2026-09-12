@@ -99,9 +99,17 @@ model ConfiguracionEmpresa {
   direccion                       String?
   direccion2                      String?
   ciudad                          String?
+  // Dirección fiscal del emisor: es la que va impresa en los documentos y la
+  // que viaja en el XML de facturación electrónica, donde SUNAT espera el
+  // código de ubigeo de 6 dígitos y no el nombre del distrito.
+  //
+  // El texto libre se conserva igual que en Cliente y Almacen: guarda lo que
+  // se escribió antes del catálogo y es el respaldo de lo que no empareje.
   distrito                        String?
   provincia                       String?
   departamento                    String?
+  ubigeoId                        String?
+  ubigeo                          Ubigeo?                    @relation(fields: [ubigeoId], references: [id])
   codigoPostal                    String?
   pais                            String                     @default("Perú")
   telefono                        String?
@@ -2577,11 +2585,12 @@ model Ubigeo {
   provincia    String
   distrito     String
 
-  guiasPartida GuiaRemision[] @relation("UbigeoPartida")
-  guiasLlegada GuiaRemision[] @relation("UbigeoLlegada")
-  clientes     Cliente[]
-  proveedores  Proveedor[]
-  almacenes    Almacen[]
+  guiasPartida    GuiaRemision[]         @relation("UbigeoPartida")
+  guiasLlegada    GuiaRemision[]         @relation("UbigeoLlegada")
+  clientes        Cliente[]
+  proveedores     Proveedor[]
+  almacenes       Almacen[]
+  configuraciones ConfiguracionEmpresa[]
 
   @@map("ubigeos")
 }

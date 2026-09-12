@@ -1,6 +1,8 @@
 "use client";
 
 import { ETIQUETA_REGIMEN_TRIBUTARIO } from "@/lib/regimenTributario";
+import SelectorUbigeo from "@/components/SelectorUbigeo";
+import type { ArbolUbigeos, UbigeoSeleccionado } from "@/lib/ubigeos";
 
 import { useState } from "react";
 import { useActionState } from "react";
@@ -51,7 +53,16 @@ type Props = {
   };
 };
 
-export default function EmpresaFormulario({ valores }: Props) {
+type PropsUbigeo = {
+  arbolUbigeos: ArbolUbigeos;
+  ubigeoSeleccionado?: UbigeoSeleccionado | null;
+};
+
+export default function EmpresaFormulario({
+  valores,
+  arbolUbigeos,
+  ubigeoSeleccionado,
+}: Props & PropsUbigeo) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     guardarConfiguracionEmpresa,
     {}
@@ -173,17 +184,19 @@ export default function EmpresaFormulario({ valores }: Props) {
             <input name="direccion2" defaultValue={valores.direccion2 ?? ""} className="campo-input" />
           </Campo>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Campo etiqueta="Distrito">
-            <input name="distrito" defaultValue={valores.distrito ?? ""} className="campo-input" />
-          </Campo>
-          <Campo etiqueta="Provincia">
-            <input name="provincia" defaultValue={valores.provincia ?? ""} className="campo-input" />
-          </Campo>
-          <Campo etiqueta="Departamento">
-            <input name="departamento" defaultValue={valores.departamento ?? ""} className="campo-input" />
-          </Campo>
-        </div>
+<SelectorUbigeo
+          arbol={arbolUbigeos}
+          seleccionado={ubigeoSeleccionado}
+          textoHeredado={{
+            departamento: valores.departamento,
+            provincia: valores.provincia,
+            distrito: valores.distrito,
+          }}
+        />
+        <p className="text-xs" style={{ color: "var(--epicor-texto-tenue)" }}>
+          El distrito viaja al XML de facturación electrónica como código de ubigeo de 6 dígitos,
+          que es lo que SUNAT espera del emisor — no el nombre.
+        </p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Campo etiqueta="Ciudad">
             <input name="ciudad" defaultValue={valores.ciudad ?? ""} className="campo-input" />

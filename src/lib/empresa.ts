@@ -19,11 +19,22 @@ type Cliente = Prisma.TransactionClient | typeof prisma;
  * RUC, certificado y credenciales SUNAT son de la sociedad que los contrató, y
  * heredarlos haría que una compañía nueva emitiera con la identidad de otra.
  */
+export type ConfiguracionConUbigeo = ConfiguracionEmpresa & {
+  /** Distrito del catálogo SUNAT, con su código de 6 dígitos para el XML. */
+  ubigeo: { id: string; codigo: string; departamento: string; provincia: string; distrito: string } | null;
+};
+
 export async function obtenerConfiguracionEmpresa(
   empresaId: string,
   cliente: Cliente = prisma
-): Promise<ConfiguracionEmpresa> {
-  const existente = await cliente.configuracionEmpresa.findUnique({ where: { empresaId } });
+): Promise<ConfiguracionConUbigeo> {
+  // El ubigeo viene incluido siempre: es la dirección fiscal del emisor, y
+  // quien arma un comprobante electrónico necesita su código junto al resto de
+  // la configuración, no en una segunda consulta fácil de olvidar.
+  const existente = await cliente.configuracionEmpresa.findUnique({
+    where: { empresaId },
+    include: { ubigeo: true },
+  });
   if (existente) return existente;
   // upsert y no create: dos peticiones simultáneas de la misma compañía
   // llegarían aquí a la vez, y el índice único de empresaId convertiría al
@@ -32,5 +43,6 @@ export async function obtenerConfiguracionEmpresa(
     where: { empresaId },
     create: { empresaId },
     update: {},
+    include: { ubigeo: true },
   });
 }

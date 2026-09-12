@@ -7,6 +7,7 @@ import { validarArchivoCertificadoSunat } from "@/lib/certificadoSunat";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { nombresDeUbigeo, resolverUbigeoEnTransaccion } from "@/lib/ubigeos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { esValorEnum } from "@/lib/enums";
 import { RegimenTributario } from "@/generated/prisma/client";
@@ -42,9 +43,7 @@ export async function guardarConfiguracionEmpresa(
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
   const direccion2 = String(formData.get("direccion2") ?? "").trim() || null;
   const ciudad = String(formData.get("ciudad") ?? "").trim() || null;
-  const distrito = String(formData.get("distrito") ?? "").trim() || null;
-  const provincia = String(formData.get("provincia") ?? "").trim() || null;
-  const departamento = String(formData.get("departamento") ?? "").trim() || null;
+  const ubigeoId = String(formData.get("ubigeoId") ?? "").trim() || null;
   const codigoPostal = String(formData.get("codigoPostal") ?? "").trim() || null;
   const pais = String(formData.get("pais") ?? "").trim() || "Perú";
   const telefono = String(formData.get("telefono") ?? "").trim() || null;
@@ -164,9 +163,7 @@ export async function guardarConfiguracionEmpresa(
     direccion,
     direccion2,
     ciudad,
-    distrito,
-    provincia,
-    departamento,
+    ubigeoId,
     codigoPostal,
     pais,
     telefono,
@@ -194,11 +191,16 @@ export async function guardarConfiguracionEmpresa(
   };
 
   await prisma.$transaction(async (tx) => {
+    // El id del distrito llega del navegador: se valida contra el catálogo y
+    // de él salen los nombres que siguen alimentando los documentos impresos.
+    const ubigeo = await resolverUbigeoEnTransaccion(tx, ubigeoId);
+    const datosConUbigeo = { ...datos, ubigeoId: ubigeo?.id ?? null, ...nombresDeUbigeo(ubigeo) };
+
     const antes = await tx.configuracionEmpresa.findUnique({ where: { empresaId } });
     const despues = await tx.configuracionEmpresa.upsert({
       where: { empresaId },
-      update: datos,
-      create: { empresaId, ...datos },
+      update: datosConUbigeo,
+      create: { empresaId, ...datosConUbigeo },
     });
     await registrarAuditoriaMaestro(tx, { empresaId, entidad: "ConfiguracionEmpresa", registroId: despues.id, accion: antes ? "ACTUALIZAR" : "CREAR", antes, despues, usuario: auth.usuario });
   });

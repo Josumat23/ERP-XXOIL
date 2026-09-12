@@ -64,5 +64,5 @@ Ahora el seed principal lo carga (idempotente), existe `npm run seed:ubigeos` pa
 
 ## Lo que queda pendiente
 
-- **`ConfiguracionEmpresa`** (la dirección fiscal del emisor) sigue con texto libre. No entra aquí porque su dirección alimenta el XML de facturación, y cambiarla merece su propio ciclo.
+- ~~**`ConfiguracionEmpresa`** (la dirección fiscal del emisor)~~ — **cerrado el 2026-09-12**: también usa el catálogo. De paso se descubrió que `sunatUbl.ts` ya aceptaba el ubigeo del emisor pero nadie se lo pasaba, así que el XML salía sin ese nodo. Con esto, los cuatro lugares donde el sistema guarda una dirección peruana usan el catálogo oficial. Véase `docs/ubigeo-emisor.md`.
 - **El backfill no normaliza tildes.** Con el volumen actual, corregir a mano lo que no empareje es más barato y más seguro que adivinar.

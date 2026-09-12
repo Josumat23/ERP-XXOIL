@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import { arbolUbigeos } from "@/lib/ubigeosCatalogo";
 import { prisma } from "@/lib/prisma";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import EmpresaFormulario from "./EmpresaFormulario";
@@ -13,9 +14,10 @@ export default async function EmpresaPage() {
   if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const empresaId = await obtenerEmpresaActivaId();
-  const [config, cuentasBancarias] = await Promise.all([
+  const [config, cuentasBancarias, arbol] = await Promise.all([
     obtenerConfiguracionEmpresa(empresaId),
     prisma.cuentaBancariaEmpresa.findMany({ where: { empresaId, activo: true }, orderBy: { banco: "asc" } }),
+    arbolUbigeos(),
   ]);
 
   return (
@@ -30,6 +32,8 @@ export default async function EmpresaPage() {
 
       <div className="mt-6">
         <EmpresaFormulario
+          arbolUbigeos={arbol}
+          ubigeoSeleccionado={config.ubigeo}
           valores={{
             razonSocial: config.razonSocial,
             nombreComercial: config.nombreComercial,
