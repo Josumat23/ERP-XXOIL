@@ -14,6 +14,7 @@ import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { esAnioOperativoValido } from "@/lib/periodos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { esValorEnum } from "@/lib/enums";
+import { nombresDeUbigeo, resolverUbigeoEnTransaccion } from "@/lib/ubigeos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -45,9 +46,7 @@ export async function crearAlmacen(
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
   const direccion2 = String(formData.get("direccion2") ?? "").trim() || null;
   const ciudad = String(formData.get("ciudad") ?? "").trim() || null;
-  const distrito = String(formData.get("distrito") ?? "").trim() || null;
-  const provincia = String(formData.get("provincia") ?? "").trim() || null;
-  const departamento = String(formData.get("departamento") ?? "").trim() || null;
+  const ubigeoId = String(formData.get("ubigeoId") ?? "").trim() || null;
   const codigoPostal = String(formData.get("codigoPostal") ?? "").trim() || null;
   const pais = String(formData.get("pais") ?? "").trim() || "Perú";
   const encargado = String(formData.get("encargado") ?? "").trim() || null;
@@ -60,8 +59,11 @@ export async function crearAlmacen(
 
   try {
     await prisma.$transaction(async (tx) => {
+      const ubigeo = await resolverUbigeoEnTransaccion(tx, ubigeoId);
       const almacen = await tx.almacen.create({
-        data: { empresaId: auth.usuario.empresaId, tipo, codigo, nombre, direccion, direccion2, ciudad, distrito, provincia, departamento, codigoPostal, pais, encargado },
+        // El distrito llega como id del catálogo: se valida y de él salen los
+        // nombres que siguen alimentando los documentos impresos.
+        data: { empresaId: auth.usuario.empresaId, tipo, codigo, nombre, direccion, direccion2, ciudad, ubigeoId: ubigeo?.id ?? null, ...nombresDeUbigeo(ubigeo), codigoPostal, pais, encargado },
       });
       await registrarAuditoriaMaestro(tx, { empresaId: almacen.empresaId, entidad: "Almacen", registroId: almacen.id, accion: "CREAR", despues: almacen, usuario: auth.usuario });
     });

@@ -402,6 +402,7 @@ model Proveedor {
   telefono            String?
   email               String?
   direccion           String?
+  ubigeoId            String?
   contactoNombre      String?
   contactoTelefono    String?
   cuentaBancaria      String? // texto libre heredado; para pagos nuevos usar los campos estructurados de abajo
@@ -417,6 +418,7 @@ model Proveedor {
   activo              Boolean             @default(true)
   creadoEn            DateTime            @default(now())
 
+  ubigeo             Ubigeo?             @relation(fields: [ubigeoId], references: [id])
   insumos            Insumo[]
   ordenesCompra      OrdenCompra[]
   cuentasPorPagar    CuentaPorPagar[]
@@ -1265,9 +1267,13 @@ model Cliente {
   tipoDocumentoFiscal  TipoDocumentoFiscal @default(RUC)
   canal                CanalCliente?
   pais                 String              @default("Peru")
+  // Texto libre heredado. Se conserva: tiene datos que no matchean ningún
+  // ubigeo (direcciones en el extranjero, escrituras no oficiales) y es lo
+  // que el usuario escribió. Para datos nuevos manda ubigeoId.
   departamento         String?
   provincia            String?
   distrito             String?
+  ubigeoId             String?
   direccion            String?
   telefono             String?
   email                String?
@@ -1288,6 +1294,7 @@ model Cliente {
   bloqueadoCobranzaPor String?
   creadoEn             DateTime            @default(now())
 
+  ubigeo           Ubigeo?           @relation(fields: [ubigeoId], references: [id])
   zona             Zona?             @relation(fields: [zonaId], references: [id])
   vendedorAsignado Vendedor?         @relation("ClienteVendedor", fields: [vendedorId], references: [id])
   pedidos          Pedido[]
@@ -2465,6 +2472,9 @@ model Ubigeo {
 
   guiasPartida GuiaRemision[] @relation("UbigeoPartida")
   guiasLlegada GuiaRemision[] @relation("UbigeoLlegada")
+  clientes     Cliente[]
+  proveedores  Proveedor[]
+  almacenes    Almacen[]
 
   @@map("ubigeos")
 }
@@ -2787,15 +2797,18 @@ model Almacen {
   direccion    String?
   direccion2   String?
   ciudad       String?
+  // Texto libre heredado, igual que en Cliente. Manda ubigeoId.
   distrito     String?
   provincia    String?
   departamento String?
+  ubigeoId     String?
   codigoPostal String?
   pais         String      @default("Perú")
   encargado    String?
   activo       Boolean     @default(true)
   creadoEn     DateTime    @default(now())
 
+  ubigeo                  Ubigeo?                 @relation(fields: [ubigeoId], references: [id])
   zonas                   ZonaAlmacen[]
   calendarioProduccion    CalendarioProduccion?
   saldos                  SaldoAlmacen[]

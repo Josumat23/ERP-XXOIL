@@ -3,6 +3,8 @@
 import { useActionState } from "react";
 import FichaTabs from "@/components/FichaTabs";
 import type { EstadoFormulario } from "./actions";
+import SelectorUbigeo from "@/components/SelectorUbigeo";
+import type { ArbolUbigeos, UbigeoSeleccionado } from "@/lib/ubigeos";
 
 const OPCIONES_DOCUMENTO_FISCAL = [
   { valor: "RUC", etiqueta: "RUC (Perú)" },
@@ -16,6 +18,8 @@ const OPCIONES_DOCUMENTO_FISCAL = [
 ];
 
 type Props = {
+  arbolUbigeos: ArbolUbigeos;
+  ubigeoSeleccionado?: UbigeoSeleccionado | null;
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   valoresIniciales?: {
     razonSocial: string;
@@ -39,7 +43,13 @@ type Props = {
   textoBoton: string;
 };
 
-export default function ProveedorFormulario({ accion, valoresIniciales, textoBoton }: Props) {
+export default function ProveedorFormulario({
+  accion,
+  arbolUbigeos,
+  ubigeoSeleccionado,
+  valoresIniciales,
+  textoBoton,
+}: Props) {
   const [estado, formAction, enviando] = useActionState(accion, {});
 
   return (
@@ -103,6 +113,11 @@ export default function ProveedorFormulario({ accion, valoresIniciales, textoBot
                     className="campo-input"
                   />
                 </Campo>
+                {/* Proveedor no tenía ningún dato de ubicación más allá de
+                    esta línea de texto: es la inconsistencia entre maestros
+                    que señalaba el Blueprint 05. Se le da el ubigeo
+                    estructurado, no una terna de texto libre nueva. */}
+                <SelectorUbigeo arbol={arbolUbigeos} seleccionado={ubigeoSeleccionado} />
                 <Campo etiqueta="Dirección">
                   <input
                     name="direccion"

@@ -5,6 +5,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { arbolUbigeos } from "@/lib/ubigeosCatalogo";
 import ClienteFormulario from "../ClienteFormulario";
 import { crearCliente } from "../actions";
 
@@ -13,10 +14,11 @@ export default async function NuevoClientePage() {
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
 
   const empresaId = await obtenerEmpresaActivaId();
-  const [zonas, vendedores, clientes] = await Promise.all([
+  const [zonas, vendedores, clientes, arbol] = await Promise.all([
     prisma.zona.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.cliente.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
+    arbolUbigeos(),
   ]);
 
   return (
@@ -43,6 +45,7 @@ export default async function NuevoClientePage() {
           accion={crearCliente}
           zonas={zonas}
           vendedores={vendedores}
+          arbolUbigeos={arbol}
           textoBoton="Crear cliente"
         />
       </div>

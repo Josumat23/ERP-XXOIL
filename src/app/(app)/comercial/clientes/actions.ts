@@ -9,6 +9,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { siguienteCodigoCliente } from "@/lib/correlativos";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
+import { nombresDeUbigeo, resolverUbigeoEnTransaccion } from "@/lib/ubigeos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -29,9 +30,7 @@ function leerDatos(formData: FormData) {
   const canal = canalRaw
     ? Object.values(CanalCliente).find((valor) => valor === canalRaw)
     : null;
-  const departamento = String(formData.get("departamento") ?? "").trim() || null;
-  const provincia = String(formData.get("provincia") ?? "").trim() || null;
-  const distrito = String(formData.get("distrito") ?? "").trim() || null;
+  const ubigeoId = String(formData.get("ubigeoId") ?? "").trim() || null;
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
   const telefono = String(formData.get("telefono") ?? "").trim() || null;
   const email = String(formData.get("email") ?? "").trim() || null;
@@ -74,9 +73,7 @@ function leerDatos(formData: FormData) {
       ruc,
       pais,
       canal,
-      departamento,
-      provincia,
-      distrito,
+      ubigeoId,
       direccion,
       telefono,
       email,
@@ -109,9 +106,10 @@ export async function crearCliente(
     await prisma.$transaction(async (tx) => {
       if (resultado.datos.zonaId && await tx.zona.count({ where: { id: resultado.datos.zonaId, empresaId, activo: true } }) !== 1) throw new Error("La zona no pertenece a la empresa activa.");
       if (resultado.datos.vendedorId && await tx.vendedor.count({ where: { id: resultado.datos.vendedorId, empresaId, activo: true } }) !== 1) throw new Error("El vendedor no pertenece a la empresa activa.");
+      const ubigeo = await resolverUbigeoEnTransaccion(tx, resultado.datos.ubigeoId);
       const codigo = await siguienteCodigoCliente(tx, empresaId);
       const cliente = await tx.cliente.create({
-        data: { ...resultado.datos, codigo, empresaId },
+        data: { ...resultado.datos, ...nombresDeUbigeo(ubigeo), codigo, empresaId },
       });
       await registrarAuditoriaMaestro(tx, {
         empresaId,
@@ -154,7 +152,11 @@ export async function actualizarCliente(
       if (!perteneceAEmpresaActiva(antes, empresaId)) return false;
       if (resultado.datos.zonaId && await tx.zona.count({ where: { id: resultado.datos.zonaId, empresaId, activo: true } }) !== 1) throw new Error("La zona no pertenece a la empresa activa.");
       if (resultado.datos.vendedorId && await tx.vendedor.count({ where: { id: resultado.datos.vendedorId, empresaId, activo: true } }) !== 1) throw new Error("El vendedor no pertenece a la empresa activa.");
-      const despues = await tx.cliente.update({ where: { id, empresaId }, data: resultado.datos });
+      const ubigeo = await resolverUbigeoEnTransaccion(tx, resultado.datos.ubigeoId);
+      const despues = await tx.cliente.update({
+        where: { id, empresaId },
+        data: { ...resultado.datos, ...nombresDeUbigeo(ubigeo) },
+      });
       await registrarAuditoriaMaestro(tx, {
         empresaId: despues.empresaId,
         entidad: "Cliente",

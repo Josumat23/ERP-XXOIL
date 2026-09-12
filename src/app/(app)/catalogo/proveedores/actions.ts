@@ -8,6 +8,7 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
+import { resolverUbigeoEnTransaccion } from "@/lib/ubigeos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -26,6 +27,7 @@ function leerDatos(formData: FormData) {
   const telefono = String(formData.get("telefono") ?? "").trim() || null;
   const email = String(formData.get("email") ?? "").trim() || null;
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
+  const ubigeoId = String(formData.get("ubigeoId") ?? "").trim() || null;
   const contactoNombre = String(formData.get("contactoNombre") ?? "").trim() || null;
   const contactoTelefono = String(formData.get("contactoTelefono") ?? "").trim() || null;
   const cuentaBancaria = String(formData.get("cuentaBancaria") ?? "").trim() || null;
@@ -60,6 +62,7 @@ function leerDatos(formData: FormData) {
       telefono,
       email,
       direccion,
+      ubigeoId,
       contactoNombre,
       contactoTelefono,
       cuentaBancaria,
@@ -90,7 +93,11 @@ export async function crearProveedor(
   try {
     const empresaId = await obtenerEmpresaActivaId();
     await prisma.$transaction(async (tx) => {
-      const registro = await tx.proveedor.create({ data: { ...resultado.datos, empresaId } });
+      // El id del distrito viene del navegador: se valida contra el catálogo.
+      const ubigeo = await resolverUbigeoEnTransaccion(tx, resultado.datos.ubigeoId);
+      const registro = await tx.proveedor.create({
+        data: { ...resultado.datos, ubigeoId: ubigeo?.id ?? null, empresaId },
+      });
       await registrarAuditoriaMaestro(tx, { empresaId, entidad: "Proveedor", registroId: registro.id, accion: "CREAR", despues: registro, usuario: auth.usuario });
     });
   } catch (e) {
@@ -123,7 +130,11 @@ export async function actualizarProveedor(
     const actualizado = await prisma.$transaction(async (tx) => {
       const antes = await tx.proveedor.findUnique({ where: { id } });
       if (!perteneceAEmpresaActiva(antes, empresaId)) return false;
-      const despues = await tx.proveedor.update({ where: { id }, data: resultado.datos });
+      const ubigeo = await resolverUbigeoEnTransaccion(tx, resultado.datos.ubigeoId);
+      const despues = await tx.proveedor.update({
+        where: { id },
+        data: { ...resultado.datos, ubigeoId: ubigeo?.id ?? null },
+      });
       await registrarAuditoriaMaestro(tx, { empresaId: despues.empresaId, entidad: "Proveedor", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
       return true;
     });
