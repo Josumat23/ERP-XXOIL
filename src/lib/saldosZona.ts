@@ -51,7 +51,14 @@ export function distribucionCuadra(distribucion: DistribucionZonas): boolean {
 export type MovimientoEntreZonas = {
   /** null = tomar del stock sin zona asignada. */
   zonaOrigenId: string | null;
-  zonaDestinoId: string;
+  /**
+   * null = dejarlo sin zona asignada.
+   *
+   * Es lo que hace el picking: sacar de la zona y llevarlo a la playa de
+   * despacho, que no es una zona de almacenamiento. «Sin zona» ya valía como
+   * origen; admitirlo también como destino cierra la simetría que faltaba.
+   */
+  zonaDestinoId: string | null;
   cantidad: number;
 };
 
@@ -74,6 +81,7 @@ export function validarMovimientoEntreZonas(
 ): ErrorMovimientoZona | null {
   const { zonaOrigenId, zonaDestinoId, cantidad } = movimiento;
   if (!Number.isFinite(cantidad) || cantidad <= 0) return "CANTIDAD_INVALIDA";
+  // Cubre también «sin zona» a «sin zona», que no mueve nada.
   if (zonaOrigenId === zonaDestinoId) return "MISMA_ZONA";
 
   if (zonaOrigenId === null) {

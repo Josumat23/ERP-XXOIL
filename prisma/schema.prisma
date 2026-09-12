@@ -394,6 +394,7 @@ model Presentacion {
   pedidoDetalles     PedidoDetalle[]
   facturaDetalles    FacturaDetalle[]
   guiaDetalles       GuiaRemisionDetalle[]
+  pickingLineas      PickingLinea[]
   proyeccionDetalles ProyeccionDetalle[]
   escalonesPrecio    EscalonPrecio[]
   conteoDetalles     ConteoInventarioDetalle[]
@@ -2641,6 +2642,88 @@ enum ModalidadTransporte {
   PRIVADO
 }
 
+enum EstadoOleadaPicking {
+  ABIERTA
+  COMPLETADA
+  CANCELADA
+}
+
+// Picking por oleadas: preparar varias guías de una sola recorrida por el
+// almacén, en vez de una caminata por guía.
+//
+// La oleada es un LOTE DE TRABAJO cerrado: las guías se eligen al armarla y no
+// se agregan después. Quien ya salió a caminar con la lista no puede recibir
+// ítems nuevos a mitad del recorrido, y una lista que cambia sola deja de ser
+// la lista que se imprimió.
+//
+// El picking NO mueve el kardex. La salida de inventario la hace la guía
+// cuando el camión sale; lo que el picking mueve es la capa de zonas: saca el
+// ítem de su zona y lo deja «sin zona», que es exactamente donde está
+// físicamente mientras espera en la playa de despacho.
+model OleadaPicking {
+  id        String  @id @default(cuid())
+  empresaId String  @default("1")
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  numero    String
+  // Todas las guías de la oleada salen de este almacén: una recorrida ocurre
+  // en un solo lugar.
+  almacenId String
+  almacen   Almacen @relation(fields: [almacenId], references: [id], onDelete: Restrict)
+
+  estado EstadoOleadaPicking @default(ABIERTA)
+  notas  String?
+
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime @default(now())
+
+  completadaEn        DateTime?
+  completadaPorId     String?
+  completadaPorNombre String?
+  motivoCancelacion   String?
+
+  guias  OleadaPickingGuia[]
+  lineas PickingLinea[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, estado])
+  @@map("oleadas_picking")
+}
+
+model OleadaPickingGuia {
+  id       String @id @default(cuid())
+  oleadaId String
+  guiaId   String
+
+  oleada OleadaPicking @relation(fields: [oleadaId], references: [id], onDelete: Cascade)
+  // Restrict: una guía que ya se preparó no puede desaparecer de la oleada que
+  // documenta ese trabajo.
+  guia   GuiaRemision  @relation(fields: [guiaId], references: [id], onDelete: Restrict)
+
+  @@unique([oleadaId, guiaId])
+  @@index([guiaId])
+  @@map("oleada_picking_guias")
+}
+
+// Una línea por presentación, consolidando todas las guías de la oleada: el
+// que camina quiere saber cuántas unidades de un ítem llevarse, no repetir el
+// pasillo una vez por documento. El reparto entre guías lo hace el despacho.
+model PickingLinea {
+  id                String  @id @default(cuid())
+  oleadaId          String
+  presentacionId    String
+  // Congelada al armar la oleada: es lo que se le pidió al picker. Si una guía
+  // se anula después, el trabajo ya se hizo y la lista no se reescribe.
+  cantidadRequerida Decimal
+  cantidadPickeada  Decimal @default(0)
+
+  oleada       OleadaPicking @relation(fields: [oleadaId], references: [id], onDelete: Cascade)
+  presentacion Presentacion  @relation(fields: [presentacionId], references: [id], onDelete: Restrict)
+
+  @@unique([oleadaId, presentacionId])
+  @@map("picking_lineas")
+}
+
 enum EstadoLicitacionFlete {
   ABIERTA
   ADJUDICADA
@@ -2869,6 +2952,7 @@ model GuiaRemision {
   ubigeoPartida    Ubigeo?               @relation("UbigeoPartida", fields: [ubigeoPartidaId], references: [id])
   ubigeoLlegada    Ubigeo?               @relation("UbigeoLlegada", fields: [ubigeoLlegadaId], references: [id])
   detalles         GuiaRemisionDetalle[]
+  oleadas          OleadaPickingGuia[]
 
   @@unique([empresaId, numero])
   @@index([pedidoId])
@@ -3231,6 +3315,7 @@ model Almacen {
 
   ubigeo                  Ubigeo?                 @relation(fields: [ubigeoId], references: [id])
   zonas                   ZonaAlmacen[]
+  oleadasPicking          OleadaPicking[]
   calendarioProduccion    CalendarioProduccion?
   saldos                  SaldoAlmacen[]
   movimientosKardex       MovimientoKardex[]
@@ -4965,6 +5050,7 @@ model Empresa {
   avisosCobranza             AvisoCobranza[]
   politicaCobranza           PoliticaCobranza?
   licitacionesFlete          LicitacionFlete[]
+  oleadasPicking             OleadaPicking[]
   transportistas             Transportista[]
   comprobantes               ComprobanteElectronico[]
   cobros                     Cobro[]
