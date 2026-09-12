@@ -4,6 +4,7 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { arbolUbigeos } from "@/lib/ubigeosCatalogo";
+import { etiquetaRutaZona, ocupacionPorZona, ordenarArbolZonas } from "@/lib/jerarquiaZonas";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { AlmacenFormulario, ZonaFormulario } from "./AlmacenFormularios";
 import { ETIQUETA_TIPO_ALMACEN } from "@/lib/tiposAlmacen";
@@ -16,7 +17,7 @@ export default async function AlmacenesPage() {
   if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const empresaId = await obtenerEmpresaActivaId();
-  const [almacenes, arbol] = await Promise.all([
+  const [almacenes, arbol, saldosPorZona] = await Promise.all([
     prisma.almacen.findMany({
     where: { empresaId },
     include: {
@@ -26,7 +27,17 @@ export default async function AlmacenesPage() {
       orderBy: { codigo: "asc" },
     }),
     arbolUbigeos(),
+    // Ítems distintos con saldo en cada zona. Se cuentan ítems y no unidades:
+    // sumar litros de aceite con unidades de balde daría un número sin
+    // significado. Lo que hace falta al mirar el árbol es qué está ocupado.
+    prisma.saldoZona.groupBy({
+      by: ["zonaAlmacenId"],
+      where: { zona: { almacen: { empresaId } }, cantidad: { not: 0 } },
+      _count: { _all: true },
+    }),
   ]);
+
+  const itemsPorZona = new Map(saldosPorZona.map((s) => [s.zonaAlmacenId, s._count._all]));
 
   const porTipo = new Map<string, number>();
   for (const a of almacenes) porTipo.set(a.tipo, (porTipo.get(a.tipo) ?? 0) + 1);
@@ -67,7 +78,16 @@ export default async function AlmacenesPage() {
 
       <div className="mt-4 border border-black/10 dark:border-white/10 rounded-lg p-4">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">Nueva zona</h2>
-        <ZonaFormulario almacenes={almacenes.map((a) => ({ id: a.id, nombre: a.nombre }))} />
+        <ZonaFormulario
+          almacenes={almacenes.map((a) => ({ id: a.id, nombre: a.nombre }))}
+          zonas={almacenes.flatMap((a) =>
+            a.zonas.map((z) => ({
+              id: z.id,
+              almacenId: a.id,
+              etiqueta: etiquetaRutaZona(z.id, a.zonas),
+            }))
+          )}
+        />
       </div>
 
       <div className="mt-6 flex flex-col gap-6">
@@ -140,6 +160,7 @@ export default async function AlmacenesPage() {
                 <tr>
                   <th>Zona</th>
                   <th>Descripción</th>
+                  <th className="text-right">Ítems con stock</th>
                   <th>Presentaciones</th>
                   <th>Insumos</th>
                   <th>Estado</th>
@@ -147,10 +168,35 @@ export default async function AlmacenesPage() {
                 </tr>
               </thead>
               <tbody>
-                {a.zonas.map((z) => (
+                {ordenarArbolZonas(a.zonas).map(({ zona: z, nivel }) => {
+                  const ocupacion = ocupacionPorZona(a.zonas, itemsPorZona).get(z.id);
+                  return (
                   <tr key={z.id}>
-                    <td className="font-mono text-xs">{z.codigo}</td>
+                    {/* La sangría es la jerarquía: un rack se lee debajo y
+                        adentro de su pasillo. */}
+                    <td className="font-mono text-xs" style={{ paddingLeft: `${nivel * 1.25 + 0.5}rem` }}>
+                      {nivel > 0 && <span className="text-neutral-400">└ </span>}
+                      {z.codigo}
+                    </td>
                     <td className="text-neutral-500">{z.nombre ?? "—"}</td>
+                    {/* Propio y subárbol siempre juntos: un pasillo que dice
+                        "12" sin aclarar que once están en sus racks esconde el
+                        dato que hace falta para ordenar el almacén. */}
+                    <td className="text-right text-sm">
+                      {ocupacion && ocupacion.subarbol > 0 ? (
+                        <>
+                          <span>{ocupacion.propia}</span>
+                          {ocupacion.subarbol !== ocupacion.propia && (
+                            <span className="text-neutral-500 text-xs">
+                              {" "}
+                              ({ocupacion.subarbol} con subzonas)
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-neutral-500">—</span>
+                      )}
+                    </td>
                     <td>{z._count.presentaciones}</td>
                     <td>{z._count.insumos}</td>
                     <td>
@@ -180,10 +226,11 @@ export default async function AlmacenesPage() {
                       </form>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
                 {a.zonas.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="text-center text-neutral-500 py-3">
+                    <td colSpan={7} className="text-center text-neutral-500 py-3">
                       Sin zonas registradas en este almacén.
                     </td>
                   </tr>

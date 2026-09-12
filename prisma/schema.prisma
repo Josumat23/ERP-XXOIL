@@ -2878,14 +2878,25 @@ model ZonaAlmacen {
   almacenId String
   codigo    String // ej. A-01, RACK-2
   nombre    String?
+  // Slotting multi-nivel: pasillo → rack → nivel → posición. null = raíz.
+  // El padre tiene que ser del MISMO almacén; la acción lo verifica y una
+  // prueba lo exige. El código sigue siendo único por almacén sin importar el
+  // nivel, para que una etiqueta identifique una sola ubicación.
+  //
+  // onDelete: Restrict — desarmar un pasillo que todavía tiene racks debajo
+  // debe ser un acto deliberado, no un efecto colateral.
+  parentId  String?
   activo    Boolean @default(true)
 
   almacen        Almacen        @relation(fields: [almacenId], references: [id])
+  parent         ZonaAlmacen?   @relation("JerarquiaZonaAlmacen", fields: [parentId], references: [id], onDelete: Restrict)
+  subzonas       ZonaAlmacen[]  @relation("JerarquiaZonaAlmacen")
   presentaciones Presentacion[]
   insumos        Insumo[]
   saldos         SaldoZona[]
 
   @@unique([almacenId, codigo])
+  @@index([almacenId, parentId])
   @@map("zonas_almacen")
 }
 
