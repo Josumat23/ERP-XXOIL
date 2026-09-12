@@ -8,7 +8,13 @@ import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 
 export type EstadoFormulario = { error?: string };
 
-const TIPOS_VALIDOS: $Enums.TipoDocumentoSerie[] = ["FACTURA", "NOTA_CREDITO", "GUIA_REMISION"];
+const TIPOS_VALIDOS: $Enums.TipoDocumentoSerie[] = [
+  "FACTURA",
+  "BOLETA",
+  "NOTA_CREDITO",
+  "NOTA_DEBITO",
+  "GUIA_REMISION",
+];
 
 export async function crearSerieDocumento(
   _prevState: EstadoFormulario,

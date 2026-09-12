@@ -52,6 +52,11 @@ export type DatosGuia = {
 
 export type DatosComprobante = {
   tipoDocumento: $Enums.TipoComprobanteElectronico;
+  /**
+   * Código del Catálogo 06 de SUNAT (tipo de documento del adquirente): 6 RUC,
+   * 1 DNI, 0 sin documento. Se calcula con `codigoDocumentoIdentidad()`.
+   */
+  clienteTipoDocumento?: number;
   serie: string;
   numero: number; // parte numérica, sin ceros a la izquierda
   clienteRuc: string;
@@ -116,13 +121,15 @@ const adaptadorSimulado: AdaptadorOse = {
 // --- Adaptador Nubefact ------------------------------------------------------
 const TIPO_COMPROBANTE_NUBEFACT: Record<$Enums.TipoComprobanteElectronico, number> = {
   FACTURA: 1,
+  BOLETA: 2,
   NOTA_CREDITO: 3,
   NOTA_DEBITO: 4,
   GUIA_REMISION: 7,
 };
 
-// Nubefact factura/nota de crédito: documento de cobro con montos e ítems
-// valorizados — comparte casi toda la estructura entre ambos tipos.
+// Nubefact factura, boleta y notas: documento de cobro con montos e ítems
+// valorizados — comparten casi toda la estructura. La boleta se diferencia en
+// el tipo de comprobante y en el documento del adquirente, no en el cuerpo.
 function armarBodyFacturaONotaCredito(datos: DatosComprobante, fechaDeEmision: string): Record<string, unknown> {
   const body: Record<string, unknown> = {
     operacion: "generar_comprobante",
@@ -130,7 +137,9 @@ function armarBodyFacturaONotaCredito(datos: DatosComprobante, fechaDeEmision: s
     serie: datos.serie,
     numero: datos.numero,
     sunat_transaction: 1,
-    cliente_tipo_de_documento: 6, // RUC (este sistema solo emite Factura, no Boleta)
+    // Catálogo 06 de SUNAT. Antes estaba fijo en 6 (RUC), así que el DNI de
+    // un cliente se declaraba como si fuera un RUC.
+    cliente_tipo_de_documento: datos.clienteTipoDocumento ?? 6,
     cliente_numero_de_documento: datos.clienteRuc,
     cliente_denominacion: datos.clienteDenominacion,
     cliente_direccion: datos.clienteDireccion ?? "",
@@ -321,7 +330,10 @@ const adaptadorSunatDirecto: AdaptadorOse = {
       // estructura de un documento tributario. Se rechaza con un motivo claro
       // en vez de mandar un XML inventado.
       let xmlSinFirmar: string;
-      if (datos.tipoDocumento === "FACTURA") {
+      // La boleta comparte el documento UBL Invoice con la factura: lo que
+      // cambia es el código de tipo (03 en vez de 01, ya resuelto en
+      // sunatSoap) y el documento del adquirente, no la estructura.
+      if (datos.tipoDocumento === "FACTURA" || datos.tipoDocumento === "BOLETA") {
         xmlSinFirmar = construirFacturaUBL(datos, emisor);
       } else if (datos.tipoDocumento === "NOTA_CREDITO") {
         xmlSinFirmar = construirNotaCreditoUBL(datos, emisor);

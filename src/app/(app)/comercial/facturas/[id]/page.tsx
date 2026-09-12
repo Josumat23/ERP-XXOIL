@@ -112,7 +112,13 @@ export default async function DetalleFacturaPage({
       ],
     },
   });
-  const comprobanteFactura = comprobantes.find((c) => c.tipoDocumento === "FACTURA");
+  // El documento puede ser factura o boleta: se emitió según el documento del
+  // comprador, no según el canal.
+  const esBoleta = factura.tipoComprobante === "BOLETA";
+  const etiquetaDocumento = esBoleta ? "BOLETA DE VENTA" : "FACTURA";
+  const comprobanteFactura = comprobantes.find(
+    (c) => c.tipoDocumento === factura.tipoComprobante
+  );
   const comprobantePorNotaCredito = new Map(
     comprobantes.filter((c) => c.tipoDocumento === "NOTA_CREDITO").map((c) => [c.documentoId, c])
   );
@@ -216,11 +222,16 @@ export default async function DetalleFacturaPage({
         }))}
       >
       <div className="max-w-3xl">
-      <MembreteEmpresa soloImprimir tituloDocumento="FACTURA" numero={factura.numero} />
+      <MembreteEmpresa soloImprimir tituloDocumento={etiquetaDocumento} numero={factura.numero} />
 
       <div className="flex items-center gap-3 mt-2">
         <h1 className="text-2xl font-semibold text-neutral-900 dark:text-neutral-100 font-mono">
           {factura.numero}
+          {esBoleta && (
+            <span className="ml-2 insignia bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-400 align-middle">
+              Boleta de venta
+            </span>
+          )}
         </h1>
         <span className={`insignia ${COLOR_ESTADO[factura.estado]}`}>
           {ETIQUETA_ESTADO_FACTURA[factura.estado]}

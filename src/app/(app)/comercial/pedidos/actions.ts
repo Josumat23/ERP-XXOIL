@@ -28,6 +28,11 @@ import { calcularSaldoFacturable, calcularTotalesFacturaParcial } from "@/lib/fa
 import { asignarEntregasFifo } from "@/lib/cumplimientoVentas";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
+import {
+  prefijoSerieEsperado,
+  serieCoincideConTipo,
+  tipoComprobantePara,
+} from "@/lib/tipoComprobanteVenta";
 
 export type EstadoFormulario = { error?: string };
 
@@ -493,9 +498,32 @@ export async function facturarPedido(
       const fechaVencimiento = new Date(
         fechaEmision.getTime() + DIAS_CONDICION[condicionPago] * 24 * 60 * 60 * 1000
       );
+      // El comprobante lo decide el documento del comprador, no el canal ni
+      // el usuario: un cliente minorista con RUC recibe factura igual, y una
+      // persona con DNI recibe boleta compre lo que compre.
+      const tipoComprobante = tipoComprobantePara({
+        tipoDocumentoFiscal: pedido.cliente.tipoDocumentoFiscal,
+        documento: pedido.cliente.ruc,
+      });
+
+      // El número tiene que corresponder al documento que se está emitiendo:
+      // las series de factura empiezan con F y las de boleta con B. Emitir una
+      // boleta numerada "F001-…" produciría un comprobante que SUNAT rechaza
+      // y que además miente sobre lo que es. Se avisa en vez de corregirlo en
+      // silencio: elegir la serie es del usuario.
+      if (numero && !serieCoincideConTipo(numero, tipoComprobante)) {
+        const ejemplo = `${prefijoSerieEsperado(tipoComprobante)}001`;
+        throw new Error(
+          tipoComprobante === "BOLETA"
+            ? `El cliente no tiene RUC, así que corresponde una boleta: use una serie que empiece con ${prefijoSerieEsperado(tipoComprobante)} (ej. ${ejemplo}), no ${numero}.`
+            : `El cliente tiene RUC, así que corresponde una factura: use una serie que empiece con ${prefijoSerieEsperado(tipoComprobante)} (ej. ${ejemplo}), no ${numero}.`
+        );
+      }
+
       const factura = await tx.factura.create({
         data: {
           numero,
+          tipoComprobante,
           empresaId: pedido.empresaId,
           pedidoId: pedido.id,
           clienteId: pedido.clienteId,
