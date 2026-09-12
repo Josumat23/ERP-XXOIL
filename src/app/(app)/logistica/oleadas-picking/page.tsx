@@ -7,7 +7,12 @@ import { formatFecha } from "@/lib/format";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { avanceDeOleada, esElegible, sugerenciasDeZona } from "@/lib/oleadaPicking";
 import { distribucionZonas } from "@/lib/saldosZona";
-import { CerrarOleadaFormularios, NuevaOleadaFormulario, PickFormulario } from "./OleadaFormularios";
+import {
+  CerrarOleadaFormularios,
+  NuevaOleadaFormulario,
+  PickearUnidadFormulario,
+  PickFormulario,
+} from "./OleadaFormularios";
 
 const COLOR_ESTADO: Record<string, string> = {
   ABIERTA: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-400",
@@ -101,6 +106,30 @@ export default async function OleadasPickingPage() {
     prisma.zonaAlmacen.findMany({ where: { almacen: { empresaId } }, select: { id: true, codigo: true } }),
   ]);
   const codigoZona = new Map(zonas.map((z) => [z.id, z.codigo]));
+
+  // Unidades cargadas y todavía en una zona: son las que se pueden bajar
+  // enteras. Las que ya están en playa no vuelven a prepararse.
+  const unidades = abiertas.length
+    ? await prisma.unidadManipulacion.findMany({
+        where: { empresaId, estado: "EN_ALMACEN", zonaAlmacenId: { not: null } },
+        include: {
+          zona: { select: { codigo: true, almacenId: true } },
+          contenidos: { include: { presentacion: { select: { sku: true } } } },
+        },
+        orderBy: { codigo: "asc" },
+      })
+    : [];
+
+  function unidadesPorAlmacen(almacenId: string) {
+    return unidades
+      .filter((u) => u.zona?.almacenId === almacenId && u.contenidos.length > 0)
+      .map((u) => ({
+        id: u.id,
+        etiqueta: `${u.codigo} · ${u.zona!.codigo} · ${u.contenidos
+          .map((c) => `${c.presentacion.sku} ×${c.cantidad.toNumber()}`)
+          .join(", ")}`,
+      }));
+  }
 
   function sugerenciasPara(almacenId: string, presentacionId: string) {
     const saldo = saldosAlmacen.find(
@@ -235,7 +264,15 @@ export default async function OleadasPickingPage() {
               </div>
 
               {o.estado === "ABIERTA" && puedeEditar && (
-                <CerrarOleadaFormularios oleadaId={o.id} faltante={avance.faltante} />
+                <>
+                  <div className="mt-4">
+                    <PickearUnidadFormulario
+                      oleadaId={o.id}
+                      unidades={unidadesPorAlmacen(o.almacenId)}
+                    />
+                  </div>
+                  <CerrarOleadaFormularios oleadaId={o.id} faltante={avance.faltante} />
+                </>
               )}
               {o.estado === "CANCELADA" && (
                 <p className="mt-3 text-sm text-neutral-500">

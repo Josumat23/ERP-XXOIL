@@ -13,6 +13,7 @@ import {
   MENSAJE_NO_ELEGIBLE,
   validarPick,
 } from "@/lib/oleadaPicking";
+import { puedePickearUnidad } from "@/lib/unidadesManipulacion";
 import {
   distribucionZonas,
   MENSAJE_ERROR_ZONA,
@@ -211,6 +212,103 @@ export async function registrarPick(
   }
 
   revalidatePath("/logistica/oleadas-picking");
+  return {};
+}
+
+/**
+ * Preparar una unidad de manipulación completa.
+ *
+ * Es la razón por la que las HU existen: en vez de contar 40 unidades, se baja
+ * el pallet entero y la oleada avanza de una. El efecto sobre el stock es el
+ * mismo que preparar por cantidad —el saldo del almacén no se toca y el de la
+ * zona baja—, más que la unidad deja la zona y pasa a la playa de despacho.
+ */
+export async function pickearUnidad(
+  oleadaId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await autorizar();
+  if ("error" in auth) return auth;
+
+  const unidadId = String(formData.get("unidadId") ?? "").trim();
+  if (!unidadId) return { error: "Elija la unidad a preparar." };
+
+  const empresaId = await obtenerEmpresaActivaId();
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Los dos ids llegan del navegador.
+      const oleada = await tx.oleadaPicking.findFirst({
+        where: { id: oleadaId, empresaId },
+        include: { lineas: true },
+      });
+      if (!oleada) throw new Error("La oleada no pertenece a la compañía activa.");
+      if (oleada.estado !== "ABIERTA") throw new Error("La oleada ya no está abierta.");
+
+      const unidad = await tx.unidadManipulacion.findFirst({
+        where: { id: unidadId, empresaId },
+        include: { contenidos: true, zona: { select: { id: true, almacenId: true } } },
+      });
+      if (!unidad) throw new Error("La unidad no pertenece a la compañía activa.");
+      if (!unidad.zona) throw new Error("La unidad ya no está en una zona del almacén.");
+      // Una recorrida ocurre en un almacén: bajar un pallet de otro sería
+      // preparar stock que no es el de esta oleada.
+      if (unidad.zona.almacenId !== oleada.almacenId) {
+        throw new Error("La unidad está en otro almacén distinto al de la oleada.");
+      }
+
+      const contenidos = unidad.contenidos.map((c) => ({
+        presentacionId: c.presentacionId,
+        cantidad: c.cantidad.toNumber(),
+      }));
+      const veredicto = puedePickearUnidad(
+        contenidos,
+        oleada.lineas.map((l) => ({
+          presentacionId: l.presentacionId,
+          pendiente: l.cantidadRequerida.toNumber() - l.cantidadPickeada.toNumber(),
+        }))
+      );
+      if (!veredicto.puede) throw new Error(veredicto.motivo);
+
+      for (const item of veredicto.aplicar) {
+        // Baja el saldo de la zona, igual que el picking por cantidad.
+        const saldo = await tx.saldoZona.findFirst({
+          where: { zonaAlmacenId: unidad.zona.id, itemId: item.presentacionId },
+        });
+        if (!saldo || saldo.cantidad.toNumber() < item.cantidad) {
+          throw new Error("El saldo de la zona no alcanza para bajar la unidad completa.");
+        }
+        const reclamo = await tx.saldoZona.updateMany({
+          where: { id: saldo.id, cantidad: saldo.cantidad },
+          data: { cantidad: { decrement: item.cantidad } },
+        });
+        if (reclamo.count !== 1) {
+          throw new Error("El saldo de la zona cambió durante la preparación. Intente nuevamente.");
+        }
+
+        const linea = oleada.lineas.find((l) => l.presentacionId === item.presentacionId)!;
+        const avance = await tx.pickingLinea.updateMany({
+          where: { id: linea.id, cantidadPickeada: linea.cantidadPickeada },
+          data: { cantidadPickeada: { increment: item.cantidad } },
+        });
+        if (avance.count !== 1) {
+          throw new Error("Otra persona registró preparación en esta línea. Intente nuevamente.");
+        }
+      }
+
+      // La unidad sale de la zona y espera en la playa: su contenido ya no
+      // suma al saldo de ninguna zona.
+      await tx.unidadManipulacion.update({
+        where: { id: unidadId },
+        data: { zonaAlmacenId: null, estado: "EN_PLAYA" },
+      });
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo preparar la unidad." };
+  }
+
+  revalidatePath("/logistica/oleadas-picking");
+  revalidatePath("/logistica/unidades-manipulacion");
   return {};
 }
 
