@@ -22,6 +22,7 @@ const ENDPOINT_GUIA_SERVICE = "https://e-guiaremision.sunat.gob.pe/ol-ti-itemisi
 const CODIGO_TIPO_DOCUMENTO: Record<$Enums.TipoComprobanteElectronico, string> = {
   FACTURA: "01",
   NOTA_CREDITO: "07",
+  NOTA_DEBITO: "08",
   GUIA_REMISION: "09",
 };
 
