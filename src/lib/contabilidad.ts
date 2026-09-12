@@ -99,10 +99,16 @@ type ParamsAsiento = {
   usuarioNombre: string;
 };
 
-async function siguienteNumeroAsiento(tx: Tx): Promise<string> {
+// Por compañía: cada sociedad lleva su propia serie de asientos. Sin el filtro,
+// los libros de una empezaban numerados desde el máximo de la otra.
+async function siguienteNumeroAsiento(tx: Tx, empresaId: string): Promise<string> {
   await reservarCorrelativo(tx);
-  const ultimo = await tx.asientoContable.findFirst({ orderBy: { numero: "desc" } });
-  const n = ultimo ? parseInt(ultimo.numero.slice(3), 10) + 1 : 1;
+  const ultimo = await tx.asientoContable.findFirst({
+    where: { empresaId },
+    orderBy: { numero: "desc" },
+  });
+  const parseado = ultimo ? parseInt(ultimo.numero.slice(3), 10) : NaN;
+  const n = Number.isFinite(parseado) ? parseado + 1 : 1;
   return `AS-${String(n).padStart(5, "0")}`;
 }
 
@@ -321,7 +327,7 @@ export async function postearAsiento(
   }
 
   const libro = await libroDiario(tx, empresaId);
-  const numero = await siguienteNumeroAsiento(tx);
+  const numero = await siguienteNumeroAsiento(tx, empresaId);
 
   await tx.asientoContable.create({
     data: {

@@ -110,7 +110,7 @@ export async function crearLote(
         }
       }
 
-      const codigo = await siguienteCodigoLote(tx);
+      const codigo = await siguienteCodigoLote(tx, auth.usuario.empresaId);
       const factor = kgObjetivo / formula.rendimientoKg.toNumber();
 
       let costoEstandarInsumos = 0;

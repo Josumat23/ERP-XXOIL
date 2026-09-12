@@ -103,7 +103,7 @@ export async function crearOrdenCompraDesdeDatos(
       }
     }
 
-    const numero = await siguienteNumeroOrdenCompra(tx);
+    const numero = await siguienteNumeroOrdenCompra(tx, actor.empresaId);
     const total = datos.lineas.reduce((acc, l) => acc + l.cantidad * l.costoUnitario, 0);
     const totalPen = convertirAPen(total, datos.moneda, datos.tipoCambio);
     // La planta de destino decide si además corren los niveles propios de esa

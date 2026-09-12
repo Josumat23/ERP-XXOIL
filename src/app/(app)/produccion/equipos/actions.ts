@@ -43,7 +43,7 @@ export async function crearEquipo(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const codigo = await siguienteCodigoEquipo(tx);
+      const codigo = await siguienteCodigoEquipo(tx, auth.usuario.empresaId);
       const [almacen, activoFijo, centroCosto] = await Promise.all([
         tx.almacen.findFirst({ where: { id: almacenId, empresaId: auth.usuario.empresaId, activo: true } }),
         activoFijoId

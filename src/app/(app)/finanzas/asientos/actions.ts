@@ -17,10 +17,17 @@ import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
 
-async function siguienteNumeroAsiento(tx: Tx): Promise<string> {
+// Por compañía, igual que el motor automático de contabilidad.ts: sin el
+// filtro, los asientos manuales de una sociedad continuaban la numeración de
+// la otra, dejando huecos en la serie de cada una.
+async function siguienteNumeroAsiento(tx: Tx, empresaId: string): Promise<string> {
   await reservarCorrelativo(tx);
-  const ultimo = await tx.asientoContable.findFirst({ orderBy: { numero: "desc" } });
-  const n = ultimo ? parseInt(ultimo.numero.slice(3), 10) + 1 : 1;
+  const ultimo = await tx.asientoContable.findFirst({
+    where: { empresaId },
+    orderBy: { numero: "desc" },
+  });
+  const parseado = ultimo ? parseInt(ultimo.numero.slice(3), 10) : NaN;
+  const n = Number.isFinite(parseado) ? parseado + 1 : 1;
   return `AS-${String(n).padStart(5, "0")}`;
 }
 
@@ -109,7 +116,7 @@ export async function crearAsientoManual(
           nombre: "Libro diario",
         },
       }));
-    const numero = await siguienteNumeroAsiento(tx);
+    const numero = await siguienteNumeroAsiento(tx, empresaId);
 
     const asiento = await tx.asientoContable.create({
       data: {
@@ -182,7 +189,7 @@ export async function reversarAsiento(
         throw new Error(`El período fiscal ${mes}/${anio} está cerrado.`);
       }
 
-      const numero = await siguienteNumeroAsiento(tx);
+      const numero = await siguienteNumeroAsiento(tx, empresaId);
       const reclamo = await tx.asientoContable.updateMany({
         where: { id, empresaId, reversadoPor: null, origen: { not: "REVERSO" } },
         data: { reversadoPor: numero },

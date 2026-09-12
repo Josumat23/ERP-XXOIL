@@ -88,7 +88,7 @@ export async function crearActivoFijo(
   }
 
   await prisma.$transaction(async (tx) => {
-    const codigo = await siguienteCodigoActivoFijo(tx);
+    const codigo = await siguienteCodigoActivoFijo(tx, empresaId);
     await tx.activoFijo.create({
       data: {
         empresaId,

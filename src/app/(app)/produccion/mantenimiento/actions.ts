@@ -83,7 +83,7 @@ export async function crearOrdenMantenimiento(
     }
     const aviso = avisoId ? await tx.avisoMantenimiento.findFirst({ where: { id: avisoId, empresaId: auth.usuario.empresaId, equipoId, estado: "ABIERTO" } }) : null;
     if (avisoId && !aviso) throw new Error("El aviso ya no está abierto o no corresponde al equipo.");
-    const codigo = await siguienteCodigoOrdenMantenimiento(tx);
+    const codigo = await siguienteCodigoOrdenMantenimiento(tx, auth.usuario.empresaId);
 
     await tx.ordenMantenimiento.create({
       data: {
