@@ -91,6 +91,7 @@ export async function crearZonaAlmacen(
   const almacenId = String(formData.get("almacenId") ?? "");
   const codigo = String(formData.get("codigo") ?? "").trim().toUpperCase();
   const nombre = String(formData.get("nombre") ?? "").trim() || null;
+  const parentId = String(formData.get("parentId") ?? "").trim() || null;
 
   if (!almacenId) return { error: "Seleccione el almacén." };
   if (!codigo) return { error: "El código de la zona es obligatorio." };
@@ -100,12 +101,30 @@ export async function crearZonaAlmacen(
 
   try {
     await prisma.$transaction(async (tx) => {
-      const zona = await tx.zonaAlmacen.create({ data: { almacenId: almacenPropio, codigo, nombre } });
+      // La zona padre llega del navegador: tiene que existir y ser del MISMO
+      // almacén. Colgar un rack de un pasillo de otro almacén dejaría una
+      // ubicación imposible de recorrer físicamente.
+      if (parentId) {
+        const padre = await tx.zonaAlmacen.findFirst({
+          where: { id: parentId, almacenId: almacenPropio },
+          select: { id: true },
+        });
+        if (!padre) throw new Error("La zona superior no pertenece a ese almacén.");
+      }
+      const zona = await tx.zonaAlmacen.create({
+        data: { almacenId: almacenPropio, codigo, nombre, parentId },
+      });
       await registrarAuditoriaMaestro(tx, { empresaId: auth.usuario.empresaId, entidad: "ZonaAlmacen", registroId: zona.id, accion: "CREAR", despues: zona, usuario: auth.usuario });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
       return { error: `Ya existe la zona "${codigo}" en ese almacén.` };
+    }
+    // La validación de la zona superior lanza con su propio mensaje: devolverlo
+    // en vez de relanzarlo, para que el usuario vea qué pasó y no una pantalla
+    // de error.
+    if (e instanceof Error && e.message.startsWith("La zona superior")) {
+      return { error: e.message };
     }
     throw e;
   }

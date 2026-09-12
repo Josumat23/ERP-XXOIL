@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useActionState } from "react";
 import { crearAlmacen, crearZonaAlmacen, type EstadoFormulario } from "./actions";
 import { ETIQUETA_TIPO_ALMACEN } from "@/lib/tiposAlmacen";
@@ -54,8 +54,21 @@ export function AlmacenFormulario({ arbolUbigeos }: { arbolUbigeos: ArbolUbigeos
   );
 }
 
-export function ZonaFormulario({ almacenes }: { almacenes: { id: string; nombre: string }[] }) {
+type ZonaExistente = { id: string; almacenId: string; etiqueta: string };
+
+export function ZonaFormulario({
+  almacenes,
+  zonas,
+}: {
+  almacenes: { id: string; nombre: string }[];
+  zonas: ZonaExistente[];
+}) {
   const formRef = useRef<HTMLFormElement>(null);
+  // Solo se ofrecen zonas del almacén elegido: colgar un rack de un pasillo de
+  // otro almacén dejaría una ubicación imposible de recorrer físicamente. El
+  // servidor lo vuelve a verificar de todos modos.
+  const [almacenElegido, setAlmacenElegido] = useState("");
+  const zonasDelAlmacen = zonas.filter((z) => z.almacenId === almacenElegido);
   const [estado, formAction, enviando] = useActionState(
     async (prev: EstadoFormulario, formData: FormData) => {
       const resultado = await crearZonaAlmacen(prev, formData);
@@ -73,7 +86,14 @@ export function ZonaFormulario({ almacenes }: { almacenes: { id: string; nombre:
         </p>
       )}
       <div className="flex flex-wrap gap-3 items-end">
-        <select aria-label="Almacén" name="almacenId" required defaultValue="" className="campo-input w-48">
+        <select
+          aria-label="Almacén"
+          name="almacenId"
+          required
+          value={almacenElegido}
+          onChange={(e) => setAlmacenElegido(e.target.value)}
+          className="campo-input w-48"
+        >
           <option value="" disabled>
             Almacén
           </option>
@@ -85,6 +105,20 @@ export function ZonaFormulario({ almacenes }: { almacenes: { id: string; nombre:
         </select>
         <input aria-label="Código de la zona" name="codigo" required placeholder="Código (ej. A-01)" className="campo-input w-32 font-mono" />
         <input aria-label="Descripción de la zona" name="nombre" placeholder="Descripción (opcional)" className="campo-input flex-1 min-w-48" />
+        <select
+          aria-label="Zona superior"
+          name="parentId"
+          defaultValue=""
+          disabled={zonasDelAlmacen.length === 0}
+          className="campo-input w-56"
+        >
+          <option value="">Sin zona superior (raíz)</option>
+          {zonasDelAlmacen.map((z) => (
+            <option key={z.id} value={z.id}>
+              Dentro de {z.etiqueta}
+            </option>
+          ))}
+        </select>
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Creando..." : "Agregar zona"}
         </button>
