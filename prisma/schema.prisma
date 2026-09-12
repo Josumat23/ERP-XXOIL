@@ -243,9 +243,10 @@ model Usuario {
   bloqueadoHasta         DateTime?
   creadoEn               DateTime   @default(now())
 
-  grupoSeguridad GrupoSeguridad? @relation(fields: [grupoSeguridadId], references: [id])
-  sesiones       Sesion[]
-  empleado       Empleado?
+  grupoSeguridad  GrupoSeguridad?       @relation(fields: [grupoSeguridadId], references: [id])
+  sesiones        Sesion[]
+  certificaciones CertificacionAcceso[]
+  empleado        Empleado?
 
   @@unique([empresaId, usuario])
   @@map("usuarios")
@@ -2641,6 +2642,88 @@ enum EstadoDespacho {
 enum ModalidadTransporte {
   PUBLICO
   PRIVADO
+}
+
+enum EstadoCampanaCertificacion {
+  ABIERTA
+  COMPLETADA
+  CANCELADA
+}
+
+enum DecisionCertificacion {
+  PENDIENTE
+  CONFIRMADO
+  REVOCADO
+}
+
+// Certificación periódica de accesos.
+//
+// Hasta ahora había una **alerta** de inactividad a 90 días en la pantalla de
+// usuarios: útil, pero no es una certificación. Certificar es que alguien
+// **declare por escrito** que cada acceso sigue siendo correcto, y que quede
+// constancia de quién lo dijo y cuándo.
+//
+// La campaña CONGELA lo que se revisó. Certificar contra datos vivos no
+// certifica nada: el revisor estaría aprobando algo que cambia debajo suyo, y
+// un mes después nadie podría decir qué fue lo que miró.
+model CampanaCertificacionAccesos {
+  id        String  @id @default(cuid())
+  empresaId String  @default("1")
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  numero    String
+
+  estado EstadoCampanaCertificacion @default(ABIERTA)
+  notas  String?
+
+  abiertaPorId     String
+  abiertaPorNombre String
+  creadoEn         DateTime @default(now())
+
+  completadaEn        DateTime?
+  completadaPorId     String?
+  completadaPorNombre String?
+  motivoCancelacion   String?
+
+  lineas CertificacionAcceso[]
+
+  @@unique([empresaId, numero])
+  @@index([empresaId, estado])
+  @@map("campanas_certificacion_accesos")
+}
+
+model CertificacionAcceso {
+  id        String @id @default(cuid())
+  campanaId String
+  usuarioId String
+
+  // Copias del momento en que se abrió la campaña. Son el objeto de la
+  // revisión: si el grupo del usuario cambia mañana, lo certificado sigue
+  // siendo lo que se miró.
+  usuarioNombre   String
+  usuarioLogin    String
+  rol             RolUsuario
+  grupoNombre     String?
+  // Resumen legible de los permisos del grupo y de los conflictos de
+  // segregación detectados, para que el revisor decida mirando lo que importa
+  // y no una lista de casillas.
+  permisosResumen String
+  conflictosSod   String?
+  ultimoAccesoEn  DateTime?
+
+  decision          DecisionCertificacion @default(PENDIENTE)
+  motivo            String?
+  revisadoPorId     String?
+  revisadoPorNombre String?
+  revisadoEn        DateTime?
+
+  campana CampanaCertificacionAccesos @relation(fields: [campanaId], references: [id], onDelete: Cascade)
+  // Restrict: el usuario revisado no puede desaparecer de la constancia de
+  // que alguien revisó su acceso.
+  usuario Usuario                     @relation(fields: [usuarioId], references: [id], onDelete: Restrict)
+
+  @@unique([campanaId, usuarioId])
+  @@index([usuarioId])
+  @@map("certificaciones_acceso")
 }
 
 enum TipoUnidadManipulacion {
@@ -5129,6 +5212,7 @@ model Empresa {
   licitacionesFlete          LicitacionFlete[]
   oleadasPicking             OleadaPicking[]
   unidadesManipulacion       UnidadManipulacion[]
+  campanasCertificacion      CampanaCertificacionAccesos[]
   transportistas             Transportista[]
   comprobantes               ComprobanteElectronico[]
   cobros                     Cobro[]
