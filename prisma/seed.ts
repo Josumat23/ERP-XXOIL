@@ -1,6 +1,7 @@
 import { randomBytes, scryptSync } from "crypto";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { sembrarUbigeos } from "./seed-ubigeos";
 
 const adapter = new PrismaBetterSqlite3({
   url: process.env.DATABASE_URL ?? "file:./dev.db",
@@ -13,6 +14,12 @@ function hashPassword(password: string): string {
 }
 
 async function main() {
+  // Catálogo UBIGEO de SUNAT. Dejó de ser opcional: Cliente, Proveedor y
+  // Almacén eligen su distrito de él, y sin catálogo esos selectores salen
+  // vacíos en una instalación nueva. Idempotente.
+  const ubigeosSembrados = await sembrarUbigeos(prisma);
+  if (ubigeosSembrados > 0) console.log(`Catálogo UBIGEO: ${ubigeosSembrados} distritos sembrados.`);
+
   // La compañía principal debe existir antes que cualquier fila con una FK
   // empresaId. Conserva el identificador histórico "1" usado por los datos
   // anteriores a la habilitación multiempresa.

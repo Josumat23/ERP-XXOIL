@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { arbolUbigeos } from "@/lib/ubigeosCatalogo";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { AlmacenFormulario, ZonaFormulario } from "./AlmacenFormularios";
 import { ETIQUETA_TIPO_ALMACEN } from "@/lib/tiposAlmacen";
@@ -15,14 +16,17 @@ export default async function AlmacenesPage() {
   if (!(await puedeRealizar(usuario, "configuracion", "ver"))) redirect("/");
 
   const empresaId = await obtenerEmpresaActivaId();
-  const almacenes = await prisma.almacen.findMany({
+  const [almacenes, arbol] = await Promise.all([
+    prisma.almacen.findMany({
     where: { empresaId },
     include: {
       zonas: { include: { _count: { select: { presentaciones: true, insumos: true } } } },
       calendarioProduccion: { include: { diasNoLaborables: { orderBy: { fecha: "asc" } } } },
     },
-    orderBy: { codigo: "asc" },
-  });
+      orderBy: { codigo: "asc" },
+    }),
+    arbolUbigeos(),
+  ]);
 
   const porTipo = new Map<string, number>();
   for (const a of almacenes) porTipo.set(a.tipo, (porTipo.get(a.tipo) ?? 0) + 1);
@@ -58,7 +62,7 @@ export default async function AlmacenesPage() {
       <div className="max-w-4xl">
       <div className="border border-black/10 dark:border-white/10 rounded-lg p-4">
         <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">Nuevo almacén</h2>
-        <AlmacenFormulario />
+        <AlmacenFormulario arbolUbigeos={arbol} />
       </div>
 
       <div className="mt-4 border border-black/10 dark:border-white/10 rounded-lg p-4">

@@ -9,6 +9,7 @@ import PanelDirecciones from "@/components/PanelDirecciones";
 import PanelContactos from "@/components/PanelContactos";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
+import { arbolUbigeos } from "@/lib/ubigeosCatalogo";
 import ClienteFormulario from "../ClienteFormulario";
 import { actualizarCliente } from "../actions";
 
@@ -23,12 +24,13 @@ export default async function EditarClientePage({
   const { id } = await params;
   const empresaId = await obtenerEmpresaActivaId();
 
-  const [cliente, clientes, zonas, vendedores, facturasPendientes] = await Promise.all([
-    prisma.cliente.findFirst({ where: { id, empresaId } }),
+  const [cliente, clientes, zonas, vendedores, facturasPendientes, arbol] = await Promise.all([
+    prisma.cliente.findFirst({ where: { id, empresaId }, include: { ubigeo: true } }),
     prisma.cliente.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
     prisma.zona.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.factura.findMany({ where: { clienteId: id, empresaId, estado: "PENDIENTE" } }),
+    arbolUbigeos(),
   ]);
   if (!perteneceAEmpresaActiva(cliente, empresaId)) notFound();
 
@@ -81,6 +83,8 @@ export default async function EditarClientePage({
             accion={actualizarCliente.bind(null, id)}
             zonas={zonas}
             vendedores={vendedores}
+            arbolUbigeos={arbol}
+            ubigeoSeleccionado={cliente.ubigeo}
             valoresIniciales={{
               razonSocial: cliente.razonSocial,
               nombreComercial: cliente.nombreComercial,

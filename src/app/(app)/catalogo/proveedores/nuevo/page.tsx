@@ -7,16 +7,17 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import ProveedorFormulario from "../ProveedorFormulario";
 import { crearProveedor } from "../actions";
+import { arbolUbigeos } from "@/lib/ubigeosCatalogo";
 
 export default async function NuevoProveedorPage() {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
 
   const empresaId = await obtenerEmpresaActivaId();
-  const proveedores = await prisma.proveedor.findMany({
-    where: { empresaId },
-    orderBy: { razonSocial: "asc" },
-  });
+  const [proveedores, arbol] = await Promise.all([
+    prisma.proveedor.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
+    arbolUbigeos(),
+  ]);
 
   return (
     <div>
@@ -38,7 +39,11 @@ export default async function NuevoProveedorPage() {
         }))}
       >
       <div className="max-w-lg">
-        <ProveedorFormulario accion={crearProveedor} textoBoton="Crear proveedor" />
+        <ProveedorFormulario
+          accion={crearProveedor}
+          arbolUbigeos={arbol}
+          textoBoton="Crear proveedor"
+        />
       </div>
       </PanelMaestroDetalle>
     </div>

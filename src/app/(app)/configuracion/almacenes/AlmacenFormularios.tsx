@@ -4,8 +4,10 @@ import { useRef } from "react";
 import { useActionState } from "react";
 import { crearAlmacen, crearZonaAlmacen, type EstadoFormulario } from "./actions";
 import { ETIQUETA_TIPO_ALMACEN } from "@/lib/tiposAlmacen";
+import SelectorUbigeo from "@/components/SelectorUbigeo";
+import type { ArbolUbigeos } from "@/lib/ubigeos";
 
-export function AlmacenFormulario() {
+export function AlmacenFormulario({ arbolUbigeos }: { arbolUbigeos: ArbolUbigeos }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [estado, formAction, enviando] = useActionState(
     async (prev: EstadoFormulario, formData: FormData) => {
@@ -39,10 +41,8 @@ export function AlmacenFormulario() {
         <input aria-label="Dirección del almacén" name="direccion" placeholder="Dirección" className="campo-input flex-1 min-w-48" />
         <input aria-label="Segunda línea de dirección" name="direccion2" placeholder="Dirección (línea 2)" className="campo-input flex-1 min-w-40" />
       </div>
+      <SelectorUbigeo arbol={arbolUbigeos} />
       <div className="flex flex-wrap gap-3 items-end">
-        <input aria-label="Distrito" name="distrito" placeholder="Distrito" className="campo-input flex-1 min-w-32" />
-        <input aria-label="Provincia" name="provincia" placeholder="Provincia" className="campo-input flex-1 min-w-32" />
-        <input aria-label="Departamento" name="departamento" placeholder="Departamento" className="campo-input flex-1 min-w-32" />
         <input aria-label="Ciudad" name="ciudad" placeholder="Ciudad" className="campo-input flex-1 min-w-32" />
         <input aria-label="Código postal" name="codigoPostal" placeholder="Código postal" className="campo-input w-32" />
         <input aria-label="País" name="pais" placeholder="País" defaultValue="Perú" className="campo-input w-28" />

@@ -10,6 +10,7 @@ import PanelAdjuntos from "@/components/PanelAdjuntos";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
 import ProveedorFormulario from "../ProveedorFormulario";
 import { actualizarProveedor } from "../actions";
+import { arbolUbigeos } from "@/lib/ubigeosCatalogo";
 
 export default async function EditarProveedorPage({
   params,
@@ -21,9 +22,10 @@ export default async function EditarProveedorPage({
 
   const { id } = await params;
   const empresaId = await obtenerEmpresaActivaId();
-  const [proveedor, proveedores] = await Promise.all([
-    prisma.proveedor.findFirst({ where: { id, empresaId } }),
+  const [proveedor, proveedores, arbol] = await Promise.all([
+    prisma.proveedor.findFirst({ where: { id, empresaId }, include: { ubigeo: true } }),
     prisma.proveedor.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
+    arbolUbigeos(),
   ]);
   if (!perteneceAEmpresaActiva(proveedor, empresaId)) notFound();
 
@@ -50,6 +52,8 @@ export default async function EditarProveedorPage({
       <div className="max-w-lg flex flex-col gap-6">
         <ProveedorFormulario
           accion={actualizarProveedor.bind(null, id)}
+          arbolUbigeos={arbol}
+          ubigeoSeleccionado={proveedor.ubigeo}
           valoresIniciales={{
             razonSocial: proveedor.razonSocial,
             tipoDocumentoFiscal: proveedor.tipoDocumentoFiscal,

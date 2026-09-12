@@ -2,6 +2,8 @@
 
 import { useActionState } from "react";
 import FichaTabs from "@/components/FichaTabs";
+import SelectorUbigeo from "@/components/SelectorUbigeo";
+import type { ArbolUbigeos, UbigeoSeleccionado } from "@/lib/ubigeos";
 import { ETIQUETA_CANAL_CLIENTE } from "@/lib/etiquetas";
 import type { EstadoFormulario } from "./actions";
 
@@ -24,6 +26,8 @@ type Props = {
   accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
   zonas: Opcion[];
   vendedores: Opcion[];
+  arbolUbigeos: ArbolUbigeos;
+  ubigeoSeleccionado?: UbigeoSeleccionado | null;
   valoresIniciales?: {
     razonSocial: string;
     nombreComercial: string | null;
@@ -52,6 +56,8 @@ export default function ClienteFormulario({
   accion,
   zonas,
   vendedores,
+  arbolUbigeos,
+  ubigeoSeleccionado,
   valoresIniciales,
   textoBoton,
 }: Props) {
@@ -145,32 +151,15 @@ export default function ClienteFormulario({
             etiqueta: "Ubicación",
             contenido: (
               <div className="borde-seccion">
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <Campo etiqueta="Departamento">
-                    <input
-                      name="departamento"
-                      defaultValue={valoresIniciales?.departamento ?? ""}
-                      placeholder="Lima"
-                      className="campo-input"
-                    />
-                  </Campo>
-                  <Campo etiqueta="Provincia">
-                    <input
-                      name="provincia"
-                      defaultValue={valoresIniciales?.provincia ?? ""}
-                      placeholder="Lima"
-                      className="campo-input"
-                    />
-                  </Campo>
-                  <Campo etiqueta="Distrito">
-                    <input
-                      name="distrito"
-                      defaultValue={valoresIniciales?.distrito ?? ""}
-                      placeholder="Comas"
-                      className="campo-input"
-                    />
-                  </Campo>
-                </div>
+                <SelectorUbigeo
+                  arbol={arbolUbigeos}
+                  seleccionado={ubigeoSeleccionado}
+                  textoHeredado={{
+                    departamento: valoresIniciales?.departamento,
+                    provincia: valoresIniciales?.provincia,
+                    distrito: valoresIniciales?.distrito,
+                  }}
+                />
                 <Campo etiqueta="Dirección">
                   <input
                     name="direccion"
