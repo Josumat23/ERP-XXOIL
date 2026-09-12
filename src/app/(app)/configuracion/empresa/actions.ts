@@ -9,6 +9,7 @@ import { resolverSecretoFormulario } from "@/lib/secretosFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { esValorEnum } from "@/lib/enums";
+import { RegimenTributario } from "@/generated/prisma/client";
 import { ETIQUETA_ALCANCE_APROBACION, type AlcanceAprobacion } from "@/lib/aprobacionesJerarquia";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
@@ -26,6 +27,18 @@ export async function guardarConfiguracionEmpresa(
   const razonSocial = String(formData.get("razonSocial") ?? "").trim();
   const nombreComercial = String(formData.get("nombreComercial") ?? "").trim() || null;
   const ruc = String(formData.get("ruc") ?? "").trim() || null;
+  const representanteLegal = String(formData.get("representanteLegal") ?? "").trim() || null;
+  const representanteLegalDocumento =
+    String(formData.get("representanteLegalDocumento") ?? "").trim() || null;
+  // Catálogo cerrado: un valor fuera de la lista se guarda como "sin
+  // especificar" en vez de persistir lo que mande el navegador.
+  const regimenTributarioRaw = String(formData.get("regimenTributario") ?? "").trim();
+  const regimenTributario = esValorEnum(
+    Object.values(RegimenTributario),
+    regimenTributarioRaw
+  )
+    ? regimenTributarioRaw
+    : null;
   const direccion = String(formData.get("direccion") ?? "").trim() || null;
   const direccion2 = String(formData.get("direccion2") ?? "").trim() || null;
   const ciudad = String(formData.get("ciudad") ?? "").trim() || null;
@@ -145,6 +158,9 @@ export async function guardarConfiguracionEmpresa(
     razonSocial,
     nombreComercial,
     ruc,
+    representanteLegal,
+    representanteLegalDocumento,
+    regimenTributario,
     direccion,
     direccion2,
     ciudad,

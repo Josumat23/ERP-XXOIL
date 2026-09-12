@@ -110,6 +110,17 @@ model ConfiguracionEmpresa {
   sitioWeb                        String?
   moneda                          String                     @default("PEN")
   tasaIgv                         Decimal                    @default(18) // % aplicado al facturar
+  // Datos de la entidad legal que la razón social y el RUC no cubren.
+  // Aparecen en documentos formales (contratos, cartas, poderes); son
+  // **referencia informativa** y no gobiernan ningún cálculo ni bloquean
+  // ninguna operación — igual criterio que el registro de OSINERGMIN de abajo.
+  //
+  // El régimen tributario NO cambia la tasa de IGV ni ningún cómputo: el
+  // sistema no infiere obligaciones a partir de él. Es el dato que el contador
+  // necesita ver junto al resto de la ficha de la sociedad.
+  representanteLegal              String?
+  representanteLegalDocumento     String?
+  regimenTributario               RegimenTributario?
   // Fabricar/comercializar lubricantes en Perú exige inscripción en el
   // Registro de Hidrocarburos de OSINERGMIN (categoría OPDH — Otros
   // Productos Derivados de Hidrocarburos). Referencia informativa; no
@@ -3879,6 +3890,16 @@ enum TipoContrato {
 enum EstadoEmpleado {
   ACTIVO
   CESADO
+}
+
+// Regímenes del Impuesto a la Renta empresarial vigentes en Perú. Se listan
+// como catálogo para que el dato quede estructurado y no como texto libre; el
+// sistema NO deriva de ellos ninguna obligación, tasa ni cálculo.
+enum RegimenTributario {
+  NRUS // Nuevo Régimen Único Simplificado
+  RER // Régimen Especial de Renta
+  RMT // Régimen MYPE Tributario
+  GENERAL // Régimen General
 }
 
 enum TipoDocumentoIdentidad {

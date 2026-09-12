@@ -1,5 +1,7 @@
 "use client";
 
+import { ETIQUETA_REGIMEN_TRIBUTARIO } from "@/lib/regimenTributario";
+
 import { useState } from "react";
 import { useActionState } from "react";
 import { guardarConfiguracionEmpresa, type EstadoFormulario } from "./actions";
@@ -26,6 +28,9 @@ type Props = {
     email: string | null;
     sitioWeb: string | null;
     tasaIgv: number;
+    representanteLegal: string | null;
+    representanteLegalDocumento: string | null;
+    regimenTributario: string | null;
     registroHidrocarburosOsinergmin: string | null;
     registroHidrocarburosVigencia: string | null; // yyyy-mm-dd
     tarifaHoraManoObra: number;
@@ -93,6 +98,42 @@ export default function EmpresaFormulario({ valores }: Props) {
             />
           </Campo>
         </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <Campo etiqueta="Representante legal">
+            <input
+              name="representanteLegal"
+              defaultValue={valores.representanteLegal ?? ""}
+              placeholder="Nombre completo"
+              className="campo-input"
+            />
+          </Campo>
+          <Campo etiqueta="Documento del representante">
+            <input
+              name="representanteLegalDocumento"
+              defaultValue={valores.representanteLegalDocumento ?? ""}
+              placeholder="DNI / CE"
+              className="campo-input font-mono"
+            />
+          </Campo>
+          <Campo etiqueta="Régimen tributario">
+            <select
+              name="regimenTributario"
+              defaultValue={valores.regimenTributario ?? ""}
+              className="campo-input"
+            >
+              <option value="">Sin especificar</option>
+              {Object.entries(ETIQUETA_REGIMEN_TRIBUTARIO).map(([valor, etiqueta]) => (
+                <option key={valor} value={valor}>
+                  {etiqueta}
+                </option>
+              ))}
+            </select>
+          </Campo>
+        </div>
+        <p className="text-xs" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Estos tres datos son referencia informativa para documentos formales. El régimen
+          tributario <strong>no</strong> cambia la tasa de IGV ni ningún cálculo del sistema.
+        </p>
       </fieldset>
 
       <fieldset className="borde-seccion">

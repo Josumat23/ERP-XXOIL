@@ -47,6 +47,9 @@ export default async function EmpresaPage() {
             email: config.email,
             sitioWeb: config.sitioWeb,
             tasaIgv: config.tasaIgv.toNumber(),
+            representanteLegal: config.representanteLegal,
+            representanteLegalDocumento: config.representanteLegalDocumento,
+            regimenTributario: config.regimenTributario,
             registroHidrocarburosOsinergmin: config.registroHidrocarburosOsinergmin,
             registroHidrocarburosVigencia: config.registroHidrocarburosVigencia
               ? config.registroHidrocarburosVigencia.toISOString().slice(0, 10)
