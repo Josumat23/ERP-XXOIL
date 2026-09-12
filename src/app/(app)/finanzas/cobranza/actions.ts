@@ -5,7 +5,11 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { diasVencidos } from "@/lib/cobranza";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { validarRespuesta, type EstadoRegistrado } from "@/lib/gestionCobranza";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+
+export type EstadoFormulario = { error?: string };
 
 export async function registrarAvisoCobranza(facturaId: string) {
   const auth = await requerirRol(["VENTAS"]);
@@ -33,6 +37,54 @@ export async function registrarAvisoCobranza(facturaId: string) {
       usuarioNombre: auth.usuario.nombre,
     },
   });
+
+  revalidatePath("/finanzas/cobranza");
+  return {};
+}
+
+// Registra qué contestó el cliente al aviso. El id del aviso llega del
+// navegador: se busca siempre acotado a la compañía activa.
+export async function registrarRespuestaAviso(
+  avisoId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["VENTAS"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };
+  }
+
+  const estado = String(formData.get("estado") ?? "");
+  const fechaRaw = String(formData.get("compromisoPagoEn") ?? "").trim();
+  const detalle = String(formData.get("detalleRespuesta") ?? "").trim();
+
+  // Una fecha mal escrita no puede terminar guardada como `null` silencioso:
+  // el compromiso quedaría sin fecha y el incumplimiento nunca se derivaría.
+  const compromisoPagoEn = fechaRaw ? crearFechaCalendarioLocal(fechaRaw) : null;
+  if (fechaRaw && !compromisoPagoEn) return { error: "La fecha comprometida no es válida." };
+
+  const error = validarRespuesta(estado, compromisoPagoEn, detalle);
+  if (error) return { error };
+
+  const empresaId = await obtenerEmpresaActivaId();
+  const actualizado = await prisma.avisoCobranza.updateMany({
+    where: { id: avisoId, empresaId },
+    data: {
+      estado: estado as EstadoRegistrado,
+      // La fecha solo tiene sentido con el compromiso: al cambiar a otro estado
+      // se limpia, para que no quede un compromiso fantasma del que se derive
+      // un incumplimiento que ya nadie sostiene.
+      compromisoPagoEn: estado === "COMPROMISO_PAGO" ? compromisoPagoEn : null,
+      // Por lo mismo, "sin respuesta aún" no puede quedarse con el texto de una
+      // respuesta anterior: sería una contradicción en la misma fila.
+      detalleRespuesta: estado === "PENDIENTE" ? null : detalle || null,
+      respondidoEn: new Date(),
+      respondidoPorId: auth.usuario.id,
+      respondidoPorNombre: auth.usuario.nombre,
+    },
+  });
+  if (actualizado.count !== 1) return { error: "El aviso no pertenece a la compañía activa." };
 
   revalidatePath("/finanzas/cobranza");
   return {};
