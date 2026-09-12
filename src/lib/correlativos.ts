@@ -129,6 +129,15 @@ export async function siguienteCodigoCliente(tx: Tx, empresaId: string): Promise
   return siguiente("CLI", ultimo?.codigo ?? null);
 }
 
+export async function siguienteCodigoTransportista(tx: Tx, empresaId: string): Promise<string> {
+  await reservarCorrelativo(tx);
+  const ultimo = await tx.transportista.findFirst({
+    where: { empresaId },
+    orderBy: { codigo: "desc" },
+  });
+  return siguiente("TRA", ultimo?.codigo ?? null);
+}
+
 // El traslado no tiene tabla propia (son dos MovimientoKardex con la misma
 // referencia): el correlativo sale de la última referencia "TR-" del kardex.
 export async function siguienteCodigoTraslado(tx: Tx, empresaId: string): Promise<string> {

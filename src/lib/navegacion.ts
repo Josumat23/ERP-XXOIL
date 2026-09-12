@@ -65,6 +65,7 @@ export const MODULOS: Modulo[] = [
           { href: "/logistica/acuerdos-suministro", etiqueta: "Acuerdos de suministro" },
           { href: "/logistica/ordenes-compra", etiqueta: "Órdenes de compra" },
           { href: "/logistica/guias-remision", etiqueta: "Guías de remisión" },
+          { href: "/logistica/transportistas", etiqueta: "Transportistas" },
           { href: "/logistica/devoluciones-clientes", etiqueta: "Devoluciones de clientes", roles: ["ADMIN", "ALMACEN", "PRODUCCION"] },
           { href: "/logistica/inspeccion-compras", etiqueta: "Inspección de calidad" },
           { href: "/catalogo/proveedores", etiqueta: "Proveedores" },

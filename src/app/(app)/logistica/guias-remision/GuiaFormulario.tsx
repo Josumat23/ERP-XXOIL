@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useActionState } from "react";
 import SelectorSerieNumero from "@/components/SelectorSerieNumero";
+import type { TransportistaSeleccionable } from "@/lib/transportistas";
 import { crearGuiaRemision, type EstadoFormulario } from "./actions";
 
 type FacturaOpcion = {
@@ -47,6 +48,7 @@ type Props = {
   clientes: Opcion[];
   presentaciones: Opcion[];
   equipos: Opcion[];
+  transportistas: TransportistaSeleccionable[];
   ubigeos: UbigeoOpcion[];
   puntoPartidaDefecto: string;
   pedidoInicialId?: string;
@@ -81,6 +83,7 @@ export default function GuiaFormulario({
   clientes,
   presentaciones,
   equipos,
+  transportistas,
   ubigeos,
   puntoPartidaDefecto,
   pedidoInicialId,
@@ -101,6 +104,12 @@ export default function GuiaFormulario({
   );
   const [modalidadTransporte, setModalidadTransporte] = useState<"PUBLICO" | "PRIVADO">("PRIVADO");
   const [motivoTraslado, setMotivoTraslado] = useState("Venta");
+  const [transportistaId, setTransportistaId] = useState("");
+  const elegido = transportistas.find((t) => t.id === transportistaId) ?? null;
+  // La placa y el conductor elegidos de las listas del transportista. Cadena
+  // vacía significa "otro, lo escribo a mano".
+  const [placaElegida, setPlacaElegida] = useState("");
+  const [dniElegido, setDniElegido] = useState("");
 
   const lineasJson = JSON.stringify(
     lineas.map((l) => ({ pedidoDetalleId: l.pedidoDetalleId, presentacionId: l.presentacionId, cantidad: Number(l.cantidad) }))
@@ -122,6 +131,15 @@ export default function GuiaFormulario({
       }))
     );
   }
+  // Elegir transportista preselecciona su primera placa y su primer
+  // conductor: la lista existe para no retipear, no para elegir dos veces.
+  function elegirTransportista(id: string) {
+    setTransportistaId(id);
+    const t = transportistas.find((x) => x.id === id) ?? null;
+    setPlacaElegida(t?.vehiculos[0]?.placa ?? "");
+    setDniElegido(t?.conductores[0]?.dni ?? "");
+  }
+
   function elegirFactura(id: string) {
     setFacturaId(id);
   }
@@ -265,19 +283,60 @@ export default function GuiaFormulario({
             ))}
           </select>
         </label>
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">Transportista</span>
-          <input name="transportista" className="campo-input" />
-        </label>
+
+        {modalidadTransporte === "PUBLICO" ? (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              Transportista contratado
+            </span>
+            <select
+              name="transportistaId"
+              value={transportistaId}
+              onChange={(e) => elegirTransportista(e.target.value)}
+              className="campo-input"
+            >
+              <option value="">Otro — escribirlo a mano</option>
+              {transportistas.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.razonSocial}
+                  {t.ruc ? ` — ${t.ruc}` : " — sin RUC"}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">Transportista</span>
+            <input name="transportista" className="campo-input" />
+          </label>
+        )}
       </div>
 
-      {modalidadTransporte === "PUBLICO" && (
-        <label className="flex flex-col gap-1 text-sm max-w-xs">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">
-            RUC del transportista (obligatorio en transporte público)
-          </span>
-          <input name="transportistaRuc" maxLength={11} required className="campo-input font-mono" />
-        </label>
+      {/* Sin transportista del maestro: los datos se escriben, como siempre. La
+          razón social y el RUC del elegido los deriva el servidor de la ficha,
+          no de estos campos. */}
+      {modalidadTransporte === "PUBLICO" && !elegido && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              Razón social del transportista
+            </span>
+            <input name="transportista" className="campo-input" />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              RUC del transportista (obligatorio en transporte público)
+            </span>
+            <input name="transportistaRuc" maxLength={11} required className="campo-input font-mono" />
+          </label>
+        </div>
+      )}
+
+      {elegido && (
+        <p className="text-xs text-neutral-500 -mt-2">
+          Se declarará como <strong>{elegido.razonSocial}</strong>
+          {elegido.ruc ? ` (RUC ${elegido.ruc})` : " — sin RUC registrado, complételo en el maestro"}.
+        </p>
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -285,22 +344,67 @@ export default function GuiaFormulario({
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
             Placa vehículo{modalidadTransporte === "PRIVADO" ? " (obligatorio)" : ""}
           </span>
-          <input
-            name="placaVehiculo"
-            required={modalidadTransporte === "PRIVADO"}
-            className="campo-input font-mono"
-          />
+          {/* Con transportista del maestro, sus placas se eligen en vez de
+              retipearse; "Otra" deja escribir la de un vehículo que todavía no
+              está registrado. */}
+          {elegido && elegido.vehiculos.length > 0 ? (
+            <>
+              <select
+                value={placaElegida}
+                onChange={(e) => setPlacaElegida(e.target.value)}
+                className="campo-input font-mono"
+              >
+                {elegido.vehiculos.map((v) => (
+                  <option key={v.id} value={v.placa}>
+                    {v.placa}
+                  </option>
+                ))}
+                <option value="">Otra…</option>
+              </select>
+              {placaElegida === "" && (
+                <input name="placaVehiculo" className="campo-input font-mono mt-1" required={modalidadTransporte === "PRIVADO"} />
+              )}
+              {placaElegida !== "" && <input type="hidden" name="placaVehiculo" value={placaElegida} />}
+            </>
+          ) : (
+            <input
+              name="placaVehiculo"
+              required={modalidadTransporte === "PRIVADO"}
+              className="campo-input font-mono"
+            />
+          )}
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">
             DNI conductor{modalidadTransporte === "PRIVADO" ? " (obligatorio)" : ""}
           </span>
-          <input
-            name="dniConductor"
-            maxLength={8}
-            required={modalidadTransporte === "PRIVADO"}
-            className="campo-input font-mono"
-          />
+          {elegido && elegido.conductores.length > 0 ? (
+            <>
+              <select
+                value={dniElegido}
+                onChange={(e) => setDniElegido(e.target.value)}
+                className="campo-input"
+              >
+                {elegido.conductores.map((c) => (
+                  <option key={c.id} value={c.dni}>
+                    {c.nombres} — {c.dni}
+                  </option>
+                ))}
+                <option value="">Otro…</option>
+              </select>
+              {dniElegido === "" && (
+                <input name="dniConductor" maxLength={8} className="campo-input font-mono mt-1" required={modalidadTransporte === "PRIVADO"} />
+              )}
+              {dniElegido !== "" && <input type="hidden" name="dniConductor" value={dniElegido} />}
+            </>
+          ) : (
+            <input
+              name="dniConductor"
+              maxLength={8}
+              required={modalidadTransporte === "PRIVADO"}
+              className="campo-input font-mono"
+            />
+          )}
         </label>
       </div>
 
