@@ -29,7 +29,13 @@ test("emitir la nota de débito NO vuelve a cargar el recargo", async () => {
     resolve(process.cwd(), "src/app/(app)/comercial/facturas/actions.ts"),
     "utf8"
   );
-  const bloque = acciones.slice(acciones.indexOf("export async function emitirNotaDebitoMora"));
+  // Acotado a la acción de mora: desde que existe la emisión manual —que SÍ
+  // carga a propósito— un corte abierto hasta el final del archivo abarcaba su
+  // código y daba un falso positivo.
+  const bloque = acciones.slice(
+    acciones.indexOf("export async function emitirNotaDebitoMora"),
+    acciones.indexOf("export async function emitirNotaDebitoManual")
+  );
   assert.ok(bloque.length > 0, "no se encontró la acción");
 
   assert.doesNotMatch(bloque, /postearAsiento|postearRecargoMora/, "no debe generar asiento");
@@ -98,6 +104,7 @@ test("un recargo tiene a lo sumo una nota de débito", async () => {
         numero: "ND-00001",
         facturaId: factura.id,
         recargoMoraId: recargo.id,
+        baseImponible: recargo.monto,
         monto: recargo.monto,
         montoFuncional: recargo.montoFuncional,
         motivo: "Intereses por mora",
@@ -115,6 +122,7 @@ test("un recargo tiene a lo sumo una nota de débito", async () => {
           numero: "ND-00002",
           facturaId: factura.id,
           recargoMoraId: recargo.id,
+          baseImponible: recargo.monto,
           monto: recargo.monto,
           motivo: "Duplicada",
           usuarioId: "u",
@@ -186,14 +194,20 @@ test("los catálogos de envío cubren la nota de débito", async () => {
   assert.match(nubefact, /tipo_de_nota_de_debito/);
 });
 
-test("solo se emite el tipo 01, y el resto del catálogo no se usa todavía", async () => {
-  // Emitir por aumento de valor o penalidad exige decidir cuándo corresponde y
-  // sobre qué base — decisión del negocio que este código no inventa.
+test("la emisión automática sigue siendo solo la del tipo 01", async () => {
+  // El negocio confirmó el 2026-09-13 que también emite por aumento de valor y
+  // penalidad, así que el catálogo dejó de estar a medias. Lo que sigue siendo
+  // cierto —y es lo que hay que proteger— es que el sistema **calcula** un
+  // solo tipo: el de mora. Los otros dos los emite una persona, que aporta el
+  // concepto y el importe (véase nota-debito-manual.test.ts).
   const acciones = await readFile(
     resolve(process.cwd(), "src/app/(app)/comercial/facturas/actions.ts"),
     "utf8"
   );
-  const bloque = acciones.slice(acciones.indexOf("export async function emitirNotaDebitoMora"));
+  const bloque = acciones.slice(
+    acciones.indexOf("export async function emitirNotaDebitoMora"),
+    acciones.indexOf("export async function emitirNotaDebitoManual")
+  );
   assert.match(bloque, /tipoNota: "INTERES_MORA"/);
   assert.doesNotMatch(bloque, /AUMENTO_VALOR|PENALIDAD_OTROS/);
 });
