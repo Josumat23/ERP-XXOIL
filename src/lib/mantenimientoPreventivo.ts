@@ -78,7 +78,7 @@ export async function generarOrdenesPreventivasVencidas(
     );
     if (!vencido) continue;
 
-    const codigo = await siguienteCodigoOrdenMantenimiento(tx);
+    const codigo = await siguienteCodigoOrdenMantenimiento(tx, plan.equipo.empresaId);
     await tx.ordenMantenimiento.create({
       data: {
         codigo,

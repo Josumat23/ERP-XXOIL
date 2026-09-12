@@ -752,7 +752,7 @@ model LoteGranel {
   id                       String                    @id @default(cuid())
   empresaId                String                    @default("1")
   empresa                  Empresa                   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  codigo                   String                    @unique // LG-00001
+  codigo                   String // LG-00001
   formulaId                String
   // Si este lote reprocesa un lote rechazado por calidad, referencia de dónde
   // viene (trazabilidad de la no conformidad). Su costo acumulado se incorpora
@@ -805,6 +805,7 @@ model LoteGranel {
   reservasInsumo         ReservaInsumoProduccion[]
   movimientosMaterial    MovimientoMaterialProduccion[]
 
+  @@unique([empresaId, codigo])
   @@map("lotes_granel")
 }
 
@@ -1071,7 +1072,7 @@ model ReclamoCliente {
   id               String        @id @default(cuid())
   empresaId        String        @default("1")
   empresa          Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero           String        @unique // RCL-00001
+  numero           String // RCL-00001
   clienteId        String
   facturaId        String? // documento de origen, si aplica
   causaId          String?
@@ -1089,6 +1090,7 @@ model ReclamoCliente {
   factura Factura?      @relation(fields: [facturaId], references: [id])
   causa   CausaCalidad? @relation(fields: [causaId], references: [id])
 
+  @@unique([empresaId, numero])
   @@map("reclamos_cliente")
 }
 
@@ -1100,7 +1102,7 @@ model Envasado {
   id                  String    @id @default(cuid())
   empresaId           String    @default("1")
   empresa             Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  codigo              String    @unique // ENV-00001
+  codigo              String // ENV-00001
   loteGranelId        String
   presentacionId      String
   unidades            Int
@@ -1127,6 +1129,7 @@ model Envasado {
   insumos          EnvasadoInsumo[]
   asignacionesLote AsignacionLoteVenta[]
 
+  @@unique([empresaId, codigo])
   @@map("envasados")
 }
 
@@ -1324,7 +1327,7 @@ model Cotizacion {
   id            String           @id @default(cuid())
   empresaId     String           @default("1")
   empresa       Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero        String           @unique // COT-00001
+  numero        String // COT-00001
   clienteId     String
   vendedorId    String
   fecha         DateTime         @default(now())
@@ -1345,6 +1348,7 @@ model Cotizacion {
   pedido   Pedido?             @relation(fields: [pedidoId], references: [id])
   detalles CotizacionDetalle[]
 
+  @@unique([empresaId, numero])
   @@map("cotizaciones")
 }
 
@@ -1366,7 +1370,7 @@ model Pedido {
   id                      String           @id @default(cuid())
   empresaId               String           @default("1")
   empresa                 Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero                  String           @unique // PED-00001
+  numero                  String // PED-00001
   clienteId               String
   vendedorId              String
   almacenId               String?
@@ -1408,6 +1412,7 @@ model Pedido {
   guias            GuiaRemision[]
   cotizacionOrigen Cotizacion?
 
+  @@unique([empresaId, numero])
   @@map("pedidos")
 }
 
@@ -1452,7 +1457,7 @@ model Factura {
   id                String        @id @default(cuid())
   empresaId         String        @default("1")
   empresa           Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero            String        @unique // número SUNAT, ej. F001-00000123
+  numero            String // número SUNAT, ej. F001-00000123
   pedidoId          String
   clienteId         String
   vendedorId        String
@@ -1492,6 +1497,7 @@ model Factura {
   detalles            FacturaDetalle[]
   aplicacionesCredito AplicacionCreditoCliente[]
 
+  @@unique([empresaId, numero])
   @@index([pedidoId])
   @@map("facturas")
 }
@@ -1671,7 +1677,7 @@ model NotaCredito {
   id             String          @id @default(cuid())
   empresaId      String          @default("1")
   empresa        Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero         String          @unique // número SUNAT de la NC
+  numero         String // número SUNAT de la NC
   facturaId      String
   fecha          DateTime        @default(now())
   monto          Decimal
@@ -1687,6 +1693,7 @@ model NotaCredito {
   detalles NotaCreditoDetalle[]
   credito  CreditoCliente?
 
+  @@unique([empresaId, numero])
   @@map("notas_credito")
 }
 
@@ -1805,7 +1812,7 @@ model DevolucionCliente {
   id               String                  @id @default(cuid())
   empresaId        String                  @default("1")
   empresa          Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero           String                  @unique
+  numero           String
   facturaId        String
   almacenId        String
   fechaRecepcion   DateTime                @default(now())
@@ -1822,6 +1829,7 @@ model DevolucionCliente {
   almacen  Almacen                    @relation(fields: [almacenId], references: [id])
   detalles DevolucionClienteDetalle[]
 
+  @@unique([empresaId, numero])
   @@index([facturaId])
   @@index([almacenId, estado])
   @@map("devoluciones_cliente")
@@ -2030,7 +2038,7 @@ model OrdenCompra {
   id              String            @id @default(cuid())
   empresaId       String            @default("1")
   empresa         Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero          String            @unique // OC-00001
+  numero          String // OC-00001
   proveedorId     String
   almacenId       String? // almacén/planta de destino (opcional: si no se elige, la recepción resuelve el almacén como siempre)
   fecha           DateTime          @default(now())
@@ -2073,6 +2081,7 @@ model OrdenCompra {
   pasosAprobacion PasoAprobacionCompra[]
   acuerdo         AcuerdoSuministro?     @relation(fields: [acuerdoId], references: [id])
 
+  @@unique([empresaId, numero])
   @@map("ordenes_compra")
 }
 
@@ -2141,7 +2150,7 @@ model RecepcionCompra {
   id            String   @id @default(cuid())
   empresaId     String   @default("1")
   empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero        String   @unique // RC-00001
+  numero        String // RC-00001
   ordenCompraId String
   fecha         DateTime @default(now())
   notas         String?
@@ -2152,6 +2161,7 @@ model RecepcionCompra {
   detalles        RecepcionCompraDetalle[]
   cuentasPorPagar CuentaPorPagar[]
 
+  @@unique([empresaId, numero])
   @@map("recepciones_compra")
 }
 
@@ -2390,7 +2400,7 @@ model GuiaRemision {
   id                  String              @id @default(cuid())
   empresaId           String              @default("1")
   empresa             Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero              String              @unique // ej. T001-00000001
+  numero              String // ej. T001-00000001
   facturaId           String?
   pedidoId            String?
   clienteId           String
@@ -2437,6 +2447,7 @@ model GuiaRemision {
   ubigeoLlegada Ubigeo?               @relation("UbigeoLlegada", fields: [ubigeoLlegadaId], references: [id])
   detalles      GuiaRemisionDetalle[]
 
+  @@unique([empresaId, numero])
   @@index([pedidoId])
   @@map("guias_remision")
 }
@@ -2693,7 +2704,7 @@ model HojaRuta {
   id            String         @id @default(cuid())
   empresaId     String         @default("1")
   empresa       Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  numero        String         @unique // HR-00001
+  numero        String // HR-00001
   vendedorId    String
   fecha         DateTime
   estado        EstadoHojaRuta @default(PLANIFICADA)
@@ -2705,6 +2716,7 @@ model HojaRuta {
   vendedor Vendedor         @relation(fields: [vendedorId], references: [id])
   visitas  HojaRutaVisita[]
 
+  @@unique([empresaId, numero])
   @@map("hojas_ruta")
 }
 
@@ -3048,7 +3060,7 @@ model AsientoContable {
   empresaId     String        @default("1")
   empresa       Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   libroId       String
-  numero        String        @unique // AS-00001
+  numero        String // AS-00001
   fecha         DateTime      @default(now())
   anio          Int // período fiscal al que pertenece
   mes           Int
@@ -3064,6 +3076,7 @@ model AsientoContable {
   libro    Libro            @relation(fields: [libroId], references: [id])
   detalles AsientoDetalle[]
 
+  @@unique([empresaId, numero])
   @@index([anio, mes])
   @@map("asientos_contables")
 }
@@ -3188,7 +3201,7 @@ model OrdenInterna {
   id               String             @id @default(cuid())
   empresaId        String             @default("1")
   empresa          Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  codigo           String             @unique // OI-00001
+  codigo           String // OI-00001
   descripcion      String
   // Destino sugerido al crear; se confirma (o cambia) recién al liquidar.
   centroCostoId    String?
@@ -3204,6 +3217,7 @@ model OrdenInterna {
   centroCosto CentroCosto?        @relation(fields: [centroCostoId], references: [id])
   costos      OrdenInternaCosto[]
 
+  @@unique([empresaId, codigo])
   @@map("ordenes_internas")
 }
 
@@ -3620,7 +3634,12 @@ enum CausaFallaMantenimiento {
 // Proyecciones refleje la parada de capacidad. Al cancelarse, libera esos días.
 model OrdenMantenimiento {
   id                   String                   @id @default(cuid())
-  codigo               String                   @unique // OM-00001
+  // Hasta aquí colgaba solo del equipo. Se le da empresaId propio para que
+  // su numeración sea por compañía como la del resto de documentos; la
+  // migración lo rellena desde el equipo al que pertenece cada orden.
+  empresaId            String                   @default("1")
+  empresa              Empresa                  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  codigo               String // OM-00001
   equipoId             String
   tipo                 TipoMantenimiento
   estado               EstadoOrdenMantenimiento @default(PROGRAMADA)
@@ -3653,6 +3672,7 @@ model OrdenMantenimiento {
   repuestos          RepuestoOrdenMantenimiento[]
   avisoMantenimiento AvisoMantenimiento?          @relation(fields: [avisoMantenimientoId], references: [id])
 
+  @@unique([empresaId, codigo])
   @@map("ordenes_mantenimiento")
 }
 
@@ -4483,6 +4503,7 @@ model Empresa {
   adjuntos                   Adjunto[]
   configuracion              ConfiguracionEmpresa?
   incidenciasContables       IncidenciaContable[]
+  ordenesMantenimiento       OrdenMantenimiento[]
 
   @@map("empresas")
 }

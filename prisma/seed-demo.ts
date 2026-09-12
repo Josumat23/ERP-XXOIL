@@ -254,7 +254,7 @@ async function main() {
       continue;
     }
     const cliente = await prisma.$transaction(async (tx) => {
-      const codigo = await siguienteCodigoCliente(tx);
+      const codigo = await siguienteCodigoCliente(tx, "1");
       return tx.cliente.create({ data: { codigo, ...c } });
     });
     clientes.push({ id: cliente.id, razonSocial: cliente.razonSocial, vendedorId: c.vendedorId });
@@ -281,7 +281,7 @@ async function main() {
     mesesAtras: number
   ) {
     await prisma.$transaction(async (tx) => {
-      const numeroOC = await siguienteNumeroOrdenCompra(tx);
+      const numeroOC = await siguienteNumeroOrdenCompra(tx, "1");
       const oc = await tx.ordenCompra.create({
         data: {
           numero: numeroOC,
@@ -295,7 +295,7 @@ async function main() {
         },
       });
 
-      const numeroRecepcion = await siguienteNumeroRecepcion(tx);
+      const numeroRecepcion = await siguienteNumeroRecepcion(tx, "1");
       await tx.recepcionCompra.create({
         data: {
           numero: numeroRecepcion,
@@ -396,7 +396,7 @@ async function main() {
   // --------------------------------------------- 4. Producción (3 lotes)
   async function producirLote(kgObjetivo: number, kgProducidos: number, horas: number) {
     return prisma.$transaction(async (tx) => {
-      const codigo = await siguienteCodigoLote(tx);
+      const codigo = await siguienteCodigoLote(tx, "1");
       const factor = kgObjetivo / formula.rendimientoKg.toNumber();
       const lote = await tx.loteGranel.create({
         data: { codigo, formulaId: formula.id, kgObjetivo, ...audit },
@@ -457,7 +457,7 @@ async function main() {
     envaseInsumoId: string
   ) {
     await prisma.$transaction(async (tx) => {
-      const codigo = await siguienteCodigoEnvasado(tx);
+      const codigo = await siguienteCodigoEnvasado(tx, "1");
       const presentacion = await tx.presentacion.findUniqueOrThrow({ where: { id: presentacionId } });
       const kgConsumidos = unidades * presentacion.contenidoKg.toNumber();
 
@@ -583,7 +583,7 @@ async function main() {
     if (fechaEmision > hoy) continue; // por si el mes actual no llegó a ese día todavía
 
     await prisma.$transaction(async (tx) => {
-      const numeroPedido = await siguienteNumeroPedido(tx);
+      const numeroPedido = await siguienteNumeroPedido(tx, "1");
       const total = venta.lineas.reduce(
         (acc, l) => acc + l.cantidad * l.presentacion.precio.toNumber(),
         0
@@ -862,7 +862,7 @@ async function main() {
     const cuotaMensual = (a.costo - a.residual) / (a.vidaUtilAnios * 12);
 
     const activoFijo = await prisma.$transaction(async (tx) => {
-      const codigo = await siguienteCodigoActivoFijo(tx);
+      const codigo = await siguienteCodigoActivoFijo(tx, "1");
       return tx.activoFijo.create({
         data: {
           codigo,
@@ -917,7 +917,7 @@ async function main() {
 
   // ------------------------------------------- 9. Equipos y mantenimiento
   const mezcladora = await prisma.$transaction(async (tx) => {
-    const codigo = await siguienteCodigoEquipo(tx);
+    const codigo = await siguienteCodigoEquipo(tx, "1");
     return tx.equipo.create({
       data: {
         codigo,
@@ -928,7 +928,7 @@ async function main() {
     });
   });
   const camioneta = await prisma.$transaction(async (tx) => {
-    const codigo = await siguienteCodigoEquipo(tx);
+    const codigo = await siguienteCodigoEquipo(tx, "1");
     return tx.equipo.create({
       data: {
         codigo,
@@ -941,7 +941,7 @@ async function main() {
 
   // Orden correctiva ya completada (con costo posteado a contabilidad y caja).
   await prisma.$transaction(async (tx) => {
-    const codigo = await siguienteCodigoOrdenMantenimiento(tx);
+    const codigo = await siguienteCodigoOrdenMantenimiento(tx, "1");
     const fechaProgramada = fechaHace(2, 10);
     const costoManoObra = 180;
     const costoRepuestos = 320;
@@ -983,7 +983,7 @@ async function main() {
   // Orden preventiva programada a futuro (demuestra el bloqueo de calendario
   // si el almacén ya tiene CalendarioProduccion configurado).
   await prisma.$transaction(async (tx) => {
-    const codigo = await siguienteCodigoOrdenMantenimiento(tx);
+    const codigo = await siguienteCodigoOrdenMantenimiento(tx, "1");
     const fechaProgramada = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 5);
     await tx.ordenMantenimiento.create({
       data: {

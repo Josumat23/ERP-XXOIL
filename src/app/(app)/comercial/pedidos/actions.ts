@@ -185,7 +185,7 @@ export async function crearPedido(
         });
       }
 
-      const numero = await siguienteNumeroPedido(tx);
+      const numero = await siguienteNumeroPedido(tx, empresaId);
       const totales = calcularTotalesPedido(
         lineasConPrecio,
         configuracion.tasaIgv.toNumber()

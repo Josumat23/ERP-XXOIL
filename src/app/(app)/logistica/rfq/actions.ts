@@ -95,7 +95,7 @@ export async function adjudicarOferta(rfqId: string, ofertaId: string, _estado: 
       if (rfq.usuarioId === auth.usuario.id) throw new Error("La persona que solicitó el RFQ no puede adjudicarlo.");
       await tx.ofertaRfq.updateMany({ where: { rfqId }, data: { estado: "NO_SELECCIONADA" } });
       await tx.ofertaRfq.update({ where: { id: ganadora.id }, data: { estado: "ADJUDICADA" } });
-      const numero = await siguienteNumeroOrdenCompra(tx);
+      const numero = await siguienteNumeroOrdenCompra(tx, empresaId);
       const configuracion = await obtenerConfiguracionEmpresa(auth.usuario.empresaId, tx);
       const totalPen = ganadora.moneda === "USD" ? ganadora.total.toNumber() * ganadora.tipoCambio.toNumber() : ganadora.total.toNumber();
       const pasos = await pasosAplicablesCompra(tx, empresaId, totalPen, configuracion.montoAprobacionCompras.toNumber());

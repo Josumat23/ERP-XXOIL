@@ -48,7 +48,7 @@ export async function crearHojaRuta(
   await prisma.$transaction(async (tx) => {
     if (await tx.vendedor.count({ where: { id: vendedorId, empresaId, activo: true } }) !== 1) throw new Error("El vendedor no pertenece a la empresa activa.");
     if (await tx.cliente.count({ where: { id: { in: visitas.map((visita) => visita.clienteId) }, empresaId, activo: true } }) !== visitas.length) throw new Error("Un cliente no pertenece a la empresa activa.");
-    const numero = await siguienteNumeroHojaRuta(tx);
+    const numero = await siguienteNumeroHojaRuta(tx, empresaId);
     const hoja = await tx.hojaRuta.create({
       data: {
         numero,

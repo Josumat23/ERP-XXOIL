@@ -214,7 +214,7 @@ export async function registrarRecepcion(
         }
       }
 
-      const numero = await siguienteNumeroRecepcion(tx);
+      const numero = await siguienteNumeroRecepcion(tx, empresaId);
       const recepcion = await tx.recepcionCompra.create({
         data: {
           numero,

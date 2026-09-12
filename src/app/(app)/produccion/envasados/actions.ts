@@ -92,7 +92,7 @@ export async function crearEnvasado(
         throw new Error("El saldo del lote cambio durante el envasado. Actualice la pagina e intente nuevamente.");
       }
 
-      const codigo = await siguienteCodigoEnvasado(tx);
+      const codigo = await siguienteCodigoEnvasado(tx, auth.usuario.empresaId);
 
       const vidaUtilMeses = lote.formula.producto.vidaUtilMeses;
       const fecha = new Date();

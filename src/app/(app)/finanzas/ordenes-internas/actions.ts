@@ -41,7 +41,7 @@ export async function crearOrdenInterna(
 
   let ordenId = "";
   await prisma.$transaction(async (tx) => {
-    const codigo = await siguienteCodigoOrdenInterna(tx);
+    const codigo = await siguienteCodigoOrdenInterna(tx, empresaId);
     const orden = await tx.ordenInterna.create({
       data: {
         empresaId,

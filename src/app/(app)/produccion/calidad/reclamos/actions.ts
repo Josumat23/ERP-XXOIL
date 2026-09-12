@@ -53,7 +53,7 @@ export async function crearReclamo(
           throw new Error("La factura relacionada pertenece a otro cliente.");
         }
       }
-      const numero = await siguienteNumeroReclamo(tx);
+      const numero = await siguienteNumeroReclamo(tx, auth.usuario.empresaId);
       const creado = await tx.reclamoCliente.create({
         data: {
           empresaId: auth.usuario.empresaId,

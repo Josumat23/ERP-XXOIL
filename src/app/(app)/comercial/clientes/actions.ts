@@ -109,7 +109,7 @@ export async function crearCliente(
     await prisma.$transaction(async (tx) => {
       if (resultado.datos.zonaId && await tx.zona.count({ where: { id: resultado.datos.zonaId, empresaId, activo: true } }) !== 1) throw new Error("La zona no pertenece a la empresa activa.");
       if (resultado.datos.vendedorId && await tx.vendedor.count({ where: { id: resultado.datos.vendedorId, empresaId, activo: true } }) !== 1) throw new Error("El vendedor no pertenece a la empresa activa.");
-      const codigo = await siguienteCodigoCliente(tx);
+      const codigo = await siguienteCodigoCliente(tx, empresaId);
       const cliente = await tx.cliente.create({
         data: { ...resultado.datos, codigo, empresaId },
       });
