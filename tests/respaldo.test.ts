@@ -12,9 +12,11 @@ import {
   controladorPara,
   crearRespaldo,
   detectarMotor,
+  fechaDeRespaldo,
   esNombreRespaldo,
   nombreRespaldo,
   resolverOrigen,
+  respaldoPendiente,
   respaldosAEliminar,
   restaurarRespaldo,
   rutaDentroDe,
@@ -461,4 +463,149 @@ test("el comando de restauración arranca y explica su uso", () => {
   assert.equal(resultado.status, 1);
   assert.match(resultado.stderr, /npm run restaurar -- --respaldo/);
   assert.ok(!resultado.stderr.includes("ERR_MODULE_NOT_FOUND"), resultado.stderr);
+});
+
+// --- Cadencia: la tarea corre cada hora, el respaldo no ---------------------
+//
+// La pantalla de tareas programadas promete que cada tarea "revisa primero si
+// ya hizo lo que tenía que hacer, así que Ejecutar ahora nunca duplica nada".
+// El respaldo no lo revisaba: creaba una copia en cada corrida —cada hora y en
+// cada arranque del servidor— y cada copia eliminaba una vieja por retención.
+// Con retención 7 se conservaban las últimas 7 horas en vez de la última
+// semana, y pulsar "Ejecutar ahora" siete veces borraba el historial entero.
+
+test("la fecha sale del nombre, y un nombre imposible no se convierte en otra fecha", () => {
+  assert.deepEqual(fechaDeRespaldo("erp-20260105-030709.db"), new Date(2026, 0, 5, 3, 7, 9));
+  assert.equal(fechaDeRespaldo("erp-20260105-030709.dump", ".dump")?.getFullYear(), 2026);
+  assert.equal(fechaDeRespaldo("otra-cosa.db"), null);
+  assert.equal(fechaDeRespaldo("erp-20260105-030709.db.parcial"), null);
+  assert.equal(fechaDeRespaldo("erp-sin-fecha.db"), null);
+  // `new Date(2026, 12, 40)` no falla: se desborda al mes siguiente.
+  assert.equal(fechaDeRespaldo("erp-20261340-030709.db"), null);
+  assert.equal(fechaDeRespaldo("erp-20260230-030709.db"), null);
+});
+
+test("no se respalda otra vez antes de que pase el intervalo", () => {
+  const ahora = new Date(2026, 0, 10, 12, 0, 0);
+  const hace2h = ["erp-20260110-100000.db"];
+  const hace30h = ["erp-20260109-060000.db"];
+
+  // Un directorio vacío siempre corresponde: no hay respaldo que valga.
+  assert.equal(respaldoPendiente({ nombres: [], ahora, intervaloHoras: 24 }), true);
+  assert.equal(respaldoPendiente({ nombres: hace2h, ahora, intervaloHoras: 24 }), false);
+  assert.equal(respaldoPendiente({ nombres: hace30h, ahora, intervaloHoras: 24 }), true);
+  // El más reciente manda, no el primero de la lista.
+  assert.equal(
+    respaldoPendiente({ nombres: [...hace30h, ...hace2h], ahora, intervaloHoras: 24 }),
+    false
+  );
+  // Quien quiera respaldos por hora lo configura; no se inventa la cadencia.
+  assert.equal(respaldoPendiente({ nombres: hace2h, ahora, intervaloHoras: 1 }), true);
+  // Justo al cumplirse el intervalo ya corresponde.
+  assert.equal(
+    respaldoPendiente({ nombres: ["erp-20260109-120000.db"], ahora, intervaloHoras: 24 }),
+    true
+  );
+});
+
+test("lo que no es un respaldo de este motor no cuenta como respaldo", () => {
+  const ahora = new Date(2026, 0, 10, 12, 0, 0);
+  // Un `.db` en el directorio no prueba que el volcado de PostgreSQL se hizo.
+  assert.equal(
+    respaldoPendiente({
+      nombres: ["erp-20260110-100000.db", "ruido.txt"],
+      ahora,
+      intervaloHoras: 24,
+      extension: ".dump",
+    }),
+    true
+  );
+  assert.equal(
+    respaldoPendiente({
+      nombres: ["erp-20260110-100000.dump"],
+      ahora,
+      intervaloHoras: 24,
+      extension: ".dump",
+    }),
+    false
+  );
+});
+
+test("un intervalo sin sentido no se obedece, y un reloj hacia atrás no bloquea", () => {
+  const ahora = new Date(2026, 0, 10, 12, 0, 0);
+  const hace2h = ["erp-20260110-100000.db"];
+  // Igual que con la retención: "respaldar en cada corrida" casi siempre es un
+  // error de configuración y no una instrucción. Vale el de por defecto, 24 h.
+  for (const intervalo of [0, -5, Number.NaN, Number.POSITIVE_INFINITY]) {
+    assert.equal(
+      respaldoPendiente({ nombres: hace2h, ahora, intervaloHoras: intervalo }),
+      false,
+      `intervalo ${intervalo}`
+    );
+  }
+  // Una marca en el futuro —reloj corregido, copia traída de otra máquina— no
+  // puede dejar el respaldo esperando a que el tiempo la alcance.
+  assert.equal(
+    respaldoPendiente({ nombres: ["erp-20260112-100000.db"], ahora, intervaloHoras: 24 }),
+    true
+  );
+});
+
+test("la cadencia protege la retención: siete corridas no borran la semana", async () => {
+  // Reproduce lo que pasaba: siete corridas seguidas con retención 7 dejaban
+  // siete copias de la misma hora y ningún día anterior.
+  const { directorio, archivo } = await baseTemporal();
+  const destino = join(directorio, "respaldos");
+  try {
+    // Historial de una semana, uno por día.
+    for (let dia = 1; dia <= 7; dia++) {
+      await crearRespaldo({
+        origen: archivo,
+        directorio: destino,
+        retencion: 7,
+        ahora: new Date(2026, 0, dia, 3, 0, 0),
+      });
+    }
+    const semana = (await readdir(destino)).filter((n) => esNombreRespaldo(n)).sort();
+    assert.equal(semana.length, 7);
+
+    // Siete corridas de la tarea el día 7, una por hora, como el temporizador.
+    // Sin la pregunta, cada una crearía un archivo distinto y la retención de 7
+    // se llevaría los siete días anteriores.
+    for (let hora = 12; hora < 19; hora++) {
+      const ahora = new Date(2026, 0, 7, hora, 0, 0);
+      const existentes = await readdir(destino);
+      if (respaldoPendiente({ nombres: existentes, ahora, intervaloHoras: 24 })) {
+        await crearRespaldo({ origen: archivo, directorio: destino, retencion: 7, ahora });
+      }
+    }
+
+    const despues = (await readdir(destino)).filter((n) => esNombreRespaldo(n)).sort();
+    // La semana sigue entera y no se creó ninguna copia nueva: la última es de
+    // hace nueve horas.
+    assert.deepEqual(despues, semana);
+    const dias = new Set(despues.map((n) => n.slice(0, "erp-20260101".length)));
+    assert.equal(dias.size, 7, `el historial se aplastó a ${dias.size} día(s)`);
+  } finally {
+    await rm(directorio, { recursive: true, force: true });
+  }
+});
+
+test("la tarea de respaldo no crea una copia en cada corrida", async () => {
+  // Guardia estructural: la tarea corre cada hora y en cada arranque. Si vuelve
+  // a llamar a crearRespaldo sin preguntar, la retención se consume en horas.
+  const tareas = (
+    await readFile(resolve(process.cwd(), "src/lib/tareasProgramadas.ts"), "utf8")
+  ).replace(/^\s*\/\/.*$/gm, "");
+  const bloque = tareas.slice(
+    tareas.indexOf("async function ejecutarRespaldoBase"),
+    tareas.indexOf("const EJECUTORES")
+  );
+  assert.ok(bloque.length > 0, "no se encontró la tarea de respaldo");
+  assert.match(bloque, /respaldoPendiente\(/);
+  assert.ok(
+    bloque.indexOf("respaldoPendiente(") < bloque.indexOf("crearRespaldo("),
+    "se pregunta después de respaldar, que es no preguntar"
+  );
+  assert.match(bloque, /RESPALDO_INTERVALO_HORAS|INTERVALO_RESPALDO_HORAS/);
 });

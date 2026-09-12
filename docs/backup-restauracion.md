@@ -22,10 +22,21 @@ La tarea programada `RESPALDO_BASE` corre con el resto de tareas del servidor y 
 | --- | --- | --- |
 | `RESPALDO_DIR` | Directorio donde se guardan los respaldos. **Sin ella la tarea no hace nada.** | — |
 | `RESPALDO_RETENCION` | Cuántos respaldos se conservan; los más antiguos se eliminan con su manifiesto. | 7 |
+| `RESPALDO_INTERVALO_HORAS` | Cada cuánto corresponde una copia nueva. La tarea se ejecuta cada hora, pero solo respalda si la copia más reciente ya tiene esta antigüedad. | 24 |
 
 Conviene que `RESPALDO_DIR` apunte a un disco distinto del de la base: un respaldo en el mismo disco no protege contra la falla que más probablemente ocurra.
 
-Con retención 0 o negativa **no se borra nada**: "no conservar ninguno" casi siempre es un error de configuración, no una instrucción.
+Con retención 0 o negativa **no se borra nada**: "no conservar ninguno" casi siempre es un error de configuración, no una instrucción. Un intervalo que no sea un número positivo se ignora del mismo modo y vale el de por defecto.
+
+### La tarea corre cada hora; el respaldo no
+
+La tarea programada se dispara al arrancar el servidor y luego cada hora, como todas. Eso **no** significa un respaldo por hora: antes de copiar nada, mira el directorio y solo respalda si la copia más reciente ya tiene la antigüedad de `RESPALDO_INTERVALO_HORAS`. Si no, deja constancia de que no correspondía y no toca ningún archivo.
+
+Sin esa comprobación, con retención 7 se conservarían **las últimas siete horas** en vez de la última semana, y reiniciar el servidor siete veces —o pulsar "Ejecutar ahora" siete veces— borraría el historial entero. La suite reproduce exactamente esa secuencia: una semana de copias, siete corridas la misma tarde, y verifica que la semana sigue completa.
+
+El directorio es la fuente de verdad, no una tabla ni la fecha de modificación del archivo: la fecha de cada copia va en su nombre, y una tabla diría que existen respaldos que quizá ya no están. Una marca de tiempo en el futuro —reloj corregido hacia atrás, copias traídas de otra máquina— no bloquea el respaldo a la espera de que el tiempo la alcance: ante la duda se respalda, que es el lado barato del error.
+
+Si hace falta una copia extra fuera de la cadencia, está el respaldo manual, que siempre crea una.
 
 ## Respaldo manual
 

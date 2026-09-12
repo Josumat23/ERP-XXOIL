@@ -85,6 +85,62 @@ export function respaldosAEliminar(
   return propios.sort().slice(0, Math.max(0, propios.length - retencion));
 }
 
+/**
+ * La fecha que lleva el nombre de un respaldo, o `null` si no es uno.
+ *
+ * El nombre es la única fuente de verdad sobre cuándo se hizo cada copia: la
+ * fecha de modificación del archivo la cambia cualquier cosa que lo toque, y
+ * una tabla en la base diría que hay respaldos que quizá ya no están.
+ */
+export function fechaDeRespaldo(
+  nombre: string,
+  extension: string = EXTENSION_RESPALDO
+): Date | null {
+  if (!esNombreRespaldo(nombre, extension)) return null;
+  const marca = nombre.slice(PREFIJO_RESPALDO.length, nombre.length - extension.length);
+  const partes = /^(\d{4})(\d{2})(\d{2})-(\d{2})(\d{2})(\d{2})$/.exec(marca);
+  if (!partes) return null;
+  const [, anio, mes, dia, hora, minuto, segundo] = partes.map(Number);
+  const fecha = new Date(anio, mes - 1, dia, hora, minuto, segundo);
+  // `new Date(2026, 12, 40)` no falla: se desborda al mes siguiente. Una marca
+  // imposible tiene que quedar fuera, no convertirse en otra fecha.
+  return fecha.getMonth() === mes - 1 && fecha.getDate() === dia ? fecha : null;
+}
+
+/**
+ * ¿Corresponde respaldar ahora, o ya hay una copia suficientemente reciente?
+ *
+ * La tarea programada corre cada hora y en cada arranque del servidor. Sin esta
+ * pregunta, cada corrida crea un respaldo **y elimina uno viejo por retención**:
+ * con retención 7 se conservarían las últimas 7 horas en vez de la última
+ * semana, y reiniciar el servidor siete veces borraría el historial entero.
+ *
+ * Un intervalo que no sea un número positivo se ignora y vale el de por
+ * defecto: "respaldar en cada corrida" casi siempre es un error de
+ * configuración y no una instrucción, igual que una retención de cero.
+ */
+export function respaldoPendiente(params: {
+  nombres: readonly string[];
+  ahora: Date;
+  intervaloHoras: number;
+  extension?: string;
+}): boolean {
+  const { nombres, ahora, intervaloHoras, extension = EXTENSION_RESPALDO } = params;
+  const horas = Number.isFinite(intervaloHoras) && intervaloHoras > 0 ? intervaloHoras : 24;
+  const fechas = nombres
+    .map((n) => fechaDeRespaldo(n, extension))
+    .filter((f): f is Date => f !== null);
+  if (fechas.length === 0) return true;
+
+  const ultimo = Math.max(...fechas.map((f) => f.getTime()));
+  const transcurridas = (ahora.getTime() - ultimo) / (60 * 60 * 1000);
+  // Una marca en el futuro —reloj corregido hacia atrás, copia traída de otra
+  // máquina— no puede dejar el respaldo bloqueado a la espera de que el tiempo
+  // la alcance: ante la duda se respalda, que es el lado barato del error.
+  if (transcurridas < 0) return true;
+  return transcurridas >= horas;
+}
+
 /** Una ruta es segura si queda dentro del directorio permitido. */
 export function rutaDentroDe(ruta: string, directorio: string): boolean {
   const relativa = relative(resolve(directorio), resolve(ruta));
