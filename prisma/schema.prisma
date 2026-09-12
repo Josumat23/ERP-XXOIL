@@ -402,6 +402,32 @@ model EscalonPrecio {
   @@map("escalones_precio")
 }
 
+// Historial de las condiciones comerciales pactadas con un proveedor, con
+// vigencias. Responde "qué plazo regía cuando se recibió esta factura" y
+// "por qué cambió", que el campo mutable del maestro no puede contestar.
+//
+// Los rangos son semiabiertos [vigenteDesde, vigenteHasta): abrir una versión
+// nueva cierra la anterior en la misma fecha, sin restar días ni dejar huecos.
+// La versión vigente es la única con vigenteHasta en null.
+model CondicionComercialProveedor {
+  id                String    @id @default(cuid())
+  proveedorId       String
+  condicionPagoDias Int       @default(0) // 0 = contado
+  vigenteDesde      DateTime
+  vigenteHasta      DateTime? // null = vigente
+  // Obligatorio a propósito: el ítem del diccionario pedía poder trazar POR QUÉ
+  // cambió una condición, y una fecha sin motivo no lo contesta.
+  motivo            String
+  usuarioId         String
+  usuarioNombre     String
+  creadoEn          DateTime  @default(now())
+
+  proveedor Proveedor @relation(fields: [proveedorId], references: [id], onDelete: Cascade)
+
+  @@index([proveedorId, vigenteDesde])
+  @@map("condiciones_comerciales_proveedor")
+}
+
 model Proveedor {
   id                  String              @id @default(cuid())
   empresaId           String              @default("1")
@@ -429,13 +455,14 @@ model Proveedor {
   activo              Boolean             @default(true)
   creadoEn            DateTime            @default(now())
 
-  ubigeo             Ubigeo?             @relation(fields: [ubigeoId], references: [id])
-  insumos            Insumo[]
-  ordenesCompra      OrdenCompra[]
-  cuentasPorPagar    CuentaPorPagar[]
-  creditosProveedor  CreditoProveedor[]
-  ofertasRfq         OfertaRfq[]
-  acuerdosSuministro AcuerdoSuministro[]
+  ubigeo                 Ubigeo?                       @relation(fields: [ubigeoId], references: [id])
+  insumos                Insumo[]
+  ordenesCompra          OrdenCompra[]
+  cuentasPorPagar        CuentaPorPagar[]
+  creditosProveedor      CreditoProveedor[]
+  ofertasRfq             OfertaRfq[]
+  acuerdosSuministro     AcuerdoSuministro[]
+  condicionesComerciales CondicionComercialProveedor[]
 
   @@unique([empresaId, ruc])
   @@map("proveedores")
