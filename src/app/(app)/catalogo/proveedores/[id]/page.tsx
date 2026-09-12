@@ -9,8 +9,10 @@ import PanelContactos from "@/components/PanelContactos";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
 import ProveedorFormulario from "../ProveedorFormulario";
-import { actualizarProveedor } from "../actions";
+import { actualizarProveedor, registrarCondicionComercial } from "../actions";
 import { arbolUbigeos } from "@/lib/ubigeosCatalogo";
+import { formatFecha } from "@/lib/format";
+import CondicionComercialFormulario from "./CondicionComercialFormulario";
 
 export default async function EditarProveedorPage({
   params,
@@ -23,7 +25,13 @@ export default async function EditarProveedorPage({
   const { id } = await params;
   const empresaId = await obtenerEmpresaActivaId();
   const [proveedor, proveedores, arbol] = await Promise.all([
-    prisma.proveedor.findFirst({ where: { id, empresaId }, include: { ubigeo: true } }),
+    prisma.proveedor.findFirst({
+      where: { id, empresaId },
+      include: {
+        ubigeo: true,
+        condicionesComerciales: { orderBy: { vigenteDesde: "desc" } },
+      },
+    }),
     prisma.proveedor.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
     arbolUbigeos(),
   ]);
@@ -75,6 +83,62 @@ export default async function EditarProveedorPage({
           }}
           textoBoton="Guardar cambios"
         />
+        <section className="borde-seccion">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-1">
+            Condiciones comerciales
+          </h2>
+          <p className="text-sm mb-3" style={{ color: "var(--epicor-texto-tenue)" }}>
+            Plazo de pago pactado, con vigencias. Permite responder qué condición regía cuando se
+            recibió una factura, y por qué cambió.
+          </p>
+
+          <CondicionComercialFormulario
+            accion={registrarCondicionComercial.bind(null, proveedor.id)}
+            diasVigentes={proveedor.condicionPagoDias}
+          />
+
+          <table className="tabla mt-4">
+            <thead>
+              <tr>
+                <th>Plazo</th>
+                <th>Rige desde</th>
+                <th>Hasta</th>
+                <th>Motivo</th>
+                <th>Registró</th>
+              </tr>
+            </thead>
+            <tbody>
+              {proveedor.condicionesComerciales.map((c) => (
+                <tr key={c.id}>
+                  <td>{c.condicionPagoDias === 0 ? "Contado" : `${c.condicionPagoDias} días`}</td>
+                  <td>{formatFecha(c.vigenteDesde)}</td>
+                  <td>
+                    {c.vigenteHasta ? (
+                      formatFecha(c.vigenteHasta)
+                    ) : (
+                      <span className="insignia bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400">
+                        Vigente
+                      </span>
+                    )}
+                  </td>
+                  <td className="text-sm text-neutral-500">{c.motivo}</td>
+                  <td className="text-xs text-neutral-500">{c.usuarioNombre}</td>
+                </tr>
+              ))}
+              {proveedor.condicionesComerciales.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="text-center text-neutral-500 py-3">
+                    Sin condiciones registradas. El proveedor opera con el plazo vigente de su
+                    ficha ({proveedor.condicionPagoDias === 0
+                      ? "contado"
+                      : `${proveedor.condicionPagoDias} días`}), sin historial que lo respalde.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+
         <PanelDirecciones
           entidadTipo="Proveedor"
           entidadId={proveedor.id}

@@ -9,6 +9,12 @@ import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { resolverUbigeoEnTransaccion } from "@/lib/ubigeos";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import {
+  condicionAbierta,
+  MENSAJE_RECHAZO_VIGENCIA,
+  validarNuevaCondicion,
+} from "@/lib/condicionesProveedor";
 
 export type EstadoFormulario = { error?: string };
 
@@ -162,4 +168,98 @@ export async function alternarActivoProveedor(id: string, activo: boolean) {
     await registrarAuditoriaMaestro(tx, { empresaId: despues.empresaId, entidad: "Proveedor", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/catalogo/proveedores");
+}
+
+/**
+ * Registra una condición comercial nueva y cierra la vigente en la misma
+ * fecha, en una sola transacción.
+ *
+ * Actualiza además `Proveedor.condicionPagoDias`, que sigue siendo el valor
+ * vigente que lee el resto del sistema: el historial responde "qué regía
+ * cuándo y por qué", no reemplaza al maestro.
+ */
+export async function registrarCondicionComercial(
+  proveedorId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
+
+  const condicionPagoDias = Number(formData.get("condicionPagoDias") ?? 0);
+  const motivo = String(formData.get("motivo") ?? "").trim();
+  const desdeStr = String(formData.get("vigenteDesde") ?? "");
+  const vigenteDesde = crearFechaCalendarioLocal(desdeStr);
+  if (!vigenteDesde) return { error: "Indique desde cuándo rige la nueva condición." };
+  if (motivo.length > 500) return { error: "El motivo no puede superar los 500 caracteres." };
+
+  const empresaId = await obtenerEmpresaActivaId();
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // El id llega del navegador: el proveedor tiene que ser de la compañía
+      // activa.
+      const proveedor = await tx.proveedor.findFirst({
+        where: { id: proveedorId, empresaId },
+        select: { id: true },
+      });
+      if (!proveedor) throw new Error("El proveedor no pertenece a la compañía activa.");
+
+      const condiciones = await tx.condicionComercialProveedor.findMany({
+        where: { proveedorId },
+        select: { id: true, condicionPagoDias: true, vigenteDesde: true, vigenteHasta: true },
+      });
+
+      const rechazo = validarNuevaCondicion(condiciones, {
+        condicionPagoDias,
+        vigenteDesde,
+        motivo,
+      });
+      if (rechazo) throw new Error(MENSAJE_RECHAZO_VIGENCIA[rechazo]);
+
+      // Cierra la vigente en la MISMA fecha en que empieza la nueva: los
+      // rangos son semiabiertos, así que no quedan huecos ni solapamientos.
+      const abierta = condicionAbierta(condiciones);
+      if (abierta) {
+        await tx.condicionComercialProveedor.update({
+          where: { id: abierta.id },
+          data: { vigenteHasta: vigenteDesde },
+        });
+      }
+
+      await tx.condicionComercialProveedor.create({
+        data: {
+          proveedorId,
+          condicionPagoDias,
+          vigenteDesde,
+          motivo,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+
+      const antes = await tx.proveedor.findUnique({ where: { id: proveedorId } });
+      const despues = await tx.proveedor.update({
+        where: { id: proveedorId },
+        data: { condicionPagoDias },
+      });
+      await registrarAuditoriaMaestro(tx, {
+        empresaId,
+        entidad: "Proveedor",
+        registroId: proveedorId,
+        accion: "ACTUALIZAR",
+        antes,
+        despues,
+        usuario: auth.usuario,
+      });
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo registrar la condición." };
+  }
+
+  revalidatePath(`/catalogo/proveedores/${proveedorId}`);
+  return {};
 }

@@ -164,19 +164,18 @@ export default function ProveedorFormulario({
             etiqueta: "Condiciones de pago",
             contenido: (
               <div className="borde-seccion">
-                <Campo etiqueta="Condición habitual">
-                  <select
-                    name="condicionPagoDias"
-                    defaultValue={String(valoresIniciales?.condicionPagoDias ?? 0)}
-                    className="campo-input max-w-xs"
-                  >
-                    <option value="0">Contado</option>
-                    <option value="15">Crédito 15 días</option>
-                    <option value="30">Crédito 30 días</option>
-                    <option value="45">Crédito 45 días</option>
-                    <option value="60">Crédito 60 días</option>
-                  </select>
+                <Campo etiqueta="Condición vigente">
+                  <p className="campo-input max-w-xs bg-black/[0.03] dark:bg-white/[0.03]">
+                    {(valoresIniciales?.condicionPagoDias ?? 0) === 0
+                      ? "Contado"
+                      : `Crédito ${valoresIniciales?.condicionPagoDias} días`}
+                  </p>
                 </Campo>
+                <p className="text-xs" style={{ color: "var(--epicor-texto-tenue)" }}>
+                  {valoresIniciales
+                    ? "El plazo se cambia en «Condiciones comerciales», más abajo en esta ficha: ahí queda registrado desde cuándo rige y por qué. Cambiarlo desde aquí no dejaría ese rastro."
+                    : "El proveedor se crea al contado. Una vez creado, registre la condición pactada en «Condiciones comerciales» de su ficha."}
+                </p>
 
                 <p className="text-xs font-medium text-neutral-500 mt-4 mb-1">
                   Datos bancarios para pagos domésticos (Perú)
