@@ -7,6 +7,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { diasVencidos } from "@/lib/cobranza";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import { validarRespuesta, type EstadoRegistrado } from "@/lib/gestionCobranza";
+import { accionDeCobranza, nivelPorAntiguedad } from "@/lib/escalamientoCobranza";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
@@ -19,12 +20,33 @@ export async function registrarAvisoCobranza(facturaId: string) {
   }
 
   const empresaId = await obtenerEmpresaActivaId();
-  const factura = await prisma.factura.findFirst({ where: { id: facturaId, empresaId } });
+  const [factura, politica] = await Promise.all([
+    prisma.factura.findFirst({
+      where: { id: facturaId, empresaId },
+      include: { avisosCobranza: { orderBy: { fecha: "desc" }, take: 1 } },
+    }),
+    prisma.politicaCobranza.findUnique({ where: { empresaId } }),
+  ]);
   if (!factura) return { error: "La factura no existe." };
   if (factura.saldo.toNumber() <= 1e-9) return { error: "Esta factura ya no tiene saldo pendiente." };
 
   const dias = diasVencidos(factura.fechaVencimiento);
-  const nivel = dias > 30 ? 3 : dias > 15 ? 2 : 1;
+
+  // El nivel sale de la MISMA política que pinta la pantalla. Antes se
+  // reimplementaban los umbrales aquí (`dias > 30 ? 3 : dias > 15 ? 2 : 1`), lo
+  // que con umbrales configurables haría que el botón registrara un nivel
+  // distinto del que la columna «Acción debida» está pidiendo.
+  //
+  // Si la política dice que toca un nivel mayor —por un compromiso incumplido,
+  // por ejemplo— se registra ese. Si dice que no toca nada, o que está pausada,
+  // igual se registra por antigüedad: una persona puede decidir volver a
+  // contactar al cliente, y el sistema no le discute esa decisión.
+  let nivel = nivelPorAntiguedad(dias, politica?.diasNivel2, politica?.diasNivel3);
+  if (politica) {
+    const ultimo = factura.avisosCobranza[0] ?? null;
+    const accion = accionDeCobranza(dias, ultimo, politica);
+    if (accion.tipo === "AVISO_DEBIDO") nivel = accion.nivel;
+  }
 
   await prisma.avisoCobranza.create({
     data: {
