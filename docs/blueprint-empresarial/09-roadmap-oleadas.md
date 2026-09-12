@@ -94,10 +94,11 @@ Cada ítem indica: **dependencias**, **criterio de aceptación**, **cómo probar
 - **Rollback**: migración aditiva — se agrega `empresaId` con `@default("1")` y se respalda la fila existente como la de la compañía principal; revertir deja la fila `"1"` intacta.
 - **Prioridad**: **P0 para multi-sociedad; sin efecto operativo mientras haya una sola compañía.**
 
-### 0.3 — Planta como unidad organizativa real
+### 0.3 — ~~Planta como unidad organizativa real~~ — completado
 - **Avance 2026-09-11:** `Almacen.tipo` (`PLANTA` / `ALMACEN_DISTRIBUCION` / `ALMACEN_TRANSITO`) existe y se administra desde Configuración → Almacenes. La migración trasladó la convención vigente —un almacén hacía de planta si tenía `CalendarioProduccion`— al campo explícito, así que ningún dato cambia de comportamiento al aplicarla. La capacidad de Proyecciones ya suma **solo plantas**. Véase `docs/planta-unidad-organizativa.md`.
 - **MRP por planta completado 2026-09-12:** el MRP acepta una planta y netea contra el stock de **esa** planta (`SaldoAlmacen`) con solo sus pedidos firmes y su capacidad; la orden de compra generada hereda la planta como destino. Bajo el supuesto explícito **1 planta = 1 almacén de tipo `PLANTA`**, que es el modelo vigente. El pronóstico queda fuera al planificar por planta —`Proyeccion` no distingue plantas y repartirla exige un criterio de asignación del negocio—, y la pantalla lo declara. Véase `docs/mrp-por-planta.md`.
-- **Lo que falta:** el reparto del pronóstico entre plantas (criterio del negocio) y el campo `plantaId` jerárquico, que sigue siendo P1 y depende de la pregunta abierta 2 del Blueprint 10 (si una planta puede tener varios almacenes subordinados).
+- **`plantaId` jerárquico: no aplica.** El negocio confirmó el 2026-09-12 que **1 planta = 1 almacén es suficiente**, así que el supuesto bajo el que ya operaban el MRP y la capacidad de Proyecciones deja de ser supuesto. No se modela la separación Werk→Lgort: obligaría a elegir planta **y** almacén en cada movimiento sin aportar control (Blueprint 10, respuestas registradas).
+- **Lo que falta:** solo el reparto del pronóstico entre plantas, que sigue siendo criterio del negocio — `Proyeccion` no distingue plantas y repartirla exige un criterio de asignación.
 - **Qué**: agregar `tipo`/`rol` a `Almacen` (o modelo `Planta` separado si el negocio confirma que una planta puede tener varios almacenes subordinados — ver Blueprint 10, pregunta abierta).
 - **Dependencias**: 0.2 (una planta pertenece a una compañía real).
 - **Criterio de aceptación**: el sistema puede listar "todas las plantas" distinto de "todos los almacenes de distribución," y el MRP/Proyecciones puede planificar por planta.
