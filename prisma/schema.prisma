@@ -1677,6 +1677,15 @@ model RecargoMora {
 // correo/SMS real (este ERP no tiene esa integración) — es el registro de
 // que el aviso se emitió (para imprimir/entregar) y en qué nivel, para poder
 // distinguir "primera vez que se avisa" de "ya se le avisó 3 veces".
+// Qué contestó el cliente al aviso. Solo hechos que alguien registra después
+// de hablar con él — el sistema no deduce ninguno por su cuenta.
+enum EstadoAvisoCobranza {
+  PENDIENTE // emitido, todavía sin respuesta
+  COMPROMISO_PAGO // el cliente se comprometió a una fecha
+  EN_DISPUTA // el cliente objeta la factura
+  SIN_RESPUESTA // se le contactó y no contestó
+}
+
 model AvisoCobranza {
   id            String   @id @default(cuid())
   empresaId     String   @default("1")
@@ -1688,6 +1697,19 @@ model AvisoCobranza {
   fecha         DateTime @default(now())
   usuarioId     String
   usuarioNombre String
+
+  // Seguimiento del aviso. Sin esto la tabla es un log de avisos emitidos: se
+  // sabe a quién se le escribió y nunca qué pasó después.
+  estado              EstadoAvisoCobranza @default(PENDIENTE)
+  // Obligatorio cuando el estado es COMPROMISO_PAGO, y es lo único que
+  // convierte el seguimiento en proceso: un compromiso cuya fecha pasó con la
+  // factura todavía impaga es un incumplimiento, y eso se DERIVA, no se guarda
+  // (un estado guardado se queda viejo apenas cambia el saldo o el día).
+  compromisoPagoEn    DateTime?
+  detalleRespuesta    String?
+  respondidoEn        DateTime?
+  respondidoPorId     String?
+  respondidoPorNombre String?
 
   cliente Cliente @relation(fields: [clienteId], references: [id])
   factura Factura @relation(fields: [facturaId], references: [id])
