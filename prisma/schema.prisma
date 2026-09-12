@@ -1677,6 +1677,44 @@ model RecargoMora {
 // correo/SMS real (este ERP no tiene esa integración) — es el registro de
 // que el aviso se emitió (para imprimir/entregar) y en qué nivel, para poder
 // distinguir "primera vez que se avisa" de "ya se le avisó 3 veces".
+// Política de escalamiento de cobranza.
+//
+// La fila existe **solo si el negocio la definió**. Sin fila no hay
+// escalamiento y la pantalla funciona como antes: el nivel se sugiere por
+// antigüedad y lo decide una persona. Cuándo escalar es política de cobranza,
+// y el sistema no elige una por su cuenta.
+model PoliticaCobranza {
+  id        String  @id @default(cuid())
+  empresaId String  @unique
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  // Antigüedad de la factura que corresponde a cada nivel. Nacen en 15 y 30,
+  // que son los umbrales que el código ya traía fijos: encender la política no
+  // cambia por sí solo el nivel que se venía sugiriendo.
+  diasNivel2 Int @default(15)
+  diasNivel3 Int @default(30)
+
+  // Reglas opcionales: `null` = la regla NO corre. Cada una es una decisión
+  // propia, y ninguna se enciende sola por el hecho de definir la política.
+  //
+  // Días que un aviso puede quedarse sin respuesta antes de que toque el
+  // siguiente nivel.
+  diasSinRespuesta     Int?
+  // Días de gracia después de la fecha de un compromiso incumplido.
+  diasGraciaCompromiso Int?
+
+  // Perseguir a un cliente por una factura que todavía se le está
+  // investigando es el único desenlace que nadie quiere; por eso viene
+  // activado. Es un valor por defecto, no una regla: se apaga con un clic.
+  pausarEnDisputa Boolean @default(true)
+
+  actualizadoEn        DateTime @updatedAt
+  actualizadoPorId     String
+  actualizadoPorNombre String
+
+  @@map("politicas_cobranza")
+}
+
 // Qué contestó el cliente al aviso. Solo hechos que alguien registra después
 // de hablar con él — el sistema no deduce ninguno por su cuenta.
 enum EstadoAvisoCobranza {
@@ -4722,6 +4760,7 @@ model Empresa {
   pedidos                    Pedido[]
   facturas                   Factura[]
   avisosCobranza             AvisoCobranza[]
+  politicaCobranza           PoliticaCobranza?
   comprobantes               ComprobanteElectronico[]
   cobros                     Cobro[]
   notasCredito               NotaCredito[]

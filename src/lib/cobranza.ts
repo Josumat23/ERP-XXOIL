@@ -1,13 +1,9 @@
-// Gestión de cobranza (dunning): niveles de escalamiento según días
-// vencidos de una factura. Umbrales fijos, no configurables — para una sola
-// empresa no hace falta que sean parametrizables por código de empresa como
-// en SAP.
-export function nivelSugerido(diasVencidos: number): 1 | 2 | 3 {
-  if (diasVencidos > 30) return 3;
-  if (diasVencidos > 15) return 2;
-  return 1;
-}
-
+// Gestión de cobranza (dunning): etiquetas de nivel y antigüedad de una
+// factura vencida.
+//
+// El nivel por antigüedad vive en `escalamientoCobranza.ts`, porque desde que
+// los umbrales son configurables depende de la política de la compañía. Aquí
+// había una copia con 15 y 30 fijos; se quitó al quedar sin uso.
 export const ETIQUETA_NIVEL: Record<number, string> = {
   1: "Aviso amistoso",
   2: "Aviso formal",
