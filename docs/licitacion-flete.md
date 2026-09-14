@@ -1,6 +1,6 @@
 # Licitación de flete
 
-Cierra la segunda mitad del ítem *Maestro de transportistas / licitación de flete* del roadmap. El maestro se construyó el 2026-09-13; esto es comparar cotizaciones antes de contratar.
+Cierra la segunda mitad del ítem *Maestro de transportistas / licitación de flete* del roadmap. El maestro se construyó el 2026-09-12; esto es comparar cotizaciones antes de contratar.
 
 ## Por qué las reglas son las del RFQ
 

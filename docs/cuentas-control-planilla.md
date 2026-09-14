@@ -1,6 +1,6 @@
 # Cuentas de control de planilla
 
-Salda la deuda que dejó anotada la guardia de claves de control del 2026-09-13.
+Salda la deuda que dejó anotada la guardia de claves de control del 2026-09-12.
 
 ## El defecto
 
