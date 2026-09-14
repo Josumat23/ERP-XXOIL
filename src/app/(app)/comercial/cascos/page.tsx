@@ -17,7 +17,7 @@ export default async function CascosPage({
   const empresaId = await obtenerEmpresaActivaId();
 
   const [clientes, insumosRetornables, movimientos] = await Promise.all([
-    prisma.cliente.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId, estado: "ACTIVO" }, orderBy: { razonSocial: "asc" } }),
     prisma.insumo.findMany({ where: { empresaId, esRetornable: true }, orderBy: { codigo: "asc" } }),
     prisma.movimientoCasco.findMany({
       where: { empresaId, ...(clienteId ? { clienteId } : {}) },

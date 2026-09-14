@@ -32,7 +32,7 @@ export async function crearReclamo(
   try {
     id = await prisma.$transaction(async (tx) => {
       const cliente = await tx.cliente.findFirst({
-        where: { id: clienteId, empresaId: auth.usuario.empresaId, activo: true },
+        where: { id: clienteId, empresaId: auth.usuario.empresaId, estado: "ACTIVO" },
         select: { id: true },
       });
       if (!cliente) throw new Error("El cliente no pertenece a la empresa activa.");

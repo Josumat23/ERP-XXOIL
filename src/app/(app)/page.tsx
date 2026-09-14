@@ -86,7 +86,7 @@ export default async function PanelPage() {
     prisma.pedido.findMany({ where: { empresaId, fecha: { gte: inicioMes } } }),
     prisma.cuentaPorPagar.findMany({ where: { empresaId, estado: "PENDIENTE" }, include: { proveedor: true } }),
     prisma.asientoDetalle.findMany({ where: { asiento: { empresaId } }, include: { cuenta: true } }),
-    prisma.cliente.count({ where: { empresaId, activo: true } }),
+    prisma.cliente.count({ where: { empresaId, estado: "ACTIVO" } }),
     prisma.envasado.findMany({
       where: {
         empresaId,

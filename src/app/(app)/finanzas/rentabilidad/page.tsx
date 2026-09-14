@@ -110,7 +110,7 @@ export default async function RentabilidadPage({
     calcularAgregados(desdeAnterior, hastaAnterior, filtros, empresaId),
     prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.zona.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
-    prisma.cliente.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId, estado: "ACTIVO" }, orderBy: { razonSocial: "asc" } }),
   ]);
 
   // Query string común para que el toggle de comparación y la navegación de

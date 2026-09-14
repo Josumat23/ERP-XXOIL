@@ -1399,6 +1399,19 @@ enum TipoDireccionCliente {
   COBRANZA
 }
 
+enum TipoPersona {
+  NATURAL
+  JURIDICA
+}
+
+enum EstadoCliente {
+  ACTIVO
+  /// Frenado por una decisión de una persona, con motivo obligatorio.
+  BLOQUEADO
+  /// Ya no se opera con él. No se borra: tiene historia.
+  INACTIVO
+}
+
 enum CanalCliente {
   DISTRIBUIDOR
   MAYORISTA
@@ -1469,6 +1482,11 @@ model Cliente {
   nombreComercial      String?
   ruc                  String?
   tipoDocumentoFiscal  TipoDocumentoFiscal @default(RUC)
+  /// Natural o jurídica. Nullable porque los clientes anteriores al
+  /// 2026-09-14 no lo declararon; la migración lo dedujo del prefijo del RUC
+  /// donde era inequívoco (10 → natural, 20 → jurídica) y dejó null en el
+  /// resto, antes que inventarlo.
+  tipoPersona          TipoPersona?
   canal                CanalCliente?
   pais                 String              @default("Peru")
   // Texto libre heredado. Se conserva: tiene datos que no matchean ningún
@@ -1495,7 +1513,19 @@ model Cliente {
   limiteCredito        Decimal?            @default(0)
   condicionPagoDefecto CondicionPago       @default(CONTADO)
   notas                String?
-  activo               Boolean             @default(true)
+  /// Reemplaza al booleano `activo` desde el 2026-09-14.
+  ///
+  /// BLOQUEADO es una decisión de una persona sobre el maestro —falta
+  /// documentación, orden de legal— y es distinto de `bloqueadoCobranza`, que
+  /// es un control financiero automático. Son ortogonales a propósito: se
+  /// ponen y se levantan por vías distintas, y para vender hay que pasar los
+  /// dos. Fundirlos haría que levantar una deuda desbloquee un cliente que
+  /// legal había frenado.
+  estado               EstadoCliente       @default(ACTIVO)
+  motivoEstado         String?
+  estadoDesde          DateTime?
+  estadoPorId          String?
+  estadoPorNombre      String?
   // Bloqueo específico de cobranza (distinto de `activo`): impide crear
   // pedidos nuevos mientras tenga facturas vencidas sin resolver, pero no
   // oculta al cliente ni afecta su historial. Se levanta manualmente desde
@@ -5229,6 +5259,9 @@ model TareaProgramada {
 
 enum TipoDocumentoFiscal {
   RUC // Perú
+  DNI // Perú, persona natural — Catálogo 06 de SUNAT, código 1
+  CARNET_EXTRANJERIA // Catálogo 06, código 4
+  PASAPORTE // Catálogo 06, código 7
   RUT // Chile
   NIT // Colombia
   RFC // México

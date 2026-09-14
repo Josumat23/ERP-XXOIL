@@ -15,6 +15,7 @@ import { avanzarSerie } from "@/lib/series";
 import { postearVenta } from "@/lib/contabilidad";
 import { enviarComprobanteFactura } from "@/app/(app)/comercial/facturas/actions";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
+import { MENSAJE_NO_OPERABLE, motivoNoOperable } from "@/lib/identidadCliente";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 import {
   normalizarLineasSolicitudPedido,
@@ -100,11 +101,11 @@ export async function crearPedido(
 
   const empresaId = await obtenerEmpresaActivaId();
   const [cliente, vendedor, almacen] = await Promise.all([
-    prisma.cliente.findFirst({ where: { id: clienteId, empresaId, activo: true } }),
+    prisma.cliente.findFirst({ where: { id: clienteId, empresaId } }),
     prisma.vendedor.findFirst({ where: { id: vendedorId, empresaId, activo: true } }),
     prisma.almacen.findFirst({ where: { id: almacenId, empresaId, activo: true } }),
   ]);
-  if (!cliente) return { error: "El cliente no existe o está inactivo." };
+  if (!cliente) return { error: "El cliente no existe." };
   if (!vendedor) return { error: "El vendedor no existe o está inactivo." };
   if (!almacen) return { error: "El centro de despacho no existe o está inactivo." };
   if (cliente.empresaId !== vendedor.empresaId || cliente.empresaId !== almacen.empresaId) {
@@ -129,10 +130,11 @@ export async function crearPedido(
     direccionEntregaValidaId = candidata?.id ?? null;
   }
 
-  if (cliente.bloqueadoCobranza) {
-    return {
-      error: `${cliente.razonSocial} está bloqueado por cobranza (facturas vencidas sin regularizar). Levante el bloqueo en Finanzas → Gestión de cobranza antes de crear un pedido nuevo.`,
-    };
+  // Los dos controles a la vez: el estado del maestro es una decisión de una
+  // persona y el bloqueo de cobranza es automático. Hay que pasar los dos.
+  const impedimento = motivoNoOperable(cliente);
+  if (impedimento) {
+    return { error: `${cliente.razonSocial}: ${MENSAJE_NO_OPERABLE[impedimento]}` };
   }
   if (lineas.length === 0) {
     return { error: "Agregue al menos una línea con una cantidad válida." };

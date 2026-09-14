@@ -15,7 +15,7 @@ export default async function NuevaHojaRutaPage() {
   const [vendedores, clientes, hojas] = await Promise.all([
     prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.cliente.findMany({
-      where: { empresaId, activo: true },
+      where: { empresaId, estado: "ACTIVO" },
       include: { zona: true },
       orderBy: { razonSocial: "asc" },
     }),

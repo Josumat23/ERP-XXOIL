@@ -10,6 +10,13 @@ import BarraFiltro from "@/components/BarraFiltro";
 import { ETIQUETA_CANAL_CLIENTE } from "@/lib/etiquetas";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { alternarActivoCliente } from "./actions";
+import { ETIQUETA_ESTADO_CLIENTE } from "@/lib/identidadCliente";
+
+const COLOR_ESTADO: Record<string, string> = {
+  ACTIVO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
+  BLOQUEADO: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
+  INACTIVO: "bg-neutral-100 text-neutral-500 dark:bg-neutral-800",
+};
 
 const CANALES = Object.keys(ETIQUETA_CANAL_CLIENTE) as (keyof typeof ETIQUETA_CANAL_CLIENTE)[];
 
@@ -146,15 +153,14 @@ export default async function ClientesPage({
                   {limite === null ? "Sin tope" : limite === 0 ? "Sin crédito" : formatMoneda(limite)}
                 </td>
                 <td>
-                  <span
-                    className={`insignia ${
-                      c.activo
-                        ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
-                        : "bg-neutral-100 text-neutral-500 dark:bg-neutral-800"
-                    }`}
-                  >
-                    {c.activo ? "Activo" : "Inactivo"}
+                  <span className={`insignia ${COLOR_ESTADO[c.estado]}`}>
+                    {ETIQUETA_ESTADO_CLIENTE[c.estado]}
                   </span>
+                  {c.bloqueadoCobranza && (
+                    <span className="ml-1 insignia bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400">
+                      Cobranza
+                    </span>
+                  )}
                 </td>
                 <td className="text-right no-imprimir">
                   <div className="flex justify-end gap-3">
@@ -167,11 +173,11 @@ export default async function ClientesPage({
                     <form
                       action={async () => {
                         "use server";
-                        await alternarActivoCliente(c.id, !c.activo);
+                        await alternarActivoCliente(c.id, c.estado !== "ACTIVO");
                       }}
                     >
                       <button type="submit" className="text-neutral-600 dark:text-neutral-400 hover:underline">
-                        {c.activo ? "Desactivar" : "Activar"}
+                        {c.estado === "ACTIVO" ? "Desactivar" : "Activar"}
                       </button>
                     </form>
                   </div>

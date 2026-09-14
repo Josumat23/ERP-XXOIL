@@ -38,7 +38,7 @@ export default async function ReclamosClientePage({
       orderBy: { creadoEn: "desc" },
     }),
     prisma.cliente.findMany({
-      where: { empresaId: usuario.empresaId, activo: true },
+      where: { empresaId: usuario.empresaId, estado: "ACTIVO" },
       orderBy: { razonSocial: "asc" },
     }),
     prisma.factura.findMany({
