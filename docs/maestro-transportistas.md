@@ -1,6 +1,6 @@
 # Maestro de transportistas
 
-Construido el **2026-09-13**, al confirmar el negocio que la distribución **no** es 100% flota propia: tiene flota, terceriza y además contrata para despacho.
+Construido el **2026-09-12**, al confirmar el negocio que la distribución **no** es 100% flota propia: tiene flota, terceriza y además contrata para despacho.
 
 ## Lo que había
 

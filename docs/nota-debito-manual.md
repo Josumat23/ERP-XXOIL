@@ -1,6 +1,6 @@
 # Nota de débito por aumento de valor y penalidad
 
-Completa el Catálogo 10 de SUNAT. Hasta ahora el sistema solo emitía el **tipo 01 (interés por mora)**; los tipos 02 y 03 estaban en el enum sin usarse, esperando que el negocio confirmara si los emite. El **2026-09-13 lo confirmó: emite los dos**.
+Completa el Catálogo 10 de SUNAT. Hasta ahora el sistema solo emitía el **tipo 01 (interés por mora)**; los tipos 02 y 03 estaban en el enum sin usarse, esperando que el negocio confirmara si los emite. El **2026-09-12 lo confirmó: emite los dos**.
 
 ## Lo que el sistema aporta y lo que no
 
