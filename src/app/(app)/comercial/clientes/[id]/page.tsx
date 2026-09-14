@@ -5,7 +5,6 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
-import PanelContactos from "@/components/PanelContactos";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
 import { arbolUbigeos } from "@/lib/ubigeosCatalogo";
@@ -15,6 +14,8 @@ import ClienteFormulario from "../ClienteFormulario";
 import { actualizarCliente, aprobarCambioLimiteCredito } from "../actions";
 import ResolverLimiteFormulario from "./ResolverLimiteFormulario";
 import DireccionesCliente from "./DireccionesCliente";
+import ContactosCliente from "./ContactosCliente";
+import { propositosSinContacto } from "@/lib/contactosCliente";
 import { tiposFaltantes } from "@/lib/direccionesCliente";
 
 export default async function EditarClientePage({
@@ -36,6 +37,9 @@ export default async function EditarClientePage({
         direcciones: {
           include: { ubigeo: true },
           orderBy: [{ activa: "desc" }, { tipo: "asc" }, { creadoEn: "asc" }],
+        },
+        contactos: {
+          orderBy: [{ activo: "desc" }, { esPrincipal: "desc" }, { nombres: "asc" }],
         },
       },
     }),
@@ -203,10 +207,11 @@ export default async function EditarClientePage({
             faltantes={tiposFaltantes(cliente.direcciones)}
             puedeEditar={puedeEditar}
           />
-          <PanelContactos
-            entidadTipo="Cliente"
-            entidadId={cliente.id}
-            rutaRevalidar={`/comercial/clientes/${cliente.id}`}
+          <ContactosCliente
+            clienteId={cliente.id}
+            contactos={cliente.contactos}
+            sinAtender={propositosSinContacto(cliente.contactos)}
+            puedeEditar={puedeEditar}
           />
           <PanelAdjuntos
             entidadTipo="Cliente"

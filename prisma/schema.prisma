@@ -1347,6 +1347,51 @@ model DireccionCliente {
   @@map("direcciones_cliente")
 }
 
+/// Las personas con las que se habla en un cliente.
+///
+/// Hasta el 2026-09-14 había UNA sola, en dos campos sueltos del cliente
+/// (`contactoNombre`, `contactoTelefono`). En un distribuidor, quien aprueba
+/// el pedido no es quien recibe la factura ni quien atiende al camión; con un
+/// solo casillero, el que quedaba escrito era el último que llamó.
+model ContactoCliente {
+  id        String  @id @default(cuid())
+  empresaId String  @default("1")
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  nombres   String
+  apellidos String?
+  cargo     String?
+  area      String?
+
+  telefono String?
+  anexo    String?
+  celular  String?
+  email    String?
+
+  /// Para qué se busca a esta persona. No son adornos: son la respuesta a
+  /// «¿a quién le aviso?» cuando hay cuatro nombres en la ficha.
+  paraPedidos     Boolean @default(false)
+  paraFacturacion Boolean @default(false)
+  paraCobranza    Boolean @default(false)
+  paraDespacho    Boolean @default(false)
+
+  /// `true` en el contacto principal y `null` en el resto — nunca `false`.
+  /// El índice único de abajo convierte «uno solo» en una regla de la base:
+  /// en SQLite y en PostgreSQL los NULL no chocan entre sí, así que pueden
+  /// convivir muchos secundarios y un solo principal.
+  esPrincipal Boolean?
+
+  activo   Boolean  @default(true)
+  notas    String?
+  creadoEn DateTime @default(now())
+
+  @@unique([clienteId, esPrincipal])
+  @@index([clienteId, activo])
+  @@map("contactos_cliente")
+}
+
 enum TipoDireccionCliente {
   FISCAL
   FACTURACION
@@ -1462,6 +1507,7 @@ model Cliente {
 
   ubigeo             Ubigeo?                  @relation(fields: [ubigeoId], references: [id])
   direcciones        DireccionCliente[]
+  contactos          ContactoCliente[]
   solicitudesCredito SolicitudCambioCredito[]
   zona               Zona?                    @relation(fields: [zonaId], references: [id])
   vendedorAsignado   Vendedor?                @relation("ClienteVendedor", fields: [vendedorId], references: [id])
@@ -5354,6 +5400,7 @@ model Empresa {
   incidenciasContables       IncidenciaContable[]
   ordenesMantenimiento       OrdenMantenimiento[]
   direccionClientes          DireccionCliente[]
+  contactoClientes           ContactoCliente[]
 
   @@map("empresas")
 }
