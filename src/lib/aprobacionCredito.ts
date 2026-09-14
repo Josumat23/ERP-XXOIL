@@ -26,29 +26,21 @@ export type DecisionLimiteCredito =
  *    donde venga. Es el mismo criterio que ya usa el umbral de compras, que
  *    mira el total de la orden y no su variación.
  *
- * Cuidado con el límite 0: en este sistema significa **sin límite**, no
- *    "no puede comprar". Por eso pasar de 5 000 a 0 se trata como el aumento de
- *    exposición que realmente es, y no como una bajada a cero.
+ * 4. **El 0 dejó de ser «sin límite» el 2026-09-14.** Ahora es SIN CRÉDITO, y
+ *    «sin tope» se expresa con `null` — un estado heredado que ninguna alta
+ *    nueva produce. Antes, bajar a 0 era el mayor aumento de exposición
+ *    posible y había que tratarlo como tal; hoy es lo contrario, la bajada más
+ *    grande que existe.
  */
 export function decidirCambioLimiteCredito(
-  limiteAnterior: number,
+  limiteAnterior: number | null,
   limiteNuevo: number,
   umbral: number | null
 ): DecisionLimiteCredito {
   if (umbral === null) return { requiereAprobacion: false, motivo: "CONTROL_APAGADO" };
 
-  const anteriorEsIlimitado = limiteAnterior === 0;
-  const nuevoEsIlimitado = limiteNuevo === 0;
-
-  // Quitar el límite es la mayor exposición posible: siempre pasa por
-  // aprobación, salvo que ya fuera ilimitado.
-  if (nuevoEsIlimitado) {
-    return anteriorEsIlimitado
-      ? { requiereAprobacion: false, motivo: "NO_AUMENTA" }
-      : { requiereAprobacion: true };
-  }
-  // Ponerle un límite a quien no tenía ninguno reduce la exposición.
-  if (anteriorEsIlimitado) return { requiereAprobacion: false, motivo: "NO_AUMENTA" };
+  // Ponerle un techo a quien no tenía ninguno reduce la exposición.
+  if (limiteAnterior === null) return { requiereAprobacion: false, motivo: "NO_AUMENTA" };
 
   if (limiteNuevo <= limiteAnterior) return { requiereAprobacion: false, motivo: "NO_AUMENTA" };
   if (limiteNuevo <= umbral) return { requiereAprobacion: false, motivo: "BAJO_UMBRAL" };
@@ -58,16 +50,20 @@ export function decidirCambioLimiteCredito(
 /**
  * Lo mismo, para un cliente que todavía no existe.
  *
- * No se puede expresar como un cambio, porque no hay límite anterior: un
- * cliente nuevo no tiene crédito, y eso no es lo mismo que tener 0 (que aquí
- * significa *sin límite*). Un alta con un límite por encima del umbral se
- * rechaza en vez de quedar pendiente: dejar el cliente creado con un límite
- * provisional obligaría a inventar el número, y crear la solicitud aplicando
- * el límite pedido sería exactamente el control que se quiere evitar.
+ * No se puede expresar como un cambio, porque no hay límite anterior. Un alta
+ * con un límite por encima del umbral se rechaza en vez de quedar pendiente:
+ * dejar el cliente creado con un límite provisional obligaría a inventar el
+ * número, y crear la solicitud aplicando el límite pedido sería exactamente el
+ * control que se quiere evitar.
+ *
+ * **El 0 dejó de requerir aprobación el 2026-09-14.** Antes se leía como «sin
+ * límite» y bloqueaba el alta, así que con el control encendido el vendedor no
+ * podía crear un cliente con el valor seguro: estaba obligado a escribir algún
+ * número positivo. Ahora 0 es SIN CRÉDITO — el estado con el que debe nacer
+ * todo cliente— y por lo tanto nunca necesita que nadie lo apruebe.
  */
 export function creacionRequiereAprobacion(limiteNuevo: number, umbral: number | null): boolean {
   if (umbral === null) return false;
-  if (limiteNuevo === 0) return true; // sin límite
   return limiteNuevo > umbral;
 }
 

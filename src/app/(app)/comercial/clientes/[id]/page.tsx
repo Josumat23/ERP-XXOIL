@@ -60,7 +60,7 @@ export default async function EditarClientePage({
     (await puedeRealizar(usuario, "ventas", "aprobar"));
 
   const deudaActual = facturasPendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
-  const limite = cliente.limiteCredito.toNumber();
+  const limite = cliente.limiteCredito?.toNumber() ?? null;
 
   return (
     <div>
@@ -75,7 +75,21 @@ export default async function EditarClientePage({
       </div>
       <p className="text-neutral-500 mt-1 text-sm">
         Deuda actual: <span className="font-medium">{formatMoneda(deudaActual)}</span>
-        {limite > 0 && (
+        {limite === 0 && (
+          <>
+            {" "}·{" "}
+            <span className="font-medium text-amber-700 dark:text-amber-400">Sin crédito</span>{" "}
+            (solo contado, hasta que Créditos lo evalúe)
+          </>
+        )}
+        {limite === null && (
+          <>
+            {" "}·{" "}
+            <span className="font-medium text-amber-700 dark:text-amber-400">Sin tope</span>{" "}
+            (heredado, nunca evaluado)
+          </>
+        )}
+        {limite !== null && limite > 0 && (
           <>
             {" "}
             · Límite de crédito: <span className="font-medium">{formatMoneda(limite)}</span> ·
@@ -110,10 +124,10 @@ export default async function EditarClientePage({
                 Aumento del límite pendiente de aprobación
               </h2>
               <p className="text-sm text-neutral-600 dark:text-neutral-400 mt-1">
-                De {formatMoneda(pendiente.limiteAnterior)} a{" "}
+                De {pendiente.limiteAnterior === null ? "sin tope" : formatMoneda(pendiente.limiteAnterior)} a{" "}
                 {formatMoneda(pendiente.limiteSolicitado)}, pedido por {pendiente.solicitadoPorNombre}{" "}
                 el {formatFecha(pendiente.solicitadoEn)}. El límite vigente sigue siendo{" "}
-                {formatMoneda(limite)}.
+                {limite === null ? "sin tope" : formatMoneda(limite)}.
               </p>
               <p className="text-sm text-neutral-700 dark:text-neutral-300 mt-2">
                 <span className="font-medium">Motivo:</span> {pendiente.motivo}
@@ -156,7 +170,7 @@ export default async function EditarClientePage({
               contactoTelefono: cliente.contactoTelefono,
               zonaId: cliente.zonaId,
               vendedorId: cliente.vendedorId,
-              limiteCredito: cliente.limiteCredito.toNumber(),
+              limiteCredito: cliente.limiteCredito?.toNumber() ?? null,
               condicionPagoDefecto: cliente.condicionPagoDefecto,
               notas: cliente.notas,
             }}
@@ -198,7 +212,9 @@ export default async function EditarClientePage({
                       .map((s) => (
                         <tr key={s.id}>
                           <td>{formatFecha(s.solicitadoEn)}</td>
-                          <td className="text-right">{formatMoneda(s.limiteAnterior)}</td>
+                          <td className="text-right">
+                            {s.limiteAnterior === null ? "Sin tope" : formatMoneda(s.limiteAnterior)}
+                          </td>
                           <td className="text-right">{formatMoneda(s.limiteSolicitado)}</td>
                           <td>{s.estado === "APROBADA" ? "Aprobado" : "Rechazado"}</td>
                           <td>{s.resueltoPorNombre ?? "—"}</td>

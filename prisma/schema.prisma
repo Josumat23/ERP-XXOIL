@@ -1329,7 +1329,10 @@ model SolicitudCambioCredito {
   empresaId           String           @default("1")
   empresa             Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId           String
-  limiteAnterior      Decimal
+  // Nullable por lo mismo que en el cliente: `null` es «venía sin tope».
+  // Una solicitud sobre un cliente heredado tiene que poder decir eso, en vez
+  // de fingir que su límite anterior era cero.
+  limiteAnterior      Decimal?
   limiteSolicitado    Decimal
   // Obligatorio: quien aprueba necesita saber por qué se pide, y el histórico
   // sin motivo no sirve para revisar una cartera después.
@@ -1374,7 +1377,14 @@ model Cliente {
   contactoTelefono     String?
   zonaId               String?
   vendedorId           String? // vendedor asignado (se preselecciona en pedidos)
-  limiteCredito        Decimal             @default(0) // 0 = sin límite; se valida al facturar
+  // Techo de exposición del cliente. Tres estados distintos, a propósito:
+  //   null = sin tope, heredado de antes del 2026-09-14 y sin evaluar nunca
+  //   0    = SIN CRÉDITO: solo contado, hasta que Créditos lo evalúe
+  //   > 0  = el techo real
+  // Hasta el 2026-09-14 el 0 significaba «sin límite», de modo que el valor
+  // que parecía más seguro era el más permisivo del sistema. Ningún alta
+  // nueva vuelve a producir null: lo produjo solo la migración.
+  limiteCredito        Decimal?            @default(0)
   condicionPagoDefecto CondicionPago       @default(CONTADO)
   notas                String?
   activo               Boolean             @default(true)

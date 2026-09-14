@@ -48,7 +48,7 @@ type Props = {
     contactoTelefono: string | null;
     zonaId: string | null;
     vendedorId: string | null;
-    limiteCredito: number;
+    limiteCredito: number | null;
     condicionPagoDefecto: string;
     notas: string | null;
   };
@@ -252,7 +252,7 @@ export default function ClienteFormulario({
                   </Campo>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <Campo etiqueta="Límite de crédito S/ (0 = sin límite)">
+                  <Campo etiqueta="Límite de crédito S/ (0 = sin crédito, solo contado)">
                     <input
                       name="limiteCredito"
                       type="number"

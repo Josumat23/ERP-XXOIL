@@ -7,6 +7,7 @@ import {
   creacionRequiereAprobacion,
   decidirCambioLimiteCredito,
 } from "@/lib/aprobacionCredito";
+import { evaluarCredito } from "@/lib/credito";
 
 // Aumentar el límite de crédito de un cliente es exposición financiera nueva.
 // Con el control encendido el límite NO cambia hasta que alguien lo aprueba:
@@ -36,17 +37,35 @@ test("el umbral mira el límite resultante, no cuánto subió", () => {
   assert.equal(decidirCambioLimiteCredito(1_000, 20_000, 20_000).requiereAprobacion, false);
 });
 
-test("el límite 0 es SIN LÍMITE, y por eso es la mayor exposición", () => {
-  // El defecto que habría pasado desapercibido: 0 parece el número más chico y
-  // es el más grande. Pasar de 5 000 a 0 quita el tope.
-  assert.equal(decidirCambioLimiteCredito(5_000, 0, 20_000).requiereAprobacion, true);
-  // Y al revés: ponerle un tope a quien no tenía ninguno reduce la exposición.
-  assert.equal(decidirCambioLimiteCredito(0, 900_000, 20_000).requiereAprobacion, false);
-  assert.equal(decidirCambioLimiteCredito(0, 0, 20_000).requiereAprobacion, false);
-  // En un alta, 0 tampoco pasa por alto el control.
-  assert.equal(creacionRequiereAprobacion(0, 20_000), true);
+test("el límite 0 es SIN CRÉDITO, y bajar a 0 es la mayor reducción", () => {
+  // Hasta el 2026-09-14 el 0 significaba «sin límite», así que el valor con el
+  // que nacía todo cliente era el más permisivo del sistema. Ahora es lo
+  // contrario: 0 es solo contado.
+  assert.equal(decidirCambioLimiteCredito(5_000, 0, 20_000).requiereAprobacion, false);
+  // Y un alta con 0 nunca necesita que nadie la apruebe: es el estado seguro
+  // con el que debe nacer un cliente. Antes el control lo BLOQUEABA, de modo
+  // que el vendedor estaba obligado a escribir algún número positivo.
+  assert.equal(creacionRequiereAprobacion(0, 20_000), false);
   assert.equal(creacionRequiereAprobacion(20_000, 20_000), false);
   assert.equal(creacionRequiereAprobacion(20_001, 20_000), true);
+});
+
+test("sin tope es null, no un número", () => {
+  // El estado heredado de los clientes que existían antes del cambio.
+  // Ponerle un techo a quien no tenía ninguno reduce la exposición.
+  assert.equal(decidirCambioLimiteCredito(null, 900_000, 20_000).requiereAprobacion, false);
+  assert.equal(decidirCambioLimiteCredito(null, 0, 20_000).requiereAprobacion, false);
+});
+
+test("un cliente sin crédito no puede facturar a crédito ni un sol", () => {
+  // La consecuencia que importa, y la que antes no ocurría.
+  assert.equal(evaluarCredito(0, 1, 0).excede, true);
+  assert.equal(evaluarCredito(0, 0.01, 0).excede, true);
+  // Sin tope heredado: nunca excede, que es como operaba hasta el cambio.
+  assert.equal(evaluarCredito(999_999, 999_999, null).excede, false);
+  // Con techo real, la aritmética de siempre.
+  assert.equal(evaluarCredito(800, 300, 1000).excede, true);
+  assert.equal(evaluarCredito(700, 300, 1000).excede, false);
 });
 
 async function montarCliente(sufijo: string, limiteCredito: number, umbral: number | null) {
@@ -79,7 +98,7 @@ test("aprobar la solicitud es lo que mueve el límite", async () => {
 
   // Mientras está pendiente el cliente conserva su límite.
   const durante = await prisma.cliente.findUniqueOrThrow({ where: { id: cliente.id } });
-  assert.equal(durante.limiteCredito.toNumber(), 10_000);
+  assert.equal(durante.limiteCredito?.toNumber(), 10_000);
 
   // El cierre optimista: la segunda resolución no encuentra nada que cerrar.
   const primera = await prisma.solicitudCambioCredito.updateMany({
@@ -98,7 +117,7 @@ test("aprobar la solicitud es lo que mueve el límite", async () => {
     data: { limiteCredito: solicitud.limiteSolicitado },
   });
   const despues = await prisma.cliente.findUniqueOrThrow({ where: { id: cliente.id } });
-  assert.equal(despues.limiteCredito.toNumber(), 80_000);
+  assert.equal(despues.limiteCredito?.toNumber(), 80_000);
 });
 
 test("borrar el cliente se lleva sus solicitudes", async () => {
@@ -141,7 +160,7 @@ test("la acción decide sobre el límite guardado, no sobre el del formulario", 
   const bloque = fuente.slice(fuente.indexOf("export async function actualizarCliente"));
   assert.match(
     bloque,
-    /decidirCambioLimiteCredito\(\s*antes\.limiteCredito\.toNumber\(\)/,
+    /decidirCambioLimiteCredito\(\s*antes\.limiteCredito\?\.toNumber\(\) \?\? null,/,
     "el límite anterior debe leerse del registro, no del FormData"
   );
   // Y el límite no se aplica mientras la solicitud está pendiente.

@@ -84,7 +84,7 @@ export default async function AprobacionesPage() {
           <section>
             <h2 className="mb-3 text-lg font-semibold text-[var(--epicor-texto)]">Límites de crédito</h2>
             <div className="overflow-x-auto"><table className="tabla"><thead><tr><th>Cliente</th><th className="text-right">Límite actual</th><th className="text-right">Solicitado</th><th>Motivo</th><th>Solicitó</th><th /></tr></thead><tbody>
-              {limites.map((solicitud) => <tr key={solicitud.id}><td>{solicitud.cliente.razonSocial}</td><td className="text-right">{formatMoneda(solicitud.limiteAnterior)}</td><td className="text-right">{formatMoneda(solicitud.limiteSolicitado)}</td><td className="text-xs">{solicitud.motivo}</td><td>{solicitud.solicitadoPorNombre}</td><td className="text-right"><Link className="text-[var(--epicor-azul)] hover:underline" href={`/comercial/clientes/${solicitud.clienteId}`}>Revisar</Link></td></tr>)}
+              {limites.map((solicitud) => <tr key={solicitud.id}><td>{solicitud.cliente.razonSocial}</td><td className="text-right">{solicitud.limiteAnterior === null ? "Sin tope" : formatMoneda(solicitud.limiteAnterior)}</td><td className="text-right">{formatMoneda(solicitud.limiteSolicitado)}</td><td className="text-xs">{solicitud.motivo}</td><td>{solicitud.solicitadoPorNombre}</td><td className="text-right"><Link className="text-[var(--epicor-azul)] hover:underline" href={`/comercial/clientes/${solicitud.clienteId}`}>Revisar</Link></td></tr>)}
               {limites.length === 0 && <tr><td colSpan={6} className="text-center text-[var(--epicor-texto-tenue)]">Sin aumentos pendientes</td></tr>}
             </tbody></table></div>
           </section>
