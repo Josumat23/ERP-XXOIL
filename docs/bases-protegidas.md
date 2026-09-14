@@ -105,3 +105,25 @@ Las dos correcciones:
 El mismo olvido afectaba a `npm run respaldo`, que corre en su propio proceso bajo tsx: leía `DATABASE_URL` y `RESPALDO_DIR` vacías y decía que no había base que respaldar aunque estuviera configurada. También carga `.env` ahora.
 
 `tests/base-por-configuracion.test.ts` ejecuta un proceso sin `DATABASE_URL` y exige que falle con el mensaje y sin crear ninguna base, y comprueba que `prisma.ts` no vuelva a llevar una ruta literal y que `server.ts` cargue `.env` **antes** de sus imports propios.
+
+### El tercer punto de entrada, y por qué la lista a mano no servía
+
+El fallo ruidoso justificó su existencia al día siguiente. Preparando la verificación en navegador corrí `npm run seed:demo` y **no arrancó**: `Falta DATABASE_URL`.
+
+Ese comando es el paso 4 del README —*"cargar datos de prueba: clientes, compras, producción, ventas y cobros de los últimos 6 meses"*—, corre como `tsx prisma/seed-demo.ts`, fuera de Next, y nadie cargaba `.env` por él. Hasta el día anterior eso no fallaba: **volcaba seis meses de datos inventados dentro de `dev.db`**.
+
+Al auditar el resto aparecieron los otros tres sembradores en la misma situación, y algo peor: **cada uno traía su propia copia del valor por defecto**.
+
+```ts
+url: process.env.DATABASE_URL ?? "file:./dev.db",
+```
+
+Cinco copias en total, contando la de `prisma.ts` que ya se había quitado. Quitar una sola no servía de nada mientras las otras cuatro siguieran ahí. Ahora la resolución vive en un único lugar, `src/lib/databaseUrl.ts`, y los cinco la usan.
+
+**La guardia se rehízo, porque la primera versión estaba mal.** Preguntaba «¿este archivo usa la base?» y se equivocaba en las dos direcciones: no veía `server.ts`, que llega a Prisma por un import indirecto, y excluía el respaldo por una frase que decía «DATABASE_URL:» **dentro de un comentario**.
+
+La regla nueva es incondicional: *todo archivo que Node o tsx arranquen directamente y que importe algún módulo del repositorio carga `.env` antes de ese import*. Sin excepciones por criterio, porque decidir archivo por archivo quién lo necesita es exactamente como se escaparon `server.ts` y los cuatro sembradores. Los únicos exentos son los lanzadores que **arman** la variable para su proceso hijo (`run-tests.mjs`, `dev-demo.mjs`), y eso se comprueba en el código con los comentarios ya quitados, no se supone.
+
+Alcanzó a `scripts/restaurar.ts`, que hoy no lee `DATABASE_URL` porque el destino se indica siempre de forma explícita. Carga `.env` igual: la uniformidad vale más que el juicio archivo por archivo para esta clase de defecto.
+
+Verificada quitando el `import` de un sembrador: falla nombrándolo.

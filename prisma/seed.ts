@@ -1,10 +1,16 @@
+// Antes que nada: estos sembradores corren en su propio proceso bajo tsx,
+// fuera de Next, así que nadie carga `.env` por ellos. Sin esto,
+// `DATABASE_URL` llega vacía — y hasta el 2026-09-14 eso significaba escribir
+// en `dev.db` por el valor por defecto que traía `prisma.ts`.
+import "dotenv/config";
+import { urlBaseRequerida } from "../src/lib/databaseUrl";
 import { randomBytes, scryptSync } from "crypto";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { sembrarUbigeos } from "./seed-ubigeos";
 
 const adapter = new PrismaBetterSqlite3({
-  url: process.env.DATABASE_URL ?? "file:./dev.db",
+  url: urlBaseRequerida(),
 });
 const prisma = new PrismaClient({ adapter });
 
