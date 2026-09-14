@@ -76,7 +76,7 @@
 | `OrdenCompra.proyectoId`/`edtId` | Compras etiquetadas al proyecto se suman al costo real | — | — |
 | Capitalización | `ActivoFijo.proyectoId` enlaza el activo resultante | `AsientoContable` origen `ORDEN_INTERNA` **no aplica aquí** — la capitalización de Proyecto usa el flujo normal de `crearActivoFijo`, sin un origen de asiento propio para "capitalización de proyecto" en el enum | `RN-PRY-008`: capitalizar es independiente de cerrar el proyecto |
 
-**Hallazgo de integración**: el costo real de un proyecto se calcula **siempre en vivo** (suma de `CostoProyecto` + OC no anuladas etiquetadas), nunca como un campo persistido que pueda desincronizarse — confirmado por `docs/gobernanza/010-AI/proyectos/RN.md`, RN-PRY-005. Esto es una fortaleza de integridad, aunque tiene costo de rendimiento a verificar con muchos proyectos/costos acumulados (ver Blueprint 08).
+**Hallazgo de integración**: el costo real de un proyecto se calcula **siempre en vivo** (suma de `CostoProyecto` + OC no anuladas etiquetadas), nunca como un campo persistido que pueda desincronizarse — confirmado por `000-Governance/010-AI/proyectos/RN.md`, RN-PRY-005. Esto es una fortaleza de integridad, aunque tiene costo de rendimiento a verificar con muchos proyectos/costos acumulados (ver Blueprint 08).
 
 ---
 
