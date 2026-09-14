@@ -5,7 +5,6 @@ import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
-import PanelDirecciones from "@/components/PanelDirecciones";
 import PanelContactos from "@/components/PanelContactos";
 import PanelAdjuntos from "@/components/PanelAdjuntos";
 import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
@@ -15,6 +14,8 @@ import { formatFecha } from "@/lib/format";
 import ClienteFormulario from "../ClienteFormulario";
 import { actualizarCliente, aprobarCambioLimiteCredito } from "../actions";
 import ResolverLimiteFormulario from "./ResolverLimiteFormulario";
+import DireccionesCliente from "./DireccionesCliente";
+import { tiposFaltantes } from "@/lib/direccionesCliente";
 
 export default async function EditarClientePage({
   params,
@@ -28,7 +29,16 @@ export default async function EditarClientePage({
   const empresaId = await obtenerEmpresaActivaId();
 
   const [cliente, clientes, zonas, vendedores, facturasPendientes, arbol, config, solicitudes] = await Promise.all([
-    prisma.cliente.findFirst({ where: { id, empresaId }, include: { ubigeo: true } }),
+    prisma.cliente.findFirst({
+      where: { id, empresaId },
+      include: {
+        ubigeo: true,
+        direcciones: {
+          include: { ubigeo: true },
+          orderBy: [{ activa: "desc" }, { tipo: "asc" }, { creadoEn: "asc" }],
+        },
+      },
+    }),
     prisma.cliente.findMany({ where: { empresaId }, orderBy: { razonSocial: "asc" } }),
     prisma.zona.findMany({
       where: { empresaId, activo: true },
@@ -55,6 +65,10 @@ export default async function EditarClientePage({
   if (!perteneceAEmpresaActiva(cliente, empresaId)) notFound();
 
   const pendiente = solicitudes.find((s) => s.estado === "PENDIENTE") ?? null;
+  // Editar direcciones es editar el maestro: mismo permiso que el resto de
+  // la ficha, no el de aprobar.
+  const puedeEditar = await puedeRealizar(usuario, "ventas", "editar");
+
   const puedeResolverLimite =
     (usuario.rol === "GERENCIA" || usuario.rol === "ADMIN") &&
     (await puedeRealizar(usuario, "ventas", "aprobar"));
@@ -176,10 +190,18 @@ export default async function EditarClientePage({
             }}
             textoBoton="Guardar cambios"
           />
-          <PanelDirecciones
-            entidadTipo="Cliente"
-            entidadId={cliente.id}
-            rutaRevalidar={`/comercial/clientes/${cliente.id}`}
+          <DireccionesCliente
+            clienteId={cliente.id}
+            direcciones={cliente.direcciones.map((d) => ({
+              ...d,
+              // Decimal de Prisma no cruza a un componente cliente: se manda
+              // como texto y se muestra tal cual, sin redondear una coordenada.
+              latitud: d.latitud?.toString() ?? null,
+              longitud: d.longitud?.toString() ?? null,
+            }))}
+            arbol={arbol}
+            faltantes={tiposFaltantes(cliente.direcciones)}
+            puedeEditar={puedeEditar}
           />
           <PanelContactos
             entidadTipo="Cliente"

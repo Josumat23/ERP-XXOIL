@@ -48,3 +48,48 @@ La dirección que cada cliente tenía pasa a ser su domicilio **FISCAL principal
 ## Lo que este ciclo no hace
 
 El formulario de direcciones y el selector de destino en el pedido van en el ciclo siguiente. Este deja el modelo, las reglas y la migración —con la garantía de que ninguna dirección existente se perdió— para que la pantalla se monte sobre algo ya probado.
+
+---
+
+# El formulario y el selector (2026-09-14, segundo ciclo)
+
+## Una duplicación que era mía
+
+Al montar la pantalla apareció algo que debí ver antes de construir el modelo: **ya existía un sistema de direcciones genérico** —`Direccion`, polimórfico por `entidadTipo`/`entidadId`— y su `PanelDirecciones` estaba montado en esta misma ficha, además de en Proveedores y Empleados.
+
+Construí un segundo sistema en paralelo sin comprobarlo. Debí haberlo revisado primero.
+
+Revisado ahora, el tipado es el que corresponde conservar, y no por gusto:
+
+| | `Direccion` (genérico) | `DireccionCliente` |
+| --- | --- | --- |
+| `empresaId` | **No tiene** — queda fuera del aislamiento multiempresa | Sí, con FK |
+| FK a la entidad | No: dos strings sueltos, sin integridad ni cascada | Sí, con `onDelete: Cascade` |
+| Tipos | FACTURACION / ENVIO / OTRA | Los cuatro del negocio |
+| Una principal por tipo | Booleano sin garantía | Índice único en la base |
+| Ubigeo, coordenadas, contacto | No | Sí |
+| Filas en uso | **0** en las tres fichas | 5 migradas |
+
+Que no tenga `empresaId` es lo decisivo: el proyecto dedicó diez migraciones a que los 76 modelos con datos de negocio lo tuvieran, y este quedó afuera. Con dos compañías, las direcciones de una habrían sido visibles desde la otra.
+
+`PanelDirecciones` **se retiró de la ficha de clientes** — dos sistemas de direcciones en la misma pantalla es peor que cualquiera de los dos. Sigue montado en Proveedores y Empleados, donde también tiene cero filas; qué hacer con él ahí es un ciclo propio y una decisión aparte.
+
+## El formulario
+
+Alta, edición y **desactivación** —nunca borrado: una dirección puede estar citada por pedidos ya despachados, y borrarla rompería la trazabilidad de a dónde fue esa carga—. Cada dirección con su etiqueta operativa, referencia, ubigeo por el selector de tres niveles, país, quién recibe, teléfono propio y coordenadas.
+
+**El distrito se exige solo cuando el tipo es ENTREGA**, y la pantalla lo explica ahí mismo: el reparto agrupa por distrito y la licitación de flete cotiza por tramo.
+
+**Marcar una principal desmarca la anterior en la misma transacción.** El índice único ya impide dos, pero rechazaría la escritura en vez de reemplazar — y reemplazar es lo que quien edita está pidiendo. No hay un instante con dos ni con ninguna.
+
+**Desactivar quita la marca de principal.** Una principal inactiva dejaría al tipo sin principal utilizable.
+
+La ficha avisa cuando falta el domicilio fiscal o la dirección de entrega: sin el primero no hay comprobante, sin la segunda no hay despacho.
+
+## El selector en el pedido
+
+Al elegir el cliente se ofrecen **sus direcciones de entrega activas** —ni domicilios fiscales ni direcciones dadas de baja— y se preselecciona la principal, o la única si hay una sola. **Con varias y ninguna principal no se elige ninguna**, y la pantalla dice cuántas hay y pide que se elija: mandar la carga a una de tres plantas por orden alfabético es el error que este ciclo viene a evitar.
+
+El texto sigue siendo editable y es lo que se guarda. **Si alguien lo edita a mano, la procedencia se borra**: un pedido no puede decir que viene de una dirección del maestro si su destino ya no coincide con ella.
+
+Y del lado del servidor, ese id no se cree: se comprueba que la dirección sea de **ese** cliente, de la compañía activa, de tipo entrega y activa. Si no lo es, el pedido no se rechaza —el destino escrito sigue siendo válido— pero se guarda **sin** procedencia antes que con una falsa.

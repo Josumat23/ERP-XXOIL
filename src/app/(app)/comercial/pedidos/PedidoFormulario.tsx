@@ -6,16 +6,30 @@ import { crearPedido, type EstadoFormulario } from "./actions";
 
 type Opcion = { id: string; etiqueta: string };
 type CondicionPago = "CONTADO" | "DIAS_15" | "DIAS_30";
+type DireccionEntregaOpcion = {
+  id: string;
+  etiqueta: string | null;
+  direccion: string;
+  referencia: string | null;
+  distrito: string | null;
+  principal: boolean;
+};
 type ClienteOpcion = {
   id: string;
   codigo: string;
   etiqueta: string;
+  direcciones: DireccionEntregaOpcion[];
   ruc: string | null;
   vendedorId: string | null;
   canal: string | null;
   direccion: string | null;
   condicionPago: CondicionPago;
 };
+/** El texto que se copia al pedido cuando se elige una dirección del maestro. */
+function textoDireccion(d: DireccionEntregaOpcion): string {
+  return [d.direccion, d.distrito, d.referencia].filter(Boolean).join(", ");
+}
+
 type EscalonPrecio = { cantidadMinima: number; precio: number };
 type PresentacionOpcion = {
   id: string;
@@ -71,6 +85,13 @@ export default function PedidoFormulario({
   );
   const [vendedorId, setVendedorId] = useState("");
   const [direccionEntrega, setDireccionEntrega] = useState("");
+  // De qué dirección del maestro salió el texto de arriba. Se vacía en cuanto
+  // alguien edita el texto a mano: un pedido no puede decir que viene de una
+  // dirección del maestro si su destino ya no coincide con ella.
+  const [direccionEntregaId, setDireccionEntregaId] = useState("");
+  const [clienteElegidoId, setClienteElegidoId] = useState("");
+  const entregasDelCliente =
+    clientes.find((c) => c.id === clienteElegidoId)?.direcciones ?? [];
   const [condicionPago, setCondicionPago] = useState<CondicionPago>("CONTADO");
   const [moneda, setMoneda] = useState("PEN");
   const [descuentoPct, setDescuentoPct] = useState(0);
@@ -122,8 +143,16 @@ export default function PedidoFormulario({
               defaultValue=""
               onChange={(e) => {
                 const cliente = clientes.find((c) => c.id === e.target.value);
+                setClienteElegidoId(cliente?.id ?? "");
                 setVendedorId(cliente?.vendedorId ?? "");
-                setDireccionEntrega(cliente?.direccion ?? "");
+                // La principal, o la única si hay una sola. Con varias y
+                // ninguna principal no se elige por el vendedor: adivinar a
+                // cuál de tres plantas va la carga es peor que preguntarlo.
+                const entregas = cliente?.direcciones ?? [];
+                const sugerida =
+                  entregas.find((d) => d.principal) ?? (entregas.length === 1 ? entregas[0] : null);
+                setDireccionEntregaId(sugerida?.id ?? "");
+                setDireccionEntrega(sugerida ? textoDireccion(sugerida) : (cliente?.direccion ?? ""));
                 setCondicionPago(cliente?.condicionPago ?? "CONTADO");
                 setDescuentoPct(cliente?.canal ? descuentoPorCanal[cliente.canal] ?? 0 : 0);
               }}
@@ -196,10 +225,55 @@ export default function PedidoFormulario({
             <span className="font-medium text-neutral-700 dark:text-neutral-300">Referencia del cliente</span>
             <input name="referenciaCliente" maxLength={100} placeholder="Contrato, proyecto o atención" className="campo-input" />
           </label>
-          <label className="flex flex-col gap-1 text-sm sm:col-span-2 lg:col-span-4">
+          <div className="flex flex-col gap-1 text-sm sm:col-span-2 lg:col-span-4">
             <span className="font-medium text-neutral-700 dark:text-neutral-300">Dirección de entrega</span>
-            <textarea name="direccionEntrega" value={direccionEntrega} onChange={(e) => setDireccionEntrega(e.target.value)} maxLength={500} rows={2} required className="campo-input" placeholder="Dirección, distrito, provincia y referencia logística" />
-          </label>
+            {entregasDelCliente.length > 0 && (
+              <select
+                value={direccionEntregaId}
+                onChange={(e) => {
+                  const elegida = entregasDelCliente.find((d) => d.id === e.target.value);
+                  setDireccionEntregaId(elegida?.id ?? "");
+                  if (elegida) setDireccionEntrega(textoDireccion(elegida));
+                }}
+                className="campo-input mb-1"
+              >
+                <option value="">Otra dirección (escribirla abajo)</option>
+                {entregasDelCliente.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.etiqueta ?? d.direccion.slice(0, 60)}
+                    {d.principal ? " · principal" : ""}
+                    {d.distrito ? ` — ${d.distrito}` : ""}
+                  </option>
+                ))}
+              </select>
+            )}
+            {entregasDelCliente.length > 1 && !direccionEntregaId && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                Este cliente tiene {entregasDelCliente.length} direcciones de entrega. Elija a cuál
+                va esta carga, o escriba otra.
+              </p>
+            )}
+            <input type="hidden" name="direccionEntregaId" value={direccionEntregaId} />
+            <textarea
+              name="direccionEntrega"
+              value={direccionEntrega}
+              onChange={(e) => {
+                setDireccionEntrega(e.target.value);
+                // El texto dejó de coincidir con la dirección del maestro: el
+                // pedido no puede seguir diciendo que viene de ella.
+                setDireccionEntregaId("");
+              }}
+              maxLength={500}
+              rows={2}
+              required
+              className="campo-input"
+              placeholder="Dirección, distrito, provincia y referencia logística"
+            />
+            <span className="text-xs text-neutral-500">
+              Se guarda como está escrito aquí: es el compromiso de este pedido y no cambia si
+              después se edita la ficha del cliente.
+            </span>
+          </div>
         </div>
       </section>
       {descuentoPct > 0 && (

@@ -57,6 +57,7 @@ export async function crearPedido(
     String(formData.get("fechaEntregaSolicitada") ?? "")
   );
   const direccionEntrega = String(formData.get("direccionEntrega") ?? "").trim();
+  const direccionEntregaId = String(formData.get("direccionEntregaId") ?? "").trim() || null;
   const ordenCompraCliente = String(formData.get("ordenCompraCliente") ?? "").trim() || null;
   const referenciaCliente = String(formData.get("referenciaCliente") ?? "").trim() || null;
   const notas = String(formData.get("notas") ?? "").trim() || null;
@@ -109,6 +110,25 @@ export async function crearPedido(
   if (cliente.empresaId !== vendedor.empresaId || cliente.empresaId !== almacen.empresaId) {
     return { error: "Cliente, vendedor y centro de despacho deben pertenecer a la misma compañía." };
   }
+  // La procedencia llega del navegador: se comprueba que esa dirección sea de
+  // ESTE cliente, de la compañía activa, de entrega y activa. Si no lo es, no
+  // se rechaza el pedido —el destino escrito sigue siendo válido— pero se
+  // guarda sin procedencia antes que con una falsa.
+  let direccionEntregaValidaId: string | null = null;
+  if (direccionEntregaId) {
+    const candidata = await prisma.direccionCliente.findFirst({
+      where: {
+        id: direccionEntregaId,
+        empresaId,
+        clienteId,
+        tipo: "ENTREGA",
+        activa: true,
+      },
+      select: { id: true },
+    });
+    direccionEntregaValidaId = candidata?.id ?? null;
+  }
+
   if (cliente.bloqueadoCobranza) {
     return {
       error: `${cliente.razonSocial} está bloqueado por cobranza (facturas vencidas sin regularizar). Levante el bloqueo en Finanzas → Gestión de cobranza antes de crear un pedido nuevo.`,
@@ -263,6 +283,7 @@ export async function crearPedido(
           condicionPago,
           fechaEntregaSolicitada,
           direccionEntrega,
+          direccionEntregaId: direccionEntregaValidaId,
           ordenCompraCliente,
           referenciaCliente,
           requiereEntrega: true,
