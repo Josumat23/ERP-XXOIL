@@ -16,6 +16,7 @@ import ResolverLimiteFormulario from "./ResolverLimiteFormulario";
 import DireccionesCliente from "./DireccionesCliente";
 import ContactosCliente from "./ContactosCliente";
 import { propositosSinContacto } from "@/lib/contactosCliente";
+import { depositoComprometido, saldoCascos } from "@/lib/logisticaCliente";
 import { tiposFaltantes } from "@/lib/direccionesCliente";
 
 export default async function EditarClientePage({
@@ -29,7 +30,7 @@ export default async function EditarClientePage({
   const { id } = await params;
   const empresaId = await obtenerEmpresaActivaId();
 
-  const [cliente, clientes, zonas, vendedores, facturasPendientes, arbol, config, solicitudes] = await Promise.all([
+  const [cliente, clientes, zonas, vendedores, facturasPendientes, arbol, config, movimientosCasco, solicitudes] = await Promise.all([
     prisma.cliente.findFirst({
       where: { id, empresaId },
       include: {
@@ -60,6 +61,10 @@ export default async function EditarClientePage({
     prisma.factura.findMany({ where: { clienteId: id, empresaId, estado: "PENDIENTE" } }),
     arbolUbigeos(),
     obtenerConfiguracionEmpresa(empresaId),
+    prisma.movimientoCasco.findMany({
+      where: { clienteId: id, empresaId },
+      include: { insumo: { select: { id: true, nombre: true, montoDeposito: true } } },
+    }),
     prisma.solicitudCambioCredito.findMany({
       where: { clienteId: id, empresaId },
       orderBy: { solicitadoEn: "desc" },
@@ -67,6 +72,14 @@ export default async function EditarClientePage({
     }),
   ]);
   if (!perteneceAEmpresaActiva(cliente, empresaId)) notFound();
+
+  const saldosCasco = saldoCascos(movimientosCasco);
+  const insumosCasco: Record<string, string> = Object.fromEntries(
+    movimientosCasco.map((m) => [m.insumo.id, m.insumo.nombre])
+  );
+  const depositoPorInsumo: Record<string, number> = Object.fromEntries(
+    movimientosCasco.map((m) => [m.insumo.id, m.insumo.montoDeposito?.toNumber() ?? 0])
+  );
 
   const pendiente = solicitudes.find((s) => s.estado === "PENDIENTE") ?? null;
   // Editar direcciones es editar el maestro: mismo permiso que el resto de
@@ -218,6 +231,51 @@ export default async function EditarClientePage({
             entidadId={cliente.id}
             rutaRevalidar={`/comercial/clientes/${cliente.id}`}
           />
+          {saldosCasco.length > 0 && (
+            <section className="borde-seccion">
+              <h2 className="titulo-seccion">Envases retornables en poder del cliente</h2>
+              <p className="mt-1 text-xs text-neutral-500">
+                Calculado desde los movimientos de casco, no guardado en la ficha: un saldo
+                anotado se desincroniza y este no puede.
+              </p>
+              <table className="tabla mt-2">
+                <thead>
+                  <tr>
+                    <th>Envase</th>
+                    <th className="text-right">Pendientes</th>
+                    <th className="text-right">Depósito comprometido</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {saldosCasco.map((s) => {
+                    const insumo = insumosCasco[s.insumoId];
+                    const deposito = depositoPorInsumo[s.insumoId] ?? 0;
+                    return (
+                      <tr key={s.insumoId}>
+                        <td>{insumo ?? s.insumoId}</td>
+                        <td
+                          className={`text-right ${s.pendientes < 0 ? "text-red-600 dark:text-red-400" : ""}`}
+                        >
+                          {s.pendientes}
+                          {s.pendientes < 0 && " (revisar: más devoluciones que entregas)"}
+                        </td>
+                        <td className="text-right">
+                          {formatMoneda(Math.max(0, s.pendientes) * deposito)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <p className="mt-2 text-sm">
+                Depósito total comprometido:{" "}
+                <span className="font-medium">
+                  {formatMoneda(depositoComprometido(saldosCasco, depositoPorInsumo))}
+                </span>
+              </p>
+            </section>
+          )}
+
           {solicitudes.some((s) => s.estado !== "PENDIENTE") && (
             <section className="borde-seccion">
               <h2 className="titulo-seccion">Historial de límites de crédito</h2>

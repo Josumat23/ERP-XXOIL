@@ -71,6 +71,7 @@ export default async function NuevoPedidoPage() {
             id: c.id,
             codigo: c.codigo,
             etiqueta: c.razonSocial,
+            almacenDespachoId: c.almacenDespachoId,
             direcciones: c.direcciones.map((d) => ({
               id: d.id,
               etiqueta: d.etiqueta,

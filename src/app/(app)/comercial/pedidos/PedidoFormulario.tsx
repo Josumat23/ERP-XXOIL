@@ -19,6 +19,7 @@ type ClienteOpcion = {
   codigo: string;
   etiqueta: string;
   direcciones: DireccionEntregaOpcion[];
+  almacenDespachoId: string | null;
   ruc: string | null;
   vendedorId: string | null;
   canal: string | null;
@@ -89,6 +90,7 @@ export default function PedidoFormulario({
   // alguien edita el texto a mano: un pedido no puede decir que viene de una
   // dirección del maestro si su destino ya no coincide con ella.
   const [direccionEntregaId, setDireccionEntregaId] = useState("");
+  const [almacenId, setAlmacenId] = useState("");
   const [clienteElegidoId, setClienteElegidoId] = useState("");
   const entregasDelCliente =
     clientes.find((c) => c.id === clienteElegidoId)?.direcciones ?? [];
@@ -144,6 +146,10 @@ export default function PedidoFormulario({
               onChange={(e) => {
                 const cliente = clientes.find((c) => c.id === e.target.value);
                 setClienteElegidoId(cliente?.id ?? "");
+                // Su centro de despacho habitual, si lo tiene declarado. Se
+                // propone y no se impone: un despacho puntual puede salir
+                // de otra planta.
+                if (cliente?.almacenDespachoId) setAlmacenId(cliente.almacenDespachoId);
                 setVendedorId(cliente?.vendedorId ?? "");
                 // La principal, o la única si hay una sola. Con varias y
                 // ninguna principal no se elige por el vendedor: adivinar a
@@ -175,7 +181,7 @@ export default function PedidoFormulario({
           </label>
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium text-neutral-700 dark:text-neutral-300">Centro de despacho</span>
-            <select name="almacenId" required defaultValue="" className="campo-input">
+            <select name="almacenId" required value={almacenId} onChange={(e) => setAlmacenId(e.target.value)} className="campo-input">
               <option value="" disabled>Seleccione almacén/planta</option>
               {almacenes.map((a) => <option key={a.id} value={a.id}>{a.etiqueta}</option>)}
             </select>
