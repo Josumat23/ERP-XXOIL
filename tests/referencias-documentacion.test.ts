@@ -32,6 +32,9 @@ async function documentos(dir: string, acc: string[] = []): Promise<string[]> {
 test("ninguna cita de la documentación apunta a un archivo que no existe", async () => {
   const fuentes = [
     ...(await documentos(resolve(RAIZ, "docs"))),
+    // La gobernanza vive en otra raíz, y es justamente la confusión entre las
+    // dos la que produjo las ocho citas rotas de 2026-09-14.
+    ...(await documentos(resolve(RAIZ, "000-Governance"))),
     resolve(RAIZ, "README.md"),
     resolve(RAIZ, "AGENTS.md"),
   ].filter((f) => existsSync(f));
