@@ -65,7 +65,7 @@
 | L2 | L3 | L4 (evidencia) |
 |---|---|---|
 | Estructura de almacén | Almacén / zona | `Almacen`, `ZonaAlmacen` (una zona por ítem, sin partición de cantidad por bin) |
-| Movimientos | Traslado entre almacenes / reubicación de zona | `crearTraslado`, `reubicarZona` — **metadata-only, no genera `MovimientoKardex`** para reubicación de zona (`docs/gobernanza/010-AI/inventario-reubicacion-zonas/RN.md`, RN-REUB-003) |
+| Movimientos | Traslado entre almacenes / reubicación de zona | `crearTraslado`, `reubicarZona` — **metadata-only, no genera `MovimientoKardex`** para reubicación de zona (`000-Governance/010-AI/inventario-reubicacion-zonas/RN.md`, RN-REUB-003) |
 | Conteo físico | Conteo cíclico | `crearConteo` (auto-ajusta diferencias) |
 | Picking/despacho estructurado | Orden de picking, oleada, unidad de manejo (HU) | `[GAP]` — confirmado `docs/gobernanza/02-cruce-rf/WM-EWM.md`: 92/98 RF de EWM descartados por "sobre-ingeniería" a la escala evaluada entonces |
 | Transporte | Guía de remisión + vínculo a equipo de flota propia | `GuiaRemision.equipoId`, `EstadoDespacho` (PLANIFICADO/EN_RUTA/ENTREGADO) |
@@ -106,7 +106,7 @@
 | Estructura del proyecto | EDT/WBS jerárquico | `EdtProyecto` (`@relation("EdtJerarquia")`, real, con `parentId`) |
 | Red de actividades | Actividad + precedencia | `crearActividad`, `crearPrecedencia` (solo Fin-a-Inicio, validación de ciclos por DFS) |
 | Ruta crítica | Cálculo CPM | `recalcularRutaCritica()` en `src/lib/proyectos.ts` — `esCritica`, `holguraDias` |
-| | Nivelación de recursos | `[GAP]` — `responsableId` es solo informativo, sin chequeo de sobre-asignación (`docs/gobernanza/010-AI/proyectos/RN.md`, RN-PRY-002) |
+| | Nivelación de recursos | `[GAP]` — `responsableId` es solo informativo, sin chequeo de sobre-asignación (`000-Governance/010-AI/proyectos/RN.md`, RN-PRY-002) |
 | | Calendario de días hábiles del proyecto | `[GAP]` — ruta crítica en días calendario, no días laborables (RN-PRY-003) |
 | Costeo | Costo real acumulado (ledger + OC no anuladas) | `agregarCostoProyecto`, cálculo siempre en vivo (RN-PRY-005) |
 | | Aprobación de presupuesto por fase | `[GAP]` — sin workflow de aprobación por fase (RN-PRY exclusiones documentadas) |
@@ -144,7 +144,7 @@ Cubre entrada (inspección de compra), proceso (control de calidad de lote) y po
 | L2 | L3 | L4 (evidencia) |
 |---|---|---|
 | Segregación de funciones | Grupos de seguridad con permisos por módulo | `GrupoSeguridad`, `PermisoGrupo` (ver/crear/editar/aprobar separados) |
-| Revisión de accesos | Alerta de inactividad 90 días | `docs/gobernanza/010-AI/configuracion-usuarios/RN.md` |
+| Revisión de accesos | Alerta de inactividad 90 días | `000-Governance/010-AI/configuracion-usuarios/RN.md` |
 | Pista de auditoría | usuario/fecha/motivo en cada registro | Patrón consistente en >15 modelos (nunca se edita/borra historia) |
 | Gestión formal de riesgos, SoD con motor de conflictos, certificación de accesos | `[GAP]` — descartado en `docs/gobernanza/02-cruce-rf/GRC.md` (46/49 RF) bajo supuesto de organización pequeña; **candidato prioritario de re-examen** para escala grande |
 
