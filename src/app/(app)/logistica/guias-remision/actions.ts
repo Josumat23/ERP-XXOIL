@@ -167,7 +167,7 @@ export async function crearGuiaRemision(
   let guiaId = "";
   try {
     await prisma.$transaction(async (tx) => {
-      if (await tx.cliente.count({ where: { id: clienteId, empresaId, activo: true } }) !== 1) throw new Error("El cliente no pertenece a la empresa activa.");
+      if (await tx.cliente.count({ where: { id: clienteId, empresaId, estado: "ACTIVO" } }) !== 1) throw new Error("El cliente no pertenece a la empresa activa.");
       if (await tx.presentacion.count({ where: { id: { in: lineas.map((linea) => linea.presentacionId) }, empresaId, activo: true } }) !== lineas.length) throw new Error("Una presentación no pertenece a la empresa activa.");
       if (equipoId && await tx.equipo.count({ where: { id: equipoId, empresaId, activo: true } }) !== 1) throw new Error("El equipo no pertenece a la empresa activa.");
       if (pedidoId) {

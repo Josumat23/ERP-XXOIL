@@ -43,7 +43,7 @@ export default async function NuevaGuiaPage({
       orderBy: { fechaEmision: "desc" },
       take: 50,
     }),
-    prisma.cliente.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.cliente.findMany({ where: { empresaId, estado: "ACTIVO" }, orderBy: { razonSocial: "asc" } }),
     prisma.presentacion.findMany({
       where: { empresaId, activo: true },
       include: { producto: true },

@@ -55,7 +55,7 @@ export async function crearCotizacion(
 
   let cotizacionId = "";
   await prisma.$transaction(async (tx) => {
-    if (await tx.cliente.count({ where: { id: clienteId, empresaId, activo: true } }) !== 1 || await tx.vendedor.count({ where: { id: vendedorId, empresaId, activo: true } }) !== 1) throw new Error("Cliente o vendedor fuera de la empresa activa.");
+    if (await tx.cliente.count({ where: { id: clienteId, empresaId, estado: "ACTIVO" } }) !== 1 || await tx.vendedor.count({ where: { id: vendedorId, empresaId, activo: true } }) !== 1) throw new Error("Cliente o vendedor fuera de la empresa activa.");
     if (await tx.presentacion.count({ where: { id: { in: lineas.map((linea) => linea.presentacionId) }, empresaId, activo: true } }) !== lineas.length) throw new Error("Una presentación no pertenece a la empresa activa.");
     const numero = await siguienteNumeroCotizacion(tx, empresaId);
     const total = lineas.reduce((acc, l) => acc + l.cantidad * l.precioUnitario, 0);

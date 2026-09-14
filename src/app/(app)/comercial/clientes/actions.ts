@@ -343,6 +343,13 @@ export async function rechazarCambioLimiteCredito(
   return resolverSolicitudCredito(id, false, motivo);
 }
 
+/**
+ * Mueve el estado del maestro.
+ *
+ * No toca `bloqueadoCobranza`, que es el control financiero automático y se
+ * levanta por su propia vía: son ortogonales y hay que pasar los dos para
+ * poder vender.
+ */
 export async function alternarActivoCliente(id: string, activo: boolean) {
   const auth = await requerirRol(["VENTAS"]);
   if ("error" in auth) return;
@@ -351,7 +358,12 @@ export async function alternarActivoCliente(id: string, activo: boolean) {
   await prisma.$transaction(async (tx) => {
     const antes = await tx.cliente.findUnique({ where: { id } });
     if (!perteneceAEmpresaActiva(antes, empresaId)) return;
-    const despues = await tx.cliente.update({ where: { id, empresaId }, data: { activo } });
+    const despues = await tx.cliente.update({ where: { id, empresaId }, data: {
+      estado: activo ? "ACTIVO" : "INACTIVO",
+      estadoDesde: new Date(),
+      estadoPorId: auth.usuario.id,
+      estadoPorNombre: auth.usuario.nombre,
+    } });
     await registrarAuditoriaMaestro(tx, {
       empresaId: despues.empresaId,
       entidad: "Cliente",

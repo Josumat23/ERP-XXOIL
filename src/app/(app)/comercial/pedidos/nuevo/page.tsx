@@ -16,7 +16,7 @@ export default async function NuevoPedidoPage() {
 
   const [clientes, vendedores, almacenes, presentaciones, pedidos, descuentosCanal, atpPorProducto, configuracion] = await Promise.all([
     prisma.cliente.findMany({
-      where: { empresaId, activo: true },
+      where: { empresaId, estado: "ACTIVO" },
       include: {
         // Solo las de entrega y activas: el selector de destino no ofrece un
         // domicilio fiscal ni una dirección dada de baja.
