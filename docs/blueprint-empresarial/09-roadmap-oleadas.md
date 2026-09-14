@@ -36,6 +36,8 @@
 
 > **Entregado 2026-09-08:** RFQ y comparación de proveedores con trazabilidad a la orden de compra.
 
+> **Convención de documentación retirada 2026-09-14:** la estructura `000-Governance/010-AI/<módulo>/RF-RN-CU-API-SQL-UI-TEST`, adoptada el 2026-08-04, ya no rige. Había dejado de aplicarse sola: último uso el 2026-09-08, diez módulos cubiertos, y después 9 módulos de pantalla y 23 de librería sin ella. En su lugar, cada ciclo entrega un `docs/<tema>.md` que explica la decisión y su costo, y la suite sostiene lo que prometían `TEST.md`, `SQL.md` y `API.md`. **No se retira la verificación en navegador**, que estaba en la misma convención y sigue siendo obligatoria. Motivos completos en `000-Governance/010-AI/README.md`.
+
 > **Actualización 2026-08-12:** los ítems 0.1 (autorización SUNAT), 0.1b (stock reservado en MRP, PR #62, merge b524c24), cookie `secure` en producción (PR #65, merge 7bab3f6) y framework de pruebas + CI (PR #64/#66, merges 6509cdd/d5bd652) están completados. El resto requiere las dependencias y decisiones indicadas; no autoriza cambios de esquema.
 
 **Principio de secuenciación**: la Oleada 0 resuelve los prerrequisitos estructurales de los que dependen casi todos los demás gaps (sin sociedad/planta real, no tiene sentido construir jerarquía de centro de costo "por planta"; sin partición de stock por zona, no tiene sentido construir picking). Las oleadas siguientes se ordenan por impacto/riesgo, no por dominio SAP — varios ítems de distintos dominios conviven en la misma oleada cuando comparten dependencia técnica o urgencia.

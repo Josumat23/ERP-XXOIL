@@ -1,5 +1,69 @@
 # Gobernanza de documentación — ERP-XXOIL
 
+> # ⛔ CONVENCIÓN RETIRADA — 2026-09-14
+>
+> **Decisión del usuario.** Esta convención ya no rige. Los módulos nuevos o modificados
+> **no** llevan la carpeta de siete archivos. Lo que sigue más abajo se conserva como
+> registro de lo que fue y de lo que documentan los diez módulos que alcanzó a cubrir.
+
+## Por qué se retira
+
+**Ya había dejado de aplicarse.** Se adoptó el 2026-08-04 y se usó por última vez el
+**2026-09-08** (`mrp-neteo-demanda`). Cubrió diez módulos. Desde entonces se construyeron
+**9 módulos de pantalla y 23 de librería** sin ninguna carpeta de gobernanza. Una convención
+que no se sigue no gobierna nada: dejarla escrita solo aparenta un estándar que no existe, y
+quien lea el repositorio creerá que hay siete documentos por módulo donde no los hay.
+
+**Lo que la reemplazó funciona mejor en la práctica.** Desde el 2026-09-09 cada ciclo entrega
+un `docs/<tema>.md` —**72** hasta hoy— que explica **la decisión y su costo**: qué se
+construyó, qué se descartó, qué quedó sin resolver y por qué. El formato de siete archivos
+repartía una sola decisión entre siete encabezados que había que rellenar, y el resultado se
+leía como un formulario, no como una explicación.
+
+**Buena parte de los siete archivos ya la sostiene algo que no puede mentir:**
+
+| Archivo | Quién lo sostiene ahora |
+| --- | --- |
+| `TEST.md` (plan de verificación) | La suite: **403 pruebas en 38 archivos**, incluidas guardias estructurales que fallan si se reintroduce un defecto de clase conocida |
+| `SQL.md` (cambios de esquema) | Las migraciones versionadas, más `prisma migrate diff` en CI |
+| `API.md` (server actions) | Las firmas tipadas y las pruebas que ejercen cada acción |
+| `RF.md` / `RN.md` (requisitos y reglas) | Las pruebas de reglas puras y el `docs/<tema>.md` del ciclo |
+
+La documentación que repite lo que el código ya afirma no queda sincronizada: cuando divergen,
+gana el código y el documento pasa a mentir en silencio. Las guardias de la suite son la
+versión que no puede divergir, porque fallan.
+
+**El propio README advertía contra esto.** Pedía llenar los siete archivos *"antes o durante la
+construcción, no después como formalidad vacía"*. Que hayan dejado de llenarse es la señal de
+que se habían vuelto justamente eso.
+
+## Qué NO se retira
+
+- **La verificación en navegador.** Estaba escrita en el paso 3 de esta misma convención y
+  **sigue siendo obligatoria**. Es una práctica distinta del formato de archivos, y hoy tiene
+  una deuda real: las funciones construidas entre el 2026-09-12 y el 2026-09-14 se entregaron
+  con pruebas, lint, build y CI en verde **sin que nadie mirara una pantalla**. Es exactamente
+  el patrón que el 2026-09-11 destapó una fuga entre compañías que ninguna prueba veía
+  (`docs/verificacion-en-navegador.md`).
+- **Los diez módulos ya documentados.** No se borran. Son el registro de lo que se decidió
+  entonces, y el blueprint los cita como evidencia.
+- **`docs/gobernanza/`**, que es otra cosa: los diagnósticos puntuales como el cruce con los 17
+  catálogos SAP. Sigue vigente.
+
+## Qué se hace en su lugar
+
+Por cada ciclo: implementación, migración si aplica, pruebas automatizadas, **un
+`docs/<tema>.md`** que explique la decisión, anotación en el roadmap, y la cadena completa de
+verificación antes del PR.
+
+---
+
+*Lo que sigue es el texto original de la convención, tal como rigió entre el 2026-08-04 y el
+2026-09-08.*
+
+---
+
+
 **Decisión tomada:** 2026-08-04, por el usuario, en respuesta a la pregunta abierta dejada en
 `docs/gobernanza/03-plan-priorizado-y-hoja-de-ruta.md` (sección 3.4).
 
