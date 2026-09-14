@@ -472,6 +472,7 @@ export async function crearNotaCredito(
 
       const nc = await tx.notaCredito.create({
         data: {
+          empresaId,
           numero,
           facturaId,
           monto,
@@ -528,6 +529,7 @@ export async function crearNotaCredito(
         const tasa = generada.tasa.toNumber();
         await tx.comision.create({
           data: {
+            empresaId,
             vendedorId: factura.vendedorId,
             facturaId,
             tipo: "REVERSION",
@@ -663,6 +665,7 @@ export async function anularFactura(
       if (generada) {
         await tx.comision.create({
           data: {
+            empresaId,
             vendedorId: factura.vendedorId,
             facturaId,
             tipo: "REVERSION",

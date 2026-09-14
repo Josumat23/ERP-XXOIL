@@ -87,6 +87,7 @@ export async function crearOrdenMantenimiento(
 
     await tx.ordenMantenimiento.create({
       data: {
+        empresaId: auth.usuario.empresaId,
         codigo,
         equipoId,
         tipo,

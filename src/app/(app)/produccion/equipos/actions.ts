@@ -185,7 +185,7 @@ export async function crearPlanMantenimiento(
       throw new Error("El equipo no tiene una unidad de contador configurada.");
     }
     const plan = await tx.planMantenimiento.create({
-      data: { equipoId, nombre, tipo: tipo as (typeof TIPOS_PLAN_VALIDOS)[number], frecuenciaDias, frecuenciaContador, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre },
+      data: { empresaId: auth.usuario.empresaId, equipoId, nombre, tipo: tipo as (typeof TIPOS_PLAN_VALIDOS)[number], frecuenciaDias, frecuenciaContador, usuarioId: auth.usuario.id, usuarioNombre: auth.usuario.nombre },
     });
     await registrarAuditoriaMaestro(tx, { entidad: "PlanMantenimiento", registroId: plan.id, accion: "CREAR", despues: plan, usuario: auth.usuario });
   });

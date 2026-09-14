@@ -659,6 +659,7 @@ export async function facturarPedido(
       const tasa = pedido.vendedor.tasaComision.toNumber();
       await tx.comision.create({
         data: {
+          empresaId,
           vendedorId: pedido.vendedorId,
           facturaId: factura.id,
           tipo: "GENERADA",

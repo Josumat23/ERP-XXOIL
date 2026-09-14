@@ -81,6 +81,7 @@ export async function generarOrdenesPreventivasVencidas(
     const codigo = await siguienteCodigoOrdenMantenimiento(tx, plan.equipo.empresaId);
     await tx.ordenMantenimiento.create({
       data: {
+        empresaId: plan.equipo.empresaId,
         codigo,
         equipoId: plan.equipoId,
         tipo: "PREVENTIVO",
