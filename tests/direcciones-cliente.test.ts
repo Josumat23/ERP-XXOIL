@@ -182,3 +182,58 @@ test("el pedido conserva la dirección como foto, no como referencia viva", asyn
   assert.match(modelo, /direccionEntrega\s+String\?/, "el texto copiado debe seguir existiendo");
   assert.match(modelo, /direccionEntregaId\s+String\?/, "y la referencia de dónde salió");
 });
+
+test("el pedido no acepta una dirección que no es de ese cliente", async () => {
+  // El id llega del navegador. Si no se comprobara, un pedido podría declarar
+  // que va a la planta de otro cliente — o de otra compañía.
+  const acciones = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/pedidos/actions.ts"),
+    "utf8"
+  );
+  const bloque = acciones.slice(
+    acciones.indexOf("let direccionEntregaValidaId"),
+    acciones.indexOf("if (cliente.bloqueadoCobranza)")
+  );
+  assert.ok(bloque.length > 0, "no se encontró la validación de procedencia");
+  for (const filtro of ["empresaId", "clienteId", 'tipo: "ENTREGA"', "activa: true"]) {
+    assert.ok(bloque.includes(filtro), `la consulta debe filtrar por ${filtro}`);
+  }
+});
+
+test("el selector de destino no ofrece domicilios fiscales", async () => {
+  // Ofrecer el domicilio fiscal como destino de despacho es cómo se manda una
+  // carga a una oficina administrativa.
+  const pagina = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/pedidos/nuevo/page.tsx"),
+    "utf8"
+  );
+  assert.match(pagina, /where: \{ tipo: "ENTREGA", activa: true \}/);
+});
+
+test("editar el texto del destino borra la procedencia", async () => {
+  // Si no, el pedido diría venir de una dirección del maestro con un texto que
+  // ya no coincide con ella.
+  const formulario = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/pedidos/PedidoFormulario.tsx"),
+    "utf8"
+  );
+  const bloque = formulario.slice(
+    formulario.indexOf('name="direccionEntrega"'),
+    formulario.indexOf("placeholder=\"Dirección, distrito")
+  );
+  assert.match(bloque, /setDireccionEntrega\(e\.target\.value\)/);
+  assert.match(bloque, /setDireccionEntregaId\(""\)/);
+});
+
+test("las acciones de direcciones acotan a la compañía activa", async () => {
+  const acciones = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/clientes/[id]/direccionesActions.ts"),
+    "utf8"
+  );
+  // El cliente y la dirección se releen; el id del navegador no se usa suelto.
+  assert.match(acciones, /findFirst\(\{ where: \{ id: clienteId, empresaId \} \}\)/);
+  assert.match(acciones, /where: \{ id, empresaId, cliente: \{ empresaId \} \}/);
+  // Y desactivar no borra: hay pedidos que citan esa dirección.
+  assert.match(acciones, /data: \{ activa: false, principalDe: null \}/);
+  assert.doesNotMatch(acciones, /direccionCliente\.delete/);
+});

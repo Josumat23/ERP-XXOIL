@@ -15,7 +15,19 @@ export default async function NuevoPedidoPage() {
   const empresaId = await obtenerEmpresaActivaId();
 
   const [clientes, vendedores, almacenes, presentaciones, pedidos, descuentosCanal, atpPorProducto, configuracion] = await Promise.all([
-    prisma.cliente.findMany({ where: { empresaId, activo: true }, orderBy: { razonSocial: "asc" } }),
+    prisma.cliente.findMany({
+      where: { empresaId, activo: true },
+      include: {
+        // Solo las de entrega y activas: el selector de destino no ofrece un
+        // domicilio fiscal ni una dirección dada de baja.
+        direcciones: {
+          where: { tipo: "ENTREGA", activa: true },
+          include: { ubigeo: true },
+          orderBy: [{ principalDe: "desc" }, { creadoEn: "asc" }],
+        },
+      },
+      orderBy: { razonSocial: "asc" },
+    }),
     prisma.vendedor.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     prisma.almacen.findMany({ where: { empresaId, activo: true }, orderBy: { codigo: "asc" } }),
     prisma.presentacion.findMany({
@@ -59,6 +71,16 @@ export default async function NuevoPedidoPage() {
             id: c.id,
             codigo: c.codigo,
             etiqueta: c.razonSocial,
+            direcciones: c.direcciones.map((d) => ({
+              id: d.id,
+              etiqueta: d.etiqueta,
+              direccion: d.direccion,
+              referencia: d.referencia,
+              distrito: d.ubigeo
+                ? `${d.ubigeo.distrito}, ${d.ubigeo.provincia}`
+                : (d.distrito ?? null),
+              principal: d.principalDe !== null,
+            })),
             ruc: c.ruc,
             vendedorId: c.vendedorId,
             canal: c.canal,

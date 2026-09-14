@@ -65,6 +65,12 @@ export function validarDireccion(params: {
   // tres son datos administrativos y muchas veces llegan sin distrito.
   if (params.tipo === "ENTREGA" && !params.ubigeoId) return "SIN_UBICACION";
 
+  // `Number.isFinite` cubre el texto que no es número: el formulario manda
+  // cadenas y «-12,5» o «sur» llegan como NaN, que no es mayor ni menor que
+  // nada y pasaría una comparación de rango sin que nadie lo note.
+  for (const coordenada of [params.latitud, params.longitud]) {
+    if (coordenada !== null && !Number.isFinite(coordenada)) return "COORDENADA_INVALIDA";
+  }
   if (params.latitud !== null && Math.abs(params.latitud) > 90) return "COORDENADA_INVALIDA";
   if (params.longitud !== null && Math.abs(params.longitud) > 180) return "COORDENADA_INVALIDA";
 
