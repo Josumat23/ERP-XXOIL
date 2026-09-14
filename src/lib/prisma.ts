@@ -1,29 +1,16 @@
 import { isAbsolute, relative, resolve } from "node:path";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 import { PrismaClient } from "@/generated/prisma/client";
+import { urlBaseRequerida } from "@/lib/databaseUrl";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Sin valor por defecto, a propósito.
-//
-// Antes decía `?? "file:./dev.db"`. Ese nombre es, en la copia de trabajo
-// original, una base PROTEGIDA — así que un proceso que llegara hasta acá sin
-// `DATABASE_URL` en el entorno no fallaba: se conectaba en silencio a la base
-// que no debía tocar. Es exactamente lo que hacía `npm run dev`, porque
+// Sin valor por defecto, a propósito: ver `src/lib/databaseUrl.ts`. Es
+// exactamente lo que hacía `npm run dev` antes del 2026-09-14, porque
 // `server.ts` no cargaba `.env` antes de importar este módulo.
-//
-// Adivinar la base es peor que no arrancar: quien olvida configurarla ve un
-// error inmediato y claro, no datos ajenos ni escrituras donde no van.
-const urlBase = process.env.DATABASE_URL;
-if (!urlBase) {
-  throw new Error(
-    "Falta DATABASE_URL. Defínala en `.env` (por ejemplo `file:./local.db`) o en el " +
-      "entorno del proceso. No hay base por defecto: adivinarla puede escribir en la " +
-      "base equivocada."
-  );
-}
+const urlBase = urlBaseRequerida();
 
 /** ¿La base vive dentro del repositorio? */
 function baseDentroDelRepositorio(url: string): boolean {

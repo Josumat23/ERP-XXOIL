@@ -24,7 +24,7 @@ leía como un formulario, no como una explicación.
 
 | Archivo | Quién lo sostiene ahora |
 | --- | --- |
-| `TEST.md` (plan de verificación) | La suite: **403 pruebas en 38 archivos**, incluidas guardias estructurales que fallan si se reintroduce un defecto de clase conocida |
+| `TEST.md` (plan de verificación) | La suite: **402 pruebas en 38 archivos**, incluidas guardias estructurales que fallan si se reintroduce un defecto de clase conocida |
 | `SQL.md` (cambios de esquema) | Las migraciones versionadas, más `prisma migrate diff` en CI |
 | `API.md` (server actions) | Las firmas tipadas y las pruebas que ejercen cada acción |
 | `RF.md` / `RN.md` (requisitos y reglas) | Las pruebas de reglas puras y el `docs/<tema>.md` del ciclo |

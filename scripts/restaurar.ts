@@ -5,6 +5,11 @@
 // Sin --forzar se niega a pisar un archivo existente. El destino se indica
 // SIEMPRE de forma explícita: este script no deduce que hay que restaurar
 // encima de la base viva.
+// Hoy este script no lee `DATABASE_URL` —el destino se indica siempre de forma
+// explícita— pero carga `.env` igual: la regla de que todo punto de entrada lo
+// cargue es incondicional a propósito. Decidir archivo por archivo quién lo
+// necesita es justamente como se escaparon `server.ts` y los sembradores.
+import "dotenv/config";
 import { controladorDeArtefacto, restaurarRespaldo } from "@/lib/respaldo";
 
 function argumento(nombre: string): string | undefined {

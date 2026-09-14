@@ -10,11 +10,15 @@
 // que una cifra cruzada salte a la vista en pantalla.
 //
 // Idempotente: si la compañía ya existe, no hace nada.
+
+// Corre en su propio proceso bajo tsx: nadie carga `.env` por él.
+import "dotenv/config";
+import { urlBaseRequerida } from "../src/lib/databaseUrl";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
 
 const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: process.env.DATABASE_URL ?? "file:./dev.db" }),
+  adapter: new PrismaBetterSqlite3({ url: urlBaseRequerida() }),
 });
 
 const EMPRESA_ID = "empresa-demo-2";
