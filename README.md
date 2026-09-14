@@ -48,8 +48,13 @@ actualiza el costo promedio de la presentación, del que sale el margen de venta
    ```
 2. Crear el archivo `.env` (no se sube al repositorio):
    ```bash
-   echo 'DATABASE_URL="file:./dev.db"' > .env
+   echo 'DATABASE_URL="file:./local.db"' > .env
    ```
+
+   > **Si trabaja sobre la copia de trabajo original, no use `dev.db`.** Ahí ese
+   > archivo es una base **protegida**: una foto congelada del 2026-08-08, 85
+   > migraciones atrás, que no debe migrarse ni abrirse. Apuntarle el `.env` y
+   > correr `migrate deploy` la modificaría. Véase `docs/bases-protegidas.md`.
 3. Generar el cliente de Prisma y la base de datos (solo la primera vez o
    tras clonar el repo — `npm install` no lo hace automáticamente):
    ```bash
@@ -87,7 +92,9 @@ npm test
 
 La suite crea una base SQLite efímera en el directorio temporal del sistema,
 aplica las migraciones y el seed mínimo, y valida inventario, producción,
-calidad, envasado, contabilidad, MRP y UBL. Nunca utiliza `dev.db`.
+calidad, envasado, contabilidad, MRP y UBL. Nunca utiliza ninguna base del
+repositorio: `@/lib/prisma` se niega a conectarse a una si el proceso corre bajo
+el runner de pruebas.
 
 > Nota: los scripts `dev` y `build` usan webpack (`--webpack`) porque Turbopack
 > falla al procesar CSS en este entorno Windows/OneDrive.

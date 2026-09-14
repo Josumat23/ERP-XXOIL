@@ -1,3 +1,8 @@
+// Antes que cualquier otro import: `server.ts` no es una ruta de Next, así que
+// nadie carga `.env` por él. Sin esto, `./src/lib/tareasProgramadas` —y con él
+// `@/lib/prisma`— se evalúan con `DATABASE_URL` sin definir, y el planificador
+// arranca contra la base equivocada.
+import "dotenv/config";
 import { createServer } from "http";
 import { parse } from "url";
 import next from "next";

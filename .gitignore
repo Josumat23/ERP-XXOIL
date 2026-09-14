@@ -44,9 +44,12 @@ next-env.d.ts
 
 # database
 /.demo/
+/local.db
 /dev.db
 /prisma/dev.db
 *.db-journal
+*.db-wal
+*.db-shm
 
 # respaldos locales de dev.db (dev.db.bak-YYYY-MM-DD), archivos físicos
 dev.db.bak-*
