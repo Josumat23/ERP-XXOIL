@@ -69,7 +69,7 @@ function leerDatos(formData: FormData) {
     return { error: "El documento debe ser un DNI (8 dígitos) o RUC (11 dígitos)." } as const;
   }
   if (!Number.isFinite(limiteCredito) || limiteCredito < 0) {
-    return { error: "El límite de crédito debe ser un número válido (0 = sin límite)." } as const;
+    return { error: "El límite de crédito debe ser un número válido (0 = sin crédito, solo contado)." } as const;
   }
   if (motivoLimiteCredito.length > 500) {
     return { error: "El motivo del aumento no puede superar 500 caracteres." } as const;
@@ -122,7 +122,7 @@ export async function crearCliente(
   const umbralAlta = montoAprobacionCredito?.toNumber() ?? null;
   if (creacionRequiereAprobacion(resultado.datos.limiteCredito, umbralAlta)) {
     return {
-      error: `Un cliente nuevo no puede darse de alta con un límite que requiere aprobación (umbral: S/ ${umbralAlta}; 0 = sin límite). Créelo dentro del umbral y solicite el aumento desde su ficha.`,
+      error: `Un cliente nuevo no puede darse de alta con un límite que requiere aprobación (umbral: S/ ${umbralAlta}). Créelo dentro del umbral —o en 0, que es sin crédito— y solicite el aumento desde su ficha.`,
     };
   }
 
@@ -184,7 +184,7 @@ export async function actualizarCliente(
       // decisión se tomara sobre el valor que manda el navegador, bastaría con
       // declarar un límite anterior alto para saltarse la aprobación.
       const decision = decidirCambioLimiteCredito(
-        antes.limiteCredito.toNumber(),
+        antes.limiteCredito?.toNumber() ?? null,
         resultado.datos.limiteCredito,
         umbral
       );

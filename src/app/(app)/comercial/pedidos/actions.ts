@@ -215,16 +215,19 @@ export async function crearPedido(
         igv: totales.igv,
         total: totales.totalConIgv,
       });
-      const limiteCredito = condicionPago === "CONTADO" ? 0 : cliente.limiteCredito.toNumber();
+      // Una venta al contado no expone crédito: no se evalúa. Antes esto se
+      // decía pasando 0, que era el tercer significado del mismo número.
+      const evaluaCredito = condicionPago !== "CONTADO";
+      const limiteCredito = cliente.limiteCredito?.toNumber() ?? null;
       let credito: {
         estadoAprobacionCredito: "PENDIENTE";
         condicionPagoCredito: typeof condicionPago;
         deudaCreditoEvaluada: number;
         montoCreditoEvaluado: number;
-        limiteCreditoEvaluado: number;
+        limiteCreditoEvaluado: number | null;
         creditoSolicitadoEn: Date;
       } | null = null;
-      if (limiteCredito > 0) {
+      if (evaluaCredito) {
         const pendientes = await tx.factura.findMany({
           where: { clienteId, estado: "PENDIENTE" },
           select: { saldoFuncional: true },
@@ -427,17 +430,19 @@ export async function facturarPedido(
         total: totalConIgv,
       });
 
-      const limite =
-        condicionPago === "CONTADO"
-          ? 0
-          : (
-              await tx.cliente.update({
-                where: { id: pedido.clienteId },
-                data: { limiteCredito: { increment: 0 } },
-                select: { limiteCredito: true },
-              })
-            ).limiteCredito.toNumber();
-      if (limite > 0) {
+      // Al contado no hay exposición que evaluar; eso es distinto de no tener
+      // techo, que ahora se dice con `null`.
+      const evaluaCredito = condicionPago !== "CONTADO";
+      const limite = evaluaCredito
+        ? ((
+            await tx.cliente.update({
+              where: { id: pedido.clienteId },
+              data: { limiteCredito: { increment: 0 } },
+              select: { limiteCredito: true },
+            })
+          ).limiteCredito?.toNumber() ?? null)
+        : null;
+      if (evaluaCredito) {
         const pendientes = await tx.factura.findMany({
           where: { clienteId: pedido.clienteId, estado: "PENDIENTE" },
         });
@@ -476,7 +481,7 @@ export async function facturarPedido(
                 },
               });
             }
-            errorCredito = `Se solicitó aprobación de Gerencia: la exposición proyectada de S/ ${evaluacion.exposicionProyectada.toFixed(2)} supera el límite de S/ ${limite.toFixed(2)}.`;
+            errorCredito = `Se solicitó aprobación de Gerencia: la exposición proyectada de S/ ${evaluacion.exposicionProyectada.toFixed(2)} supera el límite de S/ ${(limite ?? 0).toFixed(2)}.`;
             return;
           }
         }

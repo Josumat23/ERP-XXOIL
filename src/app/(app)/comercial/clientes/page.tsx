@@ -115,8 +115,8 @@ export default async function ClientesPage({
         <tbody>
           {clientes.map((c) => {
             const deuda = c.facturas.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
-            const limite = c.limiteCredito.toNumber();
-            const excedido = limite > 0 && deuda >= limite;
+            const limite = c.limiteCredito?.toNumber() ?? null;
+            const excedido = limite !== null && deuda >= limite;
             return (
               <tr key={c.id}>
                 <td className="font-mono text-xs">{c.codigo}</td>
@@ -143,7 +143,7 @@ export default async function ClientesPage({
                   {formatMoneda(deuda)}
                 </td>
                 <td className="text-right text-neutral-500">
-                  {limite > 0 ? formatMoneda(limite) : "Sin límite"}
+                  {limite === null ? "Sin tope" : limite === 0 ? "Sin crédito" : formatMoneda(limite)}
                 </td>
                 <td>
                   <span

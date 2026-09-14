@@ -2235,10 +2235,15 @@ test("auditoría de maestros conserva actor y cambios sin exponer secretos", asy
     '{"passwordHash":"[PROTEGIDO]","nombre":"visible"}'
   );
 });
-test("crédito exige aprobación solo cuando la exposición supera un límite positivo", () => {
+test("crédito exige aprobación cuando la exposición supera el techo del cliente", () => {
   assert.equal(evaluarCredito(800, 300, 1000).excede, true);
   assert.equal(evaluarCredito(700, 300, 1000).excede, false);
-  assert.equal(evaluarCredito(800, 300, 0).excede, false);
+  // Esta línea decía `0 → false`: era el defecto escrito como prueba. El 0
+  // significaba «sin límite», de modo que el valor con el que nacía todo
+  // cliente dejaba pasar cualquier monto. Desde el 2026-09-14, 0 es SIN
+  // CRÉDITO y «sin tope» se dice con null.
+  assert.equal(evaluarCredito(800, 300, 0).excede, true);
+  assert.equal(evaluarCredito(800, 300, null).excede, false);
   assert.equal(evaluarCredito(800, 300, 1000).exposicionProyectada, 1100);
 });
 test("aprobación de crédito solo se reutiliza para la evaluación exacta", () => {
@@ -3091,7 +3096,10 @@ test("el crédito se evalúa al crear el pedido, no solo al facturar", async () 
   assert.match(crear, /evaluarCredito\(/);
   assert.match(crear, /estadoAprobacionCredito: "PENDIENTE"/);
   // La condición CONTADO no consume límite de crédito.
-  assert.match(crear, /condicionPago === "CONTADO" \? 0 :/);
+  // Desde el 2026-09-14 eso se dice con una bandera propia y no pasando un 0,
+  // que era el tercer significado del mismo número en este archivo.
+  assert.match(crear, /const evaluaCredito = condicionPago !== "CONTADO";/);
+  assert.doesNotMatch(crear, /condicionPago === "CONTADO" \? 0 :/);
   // Y el bloqueo duro sigue en la facturación, que reevalúa con la deuda
   // del momento: la evaluación de hoy no autoriza la factura de mañana.
   const facturar = acciones.slice(acciones.indexOf("export async function facturarPedido"));
