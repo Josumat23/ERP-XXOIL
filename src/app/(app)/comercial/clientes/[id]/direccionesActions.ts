@@ -12,6 +12,7 @@ import {
   validarDireccion,
   type TipoDireccion,
 } from "@/lib/direccionesCliente";
+import { horaAMinutos, MENSAJE_ERROR_VENTANA, validarVentana } from "@/lib/logisticaCliente";
 
 export type EstadoFormulario = { error?: string };
 
@@ -47,6 +48,17 @@ function leer(formData: FormData) {
     contactoNombre: String(formData.get("contactoNombre") ?? "").trim() || null,
     contactoTelefono: String(formData.get("contactoTelefono") ?? "").trim() || null,
     notas: String(formData.get("notas") ?? "").trim() || null,
+    ventanaInicioMin: horaAMinutos(String(formData.get("ventanaInicio") ?? "")),
+    ventanaFinMin: horaAMinutos(String(formData.get("ventanaFin") ?? "")),
+    requisitosEntrega: String(formData.get("requisitosEntrega") ?? "").trim() || null,
+    restriccionesVehiculares: String(formData.get("restriccionesVehiculares") ?? "").trim() || null,
+    recibeLunes: formData.get("recibeLunes") === "on",
+    recibeMartes: formData.get("recibeMartes") === "on",
+    recibeMiercoles: formData.get("recibeMiercoles") === "on",
+    recibeJueves: formData.get("recibeJueves") === "on",
+    recibeViernes: formData.get("recibeViernes") === "on",
+    recibeSabado: formData.get("recibeSabado") === "on",
+    recibeDomingo: formData.get("recibeDomingo") === "on",
   };
 }
 
@@ -83,8 +95,8 @@ async function direccionDeLaEmpresa(id: string, empresaId: string) {
 
 type DatosDireccion = ReturnType<typeof leer>;
 
-function revisar(datos: DatosDireccion) {
-  return validarDireccion({
+function revisar(datos: DatosDireccion): string | null {
+  const error = validarDireccion({
     tipo: datos.tipo,
     direccion: datos.direccion,
     ubigeoId: datos.ubigeoId,
@@ -93,6 +105,19 @@ function revisar(datos: DatosDireccion) {
     principal: datos.principal,
     activa: datos.activa,
   });
+  if (error) return MENSAJE_ERROR_DIRECCION[error];
+
+  // La ventana y los días solo rigen donde se entrega: exigirlos en un
+  // domicilio fiscal sería pedir datos que nadie tiene.
+  if (datos.tipo === "ENTREGA") {
+    const errorVentana = validarVentana({
+      inicio: datos.ventanaInicioMin,
+      fin: datos.ventanaFinMin,
+      dias: datos,
+    });
+    if (errorVentana) return MENSAJE_ERROR_VENTANA[errorVentana];
+  }
+  return null;
 }
 
 export async function crearDireccion(
@@ -105,7 +130,7 @@ export async function crearDireccion(
 
   const datos = leer(formData);
   const error = revisar(datos);
-  if (error) return { error: MENSAJE_ERROR_DIRECCION[error] };
+  if (error) return { error };
 
   const empresaId = await obtenerEmpresaActivaId();
   const tipo = datos.tipo as TipoDireccion;
@@ -155,7 +180,7 @@ export async function actualizarDireccion(
 
   const datos = leer(formData);
   const error = revisar(datos);
-  if (error) return { error: MENSAJE_ERROR_DIRECCION[error] };
+  if (error) return { error };
 
   const empresaId = await obtenerEmpresaActivaId();
   const existente = await direccionDeLaEmpresa(direccionId, empresaId);

@@ -8,6 +8,7 @@ import {
   TIPOS_DIRECCION,
   type TipoDireccion,
 } from "@/lib/direccionesCliente";
+import { DIAS_SEMANA, minutosAHora, resumenDias } from "@/lib/logisticaCliente";
 import {
   actualizarDireccion,
   crearDireccion,
@@ -35,6 +36,17 @@ export type DireccionVista = {
   longitud: string | null;
   activa: boolean;
   notas: string | null;
+  ventanaInicioMin: number | null;
+  ventanaFinMin: number | null;
+  recibeLunes: boolean;
+  recibeMartes: boolean;
+  recibeMiercoles: boolean;
+  recibeJueves: boolean;
+  recibeViernes: boolean;
+  recibeSabado: boolean;
+  recibeDomingo: boolean;
+  requisitosEntrega: string | null;
+  restriccionesVehiculares: string | null;
 };
 
 const COLOR_TIPO: Record<string, string> = {
@@ -201,6 +213,72 @@ function Formulario({
           />
         </Campo>
       </div>
+
+      {tipo === "ENTREGA" && (
+        <div className="sm:col-span-2 rounded-lg border border-[var(--epicor-borde)] p-3">
+          <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+            Cuándo y cómo se puede entregar acá
+          </p>
+          <p className="mb-2 text-xs text-neutral-500">
+            Es lo que el transportista necesita saber antes de salir.
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Campo etiqueta="Recibe desde">
+              <input
+                name="ventanaInicio"
+                type="time"
+                defaultValue={minutosAHora(direccion?.ventanaInicioMin ?? null)}
+                className="campo-input"
+              />
+            </Campo>
+            <Campo etiqueta="Recibe hasta">
+              <input
+                name="ventanaFin"
+                type="time"
+                defaultValue={minutosAHora(direccion?.ventanaFinMin ?? null)}
+                className="campo-input"
+              />
+            </Campo>
+          </div>
+          <div className="mt-2">
+            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+              Días de recepción
+            </span>
+            <div className="mt-1 flex flex-wrap gap-3">
+              {DIAS_SEMANA.map((d) => (
+                <label key={d.campo} className="flex items-center gap-1 text-sm">
+                  <input
+                    type="checkbox"
+                    name={d.campo}
+                    defaultChecked={direccion ? direccion[d.campo] : d.numero !== 7}
+                  />
+                  <span>{d.etiqueta}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <Campo etiqueta="Requisitos de entrega">
+              <input
+                name="requisitosEntrega"
+                maxLength={300}
+                defaultValue={direccion?.requisitosEntrega ?? ""}
+                className="campo-input"
+                placeholder="Guía sellada, EPP, inducción, aviso previo"
+              />
+            </Campo>
+            <Campo etiqueta="Restricciones vehiculares">
+              <input
+                name="restriccionesVehiculares"
+                maxLength={300}
+                defaultValue={direccion?.restriccionesVehiculares ?? ""}
+                className="campo-input"
+                placeholder="No entra camión de 3 ejes; altura máx. 3.8 m"
+              />
+            </Campo>
+          </div>
+        </div>
+      )}
 
       <div className="sm:col-span-2">
         <Campo etiqueta="Notas">
@@ -378,6 +456,16 @@ export default function DireccionesCliente({
               <p className="text-xs text-neutral-500">
                 Recibe: {d.contactoNombre ?? "—"}
                 {d.contactoTelefono && ` · ${d.contactoTelefono}`}
+              </p>
+            )}
+            {d.tipo === "ENTREGA" && (
+              <p className="text-xs text-neutral-500">
+                {resumenDias(d)}
+                {d.ventanaInicioMin !== null && d.ventanaFinMin !== null
+                  ? ` · ${minutosAHora(d.ventanaInicioMin)} a ${minutosAHora(d.ventanaFinMin)}`
+                  : " · a cualquier hora"}
+                {d.requisitosEntrega && ` · ${d.requisitosEntrega}`}
+                {d.restriccionesVehiculares && ` · ${d.restriccionesVehiculares}`}
               </p>
             )}
             {d.latitud && d.longitud && (

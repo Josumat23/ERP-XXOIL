@@ -1328,6 +1328,30 @@ model DireccionCliente {
   codigoPostal String?
   pais         String  @default("Peru")
 
+  /// Ventana de recepción, en minutos desde medianoche. Se guarda como número
+  /// y no como texto porque hay que compararlo: «08:30» ordenado como cadena
+  /// pone las 9 antes que las 10. Una ventana que cruza medianoche se expresa
+  /// con fin < inicio, que es el turno noche de una mina.
+  ventanaInicioMin Int?
+  ventanaFinMin    Int?
+
+  /// Qué días se puede entregar ahí. Siete columnas y no una lista separada
+  /// por comas: así se puede consultar «quién recibe los martes» sin parsear.
+  recibeLunes     Boolean @default(true)
+  recibeMartes    Boolean @default(true)
+  recibeMiercoles Boolean @default(true)
+  recibeJueves    Boolean @default(true)
+  recibeViernes   Boolean @default(true)
+  recibeSabado    Boolean @default(true)
+  recibeDomingo   Boolean @default(false)
+
+  /// Lo que el transportista tiene que saber ANTES de salir: guía sellada,
+  /// EPP obligatorio, inducción de seguridad, aviso previo.
+  requisitosEntrega        String?
+  /// Qué vehículo no entra: tonelaje, largo, altura de portón.
+  restriccionesVehiculares String?
+
+  /// Quién recibe en esta dirección.
   contactoNombre   String?
   contactoTelefono String?
 
@@ -1390,6 +1414,13 @@ model ContactoCliente {
   @@unique([clienteId, esPrincipal])
   @@index([clienteId, activo])
   @@map("contactos_cliente")
+}
+
+enum FrecuenciaReparto {
+  SEMANAL
+  QUINCENAL
+  MENSUAL
+  A_PEDIDO
 }
 
 enum TipoDireccionCliente {
@@ -1474,35 +1505,43 @@ model SolicitudCambioCredito {
 }
 
 model Cliente {
-  id                   String              @id @default(cuid())
-  empresaId            String              @default("1")
-  empresa              Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  codigo               String // CLI-00001, asignado automáticamente al crear (nunca se reutiliza)
-  razonSocial          String
-  nombreComercial      String?
-  ruc                  String?
-  tipoDocumentoFiscal  TipoDocumentoFiscal @default(RUC)
+  id                  String              @id @default(cuid())
+  empresaId           String              @default("1")
+  empresa             Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  codigo              String // CLI-00001, asignado automáticamente al crear (nunca se reutiliza)
+  razonSocial         String
+  nombreComercial     String?
+  ruc                 String?
+  tipoDocumentoFiscal TipoDocumentoFiscal @default(RUC)
   /// Natural o jurídica. Nullable porque los clientes anteriores al
   /// 2026-09-14 no lo declararon; la migración lo dedujo del prefijo del RUC
   /// donde era inequívoco (10 → natural, 20 → jurídica) y dejó null en el
   /// resto, antes que inventarlo.
-  tipoPersona          TipoPersona?
-  canal                CanalCliente?
-  pais                 String              @default("Peru")
+  tipoPersona         TipoPersona?
+  canal               CanalCliente?
+  pais                String              @default("Peru")
   // Texto libre heredado. Se conserva: tiene datos que no matchean ningún
   // ubigeo (direcciones en el extranjero, escrituras no oficiales) y es lo
   // que el usuario escribió. Para datos nuevos manda ubigeoId.
-  departamento         String?
-  provincia            String?
-  distrito             String?
-  ubigeoId             String?
-  direccion            String?
-  telefono             String?
-  email                String?
-  contactoNombre       String?
-  contactoTelefono     String?
-  zonaId               String?
-  vendedorId           String? // vendedor asignado (se preselecciona en pedidos)
+  departamento        String?
+  provincia           String?
+  distrito            String?
+  ubigeoId            String?
+  direccion           String?
+  telefono            String?
+  email               String?
+  contactoNombre      String?
+  contactoTelefono    String?
+  zonaId              String?
+  vendedorId          String? // vendedor asignado (se preselecciona en pedidos)
+
+  /// Desde dónde sale habitualmente su carga. Se preselecciona en el pedido;
+  /// no lo impone, porque un despacho puntual puede salir de otra planta.
+  almacenDespachoId        String?
+  /// Con quién se le despacha por defecto. Nada impide licitar el flete igual:
+  /// esto es la preferencia, no una exclusividad.
+  transportistaPreferidoId String?
+  frecuenciaReparto        FrecuenciaReparto?
   // Techo de exposición del cliente. Tres estados distintos, a propósito:
   //   null = sin tope, heredado de antes del 2026-09-14 y sin evaluar nunca
   //   0    = SIN CRÉDITO: solo contado, hasta que Créditos lo evalúe
@@ -1510,9 +1549,9 @@ model Cliente {
   // Hasta el 2026-09-14 el 0 significaba «sin límite», de modo que el valor
   // que parecía más seguro era el más permisivo del sistema. Ningún alta
   // nueva vuelve a producir null: lo produjo solo la migración.
-  limiteCredito        Decimal?            @default(0)
-  condicionPagoDefecto CondicionPago       @default(CONTADO)
-  notas                String?
+  limiteCredito            Decimal?           @default(0)
+  condicionPagoDefecto     CondicionPago      @default(CONTADO)
+  notas                    String?
   /// Reemplaza al booleano `activo` desde el 2026-09-14.
   ///
   /// BLOQUEADO es una decisión de una persona sobre el maestro —falta
@@ -1521,35 +1560,37 @@ model Cliente {
   /// ponen y se levantan por vías distintas, y para vender hay que pasar los
   /// dos. Fundirlos haría que levantar una deuda desbloquee un cliente que
   /// legal había frenado.
-  estado               EstadoCliente       @default(ACTIVO)
-  motivoEstado         String?
-  estadoDesde          DateTime?
-  estadoPorId          String?
-  estadoPorNombre      String?
+  estado                   EstadoCliente      @default(ACTIVO)
+  motivoEstado             String?
+  estadoDesde              DateTime?
+  estadoPorId              String?
+  estadoPorNombre          String?
   // Bloqueo específico de cobranza (distinto de `activo`): impide crear
   // pedidos nuevos mientras tenga facturas vencidas sin resolver, pero no
   // oculta al cliente ni afecta su historial. Se levanta manualmente desde
   // Finanzas → Cobranza una vez que regulariza su deuda.
-  bloqueadoCobranza    Boolean             @default(false)
-  bloqueadoCobranzaEn  DateTime?
-  bloqueadoCobranzaPor String?
-  creadoEn             DateTime            @default(now())
+  bloqueadoCobranza        Boolean            @default(false)
+  bloqueadoCobranzaEn      DateTime?
+  bloqueadoCobranzaPor     String?
+  creadoEn                 DateTime           @default(now())
 
-  ubigeo             Ubigeo?                  @relation(fields: [ubigeoId], references: [id])
-  direcciones        DireccionCliente[]
-  contactos          ContactoCliente[]
-  solicitudesCredito SolicitudCambioCredito[]
-  zona               Zona?                    @relation(fields: [zonaId], references: [id])
-  vendedorAsignado   Vendedor?                @relation("ClienteVendedor", fields: [vendedorId], references: [id])
-  pedidos            Pedido[]
-  facturas           Factura[]
-  guias              GuiaRemision[]
-  visitas            HojaRutaVisita[]
-  cotizaciones       Cotizacion[]
-  movimientosCasco   MovimientoCasco[]
-  avisosCobranza     AvisoCobranza[]
-  reclamos           ReclamoCliente[]
-  creditosCliente    CreditoCliente[]
+  ubigeo                 Ubigeo?                  @relation(fields: [ubigeoId], references: [id])
+  direcciones            DireccionCliente[]
+  contactos              ContactoCliente[]
+  solicitudesCredito     SolicitudCambioCredito[]
+  zona                   Zona?                    @relation(fields: [zonaId], references: [id])
+  vendedorAsignado       Vendedor?                @relation("ClienteVendedor", fields: [vendedorId], references: [id])
+  almacenDespacho        Almacen?                 @relation(fields: [almacenDespachoId], references: [id])
+  transportistaPreferido Transportista?           @relation(fields: [transportistaPreferidoId], references: [id])
+  pedidos                Pedido[]
+  facturas               Factura[]
+  guias                  GuiaRemision[]
+  visitas                HojaRutaVisita[]
+  cotizaciones           Cotizacion[]
+  movimientosCasco       MovimientoCasco[]
+  avisosCobranza         AvisoCobranza[]
+  reclamos               ReclamoCliente[]
+  creditosCliente        CreditoCliente[]
 
   @@unique([empresaId, ruc])
   @@unique([empresaId, codigo])
@@ -3169,6 +3210,7 @@ model Transportista {
   conductores  TransportistaConductor[]
   guias        GuiaRemision[]
   ofertasFlete OfertaFlete[]
+  clientes     Cliente[]
 
   @@unique([empresaId, codigo])
   @@unique([empresaId, ruc])
@@ -3645,6 +3687,7 @@ model Almacen {
   empleados               Empleado[]
   pedidos                 Pedido[]
   devolucionesCliente     DevolucionCliente[]
+  clientes                Cliente[]
 
   @@unique([empresaId, codigo])
   @@map("almacenes")
