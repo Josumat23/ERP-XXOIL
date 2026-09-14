@@ -1291,6 +1291,69 @@ model Vendedor {
 
 // Canal comercial del cliente: determina el tipo de descuentos/condiciones
 // que aplican (un distribuidor mayorista no se maneja igual que un taller).
+/// Un cliente tiene varias direcciones y cada una cumple un papel distinto.
+///
+/// Hasta el 2026-09-14 había UNA sola, y la de entrega se retipeaba a mano en
+/// cada pedido (`Pedido.direccionEntrega`, texto libre). Un cliente minero con
+/// tres unidades o un distribuidor con dos almacenes no se podía modelar, y la
+/// dirección real del despacho dependía de que el vendedor la escribiera bien
+/// cada vez.
+model DireccionCliente {
+  id        String  @id @default(cuid())
+  empresaId String  @default("1")
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  tipo TipoDireccionCliente
+
+  /// Vale el mismo valor que `tipo` cuando esta es la principal de su tipo, y
+  /// `null` cuando no lo es. El índice único de abajo convierte «una sola
+  /// principal por tipo» en una regla de la base y no en una intención del
+  /// código: en SQLite y en PostgreSQL los NULL no chocan entre sí, así que
+  /// pueden convivir muchas no principales y una sola principal.
+  principalDe TipoDireccionCliente?
+
+  /// Cómo la llaman en la operación: «Planta Toquepala», «Almacén Central».
+  etiqueta     String?
+  direccion    String
+  referencia   String?
+  ubigeoId     String?
+  ubigeo       Ubigeo? @relation(fields: [ubigeoId], references: [id])
+  /// Texto libre heredado, por lo mismo que en Cliente: hay direcciones que no
+  /// matchean ningún ubigeo. Para datos nuevos manda ubigeoId.
+  departamento String?
+  provincia    String?
+  distrito     String?
+  codigoPostal String?
+  pais         String  @default("Peru")
+
+  contactoNombre   String?
+  contactoTelefono String?
+
+  /// Coordenadas para el reparto. Decimal y no Float: una coordenada mal
+  /// redondeada manda un camión a otra cuadra.
+  latitud  Decimal?
+  longitud Decimal?
+
+  activa   Boolean  @default(true)
+  notas    String?
+  creadoEn DateTime @default(now())
+
+  pedidos Pedido[]
+
+  @@unique([clienteId, principalDe])
+  @@index([clienteId, tipo])
+  @@map("direcciones_cliente")
+}
+
+enum TipoDireccionCliente {
+  FISCAL
+  FACTURACION
+  ENTREGA
+  COBRANZA
+}
+
 enum CanalCliente {
   DISTRIBUIDOR
   MAYORISTA
@@ -1398,6 +1461,7 @@ model Cliente {
   creadoEn             DateTime            @default(now())
 
   ubigeo             Ubigeo?                  @relation(fields: [ubigeoId], references: [id])
+  direcciones        DireccionCliente[]
   solicitudesCredito SolicitudCambioCredito[]
   zona               Zona?                    @relation(fields: [zonaId], references: [id])
   vendedorAsignado   Vendedor?                @relation("ClienteVendedor", fields: [vendedorId], references: [id])
@@ -1478,34 +1542,40 @@ model CotizacionDetalle {
 }
 
 model Pedido {
-  id                      String           @id @default(cuid())
-  empresaId               String           @default("1")
-  empresa                 Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id                      String            @id @default(cuid())
+  empresaId               String            @default("1")
+  empresa                 Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero                  String // PED-00001
   clienteId               String
   vendedorId              String
   almacenId               String?
-  fecha                   DateTime         @default(now())
+  fecha                   DateTime          @default(now())
   fechaEntregaSolicitada  DateTime?
-  estado                  EstadoPedido     @default(PENDIENTE)
-  fulfillmentVersion      Int              @default(0)
-  requiereEntrega         Boolean          @default(false)
-  moneda                  String           @default("PEN")
-  tipoCambio              Decimal          @default(1)
-  condicionPago           CondicionPago    @default(CONTADO)
+  estado                  EstadoPedido      @default(PENDIENTE)
+  fulfillmentVersion      Int               @default(0)
+  requiereEntrega         Boolean           @default(false)
+  moneda                  String            @default("PEN")
+  tipoCambio              Decimal           @default(1)
+  condicionPago           CondicionPago     @default(CONTADO)
   direccionEntrega        String?
+  /// De qué dirección del maestro salió. Opcional a propósito: el texto de
+  /// arriba se conserva como FOTO del momento —un pedido despachado no puede
+  /// cambiar de destino porque alguien editó la ficha después— y esto dice de
+  /// dónde se copió, para las entregas que sí vienen del maestro.
+  direccionEntregaId      String?
+  direccionEntregaRef     DireccionCliente? @relation(fields: [direccionEntregaId], references: [id])
   ordenCompraCliente      String?
   referenciaCliente       String?
-  subtotalBruto           Decimal          @default(0)
-  descuentoTotal          Decimal          @default(0)
+  subtotalBruto           Decimal           @default(0)
+  descuentoTotal          Decimal           @default(0)
   total                   Decimal
-  tasaIgv                 Decimal          @default(0)
-  igv                     Decimal          @default(0)
-  totalConIgv             Decimal          @default(0)
+  tasaIgv                 Decimal           @default(0)
+  igv                     Decimal           @default(0)
+  totalConIgv             Decimal           @default(0)
   notas                   String?
   usuarioId               String
   usuarioNombre           String
-  estadoAprobacionCredito EstadoAprobacion @default(NO_REQUERIDA)
+  estadoAprobacionCredito EstadoAprobacion  @default(NO_REQUERIDA)
   condicionPagoCredito    CondicionPago?
   deudaCreditoEvaluada    Decimal?
   montoCreditoEvaluado    Decimal?
@@ -3147,6 +3217,7 @@ model Ubigeo {
   proveedores         Proveedor[]
   almacenes           Almacen[]
   configuraciones     ConfiguracionEmpresa[]
+  direccionClientes   DireccionCliente[]
 
   @@map("ubigeos")
 }
@@ -5282,6 +5353,7 @@ model Empresa {
   configuracion              ConfiguracionEmpresa?
   incidenciasContables       IncidenciaContable[]
   ordenesMantenimiento       OrdenMantenimiento[]
+  direccionClientes          DireccionCliente[]
 
   @@map("empresas")
 }
