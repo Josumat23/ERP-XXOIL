@@ -50,3 +50,58 @@ Un proceso hijo lanzado desde una prueba hereda la variable, así que también q
 1. Una prueba suelta apuntando a una ruta dentro del repositorio falla con el mensaje, y **el archivo no se crea**. Se usa un nombre inexistente y descartable, nunca una base protegida: si la guardia se rompiera, lo peor posible es un archivo vacío de más.
 2. La misma prueba apuntando a una base efímera del temporal pasa — la guardia no puede estorbar a la suite.
 3. Fuera del contexto de pruebas, conectarse a una base dentro del repositorio funciona con normalidad.
+
+## Qué es `dev.db` en realidad
+
+Revisada el 2026-09-14, en solo lectura. **No está rota: está congelada, y por diseño.**
+
+Fue la base de trabajo real hasta el 2026-08-08. Todavía tiene los datos de entonces —72 tablas pobladas, 18 facturas, 18 pedidos, 113 asientos contables con 247 detalles, 57 movimientos de kardex, 49 depreciaciones, 5 usuarios— y la hora exacta en que se detuvo está registrada dentro:
+
+| Rastro | Último |
+| --- | --- |
+| Ejecución de tarea programada | 2026-08-08 00:33 UTC |
+| Sesión de usuario | 2026-08-08 00:39 UTC |
+| Migración aplicada | `20260805231615_sunat_gaps_ubigeo` |
+
+Al 2026-09-14 lleva **27 migraciones aplicadas y 85 pendientes** — la primera sin aplicar es `20260812170000_login_rate_limit`. Tiene 105 tablas contra las 171 de una base al día. Le faltan, entre otras, `almacenes.tipo` y `ordenes_mantenimiento.empresaId`, y su tabla `empresas` está vacía: la compañía `"1"` la inserta el seed, no una migración, y el seed no corre desde antes de todo el trabajo multiempresa.
+
+Las 27 aplicadas **existen todas en el repositorio**: no hay linaje divergente ni historia reescrita. Está limpiamente 85 migraciones atrás, y podría ponerse al día el día que se decida.
+
+### Por qué se congeló
+
+La causa es la propia protección, y la cadena se explica sola:
+
+1. Está declarada protegida — *no se abre, no se migra, no se modifica*. Eso prohíbe literalmente correr `prisma migrate deploy` contra ella, así que quedó imposibilitada de avanzar.
+2. **2026-08-12**: aterrizan la suite automatizada y CI. La verificación se muda a una base efímera del temporal.
+3. **2026-09-11**: aterriza `npm run dev:demo`, cuyo propio documento lo dice sin rodeos — *"no había forma de revisar la aplicación en el navegador sin apuntar el servidor de desarrollo a `dev.db`, que es una base protegida"*. La verificación en pantalla se muda a `.demo/demo.db`.
+
+Cada flujo posterior se diseñó para no tocarla. No quedó ninguno capaz de ponerla al día.
+
+### El cabo suelto que se cerró
+
+Hasta el 2026-09-14 el `.env` de la copia de trabajo decía `DATABASE_URL="file:./dev.db"`, y el README instruía crearlo así y correr `migrate deploy` encima. El README no estaba equivocado en general —describe un clon limpio, donde `dev.db` no existe y la crea el propio comando—, pero en esta copia de trabajo ese nombre ya estaba ocupado por la base protegida. Cualquier proceso que no sobrescribiera `DATABASE_URL` le apuntaba por omisión: `npm run dev`, `prisma migrate`, o un `npx tsx` suelto.
+
+La base de desarrollo local pasa a llamarse **`local.db`** (ignorada por git, creada con `migrate deploy` + `db seed`). `dev.db` queda como lo que ya era: un archivo histórico del 2026-08-08 que nadie vuelve a rozar por omisión.
+
+### El valor por defecto que hacía silencioso el olvido
+
+Al hacer el cambio apareció una segunda causa, más grave que la del `.env`, y que lo explica todo hacia atrás.
+
+`src/lib/prisma.ts` decía:
+
+```ts
+const urlBase = process.env.DATABASE_URL ?? "file:./dev.db";
+```
+
+Y `server.ts` **no cargaba `.env`** —no es una ruta de Next, así que nadie lo hacía por él—, mientras importaba `./src/lib/tareasProgramadas` en su séptima línea, que arrastra `@/lib/prisma`. Resultado: el módulo se evaluaba con `DATABASE_URL` sin definir y caía al valor por defecto. Como el cliente queda cacheado en `globalThis`, todo lo demás reusaba esa conexión.
+
+Es decir: **`npm run dev` siempre corrió contra `dev.db`, con `.env` o sin él.** De ahí salen los 488 registros de tareas programadas y la sesión del 2026-08-08 que tiene adentro. Y por eso cambiar el `.env` no bastó: el servidor lo ignoraba.
+
+Las dos correcciones:
+
+- **`prisma.ts` ya no tiene base por defecto.** Sin `DATABASE_URL` lanza un error que dice qué configurar. Adivinar la base es peor que no arrancar: quien olvida configurarla ve un error inmediato, no datos ajenos ni escrituras donde no van.
+- **`server.ts` carga `.env` antes que cualquier módulo propio.** El import va primero a propósito.
+
+El mismo olvido afectaba a `npm run respaldo`, que corre en su propio proceso bajo tsx: leía `DATABASE_URL` y `RESPALDO_DIR` vacías y decía que no había base que respaldar aunque estuviera configurada. También carga `.env` ahora.
+
+`tests/base-por-configuracion.test.ts` ejecuta un proceso sin `DATABASE_URL` y exige que falle con el mensaje y sin crear ninguna base, y comprueba que `prisma.ts` no vuelva a llevar una ruta literal y que `server.ts` cargue `.env` **antes** de sus imports propios.

@@ -4,6 +4,11 @@
 //
 // Sin --dir toma RESPALDO_DIR. El origen sale de DATABASE_URL: este script
 // nunca adivina qué base respaldar.
+// Antes que nada: este script no corre dentro de Next ni del servidor, así que
+// nadie carga `.env` por él. Sin esto, `DATABASE_URL` y `RESPALDO_DIR` llegan
+// vacías y el respaldo manual dice que no hay base que respaldar aunque esté
+// configurada.
+import "dotenv/config";
 import { crearRespaldo, resolverOrigen, type OrigenRespaldo } from "@/lib/respaldo";
 
 function argumento(nombre: string): string | undefined {
