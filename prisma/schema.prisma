@@ -1416,6 +1416,12 @@ model ContactoCliente {
   @@map("contactos_cliente")
 }
 
+enum PrioridadAtencion {
+  ALTA
+  NORMAL
+  BAJA
+}
+
 enum NivelRiesgoCliente {
   BAJO
   MEDIO
@@ -1574,8 +1580,31 @@ model Cliente {
   /// «Sujeto a aprobación»: toda venta a crédito pasa por la bandeja, esté o
   /// no dentro del límite. Es distinto de no tener cupo — es no tener
   /// autonomía — y por eso es una bandera propia y no un límite en cero.
-  requiereAprobacionCredito Boolean       @default(false)
-  notas                     String?
+  requiereAprobacionCredito Boolean @default(false)
+
+  /// Descuento propio de este cliente. Cuando está declarado REEMPLAZA al del
+  /// canal, no se suma: lo más específico manda, que es la regla que cualquiera
+  /// espera y la única que no obliga a inventar cómo se componen dos
+  /// porcentajes. `null` significa que rige el descuento del canal.
+  descuentoGeneralPct Decimal?
+
+  /// Importe mínimo de pedido. `null` = sin mínimo. Se comprueba contra el
+  /// total del pedido en su propia moneda, antes de reservar stock.
+  pedidoMinimo Decimal?
+
+  /// Prioridad de atención: ordena la cola de despacho cuando hay más pedidos
+  /// que capacidad. No es un dato decorativo — ordena la planificación de
+  /// oleadas de picking.
+  prioridadAtencion PrioridadAtencion @default(NORMAL)
+
+  /// Si exige su número de orden de compra para aceptar el pedido. Hoy el
+  /// campo existía en el pedido pero nadie lo exigía: un despacho sin la OC
+  /// del cliente vuelve rechazado desde su almacén.
+  requiereOrdenCompra Boolean @default(false)
+
+  /// Moneda habitual. Se propone al crear el pedido; no lo obliga.
+  monedaDefecto        String        @default("PEN")
+  notas                String?
   /// Reemplaza al booleano `activo` desde el 2026-09-14.
   ///
   /// BLOQUEADO es una decisión de una persona sobre el maestro —falta
@@ -1584,19 +1613,19 @@ model Cliente {
   /// ponen y se levantan por vías distintas, y para vender hay que pasar los
   /// dos. Fundirlos haría que levantar una deuda desbloquee un cliente que
   /// legal había frenado.
-  estado                    EstadoCliente @default(ACTIVO)
-  motivoEstado              String?
-  estadoDesde               DateTime?
-  estadoPorId               String?
-  estadoPorNombre           String?
+  estado               EstadoCliente @default(ACTIVO)
+  motivoEstado         String?
+  estadoDesde          DateTime?
+  estadoPorId          String?
+  estadoPorNombre      String?
   // Bloqueo específico de cobranza (distinto de `activo`): impide crear
   // pedidos nuevos mientras tenga facturas vencidas sin resolver, pero no
   // oculta al cliente ni afecta su historial. Se levanta manualmente desde
   // Finanzas → Cobranza una vez que regulariza su deuda.
-  bloqueadoCobranza         Boolean       @default(false)
-  bloqueadoCobranzaEn       DateTime?
-  bloqueadoCobranzaPor      String?
-  creadoEn                  DateTime      @default(now())
+  bloqueadoCobranza    Boolean       @default(false)
+  bloqueadoCobranzaEn  DateTime?
+  bloqueadoCobranzaPor String?
+  creadoEn             DateTime      @default(now())
 
   ubigeo                 Ubigeo?                  @relation(fields: [ubigeoId], references: [id])
   direcciones            DireccionCliente[]

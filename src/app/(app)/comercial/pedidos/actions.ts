@@ -16,6 +16,11 @@ import { postearVenta } from "@/lib/contabilidad";
 import { enviarComprobanteFactura } from "@/app/(app)/comercial/facturas/actions";
 import { esAprobacionCreditoVigente, evaluarCredito } from "@/lib/credito";
 import { MENSAJE_NO_OPERABLE, motivoNoOperable } from "@/lib/identidadCliente";
+import {
+  descuentoAplicable,
+  mensajeIncumplimiento,
+  revisarCondicionesPedido,
+} from "@/lib/condicionesComerciales";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 import {
   normalizarLineasSolicitudPedido,
@@ -151,7 +156,13 @@ export async function crearPedido(
       const descuentoCanal = cliente.canal
         ? await tx.descuentoCanal.findUnique({ where: { empresaId_canal: { empresaId, canal: cliente.canal } } })
         : null;
-      const descuentoCanalPct = descuentoCanal?.descuentoPct.toNumber() ?? 0;
+      // El descuento propio del cliente REEMPLAZA al del canal cuando está
+      // declarado. Lo más específico manda, y así nadie tiene que inventar
+      // cómo se componen dos porcentajes.
+      const descuentoCanalPct = descuentoAplicable(
+        cliente.descuentoGeneralPct?.toNumber() ?? null,
+        descuentoCanal?.descuentoPct.toNumber() ?? 0
+      ).pct;
       const lineasConPrecio: Array<
         LineaSolicitudPedido & ReturnType<typeof resolverCondicionPrecioPedido>
       > = [];
@@ -274,6 +285,17 @@ export async function crearPedido(
           };
         }
       }
+
+      // Mínimo de pedido y orden de compra exigida: se comprueban con el
+      // total ya calculado y antes de escribir nada. Hasta hoy
+      // `ordenCompraCliente` se podía dejar en blanco y a nadie le importaba.
+      const incumplimiento = revisarCondicionesPedido({
+        total: totales.totalConIgv,
+        pedidoMinimo: cliente.pedidoMinimo?.toNumber() ?? null,
+        requiereOrdenCompra: cliente.requiereOrdenCompra,
+        ordenCompraCliente,
+      });
+      if (incumplimiento) throw new Error(mensajeIncumplimiento(incumplimiento, moneda));
 
       const pedido = await tx.pedido.create({
         data: {
