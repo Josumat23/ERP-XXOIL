@@ -13,6 +13,11 @@ import { nombresDeUbigeo, resolverUbigeoEnTransaccion } from "@/lib/ubigeos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { puedeResolverSolicitud } from "@/lib/aprobaciones";
 import {
+  buscarPosiblesDuplicados,
+  mensajePosiblesDuplicados,
+  normalizarDocumento,
+} from "@/lib/duplicadosCliente";
+import {
   creacionRequiereAprobacion,
   decidirCambioLimiteCredito,
   MENSAJE_LIMITE_PENDIENTE,
@@ -84,6 +89,7 @@ function leerDatos(formData: FormData) {
       nombreComercial,
       tipoDocumentoFiscal,
       ruc,
+      documentoNormalizado: normalizarDocumento(ruc),
       pais,
       canal,
       ubigeoId,
@@ -118,6 +124,31 @@ export async function crearCliente(
   if ("error" in resultado) return resultado;
 
   const empresaIdAlta = await obtenerEmpresaActivaId();
+
+  // Un duplicado parte en dos el historial de crédito, el saldo de cascos y
+  // la cobranza, y cada mitad parece estar al día. El documento repetido ya lo
+  // rechaza la base; esto atrapa el nombre parecido, que es el que entra.
+  if (formData.get("confirmarDuplicado") !== "on") {
+    const existentes = await prisma.cliente.findMany({
+      where: { empresaId: empresaIdAlta },
+      select: {
+        id: true,
+        codigo: true,
+        razonSocial: true,
+        documentoNormalizado: true,
+        direccion: true,
+      },
+    });
+    const posibles = buscarPosiblesDuplicados(
+      {
+        razonSocial: resultado.datos.razonSocial,
+        documentoNormalizado: resultado.datos.documentoNormalizado,
+        direccion: resultado.datos.direccion,
+      },
+      existentes
+    );
+    if (posibles.length > 0) return { error: mensajePosiblesDuplicados(posibles) };
+  }
   const { montoAprobacionCredito } = await obtenerConfiguracionEmpresa(empresaIdAlta);
   const umbralAlta = montoAprobacionCredito?.toNumber() ?? null;
   if (creacionRequiereAprobacion(resultado.datos.limiteCredito, umbralAlta)) {

@@ -80,9 +80,15 @@ export default function ClienteFormulario({
   return (
     <form action={formAction} className="flex flex-col gap-5 max-w-2xl">
       {estado.error && (
-        <p role="alert" className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
-          {estado.error}
-        </p>
+        <div className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2">
+          <p role="alert">{estado.error}</p>
+          {estado.error.includes("podría ser el mismo") && (
+            <label className="mt-2 flex items-center gap-2 font-medium">
+              <input type="checkbox" name="confirmarDuplicado" />
+              <span>Es un cliente distinto: créelo igual</span>
+            </label>
+          )}
+        </div>
       )}
       {estado.aviso && (
         <p role="status" className="text-sm text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-md px-3 py-2">
