@@ -2,6 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { formatearTamanio } from "@/lib/adjuntos";
 import { eliminarAdjunto } from "@/app/(app)/adjuntos/actions";
 import SubirAdjuntoFormulario from "./SubirAdjuntoFormulario";
+import {
+  documentosPorAtender,
+  ETIQUETA_TIPO_DOCUMENTO,
+  mensajeAvisoDocumento,
+  vigenciaDocumento,
+  type TipoDocumentoAdjunto,
+} from "@/lib/documentosAdjuntos";
+import { formatFecha } from "@/lib/format";
 import BotonEliminarConfirmacion from "./BotonEliminarConfirmacion";
 
 // Componente compartido: se cae dentro de cualquier página de detalle (con
@@ -21,6 +29,11 @@ export default async function PanelAdjuntos({
     orderBy: { creadoEn: "desc" },
   });
 
+  // Solo los vencidos y los que están por vencer: listar los vigentes
+  // convertiría el aviso en un inventario, y un aviso que siempre tiene
+  // contenido deja de mirarse.
+  const avisos = documentosPorAtender(adjuntos);
+
   return (
     <section className="border border-black/10 dark:border-white/10 rounded-lg p-4">
       <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">Adjuntos</h2>
@@ -29,6 +42,13 @@ export default async function PanelAdjuntos({
         entidadId={entidadId}
         rutaRevalidar={rutaRevalidar}
       />
+      {avisos.length > 0 && (
+        <ul className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+          {avisos.map((aviso) => (
+            <li key={aviso.documento.id}>{mensajeAvisoDocumento(aviso)}</li>
+          ))}
+        </ul>
+      )}
       {adjuntos.length > 0 ? (
         <ul className="mt-4 flex flex-col gap-2">
           {adjuntos.map((a) => (
@@ -45,6 +65,24 @@ export default async function PanelAdjuntos({
                 {a.nombreOriginal}
               </a>
               <div className="flex items-center gap-3 text-xs text-neutral-500">
+                {a.tipoDocumento && (
+                  <span className="insignia bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300">
+                    {ETIQUETA_TIPO_DOCUMENTO[a.tipoDocumento as TipoDocumentoAdjunto]}
+                  </span>
+                )}
+                {a.venceEl && (
+                  <span
+                    className={
+                      vigenciaDocumento(a.venceEl) === "VENCIDO"
+                        ? "text-red-600 dark:text-red-400"
+                        : vigenciaDocumento(a.venceEl) === "POR_VENCER"
+                          ? "text-amber-700 dark:text-amber-400"
+                          : ""
+                    }
+                  >
+                    Vence {formatFecha(a.venceEl)}
+                  </span>
+                )}
                 <span>{formatearTamanio(a.tamanioBytes)}</span>
                 <span>{a.usuarioNombre}</span>
                 <form

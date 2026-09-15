@@ -16,6 +16,12 @@ import {
   esTipoEntidadAdjunto,
   rutaEntidadAdjunto,
 } from "@/lib/adjuntos";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import {
+  MENSAJE_ERROR_DOCUMENTO,
+  validarDocumento,
+  type TipoDocumentoAdjunto,
+} from "@/lib/documentosAdjuntos";
 
 export type EstadoFormulario = { error?: string };
 
@@ -38,6 +44,17 @@ export async function subirAdjunto(
   }
 
   const archivo = formData.get("archivo");
+
+  // Tipo y vencimiento son opcionales: el DMS sirve a siete pantallas y la
+  // mayoría de los adjuntos son simplemente archivos.
+  const tipoDocumento = String(formData.get("tipoDocumento") ?? "").trim() || null;
+  const venceTexto = String(formData.get("venceEl") ?? "").trim();
+  const venceEl = venceTexto ? crearFechaCalendarioLocal(venceTexto) : null;
+  if (venceTexto && (venceEl === null || Number.isNaN(venceEl.getTime()))) {
+    return { error: "La fecha de vencimiento no es una fecha válida." };
+  }
+  const errorDocumento = validarDocumento({ tipoDocumento, venceEl });
+  if (errorDocumento) return { error: MENSAJE_ERROR_DOCUMENTO[errorDocumento] };
   if (!(archivo instanceof File) || archivo.size === 0) {
     return { error: "Seleccione un archivo." };
   }
@@ -70,6 +87,8 @@ export async function subirAdjunto(
         tamanioBytes: archivo.size,
         usuarioId: usuario.id,
         usuarioNombre: usuario.nombre,
+        tipoDocumento: tipoDocumento as TipoDocumentoAdjunto | null,
+        venceEl,
       },
     });
   } catch {

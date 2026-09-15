@@ -1499,6 +1499,16 @@ enum FrecuenciaReparto {
   A_PEDIDO
 }
 
+/// Documentos de respaldo que el negocio pidió poder guardar y vencer.
+enum TipoDocumentoAdjunto {
+  CONTRATO
+  FICHA_RUC
+  CONSTANCIA_BANCARIA
+  LICENCIA
+  CERTIFICADO
+  OTRO
+}
+
 enum TipoDireccionCliente {
   FISCAL
   FACTURACION
@@ -5406,18 +5416,29 @@ model LiquidacionDesvinculacion {
 // más. El archivo físico vive en disco (ver src/lib/adjuntos.ts), no en la BD.
 // ---------------------------------------------------------------------------
 model Adjunto {
-  id             String   @id @default(cuid())
-  empresaId      String   @default("1")
-  empresa        Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  id             String  @id @default(cuid())
+  empresaId      String  @default("1")
+  empresa        Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   entidadTipo    String // "Empleado", "ActivoFijo", "Equipo", "OrdenCompra", etc.
   entidadId      String
   nombreArchivo  String // nombre físico en disco (con prefijo único)
   nombreOriginal String // nombre tal como lo subió el usuario
   mimeType       String
   tamanioBytes   Int
-  usuarioId      String
-  usuarioNombre  String
-  creadoEn       DateTime @default(now())
+
+  /// Qué documento es. Opcional a propósito: el DMS sirve a siete pantallas
+  /// y la mayoría de los adjuntos son simplemente archivos. La lista sale de
+  /// lo que el negocio pidió guardar del cliente, no de una clasificación
+  /// inventada.
+  tipoDocumento TipoDocumentoAdjunto?
+
+  /// Cuándo deja de valer. Un contrato o una licencia vencidos son un riesgo
+  /// operativo real, y sin esta fecha nadie se entera hasta que alguien la
+  /// busca. No bloquea nada: avisa.
+  venceEl       DateTime?
+  usuarioId     String
+  usuarioNombre String
+  creadoEn      DateTime  @default(now())
 
   @@index([entidadTipo, entidadId])
   @@map("adjuntos")
