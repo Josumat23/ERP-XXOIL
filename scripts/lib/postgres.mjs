@@ -128,6 +128,25 @@ export async function eliminarBase(plantilla, nombre, prefijoExigido) {
 }
 
 /**
+ * Otras bases de pruebas que quedaron dando vueltas, sin la de esta corrida.
+ *
+ * Se **informa** y no se borra, a propósito. Una limpieza automática parece la
+ * respuesta obvia hasta que dos corridas se pisan: no hay forma de distinguir
+ * «quedó de una corrida que se murió» de «es de la corrida que está pasando
+ * ahora mismo en la otra ventana», y borrarla la haría fallar con un error
+ * incomprensible. Un aviso deja el rastro sin correr ese riesgo.
+ */
+export async function otrasBasesDePruebas(plantilla, propia) {
+  return conCliente(urlMantenimiento(plantilla), async (cliente) => {
+    const { rows } = await cliente.query(
+      "SELECT datname FROM pg_database WHERE datname LIKE $1 AND datname <> $2 ORDER BY datname",
+      [PREFIJO_BASE_PRUEBAS + "%", propia]
+    );
+    return rows.map((r) => r.datname);
+  });
+}
+
+/**
  * Aplica las migraciones versionadas con Prisma.
  *
  * Antes la suite ejecutaba los `migration.sql` a mano con better-sqlite3, para

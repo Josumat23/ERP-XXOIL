@@ -3,6 +3,7 @@ import { createReadStream } from "node:fs";
 import { mkdir, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import Database, { type Database as DatabaseSqlite } from "better-sqlite3";
+import { CONTROLADOR_POSTGRES } from "@/lib/respaldoPostgres";
 
 // ---------------------------------------------------------------------------
 // Respaldo y restauración de la base.
@@ -37,9 +38,22 @@ export type OrigenRespaldo =
   | { motor: "POSTGRES"; url: string };
 
 /**
+ * Adónde va una restauración.
+ *
+ * Existe desde el 2026-09-15 y es el motivo por el que el controlador de
+ * PostgreSQL no se pudo escribir antes: el núcleo trataba el destino como una
+ * **ruta de archivo** —lo consultaba con `stat`, lo borraba con `unlink`, le
+ * calculaba el SHA256— y el destino de un `pg_restore` es una **base**. Copiar
+ * ya estaba resuelto (un volcado siempre es un archivo); restaurar no.
+ */
+export type DestinoRestauracion =
+  | { motor: "SQLITE"; archivo: string }
+  | { motor: "POSTGRES"; url: string };
+
+/**
  * Qué sabe hacer un motor con su propia base. Todo lo demás —cómo se llama el
- * archivo, cuántos se conservan, el manifiesto— vive en el núcleo y no se
- * reimplementa por motor.
+ * archivo, cuántos se conservan, el manifiesto, el orden de las comprobaciones
+ * antes de destruir nada— vive en el núcleo y no se reimplementa por motor.
  */
 export type ControladorRespaldo = {
   motor: MotorRespaldo;
@@ -49,8 +63,26 @@ export type ControladorRespaldo = {
   copiar: (origen: OrigenRespaldo, destino: string) => Promise<void>;
   /** ¿El artefacto de `ruta` está íntegro y es restaurable? */
   verificar: (ruta: string) => Promise<boolean>;
+
+  // --- El destino de una restauración -------------------------------------
+  // Cinco preguntas que el núcleo hace SIEMPRE en el mismo orden y que cada
+  // motor contesta a su manera. El orden es la garantía: nada se destruye
+  // hasta que el respaldo está verificado y la confirmación es explícita.
+
+  /** Interpreta lo que escribió quien opera: una ruta, una URL. */
+  destinoDesde: (texto: string) => DestinoRestauracion;
+  /** Cómo nombrar ese destino en un mensaje. Nunca con credenciales dentro. */
+  describirDestino: (destino: DestinoRestauracion) => string;
+  /** ¿El respaldo y el destino son la misma cosa? */
+  esElMismo: (respaldo: string, destino: DestinoRestauracion) => boolean;
+  /** ¿El destino ya tiene contenido que una restauración perdería? */
+  destinoOcupado: (destino: DestinoRestauracion) => Promise<boolean>;
+  /** Deja el destino vacío. El núcleo solo lo llama tras la confirmación. */
+  vaciarDestino: (destino: DestinoRestauracion) => Promise<void>;
   /** Deja el contenido de `respaldo` en `destino`. */
-  restaurar: (respaldo: string, destino: string) => Promise<void>;
+  restaurar: (respaldo: string, destino: DestinoRestauracion) => Promise<void>;
+  /** Prueba legible de qué quedó en el destino, para que no haya que creer. */
+  comprobarDestino: (destino: DestinoRestauracion) => Promise<string>;
 };
 
 /** Nombre ordenable cronológicamente: el orden alfabético es el orden temporal. */
@@ -250,43 +282,57 @@ export const CONTROLADOR_SQLITE: ControladorRespaldo = {
     );
   },
   verificar: verificarIntegridad,
+
+  destinoDesde: (texto) => ({ motor: "SQLITE", archivo: texto }),
+  describirDestino: (destino) => rutaDelDestino(destino),
+  esElMismo: (respaldo, destino) => resolve(respaldo) === resolve(rutaDelDestino(destino)),
+  destinoOcupado: (destino) =>
+    stat(rutaDelDestino(destino)).then(
+      () => true,
+      () => false
+    ),
+  // El borrado es explícito y no implícito: `VACUUM INTO` falla si el destino
+  // existe, así que el archivo se quita acá, después de la confirmación.
+  vaciarDestino: (destino) => unlink(rutaDelDestino(destino)),
   // Se copia con VACUUM INTO en vez de copiar bytes: el resultado es una base
-  // válida aunque el respaldo traiga páginas libres, y falla si el destino
-  // existe, así que el borrado previo es explícito y no implícito.
+  // válida aunque el respaldo traiga páginas libres.
   restaurar: async (respaldo, destino) => {
-    conBaseSqlite(respaldo, (db) => db.exec(`VACUUM INTO '${destino.replaceAll("'", "''")}'`));
+    const ruta = rutaDelDestino(destino).replaceAll("'", "''");
+    conBaseSqlite(respaldo, (db) => db.exec(`VACUUM INTO '${ruta}'`));
   },
+  comprobarDestino: async (destino) => `SHA256 ${await sha256DeArchivo(rutaDelDestino(destino))}`,
 };
+
+/** El archivo de un destino de SQLite, o un error si le llega el de otro motor. */
+function rutaDelDestino(destino: DestinoRestauracion): string {
+  if (destino.motor !== "SQLITE") {
+    throw new Error(`El controlador de SQLite recibió un destino de ${destino.motor}.`);
+  }
+  return destino.archivo;
+}
 
 /**
  * El controlador del motor, o un error que dice exactamente qué falta.
  *
- * **PostgreSQL se reconoce pero no tiene controlador.** No es un olvido: un
- * respaldo que nunca se ejecutó contra una base real no es un respaldo, es una
- * creencia. Y creer que hay copias cuando no las hay es peor que saber que no
- * las hay — el día que se necesiten, ya es tarde para descubrirlo.
- *
- * Lo que falta para escribirlo está acotado a este objeto: `copiar` con
- * `pg_dump -Fc`, `verificar` con `pg_restore --list`, `restaurar` con
- * `pg_restore`, y `.dump` como extensión. El núcleo no cambia.
+ * PostgreSQL estuvo **reconocido y rechazado** desde el 2026-09-12 hasta el
+ * 2026-09-15, con un mensaje que nombraba `pg_dump`/`pg_restore`. La negativa
+ * era deliberada mientras el controlador no se hubiera ejecutado nunca contra
+ * una base real; ahora se ejecuta, y la suite lo ejerce de punta a punta.
  */
 export function controladorPara(origen: OrigenRespaldo): ControladorRespaldo {
-  if (origen.motor === "SQLITE") return CONTROLADOR_SQLITE;
-  throw new Error(
-    "DATABASE_URL apunta a PostgreSQL y el respaldo todavía no tiene controlador para ese motor. " +
-      "Hace falta implementarlo con pg_dump/pg_restore y probarlo contra una base real antes de confiar en él."
-  );
+  return origen.motor === "SQLITE" ? CONTROLADOR_SQLITE : CONTROLADOR_POSTGRES;
 }
 
 /**
  * El controlador que corresponde a un artefacto ya escrito, por su extensión.
  *
- * Restaurar un volcado de otro motor con el driver de SQLite fallaría diciendo
+ * Restaurar un volcado de otro motor con el driver equivocado fallaría diciendo
  * «no pasó la verificación de integridad», que manda a buscar el problema donde
  * no está: el archivo puede estar perfecto y ser, simplemente, de otro motor.
  */
 export function controladorDeArtefacto(archivo: string): ControladorRespaldo {
   if (archivo.endsWith(CONTROLADOR_SQLITE.extension)) return CONTROLADOR_SQLITE;
+  if (archivo.endsWith(CONTROLADOR_POSTGRES.extension)) return CONTROLADOR_POSTGRES;
   throw new Error(
     `No hay controlador para restaurar ${archivo}: la extensión no corresponde a ningún motor con soporte.`
   );
@@ -337,7 +383,17 @@ export async function crearRespaldo(opciones: {
   // Se escribe con nombre temporal y recién al verificar se renombra, para que
   // el directorio nunca contenga un archivo con nombre de respaldo válido que
   // todavía no sirve.
-  await controlador.copiar(origen, parcial);
+  // Si `copiar` falla a mitad de camino, lo escrito hasta ahí se descarta. Sin
+  // esto quedaba un `.parcial` por cada intento fallido: no tiene nombre de
+  // respaldo válido, así que no engaña a la retención ni a nadie, pero se
+  // acumula en el directorio sin que nadie lo limpie nunca. Lo destapó un
+  // `pg_dump` que creó el archivo y recién después no pudo conectarse.
+  try {
+    await controlador.copiar(origen, parcial);
+  } catch (e) {
+    await unlink(parcial).catch(() => {});
+    throw e;
+  }
 
   if (!(await controlador.verificar(parcial))) {
     await unlink(parcial).catch(() => {});
@@ -360,39 +416,49 @@ export async function crearRespaldo(opciones: {
 }
 
 /**
- * Restaura un respaldo sobre `destino`. Verifica la integridad ANTES de tocar
- * nada y se niega a pisar un archivo existente salvo que se pida explícitamente
- * — restaurar sobre la base viva es justamente la operación que no debe poder
- * hacerse por accidente.
+ * Restaura un respaldo sobre `destino`. Verifica la integridad **antes de tocar
+ * nada** y se niega a pisar un destino con contenido salvo que se pida
+ * explícitamente — restaurar sobre la base viva es justamente la operación que
+ * no debe poder hacerse por accidente.
+ *
+ * El orden importa más que cualquiera de los pasos y por eso vive acá y no en
+ * los controladores: si la verificación fuera después de vaciar, un respaldo
+ * corrupto dejaría la base destruida **y** sin nada con qué reemplazarla.
+ *
+ * `destino` sigue siendo texto —una ruta para SQLite, una URL para PostgreSQL—
+ * y es el controlador quien lo interpreta.
  */
 export async function restaurarRespaldo(opciones: {
   respaldo: string;
   destino: string;
   forzar?: boolean;
-  /** Por defecto SQLite: es el motor del artefacto `.db`. */
+  /** Por defecto, el del motor que corresponde a la extensión del artefacto. */
   controlador?: ControladorRespaldo;
-}): Promise<{ destino: string; sha256: string }> {
-  const { respaldo, destino, forzar = false, controlador = CONTROLADOR_SQLITE } = opciones;
-  if (resolve(respaldo) === resolve(destino)) {
-    throw new Error("El origen y el destino de la restauración son el mismo archivo.");
+}): Promise<{ destino: string; comprobacion: string }> {
+  const { respaldo, forzar = false } = opciones;
+  const controlador = opciones.controlador ?? controladorDeArtefacto(respaldo);
+  const destino = controlador.destinoDesde(opciones.destino);
+
+  if (controlador.esElMismo(respaldo, destino)) {
+    throw new Error("El origen y el destino de la restauración son el mismo.");
   }
   if (!(await controlador.verificar(respaldo))) {
     throw new Error("El respaldo no pasó la verificación de integridad: no se restauró nada.");
   }
-  const existe = await stat(destino).then(
-    () => true,
-    () => false
-  );
-  if (existe && !forzar) {
+
+  const ocupado = await controlador.destinoOcupado(destino);
+  if (ocupado && !forzar) {
     throw new Error(
-      `Ya existe un archivo en ${destino}. Restaurar encima exige confirmarlo explícitamente.`
+      `Ya hay contenido en ${controlador.describirDestino(destino)}. ` +
+        "Restaurar encima exige confirmarlo explícitamente."
     );
   }
+  if (ocupado) await controlador.vaciarDestino(destino);
 
-  // El borrado previo es explícito y no implícito: el controlador de SQLite
-  // usa VACUUM INTO, que falla si el destino existe.
-  if (existe) await unlink(destino);
   await controlador.restaurar(respaldo, destino);
 
-  return { destino, sha256: await sha256DeArchivo(destino) };
+  return {
+    destino: controlador.describirDestino(destino),
+    comprobacion: await controlador.comprobarDestino(destino),
+  };
 }
