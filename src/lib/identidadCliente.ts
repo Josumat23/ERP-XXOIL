@@ -10,6 +10,9 @@ export const ETIQUETA_TIPO_PERSONA: Record<TipoPersona, string> = {
   JURIDICA: "Persona jurídica",
 };
 
+/** Los tres estados, en el orden en que se ofrecen al filtrar. */
+export const ESTADOS_CLIENTE: readonly EstadoCliente[] = ["ACTIVO", "BLOQUEADO", "INACTIVO"];
+
 export const ETIQUETA_ESTADO_CLIENTE: Record<EstadoCliente, string> = {
   ACTIVO: "Activo",
   BLOQUEADO: "Bloqueado",

@@ -151,3 +151,92 @@ test("ninguna consulta de cliente quedó filtrando por el campo viejo", async ()
   // El bloqueo de cobranza sigue existiendo y es otra cosa.
   assert.match(modelo, /bloqueadoCobranza\s+Boolean/);
 });
+
+test("ninguna consulta de Cliente filtra por el campo `activo` que ya no existe", async () => {
+  // El 2026-09-15, el recorrido en pantalla encontró que el filtro de la lista
+  // seguía mandando `where: { activo: true }` a Prisma. TypeScript NO lo vio:
+  // la comprobación de propiedades de más no atraviesa un spread de un objeto
+  // condicional, así que `...(cond ? { activo: true } : {})` compila. En
+  // ejecución daba `Unknown argument 'activo'`, con lint, 524 pruebas, build y
+  // CI en verde.
+  const { readdir } = await import("node:fs/promises");
+
+  async function archivos(dir: string, acc: string[] = []): Promise<string[]> {
+    for (const entrada of await readdir(dir, { withFileTypes: true })) {
+      if (entrada.name === "generated") continue;
+      const ruta = resolve(dir, entrada.name);
+      if (entrada.isDirectory()) await archivos(ruta, acc);
+      else if (/\.tsx?$/.test(entrada.name)) acc.push(ruta);
+    }
+    return acc;
+  }
+
+  /** El texto entre el paréntesis de apertura y el que lo cierra. */
+  function argumentos(texto: string, desde: number): string {
+    let profundidad = 0;
+    for (let i = desde; i < texto.length; i++) {
+      if (texto[i] === "(") profundidad++;
+      else if (texto[i] === ")") {
+        profundidad--;
+        if (profundidad === 0) return texto.slice(desde + 1, i);
+      }
+    }
+    return "";
+  }
+
+  /**
+   * ¿La consulta filtra por `activo` en SU PROPIO `where`?
+   *
+   * A cualquier profundidad, y esa decisión tiene historia. La primera
+   * versión miraba 400 caracteres desde la llamada y marcaba las consultas
+   * VECINAS del mismo `Promise.all`. La segunda miraba solo el primer nivel
+   * del `where` — y NO atrapaba el defecto original, porque
+   * `...(cond ? { activo: true } : {})` deja el campo un nivel más adentro.
+   * Se comprobó reintroduciéndolo.
+   *
+   * Cliente no tiene `activo`, así que dentro de su `where` la palabra no
+   * tiene ningún uso legítimo. El `include` y el `select` quedan fuera del
+   * corte: ahí sí puede haber relaciones que tengan ese campo.
+   */
+  function filtraPorActivo(args: string): boolean {
+    const iWhere = args.indexOf("where:");
+    if (iWhere === -1) return false;
+    const iLlave = args.indexOf("{", iWhere);
+    if (iLlave === -1) return false;
+
+    let profundidad = 0;
+    for (let i = iLlave; i < args.length; i++) {
+      const c = args[i];
+      if (c === "{") profundidad++;
+      else if (c === "}") {
+        profundidad--;
+        if (profundidad === 0) return false;
+      } else if (args.startsWith("activo", i) && /\s*:/.test(args.slice(i + 6, i + 8))) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  const CONSULTA = /\b(?:prisma|tx)\.cliente\.(?:findMany|findFirst|findUnique|count|update|updateMany)\s*\(/g;
+  const culpables: string[] = [];
+  let revisadas = 0;
+
+  for (const ruta of await archivos(resolve(process.cwd(), "src"))) {
+    const texto = await readFile(ruta, "utf8");
+    for (const encontrada of texto.matchAll(CONSULTA)) {
+      revisadas++;
+      const abre = texto.indexOf("(", encontrada.index);
+      if (!filtraPorActivo(argumentos(texto, abre))) continue;
+      const linea = texto.slice(0, encontrada.index).split("\n").length;
+      culpables.push(`${ruta.replaceAll("\\", "/").split("/src/")[1]}:${linea}`);
+    }
+  }
+
+  assert.ok(revisadas > 10, `solo ${revisadas} consultas de Cliente revisadas`);
+  assert.deepEqual(
+    culpables,
+    [],
+    `Consultas de Cliente que filtran por \`activo\`:\n  ${culpables.join("\n  ")}`
+  );
+});

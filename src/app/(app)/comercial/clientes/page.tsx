@@ -10,7 +10,11 @@ import BarraFiltro from "@/components/BarraFiltro";
 import { ETIQUETA_CANAL_CLIENTE } from "@/lib/etiquetas";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { alternarActivoCliente } from "./actions";
-import { ETIQUETA_ESTADO_CLIENTE } from "@/lib/identidadCliente";
+import {
+  ESTADOS_CLIENTE,
+  ETIQUETA_ESTADO_CLIENTE,
+  type EstadoCliente,
+} from "@/lib/identidadCliente";
 
 const COLOR_ESTADO: Record<string, string> = {
   ACTIVO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
@@ -35,7 +39,10 @@ export default async function ClientesPage({
   const clientes = await prisma.cliente.findMany({
     where: {
       empresaId,
-      ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
+      // El valor llega de la URL: se contrasta contra los estados reales en vez
+      // de pasarse a Prisma tal cual. Un `?estado=loQueSea` no debe llegar a la
+      // consulta, y un estado que el modelo ya no tiene tampoco.
+      ...(ESTADOS_CLIENTE.includes(estado as EstadoCliente) ? { estado: estado as EstadoCliente } : {}),
       ...(filtroCanal ? { canal: filtroCanal } : {}),
       ...(q
         ? {
@@ -76,8 +83,11 @@ export default async function ClientesPage({
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Estado</span>
           <select name="estado" defaultValue={estado ?? ""} className="campo-input">
             <option value="">Todos</option>
-            <option value="activo">Activos</option>
-            <option value="inactivo">Inactivos</option>
+            {ESTADOS_CLIENTE.map((e) => (
+              <option key={e} value={e}>
+                {ETIQUETA_ESTADO_CLIENTE[e]}
+              </option>
+            ))}
           </select>
         </label>
         <label className="flex flex-col gap-1 text-sm">
