@@ -59,7 +59,7 @@ Esto era previsible y aun así no estaba en el inventario. El controlador de SQL
 
 Se arregló quitando Prisma de ahí: el controlador abre el archivo con better-sqlite3 directamente. Nunca hizo falta el intermediario —no hay modelos ni consultas generadas, solo `VACUUM INTO` y `PRAGMA integrity_check` contra un archivo que ni siquiera tiene el esquema de la aplicación—, y esa dependencia de más es exactamente lo que se rompió.
 
-**Consecuencia que queda abierta:** los respaldos `.db` existentes se siguen verificando y restaurando, pero **PostgreSQL todavía no tiene controlador**, así que hoy la base de trabajo no se puede respaldar. `controladorPara` se niega con un mensaje que nombra lo que falta —`pg_dump -Fc`, `pg_restore --list`, `pg_restore`— y esa negativa sigue siendo deliberada: un respaldo que nunca corrió contra una base real no es un respaldo. Es el trabajo siguiente, y hasta que esté, **las copias de seguridad hay que hacerlas a mano**.
+**Cerrado el 2026-09-15**, en el ciclo siguiente: PostgreSQL ya tiene controlador de respaldo, ejercido contra una base real. Véase [backup-restauracion.md](backup-restauracion.md). Escribirlo obligó a tocar el núcleo por una razón que esta migración destapó y que no estaba en ningún inventario: el núcleo trataba el destino de una restauración como un **archivo**, y el de un `pg_restore` es una **base**.
 
 ## Cómo se trabaja ahora
 
@@ -125,7 +125,7 @@ Mientras tanto: `npm run dev:demo` levanta la aplicación contra datos sembrados
 
 ## Lo que queda pendiente
 
-1. **El controlador de respaldo con `pg_dump`/`pg_restore`.** Es lo siguiente, y mientras tanto la base de trabajo no tiene copias automáticas.
-2. **Traer los datos de `local.db`**, si se quieren conservar (ver arriba).
+1. ~~El controlador de respaldo con `pg_dump`/`pg_restore`.~~ **Hecho el 2026-09-15**, con la suite ejerciéndolo contra un PostgreSQL de verdad. Véase [backup-restauracion.md](backup-restauracion.md).
+2. **Traer los datos de `local.db`**, si se quieren conservar (ver arriba). Es lo siguiente.
 3. **Quitar el `@default("1")` de `empresaId`.** Hoy convierte el olvido de declarar compañía en una escritura silenciosa a la compañía 1. En SQLite exigía reconstruir 88 tablas; en PostgreSQL es un `ALTER TABLE ... DROP DEFAULT` por tabla. El costo desapareció, así que ya no hay razón para no hacerlo.
 4. **Las credenciales.** `trust` sirve para esta máquina y para nada más.

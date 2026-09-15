@@ -54,6 +54,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # El respaldo usa `pg_dump`/`pg_restore`, y una versión de cliente menor
+      # que la del servidor se niega a volcar («server version mismatch»). El
+      # runner trae el cliente 16 y el servicio de arriba es 17, así que hace
+      # falta el repositorio oficial. `--version` al final: si esto falla, que
+      # el error diga «faltan las herramientas» y no «falló el respaldo».
+      - name: PostgreSQL client tools
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl --fail -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+          pg_dump --version
+          pg_restore --version
+
       - name: Create the build database
         run: psql "postgresql://postgres:postgres@localhost:5432/postgres" -c 'CREATE DATABASE erp_ci'
 
