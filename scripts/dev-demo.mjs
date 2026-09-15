@@ -3,90 +3,56 @@
 //   npm run dev:demo            (reutiliza la base demo si ya existe)
 //   npm run dev:demo -- --reset (la recrea desde cero)
 //
-// Existe para poder revisar la aplicación en el navegador sin apuntar a
-// `dev.db`. La base demo vive en `.demo/`, está fuera del control de
-// versiones, y este script IGNORA cualquier DATABASE_URL del entorno: la
-// define él mismo, para que una variable heredada no pueda redirigirlo a una
-// base que no es la suya.
-import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { basename, join, resolve } from "node:path";
+// Existe para poder revisar la aplicación en el navegador sin apuntar a la
+// base de desarrollo. La base demo se llama `erp_demo` y este script IGNORA el
+// nombre de base que traiga `DATABASE_URL`: la variable se usa solo como
+// PLANTILLA de conexión —máquina, puerto y credenciales— para que una variable
+// heredada no pueda redirigirlo a una base que no es la suya.
 import { spawn, spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
+import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
+import "dotenv/config";
+import {
+  PREFIJO_BASE_DEMO,
+  aplicarMigraciones,
+  crearBase,
+  eliminarBase,
+  esUrlPostgres,
+  existeBase,
+  urlConBase,
+} from "./lib/postgres.mjs";
 
 const require = createRequire(import.meta.url);
 const raiz = resolve(process.cwd());
-const directorioDemo = join(raiz, ".demo");
-const baseDemo = join(directorioDemo, "demo.db");
+const plantilla = process.env.DATABASE_URL;
+const NOMBRE_BASE = PREFIJO_BASE_DEMO;
 
-// Cinturón y tirantes: este script solo puede escribir dentro de `.demo/`.
-if (!baseDemo.startsWith(directorioDemo) || basename(baseDemo) !== "demo.db") {
-  throw new Error(`Ruta de base demo inesperada: ${baseDemo}`);
-}
-
-const reiniciar = process.argv.includes("--reset");
-if (reiniciar && existsSync(directorioDemo)) {
-  rmSync(directorioDemo, { recursive: true, force: true });
-  console.log("[demo] Base anterior eliminada.");
-}
-mkdirSync(directorioDemo, { recursive: true });
-
-const databaseUrl = "file:" + baseDemo.replaceAll("\\", "/");
-const recienCreada = !existsSync(baseDemo);
-
-// Registro de migraciones aplicadas a la base demo. Sin esto, reutilizar una
-// base creada antes de una migración nueva levanta el servidor contra un
-// esquema incompleto, y el error recién aparece al abrir la pantalla afectada.
-//
-// Ante una base anterior al registro NO se intenta adivinar qué migraciones
-// corrieron: deducirlo del mensaje de error de SQLite ("already exists",
-// "duplicate column"...) enmascararía un fallo real. La base demo es
-// desechable, así que se pide recrearla.
-function aplicarMigracionesPendientes() {
-  const Database = require("better-sqlite3");
-  const db = new Database(baseDemo);
-  const aplicadas = [];
-  try {
-    const tieneEsquema = db
-      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'empresas'")
-      .get();
-    const tieneRegistro = db
-      .prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '_demo_migraciones'")
-      .get();
-    if (tieneEsquema && !tieneRegistro) {
-      throw new Error(
-        "La base demo es anterior al registro de migraciones y no se puede actualizar con seguridad.\n" +
-          "Recréela con:  npm run dev:demo -- --reset"
-      );
-    }
-
-    db.exec('CREATE TABLE IF NOT EXISTS "_demo_migraciones" ("nombre" TEXT NOT NULL PRIMARY KEY)');
-    const yaAplicada = db.prepare('SELECT 1 FROM "_demo_migraciones" WHERE "nombre" = ?');
-    const registrar = db.prepare('INSERT INTO "_demo_migraciones" ("nombre") VALUES (?)');
-    for (const nombre of readdirSync(join(raiz, "prisma/migrations")).sort()) {
-      const archivo = join(raiz, "prisma/migrations", nombre, "migration.sql");
-      if (!existsSync(archivo)) continue;
-      if (yaAplicada.get(nombre)) continue;
-      db.exec(readFileSync(archivo, "utf8"));
-      registrar.run(nombre);
-      aplicadas.push(nombre);
-    }
-  } finally {
-    db.close();
-  }
-  return aplicadas;
-}
-
-let pendientes = [];
-try {
-  pendientes = aplicarMigracionesPendientes();
-} catch (error) {
-  console.error(`[demo] ${error instanceof Error ? error.message : error}`);
+if (!plantilla || !esUrlPostgres(plantilla)) {
+  console.error(
+    "[demo] DATABASE_URL tiene que ser una conexión de PostgreSQL: se usa como plantilla " +
+      "(máquina, puerto y credenciales) para la base demo. Ver docs/postgresql.md."
+  );
   process.exit(1);
 }
-if (pendientes.length > 0 && !recienCreada) {
-  console.log(`[demo] Migraciones nuevas aplicadas: ${pendientes.join(", ")}`);
+
+const databaseUrl = urlConBase(plantilla, NOMBRE_BASE);
+
+if (process.argv.includes("--reset") && (await existeBase(plantilla, NOMBRE_BASE))) {
+  await eliminarBase(plantilla, NOMBRE_BASE, PREFIJO_BASE_DEMO);
+  console.log("[demo] Base anterior eliminada.");
 }
+
+const recienCreada = !(await existeBase(plantilla, NOMBRE_BASE));
+if (recienCreada) await crearBase(plantilla, NOMBRE_BASE);
+
+// Reutilizar una base creada antes de una migración nueva levantaría el
+// servidor contra un esquema incompleto, y el error recién aparecería al abrir
+// la pantalla afectada. Antes hacía falta un registro propio —una tabla
+// `_demo_migraciones` mantenida a mano— porque la suite aplicaba los SQL
+// sueltos; ahora aplica Prisma, que lleva el suyo en `_prisma_migrations` y
+// sabe cuáles faltan.
+aplicarMigraciones(databaseUrl, raiz);
 
 if (recienCreada) {
   console.log("[demo] Sembrando datos de demostración…");
@@ -102,7 +68,6 @@ if (recienCreada) {
   const semillas = ["prisma/seed.ts", "prisma/seed-demo.ts"];
   if (!process.argv.includes("--sin-segunda-empresa")) semillas.push("prisma/seed-segunda-empresa.ts");
   for (const semilla of semillas) {
-    if (!existsSync(join(raiz, semilla))) continue;
     const resultado = spawnSync(process.execPath, ["--import", "tsx", semilla], {
       cwd: raiz,
       env: entorno,
@@ -114,7 +79,7 @@ if (recienCreada) {
   }
 }
 
-console.log(`[demo] Base: ${baseDemo}`);
+console.log(`[demo] Base: ${NOMBRE_BASE}`);
 console.log("[demo] Usuario inicial: admin / cambiar123");
 
 const servidor = spawn(process.execPath, [require.resolve("tsx/cli"), "watch", "server.ts", "--dev"], {

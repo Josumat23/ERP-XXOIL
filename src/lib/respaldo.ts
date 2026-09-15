@@ -2,8 +2,7 @@ import { createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, readdir, rename, stat, unlink, writeFile } from "node:fs/promises";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaClient } from "@/generated/prisma/client";
+import Database, { type Database as DatabaseSqlite } from "better-sqlite3";
 
 // ---------------------------------------------------------------------------
 // Respaldo y restauración de la base.
@@ -187,14 +186,32 @@ export async function sha256DeArchivo(ruta: string): Promise<string> {
   return hash.digest("hex").toUpperCase();
 }
 
-async function conClienteSqlite<T>(ruta: string, accion: (cliente: PrismaClient) => Promise<T>) {
-  const cliente = new PrismaClient({
-    adapter: new PrismaBetterSqlite3({ url: `file:${ruta.replaceAll("\\", "/")}` }),
-  });
+/**
+ * Abre un archivo SQLite suelto, **sin pasar por Prisma**.
+ *
+ * Hasta el 2026-09-15 esto era un `PrismaClient` con el adaptador de
+ * better-sqlite3, y el día de migrar a PostgreSQL dejó de construirse: Prisma
+ * rechaza un adaptador de SQLite cuando el `provider` del esquema es
+ * `postgresql`, así que el respaldo se quedó sin ningún controlador capaz de
+ * correr. Y esa dependencia nunca aportó nada: acá no hay modelos ni consultas
+ * generadas, solo dos sentencias de SQLite contra un archivo que ni siquiera
+ * tiene el esquema de la aplicación.
+ *
+ * Importa: los respaldos `.db` que ya existen tienen que seguir siendo
+ * verificables y restaurables aunque la base viva sea otra cosa.
+ *
+ * Se abre en **solo lectura y exigiendo que el archivo exista**. Las tres
+ * operaciones solo leen el origen —`VACUUM INTO` escribe en un archivo nuevo—,
+ * y sin esas dos opciones SQLite crearía la base que se le pide abrir: una
+ * verificación de integridad sobre una ruta inexistente fabricaría un archivo
+ * vacío y respondería que está «ok».
+ */
+function conBaseSqlite<T>(ruta: string, accion: (db: DatabaseSqlite) => T): T {
+  const db = new Database(ruta, { readonly: true, fileMustExist: true });
   try {
-    return await accion(cliente);
+    return accion(db);
   } finally {
-    await cliente.$disconnect();
+    db.close();
   }
 }
 
@@ -205,10 +222,8 @@ async function conClienteSqlite<T>(ruta: string, accion: (cliente: PrismaClient)
  */
 export async function verificarIntegridad(ruta: string): Promise<boolean> {
   try {
-    return await conClienteSqlite(ruta, async (cliente) => {
-      const filas = await cliente.$queryRawUnsafe<{ integrity_check: string }[]>(
-        "PRAGMA integrity_check"
-      );
+    return conBaseSqlite(ruta, (db) => {
+      const filas = db.prepare("PRAGMA integrity_check").all() as { integrity_check: string }[];
       return filas.length === 1 && filas[0]?.integrity_check === "ok";
     });
   } catch {
@@ -230,8 +245,8 @@ export const CONTROLADOR_SQLITE: ControladorRespaldo = {
   extension: EXTENSION_RESPALDO,
   copiar: async (origen, destino) => {
     if (origen.motor !== "SQLITE") throw new Error("Origen que no es SQLite.");
-    await conClienteSqlite(origen.archivo, (cliente) =>
-      cliente.$executeRawUnsafe(`VACUUM INTO '${destino.replaceAll("'", "''")}'`)
+    conBaseSqlite(origen.archivo, (db) =>
+      db.exec(`VACUUM INTO '${destino.replaceAll("'", "''")}'`)
     );
   },
   verificar: verificarIntegridad,
@@ -239,9 +254,7 @@ export const CONTROLADOR_SQLITE: ControladorRespaldo = {
   // válida aunque el respaldo traiga páginas libres, y falla si el destino
   // existe, así que el borrado previo es explícito y no implícito.
   restaurar: async (respaldo, destino) => {
-    await conClienteSqlite(respaldo, (cliente) =>
-      cliente.$executeRawUnsafe(`VACUUM INTO '${destino.replaceAll("'", "''")}'`)
-    );
+    conBaseSqlite(respaldo, (db) => db.exec(`VACUUM INTO '${destino.replaceAll("'", "''")}'`));
   },
 };
 

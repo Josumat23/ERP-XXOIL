@@ -116,7 +116,7 @@ test("la migración traduce el booleano y no lo deja perder", async () => {
   const sql = await readFile(
     resolve(
       process.cwd(),
-      "prisma/migrations/20260914180000_customer_identification/migration.sql"
+      "prisma/migraciones-sqlite-historico/20260914180000_customer_identification/migration.sql"
     ),
     "utf8"
   );

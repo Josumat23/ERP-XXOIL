@@ -13,12 +13,11 @@
 
 // Corre en su propio proceso bajo tsx: nadie carga `.env` por él.
 import "dotenv/config";
-import { urlBaseRequerida } from "../src/lib/databaseUrl";
 import { PrismaClient } from "../src/generated/prisma/client";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { crearAdaptador } from "../src/lib/adaptadorBase";
 
 const prisma = new PrismaClient({
-  adapter: new PrismaBetterSqlite3({ url: urlBaseRequerida() }),
+  adapter: crearAdaptador(),
 });
 
 const EMPRESA_ID = "empresa-demo-2";

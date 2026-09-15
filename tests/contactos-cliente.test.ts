@@ -173,7 +173,7 @@ test("la base impide dos contactos principales", async () => {
 
 test("la migración conserva el contacto que cada cliente ya tenía", async () => {
   const sql = await readFile(
-    resolve(process.cwd(), "prisma/migrations/20260914160000_customer_contacts/migration.sql"),
+    resolve(process.cwd(), "prisma/migraciones-sqlite-historico/20260914160000_customer_contacts/migration.sql"),
     "utf8"
   );
   assert.match(sql, /INSERT INTO "contactos_cliente"/);

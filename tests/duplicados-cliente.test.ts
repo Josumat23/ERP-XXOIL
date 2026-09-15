@@ -212,7 +212,7 @@ test("la migración rellena antes de crear el índice", async () => {
   const sql = await readFile(
     resolve(
       process.cwd(),
-      "prisma/migrations/20260915020000_customer_duplicate_detection/migration.sql"
+      "prisma/migraciones-sqlite-historico/20260915020000_customer_duplicate_detection/migration.sql"
     ),
     "utf8"
   );

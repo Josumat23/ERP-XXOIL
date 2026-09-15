@@ -3,18 +3,20 @@ import { test } from "node:test";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { contiene } from "@/lib/busqueda";
+import { prisma } from "@/lib/prisma";
 
 // SQLite y PostgreSQL no buscan igual. En SQLite `LIKE` es insensible a
 // mayúsculas para ASCII; en PostgreSQL es sensible, y Prisma traduce
-// `contains` a `LIKE` salvo que se le pida `mode: "insensitive"`.
+// `contains` a `LIKE` salvo que se le pida `mode: "insensitive"`, que genera
+// `ILIKE`.
 //
-// Sin eso, el día de la migración buscar «ferreteria» dejaría de encontrar
-// «FERRETERIA SAN MARTIN» en las 32 pantallas con buscador — sin un error y
-// sin una línea de log.
+// Sin eso, la migración del 2026-09-15 habría dejado de encontrar «FERRETERIA
+// SAN MARTIN» al buscar «ferreteria» en las 32 pantallas con buscador — sin un
+// error y sin una línea de log.
 //
-// `mode` no existe en los tipos que Prisma genera para SQLite, así que no se
-// puede agregar todavía. Lo que sí se hizo fue reunir los 63 usos en un solo
-// ayudante: el día de la migración es una línea en un archivo.
+// El día anterior se reunieron los 63 usos en un solo ayudante, con `mode`
+// todavía imposible (no existe en los tipos que Prisma genera para SQLite: no
+// compilaba). El arreglo fue, efectivamente, una línea en un archivo.
 
 async function archivos(dir: string, acc: string[] = []): Promise<string[]> {
   for (const entrada of await readdir(dir, { withFileTypes: true })) {
@@ -26,12 +28,18 @@ async function archivos(dir: string, acc: string[] = []): Promise<string[]> {
   return acc;
 }
 
-test("el ayudante produce el filtro que Prisma espera", () => {
-  assert.deepEqual(contiene("ferreteria"), { contains: "ferreteria" });
+test("el ayudante busca sin distinguir mayúsculas", () => {
+  // `mode: "insensitive"` es lo que hace que PostgreSQL emita `ILIKE`, que es
+  // exactamente lo que SQLite hacía con `LIKE`. Sin él, la migración habría
+  // cambiado en silencio el resultado de las 32 pantallas con buscador.
+  assert.deepEqual(contiene("ferreteria"), { contains: "ferreteria", mode: "insensitive" });
   // El texto pasa tal cual: recortarlo o normalizarlo acá cambiaría en
   // silencio lo que el usuario escribió.
-  assert.deepEqual(contiene("  con espacios  "), { contains: "  con espacios  " });
-  assert.deepEqual(contiene(""), { contains: "" });
+  assert.deepEqual(contiene("  con espacios  "), {
+    contains: "  con espacios  ",
+    mode: "insensitive",
+  });
+  assert.deepEqual(contiene(""), { contains: "", mode: "insensitive" });
 });
 
 test("ninguna pantalla escribe `contains` por su cuenta", async () => {
@@ -82,9 +90,39 @@ test("el ayudante está de verdad en uso", async () => {
   assert.ok(pantallas >= 30, `solo ${pantallas} pantallas`);
 });
 
-test("el ayudante explica qué hay que cambiar al migrar", async () => {
-  // El día de la migración, quien abra este archivo tiene que encontrar la
-  // instrucción y la medición, no solo una función de una línea.
+test("contra el motor de verdad: minúsculas encuentran mayúsculas", async () => {
+  // Esta es la única comprobación que importa, y es la que no existía antes:
+  // las otras miran el código, ésta mira lo que PostgreSQL devuelve.
+  //
+  // El catálogo UBIGEO viene de SUNAT en MAYÚSCULAS y lo siembra el runner, así
+  // que sirve de testigo sin inventar datos. Con `LIKE` a secas esto devuelve
+  // cero filas.
+  const enMinusculas = await prisma.ubigeo.findMany({
+    where: { distrito: contiene("chachapoyas") },
+    select: { distrito: true },
+  });
+  assert.ok(enMinusculas.length > 0, "buscar en minúsculas no encontró el distrito en MAYÚSCULAS");
+  assert.ok(enMinusculas.every((u) => u.distrito === u.distrito.toUpperCase()));
+
+  // Y al revés, que es lo que ya funcionaba y no debe romperse.
+  const enMayusculas = await prisma.ubigeo.findMany({
+    where: { distrito: contiene("CHACHAPOYAS") },
+    select: { distrito: true },
+  });
+  assert.equal(enMayusculas.length, enMinusculas.length);
+
+  // Las tildes NO se pliegan, en ningún motor: buscar «chachapóyas» no
+  // encuentra nada. Está acá para que se lea como una decisión y no como un
+  // descuido; plegarlas exigiría `unaccent` y una decisión que nadie tomó.
+  assert.equal(
+    (await prisma.ubigeo.count({ where: { distrito: contiene("chachapóyas") } })),
+    0
+  );
+});
+
+test("el ayudante explica por qué existe", async () => {
+  // Quien lo abra tiene que encontrar la medición contra los dos motores, no
+  // solo una función de una línea.
   const fuente = await readFile(resolve(process.cwd(), "src/lib/busqueda.ts"), "utf8");
   assert.match(fuente, /mode: "insensitive"/);
   assert.match(fuente, /ILIKE/);

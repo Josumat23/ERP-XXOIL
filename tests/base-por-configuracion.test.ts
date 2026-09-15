@@ -65,15 +65,29 @@ async function puntosDeEntrada(): Promise<string[]> {
 const sinComentarios = (fuente: string) =>
   fuente.replace(/^\s*\/\/.*$/gm, "").replace(/\/\*[\s\S]*?\*\//g, "");
 
-test("ningún punto de entrada lleva una ruta de base escrita a mano", async () => {
+test("ningún punto de entrada lleva una base escrita a mano", async () => {
   // Un valor por defecto vuelve silencioso el olvido de configurar. Había
   // cinco copias de la misma línea: `prisma.ts` y los cuatro sembradores.
+  //
+  // Al migrar a PostgreSQL el 2026-09-15 la regla se amplió: una URL de
+  // conexión escrita a mano es el mismo error con otra forma, y una que
+  // apunte a `localhost` en el código haría que un despliegue se conecte a
+  // sí mismo en vez de fallar.
+  const literal = /"file:\.\/|"postgres(ql)?:\/\//;
+  const revisados: string[] = [];
   const culpables: string[] = [];
-  for (const ruta of [...(await puntosDeEntrada()), resolve(RAIZ, "src/lib/prisma.ts")]) {
+  for (const ruta of [
+    ...(await puntosDeEntrada()),
+    resolve(RAIZ, "src/lib/prisma.ts"),
+    resolve(RAIZ, "src/lib/adaptadorBase.ts"),
+    resolve(RAIZ, "scripts/lib/postgres.mjs"),
+  ]) {
+    revisados.push(relative(RAIZ, ruta).replaceAll("\\", "/"));
     const fuente = sinComentarios(await readFile(ruta, "utf8"));
-    if (/"file:\.\//.test(fuente)) culpables.push(relative(RAIZ, ruta).replaceAll("\\", "/"));
+    if (literal.test(fuente)) culpables.push(relative(RAIZ, ruta).replaceAll("\\", "/"));
   }
-  assert.deepEqual(culpables, [], `Rutas de base literales en:\n  ${culpables.join("\n  ")}`);
+  assert.ok(revisados.length >= 10, `solo ${revisados.length} archivos revisados`);
+  assert.deepEqual(culpables, [], `Bases literales en:\n  ${culpables.join("\n  ")}`);
 });
 
 test("todo punto de entrada carga el .env antes de importar módulos propios", async () => {

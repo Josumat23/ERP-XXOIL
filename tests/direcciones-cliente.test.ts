@@ -163,7 +163,7 @@ test("la migración conserva la dirección que cada cliente ya tenía", async ()
   const sql = await readFile(
     resolve(
       process.cwd(),
-      "prisma/migrations/20260914140000_customer_multiple_addresses/migration.sql"
+      "prisma/migraciones-sqlite-historico/20260914140000_customer_multiple_addresses/migration.sql"
     ),
     "utf8"
   );

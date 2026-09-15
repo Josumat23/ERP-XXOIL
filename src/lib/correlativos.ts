@@ -43,11 +43,20 @@ function siguiente(prefijo: string, ultimo: string | null): string {
 // La fila vive en su propia tabla y no en ConfiguracionEmpresa: un mecanismo
 // de concurrencia no debe depender de un maestro de negocio (cuando esa
 // configuración pasó a ser una fila por compañía, el cerrojo dejó de funcionar).
+//
+// Los identificadores van ENTRECOMILLADOS, y eso no es estilo. PostgreSQL
+// pliega a minúsculas todo identificador sin comillas, y Prisma crea las
+// columnas con el nombre del modelo tal cual: la columna se llama
+// `actualizadoEn`, así que sin comillas la consulta busca `actualizadoen` y
+// falla con «column does not exist». SQLite no distinguía, así que esta línea
+// funcionó dos meses y se rompió el día de la migración —en 22 pruebas a la
+// vez, porque el cerrojo lo toman todos los generadores—. Es el único SQL
+// crudo del sistema que nombra columnas.
 export async function reservarCorrelativo(tx: Tx): Promise<void> {
   await tx.$executeRaw`
-    INSERT INTO cerrojo_correlativo (id, actualizadoEn)
+    INSERT INTO "cerrojo_correlativo" ("id", "actualizadoEn")
     VALUES ('1', CURRENT_TIMESTAMP)
-    ON CONFLICT(id) DO UPDATE SET actualizadoEn = CURRENT_TIMESTAMP
+    ON CONFLICT ("id") DO UPDATE SET "actualizadoEn" = CURRENT_TIMESTAMP
   `;
 }
 
