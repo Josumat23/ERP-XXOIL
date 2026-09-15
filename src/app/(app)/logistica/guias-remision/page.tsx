@@ -8,6 +8,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { ETIQUETA_ESTADO_DESPACHO } from "@/lib/etiquetas";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 export default async function GuiasRemisionPage({
   searchParams,
@@ -23,7 +24,7 @@ export default async function GuiasRemisionPage({
   const guias = await prisma.guiaRemision.findMany({
     where: {
       empresaId,
-      ...(q ? { OR: [{ numero: { contains: q } }, { cliente: { razonSocial: { contains: q } } }] } : {}),
+      ...(q ? { OR: [{ numero: contiene(q) }, { cliente: { razonSocial: contiene(q) } }] } : {}),
     },
     include: { cliente: true, factura: true, _count: { select: { detalles: true } } },
     orderBy: { creadoEn: "desc" },

@@ -11,6 +11,7 @@ import BarraFiltro from "@/components/BarraFiltro";
 import { registrarDepreciacionMes } from "./actions";
 import DepreciacionFormulario from "./DepreciacionFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 const ETIQUETA_CATEGORIA: Record<$Enums.CategoriaActivoFijo, string> = {
   MAQUINARIA: "Maquinaria",
@@ -38,7 +39,7 @@ export default async function ActivosFijosPage({
       empresaId,
       ...(filtroCategoria ? { categoria: filtroCategoria } : {}),
       ...(estado === "activo" ? { activo: true } : estado === "baja" ? { activo: false } : {}),
-      ...(q ? { OR: [{ nombre: { contains: q } }, { codigo: { contains: q } }] } : {}),
+      ...(q ? { OR: [{ nombre: contiene(q) }, { codigo: contiene(q) }] } : {}),
     },
     include: { almacen: true },
     orderBy: { creadoEn: "desc" },

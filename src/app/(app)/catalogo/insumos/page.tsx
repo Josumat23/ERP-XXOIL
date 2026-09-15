@@ -9,6 +9,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoInsumo } from "./actions";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 const ETIQUETA_TIPO: Record<string, string> = {
   MATERIA_PRIMA: "Materia prima",
@@ -35,7 +36,7 @@ export default async function InsumosPage({
       ...(filtroTipo ? { tipo: filtroTipo as "MATERIA_PRIMA" | "ENVASE" | "ETIQUETA" } : {}),
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
       ...(q
-        ? { OR: [{ nombre: { contains: q } }, { codigo: { contains: q } }] }
+        ? { OR: [{ nombre: contiene(q) }, { codigo: contiene(q) }] }
         : {}),
     },
     include: { proveedor: true },

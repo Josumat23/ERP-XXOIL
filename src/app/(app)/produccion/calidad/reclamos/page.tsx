@@ -7,6 +7,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import ReclamoFormulario from "./ReclamoFormulario";
+import { contiene } from "@/lib/busqueda";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   ABIERTO: "Abierto",
@@ -31,7 +32,7 @@ export default async function ReclamosClientePage({
         empresaId: usuario.empresaId,
         ...(filtroEstado ? { estado: filtroEstado as "ABIERTO" | "EN_PROCESO" | "CERRADO" } : {}),
         ...(q
-          ? { OR: [{ numero: { contains: q } }, { cliente: { razonSocial: { contains: q } } }] }
+          ? { OR: [{ numero: contiene(q) }, { cliente: { razonSocial: contiene(q) } }] }
           : {}),
       },
       include: { cliente: true, causa: true },

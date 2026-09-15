@@ -7,6 +7,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoEquipo } from "./actions";
+import { contiene } from "@/lib/busqueda";
 
 export default async function EquiposPage({
   searchParams,
@@ -25,7 +26,7 @@ export default async function EquiposPage({
       empresaId: usuario.empresaId,
       ...(almacenId ? { almacenId } : {}),
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
-      ...(q ? { OR: [{ nombre: { contains: q } }, { codigo: { contains: q } }] } : {}),
+      ...(q ? { OR: [{ nombre: contiene(q) }, { codigo: contiene(q) }] } : {}),
     },
     include: {
       almacen: true,

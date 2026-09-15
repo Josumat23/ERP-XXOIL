@@ -15,6 +15,7 @@ import {
   ETIQUETA_ESTADO_CLIENTE,
   type EstadoCliente,
 } from "@/lib/identidadCliente";
+import { contiene } from "@/lib/busqueda";
 
 const COLOR_ESTADO: Record<string, string> = {
   ACTIVO: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400",
@@ -47,10 +48,10 @@ export default async function ClientesPage({
       ...(q
         ? {
             OR: [
-              { razonSocial: { contains: q } },
-              { nombreComercial: { contains: q } },
-              { codigo: { contains: q } },
-              { ruc: { contains: q } },
+              { razonSocial: contiene(q) },
+              { nombreComercial: contiene(q) },
+              { codigo: contiene(q) },
+              { ruc: contiene(q) },
             ],
           }
         : {}),

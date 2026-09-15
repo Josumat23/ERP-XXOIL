@@ -9,6 +9,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import CajaFormulario from "./CajaFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 const MEDIOS = Object.keys(ETIQUETA_MEDIO_PAGO) as (keyof typeof ETIQUETA_MEDIO_PAGO)[];
 
@@ -29,7 +30,7 @@ export default async function CajaPage({
       empresaId,
       ...(filtroTipo ? { tipo: filtroTipo } : {}),
       ...(filtroMedio ? { medioPago: filtroMedio } : {}),
-      ...(q ? { concepto: { contains: q } } : {}),
+      ...(q ? { concepto: contiene(q) } : {}),
     },
     orderBy: { fecha: "desc" },
     take: 200,

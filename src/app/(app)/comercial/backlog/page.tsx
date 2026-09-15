@@ -7,6 +7,7 @@ import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 const MS_POR_DIA = 1000 * 60 * 60 * 24;
 
@@ -39,7 +40,7 @@ export default async function BacklogPedidosPage({
       empresaId,
       estado: "PENDIENTE",
       ...(q
-        ? { OR: [{ numero: { contains: q } }, { cliente: { razonSocial: { contains: q } } }] }
+        ? { OR: [{ numero: contiene(q) }, { cliente: { razonSocial: contiene(q) } }] }
         : {}),
     },
     include: { cliente: true, vendedor: true, detalles: true },

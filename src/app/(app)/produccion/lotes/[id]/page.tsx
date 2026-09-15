@@ -12,6 +12,7 @@ import OperacionFormulario from "./OperacionFormulario";
 import { liberarLote } from "../actions";
 import CancelarLoteFormulario from "./CancelarLoteFormulario";
 import AjusteMaterialFormulario from "./AjusteMaterialFormulario";
+import { contiene } from "@/lib/busqueda";
 
 const COLOR_ESTADO: Record<string, string> = {
   PLANIFICADO: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
@@ -59,7 +60,7 @@ export default async function DetalleLotePage({
   ]);
 
   const consumos = await prisma.movimientoKardex.findMany({
-    where: { empresaId: usuario.empresaId, origen: "PRODUCCION", referencia: { contains: lote.codigo } },
+    where: { empresaId: usuario.empresaId, origen: "PRODUCCION", referencia: contiene(lote.codigo) },
     include: { insumo: true },
     orderBy: { creadoEn: "asc" },
   });

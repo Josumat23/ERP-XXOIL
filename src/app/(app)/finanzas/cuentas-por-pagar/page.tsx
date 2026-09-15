@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 export default async function CuentasPorPagarPage({
   searchParams,
@@ -28,8 +29,8 @@ export default async function CuentasPorPagarPage({
       ...(q
         ? {
             OR: [
-              { numeroDocumento: { contains: q } },
-              { proveedor: { razonSocial: { contains: q } } },
+              { numeroDocumento: contiene(q) },
+              { proveedor: { razonSocial: contiene(q) } },
             ],
           }
         : {}),

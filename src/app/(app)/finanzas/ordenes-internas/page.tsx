@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   ABIERTA: "Abierta",
@@ -36,7 +37,7 @@ export default async function OrdenesInternasPage({
     where: {
       empresaId,
       ...(estado ? { estado: estado as "ABIERTA" | "LIQUIDADA" | "ANULADA" } : {}),
-      ...(q ? { descripcion: { contains: q } } : {}),
+      ...(q ? { descripcion: contiene(q) } : {}),
     },
     include: { centroCosto: true },
     orderBy: { creadoEn: "desc" },

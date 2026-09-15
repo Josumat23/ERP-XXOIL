@@ -8,6 +8,7 @@ import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { resolverIncidencia } from "./actions";
 import ResolverFormulario from "./ResolverFormulario";
+import { contiene } from "@/lib/busqueda";
 
 export default async function IncidenciasContablesPage({
   searchParams,
@@ -25,7 +26,7 @@ export default async function IncidenciasContablesPage({
     where: {
       empresaId,
       resueltoEn: filtroEstado === "resueltas" ? { not: null } : null,
-      ...(q ? { OR: [{ glosa: { contains: q } }, { referencia: { contains: q } }, { motivo: { contains: q } }] } : {}),
+      ...(q ? { OR: [{ glosa: contiene(q) }, { referencia: contiene(q) }, { motivo: contiene(q) }] } : {}),
     },
     orderBy: { fecha: "desc" },
     take: 200,

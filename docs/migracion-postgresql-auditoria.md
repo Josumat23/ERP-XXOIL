@@ -30,6 +30,16 @@ Es el peor tipo de regresión posible: la migración se declararía exitosa y el
 
 Las 48 necesitan `mode: "insensitive"`, y hace falta una guardia que falle si aparece un `contains` sin él.
 
+### Resuelto el 2026-09-15: los 63 usos están reunidos
+
+`mode: "insensitive"` **no se puede agregar todavía**: no existe en los tipos que Prisma genera para SQLite y no compila. Se comprobó antes de intentarlo.
+
+Lo que sí se hizo fue reunir los 63 usos —eran 63, no 48; la primera cuenta contaba líneas y varias llevan más de uno— en `src/lib/busqueda.ts`, detrás de un `contiene(q)`. El día de la migración es **una línea en un archivo** en vez de 63 ediciones repartidas en 32 pantallas, donde basta olvidar una para dejar ese buscador roto en silencio.
+
+Una guardia falla si alguna pantalla vuelve a escribir `contains` por su cuenta, y otra comprueba que el ayudante siga teniendo los 63 usos detrás: una guardia que prohíbe algo que nadie usaría no protege nada.
+
+Verificado en pantalla que las búsquedas siguen encontrando lo mismo: `ferreter` y `FERRETER` devuelven los mismos 2 clientes, `andina` y `ANDINA` el mismo 1.
+
 ## Las migraciones no son portables
 
 De las **123** migraciones versionadas:
