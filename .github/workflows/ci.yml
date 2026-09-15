@@ -17,6 +17,30 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
 
+    # El proyecto corre sobre PostgreSQL desde el 2026-09-15. La suite ya no
+    # crea un archivo SQLite en el temporal: crea y destruye una base
+    # `erp_test_<azar>` por corrida, así que CI necesita un servidor de verdad.
+    # Ver docs/postgresql.md.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        # Sin esto los pasos arrancan antes de que el motor acepte conexiones y
+        # el fallo parece de la suite, no del servicio.
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      # Plantilla de conexión: de acá salen máquina, puerto y credenciales. El
+      # nombre `erp_ci` lo usa el build; `npm test` lo reemplaza por el suyo.
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/erp_ci
+
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -29,6 +53,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Create the build database
+        run: psql "postgresql://postgres:postgres@localhost:5432/postgres" -c 'CREATE DATABASE erp_ci'
 
       - name: Generate Prisma client
         run: npx prisma generate
@@ -49,5 +76,3 @@ jobs:
 
       - name: Build
         run: npm run build
-        env:
-          DATABASE_URL: file:${{ runner.temp }}/erp-ci.db

@@ -3,8 +3,7 @@
 Sistema de gestión integral para empresa fabricante de grasas y lubricantes (Perú).
 Interfaz en español, moneda en soles (PEN).
 
-**Stack**: Next.js (App Router) + TypeScript + Tailwind CSS + Prisma + SQLite
-(listo para migrar a PostgreSQL en la nube).
+**Stack**: Next.js (App Router) + TypeScript + Tailwind CSS + Prisma + PostgreSQL.
 
 ## Módulos
 
@@ -46,15 +45,24 @@ actualiza el costo promedio de la presentación, del que sale el margen de venta
    ```bash
    npm install
    ```
-2. Crear el archivo `.env` (no se sube al repositorio):
+2. Tener un PostgreSQL escuchando y crear la base de desarrollo:
    ```bash
-   echo 'DATABASE_URL="file:./local.db"' > .env
+   createdb -h localhost -p 5433 -U postgres erp_dev
+   ```
+3. Crear el archivo `.env` (no se sube al repositorio):
+   ```bash
+   echo 'DATABASE_URL="postgresql://postgres@localhost:5433/erp_dev"' > .env
    ```
 
-   > **Si trabaja sobre la copia de trabajo original, no use `dev.db`.** Ahí ese
-   > archivo es una base **protegida**: una foto congelada del 2026-08-08, 85
-   > migraciones atrás, que no debe migrarse ni abrirse. Apuntarle el `.env` y
-   > correr `migrate deploy` la modificaría. Véase `docs/bases-protegidas.md`.
+   > Esa URL se usa como **plantilla**: de ella salen la máquina, el puerto y las
+   > credenciales. `npm test` crea y destruye su propia base `erp_test_<azar>` y
+   > `npm run dev:demo` usa `erp_demo`; ninguno escribe en la que este nombre
+   > indica. Véase `docs/postgresql.md`.
+
+   > **Si trabaja sobre la copia de trabajo original, los archivos `dev.db` y sus
+   > respaldos son bases **protegidas** y siguen ahí.** Ya no hay forma de
+   > apuntarles el `.env` sin querer —el motor es otro— pero tampoco se abren ni
+   > se copian. Véase `docs/bases-protegidas.md`.
 3. Generar el cliente de Prisma y la base de datos (solo la primera vez o
    tras clonar el repo — `npm install` no lo hace automáticamente):
    ```bash
@@ -90,11 +98,14 @@ GitHub Codespaces solo se habilita automáticamente durante desarrollo.
 npm test
 ```
 
-La suite crea una base SQLite efímera en el directorio temporal del sistema,
-aplica las migraciones y el seed mínimo, y valida inventario, producción,
-calidad, envasado, contabilidad, MRP y UBL. Nunca utiliza ninguna base del
-repositorio: `@/lib/prisma` se niega a conectarse a una si el proceso corre bajo
-el runner de pruebas.
+La suite crea una base de PostgreSQL efímera —`erp_test_<azar>`—, le aplica las
+migraciones con `prisma migrate deploy` y el seed mínimo, valida inventario,
+producción, calidad, envasado, contabilidad, MRP y UBL, y **destruye la base pase
+lo que pase**, incluso si las pruebas fallaron.
+
+Nunca utiliza otra base: `@/lib/prisma` se niega a conectarse a nada que no lleve
+el prefijo `erp_test_` cuando el proceso corre bajo el runner de pruebas, y lo
+comprueba **antes de construir el adaptador**.
 
 > Nota: los scripts `dev` y `build` usan webpack (`--webpack`) porque Turbopack
 > falla al procesar CSS en este entorno Windows/OneDrive.
@@ -136,10 +147,9 @@ Cambie las contraseñas desde **Configuración → Usuarios** (sesión de admin)
 - `npx prisma migrate dev --name <nombre>` — nueva migración tras cambiar `prisma/schema.prisma`.
 - `npx prisma db seed` — re-ejecutar el sembrado (es idempotente).
 
-## Migrar a PostgreSQL más adelante
+## PostgreSQL
 
-1. Cambiar `provider = "sqlite"` a `provider = "postgresql"` en `prisma/schema.prisma`.
-2. Cambiar el adaptador en `src/lib/prisma.ts` y `prisma/seed.ts` de
-   `@prisma/adapter-better-sqlite3` a `@prisma/adapter-pg` (`npm i @prisma/adapter-pg`).
-3. Configurar `DATABASE_URL` con la cadena de conexión de PostgreSQL.
-4. Correr `npx prisma migrate deploy` y `npx prisma db seed`.
+La migración se ejecutó el 2026-09-15; esta sección era el plan y ya no lo es.
+Qué cambió, qué se rompió de verdad al correrlo y qué quedó pendiente —entre
+otras cosas, que **el respaldo todavía no tiene controlador para PostgreSQL**—
+está en `docs/postgresql.md`.

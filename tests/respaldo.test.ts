@@ -4,8 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
-import { PrismaClient } from "@/generated/prisma/client";
+import Database from "better-sqlite3";
 import {
   CONTROLADOR_SQLITE,
   controladorDeArtefacto,
@@ -28,29 +27,32 @@ import {
 
 // El respaldo se ejerce SIEMPRE contra bases efímeras en el temporal del
 // sistema. Ninguna prueba abre ni copia la base de desarrollo.
-async function baseTemporal() {
-  const directorio = await mkdtemp(join(tmpdir(), "erp-respaldo-"));
-  const archivo = join(directorio, "origen.db");
-  const cliente = new PrismaClient({
-    adapter: new PrismaBetterSqlite3({ url: `file:${archivo.replaceAll("\\", "/")}` }),
+//
+// Estas bases testigo se abren con better-sqlite3 directamente, no con Prisma.
+// Antes era un `PrismaClient` con el adaptador de SQLite, y al migrar a
+// PostgreSQL dejó de construirse —Prisma rechaza un adaptador de un motor que
+// no es el del esquema—. Acá no hacía falta: el archivo ni siquiera tiene el
+// esquema de la aplicación, son dos sentencias sueltas.
+function baseTemporal() {
+  return mkdtemp(join(tmpdir(), "erp-respaldo-")).then((directorio) => {
+    const archivo = join(directorio, "origen.db");
+    const db = new Database(archivo);
+    db.exec("CREATE TABLE prueba (id INTEGER PRIMARY KEY, valor TEXT)");
+    db.exec("INSERT INTO prueba (id, valor) VALUES (1, 'antes')");
+    db.close();
+    return { directorio, archivo };
   });
-  await cliente.$executeRawUnsafe("CREATE TABLE prueba (id INTEGER PRIMARY KEY, valor TEXT)");
-  await cliente.$executeRawUnsafe("INSERT INTO prueba (id, valor) VALUES (1, 'antes')");
-  await cliente.$disconnect();
-  return { directorio, archivo };
 }
 
-async function leerValor(archivo: string): Promise<string | undefined> {
-  const cliente = new PrismaClient({
-    adapter: new PrismaBetterSqlite3({ url: `file:${archivo.replaceAll("\\", "/")}` }),
-  });
+function leerValor(archivo: string): string | undefined {
+  const db = new Database(archivo, { readonly: true });
   try {
-    const filas = await cliente.$queryRawUnsafe<{ valor: string }[]>(
-      "SELECT valor FROM prueba WHERE id = 1"
-    );
-    return filas[0]?.valor;
+    const fila = db.prepare("SELECT valor FROM prueba WHERE id = 1").get() as
+      | { valor: string }
+      | undefined;
+    return fila?.valor;
   } finally {
-    await cliente.$disconnect();
+    db.close();
   }
 }
 
@@ -109,13 +111,13 @@ test("el respaldo produce una copia verificada, con manifiesto y retención", as
     assert.equal(resumen.sha256, await sha256DeArchivo(resumen.archivo));
     assert.equal(await verificarIntegridad(resumen.archivo), true);
     // La copia trae los datos, no solo el esquema.
-    assert.equal(await leerValor(resumen.archivo), "antes");
+    assert.equal(leerValor(resumen.archivo), "antes");
 
     const manifiesto = await readFile(`${resumen.archivo}.sha256`, "utf8");
     assert.match(manifiesto, new RegExp(resumen.sha256));
 
     // El origen queda intacto: VACUUM INTO no lo modifica.
-    assert.equal(await leerValor(archivo), "antes");
+    assert.equal(leerValor(archivo), "antes");
 
     // Con retención 2, el tercer respaldo elimina el primero.
     await crearRespaldo({
@@ -148,19 +150,17 @@ test("la restauración devuelve los datos del respaldo y respeta las proteccione
     const resumen = await crearRespaldo({ origen: archivo, directorio: destino, retencion: 5 });
 
     // La base viva cambia DESPUÉS del respaldo.
-    const cliente = new PrismaClient({
-      adapter: new PrismaBetterSqlite3({ url: `file:${archivo.replaceAll("\\", "/")}` }),
-    });
-    await cliente.$executeRawUnsafe("UPDATE prueba SET valor = 'despues' WHERE id = 1");
-    await cliente.$disconnect();
-    assert.equal(await leerValor(archivo), "despues");
+    const viva = new Database(archivo);
+    viva.exec("UPDATE prueba SET valor = 'despues' WHERE id = 1");
+    viva.close();
+    assert.equal(leerValor(archivo), "despues");
 
     // Restaurar sobre un archivo existente exige confirmación explícita.
     await assert.rejects(
       restaurarRespaldo({ respaldo: resumen.archivo, destino: archivo }),
       /exige confirmarlo explícitamente/
     );
-    assert.equal(await leerValor(archivo), "despues");
+    assert.equal(leerValor(archivo), "despues");
 
     // Restaurar sobre sí mismo se rechaza antes de tocar nada.
     await assert.rejects(
@@ -171,12 +171,12 @@ test("la restauración devuelve los datos del respaldo y respeta las proteccione
     // En una ruta nueva no hace falta forzar, y el dato vuelve al estado del respaldo.
     const copia = join(directorio, "restaurado.db");
     await restaurarRespaldo({ respaldo: resumen.archivo, destino: copia });
-    assert.equal(await leerValor(copia), "antes");
+    assert.equal(leerValor(copia), "antes");
 
     // Y con confirmación explícita, la base viva vuelve al estado respaldado:
     // este es el procedimiento de recuperación, ejercido de punta a punta.
     await restaurarRespaldo({ respaldo: resumen.archivo, destino: archivo, forzar: true });
-    assert.equal(await leerValor(archivo), "antes");
+    assert.equal(leerValor(archivo), "antes");
   } finally {
     await rm(directorio, { recursive: true, force: true });
   }
@@ -192,7 +192,21 @@ test("un respaldo corrupto no se restaura", async () => {
       /no se restauró nada|integridad/
     );
     // El origen sigue intacto tras el intento fallido.
-    assert.equal(await leerValor(archivo), "antes");
+    assert.equal(leerValor(archivo), "antes");
+  } finally {
+    await rm(directorio, { recursive: true, force: true });
+  }
+});
+
+test("verificar un respaldo que no existe dice que no, y no lo fabrica", async () => {
+  // SQLite crea la base que se le pide abrir. Sin `fileMustExist`, verificar
+  // una ruta inexistente dejaría un archivo vacío ahí y respondería «ok»: la
+  // pregunta «¿tengo respaldo?» se contestaría sola que sí, creándolo.
+  const directorio = await mkdtemp(join(tmpdir(), "erp-respaldo-fantasma-"));
+  const fantasma = join(directorio, "no-existe.db");
+  try {
+    assert.equal(await verificarIntegridad(fantasma), false);
+    assert.deepEqual(await readdir(directorio), [], "se creó un archivo al verificar");
   } finally {
     await rm(directorio, { recursive: true, force: true });
   }
@@ -396,7 +410,7 @@ test("las primitivas de SQLite no se filtran al núcleo", async () => {
   );
   const nucleo = fuente.slice(fuente.indexOf("export async function crearRespaldo"));
   assert.ok(nucleo.length > 0, "no se encontró el núcleo");
-  for (const primitiva of ["VACUUM", "integrity_check", "conClienteSqlite", "PrismaClient"]) {
+  for (const primitiva of ["VACUUM", "integrity_check", "conBaseSqlite", "better-sqlite3"]) {
     assert.ok(!nucleo.includes(primitiva), `${primitiva} volvió a filtrarse al núcleo`);
   }
   // Y el controlador sí las tiene: la guardia no pasa por haberlas borrado.

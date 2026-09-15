@@ -2,6 +2,8 @@
 
 `dev.db` y sus dos respaldos (`dev.db.bak-2026-07-29`, `dev.db.bak-2026-08-01`) son bases protegidas: no se abren, ni se migran, ni se copian, ni se reemplazan. Su SHA256 se verifica después de cada ciclo.
 
+> **Actualización 2026-09-15 — el criterio cambió con el motor.** El proyecto pasó a PostgreSQL, y con una URL de conexión **no hay ruta de archivo que mirar**: la regla original, sola, habría quedado siempre en falso —presente, verde y sin proteger nada—. La regla nueva es al revés y más estricta: bajo el runner, la base **tiene que llamarse** `erp_test_…`, que es lo único que `scripts/run-tests.mjs` crea y destruye; cualquier otra cosa se rechaza. La regla vieja **no se retiró**, porque el módulo de respaldo sigue abriendo archivos `.db` sueltos. Las dos se comprueban. Véase [postgresql.md](postgresql.md); lo que sigue describe el origen del problema, que no cambió.
+
 ## Por qué no alcanzaba con el runner
 
 `scripts/run-tests.mjs` crea una base SQLite efímera en el temporal del sistema, le aplica las migraciones versionadas y la siembra. Define `DATABASE_URL` él mismo, así que mientras la suite se ejecute con `npm test` no hay forma de tocar nada del repositorio.
@@ -22,8 +24,9 @@ Ocurrió el 2026-09-12. Tres filas `Empresa` quedaron dentro de `dev.db` y el ha
 
 `src/lib/prisma.ts` se niega a construir el cliente si se dan las dos condiciones a la vez:
 
-1. el proceso corre bajo el runner de pruebas de Node (`NODE_TEST_CONTEXT` definida), y
-2. la `DATABASE_URL` es un `file:` que resuelve **dentro del directorio del repositorio**.
+1. el proceso corre bajo el runner de pruebas de Node (`NODE_TEST_CONTEXT` definida), **y** alguna de estas dos:
+2. la `DATABASE_URL` es un `file:` que resuelve **dentro del directorio del repositorio** — la regla original, que sigue cubriendo los respaldos `.db`; o
+3. la `DATABASE_URL` es de PostgreSQL y la base **no** se llama `erp_test_…` — la regla que reemplazó a la anterior para la base viva.
 
 La comprobación ocurre **antes** de construir el adaptador, así que el archivo no se abre ni un instante — verificado: el archivo ni siquiera llega a crearse.
 
@@ -31,7 +34,9 @@ El mensaje dice qué hacer:
 
 > Una prueba intentó conectarse a `file:…`, que está dentro del repositorio. Las bases del repositorio están protegidas y conectarse ya cambia el archivo. Ejecute la suite con `node scripts/run-tests.mjs` (o `npm test`), que crea una base efímera en el temporal del sistema y le aplica las migraciones.
 
-La regla es "dentro del repositorio", no "se llama dev.db", para que una base nueva en el árbol de trabajo quede cubierta desde el día uno sin que nadie tenga que acordarse de agregarla a una lista.
+La regla de archivos es "dentro del repositorio", no "se llama dev.db", para que una base nueva en el árbol de trabajo quede cubierta desde el día uno sin que nadie tenga que acordarse de agregarla a una lista.
+
+La de PostgreSQL va en el sentido contrario —lista blanca en vez de lista negra— y por eso es más estricta: no enumera lo que hay que proteger sino lo único que se puede tocar. `erp_dev`, la base de alguien más, o una de producción que llegue por un `.env` mal puesto quedan fuera sin que nadie las haya previsto. El mismo nombre es lo único que autoriza a **destruir**: `eliminarBase` exige el prefijo, e `identificador()` rechaza cualquier nombre que no sea `[a-z0-9_]` en vez de entrecomillarlo — aceptar lo que sea para después escaparlo es la forma habitual de que un `DROP DATABASE` termine en el lugar equivocado.
 
 ### La herencia de `NODE_TEST_CONTEXT` es deliberada
 
@@ -41,15 +46,18 @@ Un proceso hijo lanzado desde una prueba hereda la variable, así que también q
 
 - **Escribir en la base fuera de una prueba.** El servidor, `npm run respaldo`, `prisma migrate`, o un `node -e` a mano no pasan por esta guardia. Aquí la protección sigue siendo el criterio de quien opera.
 - **Los otros dos archivos de respaldo.** No los abre nadie; quedan cubiertos por la misma regla solo porque están dentro del repositorio.
-- Para revisar la aplicación en el navegador contra datos, está `npm run dev:demo`, que usa una base desechable en `.demo/` e **ignora** cualquier `DATABASE_URL` del entorno.
+- Para revisar la aplicación en el navegador contra datos, está `npm run dev:demo`, que usa la base desechable `erp_demo` e **ignora** el nombre de base que traiga `DATABASE_URL` (la usa solo como plantilla de conexión).
 
 ## Pruebas
 
 `tests/base-protegida.test.ts` ejecuta procesos de verdad, no inspecciona código:
 
-1. Una prueba suelta apuntando a una ruta dentro del repositorio falla con el mensaje, y **el archivo no se crea**. Se usa un nombre inexistente y descartable, nunca una base protegida: si la guardia se rompiera, lo peor posible es un archivo vacío de más.
-2. La misma prueba apuntando a una base efímera del temporal pasa — la guardia no puede estorbar a la suite.
-3. Fuera del contexto de pruebas, conectarse a una base dentro del repositorio funciona con normalidad.
+1. Una prueba suelta apuntando a `erp_dev` falla con el mensaje, que nombra la base y dice `npm test`.
+2. La negativa no depende de que haya un PostgreSQL escuchando: apuntando a un puerto donde no hay nadie, el error sigue siendo de **nombre** y no de conexión. Es la forma de comprobar que ocurre antes de construir el adaptador.
+3. La misma prueba apuntando a la base efímera **de esta corrida** pasa — la guardia no puede estorbar a la suite, y si el prefijo se separara entre el runner y el cliente, ahí se ve.
+4. Una prueba suelta apuntando a un archivo dentro del repositorio falla, y **el archivo no se crea**. Se usa un nombre inexistente y descartable, nunca una base protegida: si la guardia se rompiera, lo peor posible es un archivo vacío de más.
+5. Fuera del contexto de pruebas, construir el cliente funciona con normalidad.
+6. El prefijo declarado en `scripts/lib/postgres.mjs` es el mismo que exige `src/lib/prisma.ts`. Son dos archivos porque el runner corre con `node` a secas y no puede importar TypeScript; dos constantes con el mismo valor se separan sin que nadie lo note, y el síntoma sería la suite entera negándose a arrancar.
 
 ## Qué es `dev.db` en realidad
 

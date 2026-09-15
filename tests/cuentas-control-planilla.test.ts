@@ -184,7 +184,7 @@ test("la migración alcanza a las compañías que ya existen", async () => {
   ];
   const sqls = await Promise.all(
     archivos.map((dir) =>
-      readFile(resolve(process.cwd(), `prisma/migrations/${dir}/migration.sql`), "utf8")
+      readFile(resolve(process.cwd(), `prisma/migraciones-sqlite-historico/${dir}/migration.sql`), "utf8")
     )
   );
   const todo = sqls.join("\n");

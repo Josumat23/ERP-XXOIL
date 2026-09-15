@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
-import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
+import { dirname, join, relative, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { readFile, readdir } from "node:fs/promises";
-import { prisma } from "@/lib/prisma";
+import { PREFIJO_BASE_PRUEBAS, nombreBasePostgres, prisma } from "@/lib/prisma";
 import { calcularCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
 import {
   postearAnulacionFactura,
@@ -640,18 +640,16 @@ test("la compañía activa ignora cookies manipuladas por usuarios no administra
   );
 });
 
-function estaDentro(ruta: string, padre: string): boolean {
-  const relativa = relative(padre, ruta);
-  return relativa !== "" && !relativa.startsWith(".." + sep) && relativa !== ".." && !isAbsolute(relativa);
-}
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl?.startsWith("file:")) {
-  throw new Error("Las pruebas requieren una DATABASE_URL SQLite explícita.");
-}
-const rutaBase = resolve(databaseUrl.slice("file:".length));
-assert.ok(estaDentro(rutaBase, resolve(tmpdir())), "La base de pruebas debe vivir en el directorio temporal.");
-assert.ok(!estaDentro(rutaBase, resolve(process.cwd())), "La base de pruebas no puede vivir dentro del repositorio.");
+// La suite corre contra la base efímera que crea `scripts/run-tests.mjs`, y
+// eso se comprueba acá y no se supone: con SQLite la garantía era «el archivo
+// está en el temporal y no en el repositorio»; con PostgreSQL no hay archivo,
+// así que la garantía es el NOMBRE.
+const nombreBaseDePruebas = nombreBasePostgres(process.env.DATABASE_URL ?? "");
+assert.ok(
+  nombreBaseDePruebas?.startsWith(PREFIJO_BASE_PRUEBAS),
+  `Las pruebas corren contra «${nombreBaseDePruebas ?? process.env.DATABASE_URL}», que no es la base ` +
+    "efímera del runner. Ejecute la suite con `npm test`."
+);
 
 after(async () => {
   await prisma.$disconnect();
@@ -2937,7 +2935,7 @@ test("la migración del rol organizativo respeta la convención anterior", async
   const migracion = await readFile(
     resolve(
       process.cwd(),
-      "prisma/migrations/20260911170000_warehouse_organizational_role/migration.sql"
+      "prisma/migraciones-sqlite-historico/20260911170000_warehouse_organizational_role/migration.sql"
     ),
     "utf8"
   );
@@ -3233,11 +3231,21 @@ test("todo generador de correlativo toma el cerrojo antes de leer el último", a
   // pasó a ser una fila por compañía el cerrojo se rompió: la prueba de abajo
   // fija que no se vuelva a atar a un maestro de negocio.
   const fuente = await readFile(resolve(process.cwd(), "src/lib/correlativos.ts"), "utf8");
-  assert.match(fuente, /INSERT INTO cerrojo_correlativo/);
+  assert.match(fuente, /INSERT INTO "cerrojo_correlativo"/);
   assert.doesNotMatch(
     fuente,
-    /INSERT INTO configuracion_empresa/,
+    /INSERT INTO "?configuracion_empresa"?/,
     "el cerrojo no debe volver a apoyarse en la configuración de la empresa"
+  );
+  // Los identificadores van entrecomillados. PostgreSQL pliega a minúsculas
+  // todo identificador sin comillas, y la columna se llama `actualizadoEn`:
+  // sin comillas la consulta busca `actualizadoen` y falla en las 22 pruebas
+  // que pasan por algún generador. SQLite no distinguía, así que el defecto
+  // vivió dos meses sin síntoma.
+  assert.doesNotMatch(
+    fuente.replace(/^\s*\/\/.*$/gm, ""),
+    /\bactualizadoEn\b(?!")/,
+    "la columna `actualizadoEn` tiene que ir entre comillas en el SQL crudo"
   );
   const generadores = [...fuente.matchAll(/export async function (siguiente\w+)[\s\S]*?\n\}/g)];
   assert.ok(generadores.length >= 15, `Se esperaban los generadores y se hallaron ${generadores.length}`);

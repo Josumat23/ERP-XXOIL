@@ -3,8 +3,7 @@
 // `DATABASE_URL` llega vacía — y hasta el 2026-09-14 eso significaba escribir
 // en `dev.db` por el valor por defecto que traía `prisma.ts`.
 import "dotenv/config";
-import { urlBaseRequerida } from "../src/lib/databaseUrl";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { crearAdaptador } from "../src/lib/adaptadorBase";
 import { PrismaClient } from "../src/generated/prisma/client";
 import ubigeos from "./data/ubigeos.json";
 
@@ -46,9 +45,7 @@ export async function sembrarUbigeos(prisma: ClienteSiembra): Promise<number> {
 }
 
 async function main() {
-  const adapter = new PrismaBetterSqlite3({
-    url: urlBaseRequerida(),
-  });
+  const adapter = crearAdaptador();
   const prisma = new PrismaClient({ adapter });
   try {
     const sembrados = await sembrarUbigeos(prisma);

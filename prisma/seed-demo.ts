@@ -3,8 +3,7 @@
 // `DATABASE_URL` llega vacía — y hasta el 2026-09-14 eso significaba escribir
 // en `dev.db` por el valor por defecto que traía `prisma.ts`.
 import "dotenv/config";
-import { urlBaseRequerida } from "../src/lib/databaseUrl";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { crearAdaptador } from "../src/lib/adaptadorBase";
 import { PrismaClient, type $Enums } from "../src/generated/prisma/client";
 import { registrarMovimiento } from "../src/lib/inventario";
 import { asignarLoteVenta, asignarLoteInsumo } from "../src/lib/trazabilidad";
@@ -49,9 +48,7 @@ import { obtenerFactorMacro } from "../src/lib/bcrp";
 // recargar de cero, reseteá la base con `npx prisma migrate reset`.
 // ---------------------------------------------------------------------------
 
-const adapter = new PrismaBetterSqlite3({
-  url: urlBaseRequerida(),
-});
+const adapter = crearAdaptador();
 const prisma = new PrismaClient({ adapter });
 
 const hoy = new Date();

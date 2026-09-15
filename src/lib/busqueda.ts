@@ -12,29 +12,28 @@
 //   %ferreteria%    Ferretería San Martín       no     no    no
 //   %ferretería%    Ferretería San Martín       sí     no    sí
 //
-// Es decir: `ILIKE` reproduce exactamente lo que SQLite hace hoy. Las tildes
-// se comportan igual en los dos motores —ninguno las pliega— así que no son
-// un riesgo; la diferencia de mayúsculas sí.
+// Es decir: `ILIKE` reproduce exactamente lo que SQLite hacía. Las tildes se
+// comportan igual en los dos motores —ninguno las pliega— así que no eran un
+// riesgo; la diferencia de mayúsculas sí.
 //
-// Sin este cambio, el día de la migración buscar «ferreteria» dejaría de
-// encontrar «FERRETERIA SAN MARTIN» en las 32 pantallas que tienen buscador.
-// Sin un error y sin una línea de log: los listados devolverían menos filas, y
-// el problema aparecería semanas después como «el buscador no anda bien».
+// Sin este ayudante, la migración del 2026-09-15 habría dejado de encontrar
+// «FERRETERIA SAN MARTIN» al buscar «ferreteria» en las 32 pantallas que tienen
+// buscador. Sin un error y sin una línea de log: los listados devolverían menos
+// filas, y el problema aparecería semanas después como «el buscador no anda
+// bien».
 //
-// `mode` **no existe** en los tipos que Prisma genera para SQLite, así que no
-// se puede agregar todavía: no compila. Por eso el cambio de hoy es reunir los
-// 63 usos acá. El día de la migración es **una línea en un archivo** en vez de
-// 63 ediciones repartidas en 32 pantallas — y una guardia impide que vuelvan a
-// dispersarse.
+// El 2026-09-14 se reunieron acá los 63 usos, con `mode` todavía imposible
+// —no existe en los tipos que Prisma genera para SQLite: no compilaba—. El
+// 2026-09-15, con el motor ya cambiado, el arreglo fue **una línea en un
+// archivo** en vez de 63 ediciones repartidas en 32 pantallas. Una guardia
+// impide que vuelvan a dispersarse.
 
 /**
- * Coincidencia parcial de texto para un filtro de Prisma.
+ * Coincidencia parcial de texto, sin distinguir mayúsculas, para un filtro de
+ * Prisma.
  *
  * Se usa como `{ razonSocial: contiene(q) }`.
- *
- * Al migrar a PostgreSQL, acá se agrega `mode: "insensitive"` y todas las
- * búsquedas del sistema conservan el comportamiento que tienen hoy.
  */
 export function contiene(texto: string) {
-  return { contains: texto };
+  return { contains: texto, mode: "insensitive" as const };
 }

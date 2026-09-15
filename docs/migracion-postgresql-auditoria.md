@@ -1,5 +1,7 @@
 # Migrar a PostgreSQL: qué se rompe de verdad
 
+> **Actualización 2026-09-15 (segunda), la que cierra este documento: la migración se ejecutó.** El proyecto corre sobre PostgreSQL y la suite completa pasa contra el motor nuevo. Lo que sigue conserva valor como **inventario previo** —lo que se esperaba que se rompiera, medido sobre el código y sin motor en la máquina— y conviene leerlo junto con [postgresql.md](postgresql.md), que dice qué se rompió **de verdad**. El resumen de esa comparación: acertó en el mecanismo principal (las búsquedas) y no vio dos cosas — el SQL crudo del cerrojo, que nombraba una columna sin entrecomillar y que este documento había dado por portable, y que el módulo de respaldo se quedaría **sin ningún controlador capaz de correr**.
+>
 > **Actualización 2026-09-15:** ya hay PostgreSQL. Se instalaron los binarios oficiales 17.2 en modo portable —sin servicio, sin privilegios de administrador y sin tocar el sistema— y el clúster corre en `localhost:5433`. El bloqueo que motivó este documento **ya no existe**, y la afirmación central se midió contra el motor real: ver la corrección más abajo.
 
 **Cuando se escribió esto no se migró nada**, porque en la máquina no había PostgreSQL en ninguna forma —ni `psql`, ni `pg_dump`, ni `initdb`, ni Docker, ni un servicio de Windows, ni nada escuchando en el 5432— así que una migración escrita entonces no podría haberse ejecutado ni una vez.

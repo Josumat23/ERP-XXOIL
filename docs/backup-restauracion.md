@@ -2,7 +2,9 @@
 
 Estrategia de respaldo y recuperación de la base del ERP. Cubre el ítem transversal de Oleada 1: *"Backup automatizado programado + procedimiento de restauración probado al menos una vez"*.
 
-Hoy la base es SQLite, pero el módulo ya no está atado a ella: el núcleo es agnóstico del motor y las primitivas de cada base viven en un controlador aparte. Ver [Portabilidad](#portabilidad-qué-es-del-motor-y-qué-no).
+> **Aviso 2026-09-15: la base de trabajo no tiene copias automáticas.** El proyecto migró a PostgreSQL y **PostgreSQL todavía no tiene controlador de respaldo**. Los respaldos `.db` ya existentes se siguen verificando y restaurando, pero mientras el controlador no exista, las copias de la base viva hay que hacerlas a mano. Véase [PostgreSQL se reconoce, pero todavía no se respalda](#postgresql-se-reconoce-pero-todavía-no-se-respalda).
+
+El núcleo es agnóstico del motor y las primitivas de cada base viven en un controlador aparte. Ver [Portabilidad](#portabilidad-qué-es-del-motor-y-qué-no).
 
 ## Por qué `VACUUM INTO` y no copiar el archivo
 
@@ -90,12 +92,14 @@ El módulo está partido en dos.
 
 **El motor aporta tres operaciones**, reunidas en un `ControladorRespaldo`:
 
-| Operación | SQLite | PostgreSQL (cuando se implemente) |
+| Operación | SQLite | PostgreSQL (pendiente) |
 | --- | --- | --- |
 | `copiar` | `VACUUM INTO` | `pg_dump -Fc` |
 | `verificar` | `PRAGMA integrity_check` | `pg_restore --list` |
 | `restaurar` | `VACUUM INTO` sobre el destino | `pg_restore` |
 | `extension` | `.db` | `.dump` |
+
+El controlador de SQLite abre el archivo **con better-sqlite3 directamente**. Hasta el 2026-09-15 lo hacía a través de un `PrismaClient`, y el día de migrar a PostgreSQL dejó de poder construirse: Prisma rechaza un adaptador de un motor distinto al del esquema, así que el módulo se quedó **sin ningún controlador capaz de correr** — ni siquiera para verificar los respaldos que ya existían. Ese intermediario nunca aportó nada: acá no hay modelos ni consultas generadas, solo dos sentencias contra un archivo que ni siquiera tiene el esquema de la aplicación. Vale la pena anotarlo porque la auditoría de portabilidad no lo previó, y es el tipo de acoplamiento que solo se ve cuando se rompe.
 
 El día de la migración hay que escribir ese objeto y nada más. Que eso sea cierto no es una promesa: la suite conduce el núcleo completo —respaldo, verificación, manifiesto, retención y restauración— con un controlador de prueba que **no toca SQLite** y declara motor `POSTGRES` y extensión `.dump`. Si alguna primitiva de SQLite vuelve a filtrarse a `crearRespaldo` o `restaurarRespaldo`, una guardia estructural falla.
 
@@ -109,7 +113,9 @@ Si `DATABASE_URL` apunta a PostgreSQL, el respaldo **falla con un mensaje que di
 
 Antes el mensaje era *"DATABASE_URL no apunta a un archivo SQLite"* — cierto, y a la vez inútil el día de migrar, porque no distingue una URL de PostgreSQL de una cadena sin sentido.
 
-**Por qué no viene escrito el controlador de PostgreSQL.** Porque en esta máquina no hay `pg_dump`, `psql` ni Docker: no habría forma de ejecutarlo ni una sola vez. Un respaldo que nunca corrió contra una base real no es un respaldo, es una creencia — y creer que hay copias cuando no las hay es peor que saber que no las hay, porque el error se descubre el día que ya es tarde. El controlador se escribe junto con la migración de motor, contra la base real, y se prueba restaurando.
+**Por qué sigue sin escribirse, ahora que sí hay `pg_dump`.** El motivo original —en esta máquina no había PostgreSQL en ninguna forma— dejó de valer el 2026-09-15: `pg_dump` y `pg_restore` están en `D:/Escritorio/ERP-postgres/pgsql/bin`. Lo que queda es una razón distinta y más concreta: **el núcleo trata el destino de una restauración como un archivo** —lo consulta con `stat`, se niega a pisarlo, lo borra y le calcula el SHA256—, y el destino de un `pg_restore` es una **base**, no un archivo. Escribir `copiar` y `verificar` es directo; `restaurar` exige que esa parte del núcleo también se vuelva agnóstica, y eso es el trabajo de verdad.
+
+Lo que no cambia es el criterio: un respaldo que nunca corrió contra una base real no es un respaldo, es una creencia — y creer que hay copias cuando no las hay es peor que saber que no las hay, porque el error se descubre el día que ya es tarde. Por eso el controlador sigue negándose en vez de existir a medias. **Mientras tanto la base de trabajo no tiene copias automáticas**, y eso hay que decirlo en voz alta, no dejarlo implícito en un mensaje de error.
 
 La restauración elige el controlador por la extensión del artefacto: intentar restaurar un `.dump` con el driver de SQLite diría *"no pasó la verificación de integridad"* y mandaría a buscar el problema donde no está.
 

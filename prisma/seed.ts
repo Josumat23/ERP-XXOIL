@@ -3,15 +3,12 @@
 // `DATABASE_URL` llega vacía — y hasta el 2026-09-14 eso significaba escribir
 // en `dev.db` por el valor por defecto que traía `prisma.ts`.
 import "dotenv/config";
-import { urlBaseRequerida } from "../src/lib/databaseUrl";
 import { randomBytes, scryptSync } from "crypto";
-import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { crearAdaptador } from "../src/lib/adaptadorBase";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { sembrarUbigeos } from "./seed-ubigeos";
 
-const adapter = new PrismaBetterSqlite3({
-  url: urlBaseRequerida(),
-});
+const adapter = crearAdaptador();
 const prisma = new PrismaClient({ adapter });
 
 function hashPassword(password: string): string {
