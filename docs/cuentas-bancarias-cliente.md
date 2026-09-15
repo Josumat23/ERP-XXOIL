@@ -51,3 +51,51 @@ El mismo mecanismo que ya sostiene las direcciones y los contactos: `esPrincipal
 ## El medio de pago preferido va en el cliente
 
 No en la cuenta: quien paga en efectivo no tiene cuenta que declarar. Reutiliza el enum `MedioPago` que ya existía para los movimientos de caja, en vez de crear una lista paralela.
+
+---
+
+# Lo que el recorrido en pantalla encontró (2026-09-15)
+
+La octava prueba del recorrido era: entrar como `ventas` y abrir las cuentas bancarias de un cliente. **No rechazó nada.** Detrás había dos defectos, y el segundo es el grave.
+
+## Primero: el bloque se entregó sin pantalla
+
+Modelo, migración, reglas puras, acciones de servidor y pruebas existían. **El panel no.** Nadie llamaba a esas acciones, así que no había nada que rechazar — y `numeroParcial`, el ayudante escrito para mostrar la cuenta enmascarada, tampoco tenía quien lo llamara.
+
+Es el mismo defecto de «campo decorativo» que estos ciclos vienen evitando, esta vez en un módulo entero. Y el PR lo describió como si la experiencia existiera.
+
+## Segundo: la restricción no restringía
+
+Esta es la que importa. La autorización era:
+
+```ts
+const auth = await requerirRol([]);            // cualquier rol autenticado
+if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) { ... }
+```
+
+Y `puedeRealizar` **devuelve `true` para cualquier usuario sin grupo de seguridad asignado** — que es el caso normal. Lo dice su propio comentario: los grupos solo pueden *restringir* lo que el rol ya concede; nunca amplían.
+
+Así que un vendedor pasaba entero. La restricción existía en el texto del código y del PR, no en el comportamiento.
+
+**El rol tiene que ser la puerta.** Ahora es `requerirRol([...ROLES_FINANZAS])` —ADMIN y GERENCIA— y `puedeRealizar` queda donde le corresponde: estrechando, no autorizando.
+
+## Y la prueba que lo dejó pasar
+
+La guardia original comprobaba que apareciera `"finanzas"` y que no apareciera `"ventas"`. **Pasaba con el agujero abierto**, porque miraba las palabras y no el mecanismo.
+
+La nueva exige `requerirRol([...ROLES_FINANZAS])` y prohíbe `requerirRol([])`. Verificada reintroduciendo el agujero: falla con «el rol debe ser la puerta».
+
+De paso volvió a aparecer un viejo conocido: la primera versión de esa guardia **coincidía con su propio comentario explicativo**, que menciona `requerirRol([])` para contar qué estaba mal. Ahora se quitan los comentarios antes de comprobar — una guardia que se lee a sí misma no comprueba nada.
+
+## La consulta también está condicionada
+
+No basta con no pintar el panel: traer los números y ocultarlos los dejaría igual en el payload que viaja al navegador. La consulta corre **solo si hay permiso**.
+
+Comprobado en pantalla con las dos sesiones sobre la misma ficha:
+
+| Rol | Panel «Cuentas bancarias» |
+| --- | --- |
+| `admin` | aparece |
+| `ventas` | no aparece |
+
+Y en la tarjeta se muestra `numeroParcial` —los últimos cuatro dígitos—; el número entero solo al editar, para que no quede a la vista de cualquiera que pase por detrás.

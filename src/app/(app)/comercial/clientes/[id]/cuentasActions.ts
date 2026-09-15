@@ -7,6 +7,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { MENSAJE_ERROR_CUENTA, validarCuenta } from "@/lib/cuentasBancariasCliente";
+import { ROLES_FINANZAS } from "@/lib/cuentasBancariasCliente";
 
 export type EstadoFormulario = { error?: string };
 
@@ -18,8 +19,17 @@ export type EstadoFormulario = { error?: string };
  * transferencia que se va a otro lado. La restricción es el punto del bloque,
  * no un adorno.
  */
+/**
+ * El ROL es la puerta; el grupo de seguridad solo puede estrechar.
+ *
+ * Esto no era así hasta el 2026-09-15: la comprobación era `requerirRol([])`
+ * más `puedeRealizar(..., "finanzas", ...)`, y `puedeRealizar` devuelve TRUE
+ * para cualquier usuario **sin grupo asignado** — que es el caso normal. Un
+ * vendedor pasaba entero. La restricción existía en el texto y no en el
+ * comportamiento.
+ */
 async function autorizar() {
-  const auth = await requerirRol([]);
+  const auth = await requerirRol([...ROLES_FINANZAS]);
   if ("error" in auth) return auth;
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
     return {

@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { enmascarar, serializarCambiosMaestro } from "@/lib/auditoriaMaestros";
 import {
   cciValido,
+  puedeVerCuentasBancarias,
   cuentaParaAbonar,
   numeroParcial,
   validarCuenta,
@@ -186,12 +187,24 @@ test("las cuentas las administra Finanzas, no Ventas", async () => {
     resolve(process.cwd(), "src/app/(app)/comercial/clientes/[id]/cuentasActions.ts"),
     "utf8"
   );
-  assert.match(acciones, /puedeRealizar\(auth\.usuario, "finanzas", "editar"\)/);
-  assert.ok(!/"ventas"/.test(acciones), "no debe autorizarse con el permiso de Ventas");
+  // Sin comentarios: la primera versión de esta guardia coincidía con su
+  // PROPIO comentario explicativo, que menciona `requerirRol([])` para contar
+  // qué estaba mal. Una guardia que se lee a sí misma no comprueba nada.
+  const codigo = acciones.replace(/^\s*(?:\/\/|\*|\/\*).*$/gm, "");
+  // La primera versión de esta prueba solo miraba que apareciera "finanzas" y
+  // que no apareciera "ventas" — y PASABA con el agujero abierto: la
+  // autorización era requerirRol([]) más puedeRealizar, y puedeRealizar
+  // devuelve TRUE para un usuario sin grupo de seguridad, que es el caso
+  // normal. Un vendedor entraba entero. Lo que hay que fijar es que el ROL
+  // sea la puerta.
+  assert.match(codigo, /requerirRol\(\[\.\.\.ROLES_FINANZAS\]\)/, "el rol debe ser la puerta");
+  assert.doesNotMatch(codigo, /requerirRol\(\[\]\)/, "requerirRol([]) deja pasar cualquier rol");
+  assert.match(codigo, /puedeRealizar\(auth\.usuario, "finanzas", "editar"\)/);
+  assert.ok(!/"ventas"/.test(codigo), "no debe autorizarse con el permiso de Ventas");
   // Y acotadas a la compañía activa, como todo lo demás.
-  assert.match(acciones, /where: \{ id: cuentaId, empresaId, cliente: \{ empresaId \} \}/);
+  assert.match(codigo, /where: \{ id: cuentaId, empresaId, cliente: \{ empresaId \} \}/);
   // Desactivar, no borrar: hay cobros que apuntan a la cuenta usada.
-  assert.match(acciones, /data: \{ activa: false, esPrincipal: null \}/);
+  assert.match(codigo, /data: \{ activa: false, esPrincipal: null \}/);
   assert.doesNotMatch(acciones, /cuentaBancariaCliente\.delete/);
 });
 
@@ -200,4 +213,68 @@ test("el enmascarado cubre número y CCI", async () => {
   assert.match(fuente, /CAMPOS_ENMASCARADOS = new Set\(\["numeroCuenta", "cci"\]\)/);
   // Y los secretos siguen borrándose del todo, no enmascarados.
   assert.match(fuente, /CAMPOS_SENSIBLES\.has\(clave\)\) return "\[PROTEGIDO\]"/);
+});
+
+test("el rol de Ventas no ve cuentas bancarias", () => {
+  // Comprobado además en pantalla el 2026-09-15: con sesión de `ventas` la
+  // ficha no trae el panel; con `admin`, sí.
+  assert.equal(puedeVerCuentasBancarias("ADMIN"), true);
+  assert.equal(puedeVerCuentasBancarias("GERENCIA"), true);
+  assert.equal(puedeVerCuentasBancarias("VENTAS"), false);
+  assert.equal(puedeVerCuentasBancarias("ALMACEN"), false);
+  assert.equal(puedeVerCuentasBancarias("PRODUCCION"), false);
+});
+
+test("la ficha exige el rol además del permiso de módulo", async () => {
+  const pagina = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/clientes/[id]/page.tsx"),
+    "utf8"
+  );
+  assert.match(pagina, /puedeVerCuentasBancarias\(usuario\.rol\)/);
+});
+test("el panel de cuentas está montado y llama a las acciones", async () => {
+  // El 2026-09-15, la prueba 8 del recorrido no rechazó nada: la restricción
+  // existía en el servidor pero NADIE llamaba a esas acciones. El bloque se
+  // había entregado sin pantalla — el mismo defecto "campo decorativo" que
+  // estos ciclos vienen evitando, esta vez en un módulo entero.
+  const componente = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/clientes/[id]/CuentasBancariasCliente.tsx"),
+    "utf8"
+  );
+  for (const accion of [
+    "crearCuentaBancaria",
+    "actualizarCuentaBancaria",
+    "desactivarCuentaBancaria",
+  ]) {
+    assert.ok(componente.includes(accion), `el panel no usa ${accion}`);
+  }
+
+  const pagina = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/clientes/[id]/page.tsx"),
+    "utf8"
+  );
+  assert.match(pagina, /<CuentasBancariasCliente/, "el panel no está montado en la ficha");
+});
+
+test("sin permiso, los números ni siquiera se consultan", async () => {
+  // Traerlos y no pintarlos los dejaría igual en el payload que viaja al
+  // navegador, que es donde un dato restringido no debe estar.
+  const pagina = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/clientes/[id]/page.tsx"),
+    "utf8"
+  );
+  assert.match(pagina, /const puedeVerCuentas =/);
+  assert.match(pagina, /const cuentasBancarias = puedeVerCuentas/);
+  assert.match(pagina, /\{puedeVerCuentas && \(/);
+});
+
+test("el panel muestra el número parcial, no el completo", async () => {
+  // Quien necesita el número entero lo ve al editar; en la tarjeta queda solo
+  // el final, para que no esté a la vista de cualquiera que pase.
+  const componente = await readFile(
+    resolve(process.cwd(), "src/app/(app)/comercial/clientes/[id]/CuentasBancariasCliente.tsx"),
+    "utf8"
+  );
+  assert.match(componente, /numeroParcial\(c\.numeroCuenta\)/);
+  assert.match(componente, /numeroParcial\(c\.cci\)/);
 });
