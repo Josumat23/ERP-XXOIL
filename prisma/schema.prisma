@@ -1517,35 +1517,40 @@ model SolicitudCambioCredito {
 }
 
 model Cliente {
-  id                  String              @id @default(cuid())
-  empresaId           String              @default("1")
-  empresa             Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  codigo              String // CLI-00001, asignado automáticamente al crear (nunca se reutiliza)
-  razonSocial         String
-  nombreComercial     String?
-  ruc                 String?
-  tipoDocumentoFiscal TipoDocumentoFiscal @default(RUC)
+  id                   String              @id @default(cuid())
+  empresaId            String              @default("1")
+  empresa              Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  codigo               String // CLI-00001, asignado automáticamente al crear (nunca se reutiliza)
+  razonSocial          String
+  nombreComercial      String?
+  ruc                  String?
+  tipoDocumentoFiscal  TipoDocumentoFiscal @default(RUC)
+  /// El documento sin puntos, guiones ni espacios, en mayúscula. Lleva índice
+  /// único por compañía, así que **la base** rechaza al mismo contribuyente
+  /// cargado como «20123456789» y como «20-123456789». El índice sobre `ruc`
+  /// se conserva: ese protege el valor tal como se escribió.
+  documentoNormalizado String?
   /// Natural o jurídica. Nullable porque los clientes anteriores al
   /// 2026-09-14 no lo declararon; la migración lo dedujo del prefijo del RUC
   /// donde era inequívoco (10 → natural, 20 → jurídica) y dejó null en el
   /// resto, antes que inventarlo.
-  tipoPersona         TipoPersona?
-  canal               CanalCliente?
-  pais                String              @default("Peru")
+  tipoPersona          TipoPersona?
+  canal                CanalCliente?
+  pais                 String              @default("Peru")
   // Texto libre heredado. Se conserva: tiene datos que no matchean ningún
   // ubigeo (direcciones en el extranjero, escrituras no oficiales) y es lo
   // que el usuario escribió. Para datos nuevos manda ubigeoId.
-  departamento        String?
-  provincia           String?
-  distrito            String?
-  ubigeoId            String?
-  direccion           String?
-  telefono            String?
-  email               String?
-  contactoNombre      String?
-  contactoTelefono    String?
-  zonaId              String?
-  vendedorId          String? // vendedor asignado (se preselecciona en pedidos)
+  departamento         String?
+  provincia            String?
+  distrito             String?
+  ubigeoId             String?
+  direccion            String?
+  telefono             String?
+  email                String?
+  contactoNombre       String?
+  contactoTelefono     String?
+  zonaId               String?
+  vendedorId           String? // vendedor asignado (se preselecciona en pedidos)
 
   /// Desde dónde sale habitualmente su carga. Se preselecciona en el pedido;
   /// no lo impone, porque un despacho puntual puede salir de otra planta.
@@ -1646,6 +1651,7 @@ model Cliente {
   creditosCliente        CreditoCliente[]
 
   @@unique([empresaId, ruc])
+  @@unique([empresaId, documentoNormalizado])
   @@unique([empresaId, codigo])
   @@map("clientes")
 }
