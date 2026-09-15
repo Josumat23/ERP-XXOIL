@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import { diasVencidos, ETIQUETA_NIVEL } from "@/lib/cobranza";
+import { diasVencidosConTolerancia } from "@/lib/creditoCliente";
 import {
   ETIQUETA_ESTADO_AVISO,
   situacionDelAviso,
@@ -79,6 +80,18 @@ export default async function CobranzaPage() {
   ]);
 
   const vencidas = facturas.filter((f) => f.saldo.toNumber() > 1e-9);
+  // Los días vencidos de cada factura, con la tolerancia que tenga declarada
+  // SU cliente. La gracia corre la política de la compañía, no la reemplaza:
+  // sin tolerancia declarada, el número es el mismo de siempre.
+  const diasPorFactura = new Map(
+    vencidas.map((f) => [
+      f.id,
+      diasVencidosConTolerancia(
+        diasVencidos(f.fechaVencimiento, hoy),
+        f.cliente.toleranciaVencimientoDias
+      ),
+    ])
+  );
   const totalVencido = vencidas.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
 
   // La situación no se guarda: se deriva de la fecha comprometida, que se vence
@@ -98,7 +111,7 @@ export default async function CobranzaPage() {
       acciones.set(
         factura.id,
         accionDeCobranza(
-          diasVencidos(factura.fechaVencimiento, hoy),
+          diasPorFactura.get(factura.id) ?? 0,
           factura.avisosCobranza[0] ?? null,
           politica,
           hoy
@@ -183,7 +196,7 @@ export default async function CobranzaPage() {
         </thead>
         <tbody>
           {vencidas.map((f) => {
-            const dias = diasVencidos(f.fechaVencimiento, hoy);
+            const dias = diasPorFactura.get(f.id) ?? 0;
             const nivel = nivelPorAntiguedad(dias, politica?.diasNivel2, politica?.diasNivel3);
             const accion = acciones.get(f.id) ?? null;
             const ultimoAviso = f.avisosCobranza[0];

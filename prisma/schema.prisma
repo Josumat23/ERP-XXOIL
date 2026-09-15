@@ -1416,6 +1416,12 @@ model ContactoCliente {
   @@map("contactos_cliente")
 }
 
+enum NivelRiesgoCliente {
+  BAJO
+  MEDIO
+  ALTO
+}
+
 enum FrecuenciaReparto {
   SEMANAL
   QUINCENAL
@@ -1551,7 +1557,25 @@ model Cliente {
   // nueva vuelve a producir null: lo produjo solo la migración.
   limiteCredito            Decimal?           @default(0)
   condicionPagoDefecto     CondicionPago      @default(CONTADO)
-  notas                    String?
+
+  /// Clasificación de riesgo, puesta por una persona. No se calcula con un
+  /// puntaje inventado: lo que sí se calcula desde los movimientos es el
+  /// COMPORTAMIENTO de pago —cuántas facturas pagó tarde y con cuántos días
+  /// de atraso promedio— y eso se muestra al lado para que quien clasifique
+  /// lo haga mirando hechos.
+  nivelRiesgo       NivelRiesgoCliente?
+  motivoNivelRiesgo String?
+
+  /// Días de gracia antes de contar una factura como vencida PARA ESTE
+  /// cliente. Corre la política de escalamiento de la compañía, no la
+  /// reemplaza: `null` significa que rige la política tal cual.
+  toleranciaVencimientoDias Int?
+
+  /// «Sujeto a aprobación»: toda venta a crédito pasa por la bandeja, esté o
+  /// no dentro del límite. Es distinto de no tener cupo — es no tener
+  /// autonomía — y por eso es una bandera propia y no un límite en cero.
+  requiereAprobacionCredito Boolean       @default(false)
+  notas                     String?
   /// Reemplaza al booleano `activo` desde el 2026-09-14.
   ///
   /// BLOQUEADO es una decisión de una persona sobre el maestro —falta
@@ -1560,19 +1584,19 @@ model Cliente {
   /// ponen y se levantan por vías distintas, y para vender hay que pasar los
   /// dos. Fundirlos haría que levantar una deuda desbloquee un cliente que
   /// legal había frenado.
-  estado                   EstadoCliente      @default(ACTIVO)
-  motivoEstado             String?
-  estadoDesde              DateTime?
-  estadoPorId              String?
-  estadoPorNombre          String?
+  estado                    EstadoCliente @default(ACTIVO)
+  motivoEstado              String?
+  estadoDesde               DateTime?
+  estadoPorId               String?
+  estadoPorNombre           String?
   // Bloqueo específico de cobranza (distinto de `activo`): impide crear
   // pedidos nuevos mientras tenga facturas vencidas sin resolver, pero no
   // oculta al cliente ni afecta su historial. Se levanta manualmente desde
   // Finanzas → Cobranza una vez que regulariza su deuda.
-  bloqueadoCobranza        Boolean            @default(false)
-  bloqueadoCobranzaEn      DateTime?
-  bloqueadoCobranzaPor     String?
-  creadoEn                 DateTime           @default(now())
+  bloqueadoCobranza         Boolean       @default(false)
+  bloqueadoCobranzaEn       DateTime?
+  bloqueadoCobranzaPor      String?
+  creadoEn                  DateTime      @default(now())
 
   ubigeo                 Ubigeo?                  @relation(fields: [ubigeoId], references: [id])
   direcciones            DireccionCliente[]
