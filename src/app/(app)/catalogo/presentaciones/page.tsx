@@ -9,6 +9,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoPresentacion } from "./actions";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 export default async function PresentacionesPage({
   searchParams,
@@ -28,9 +29,9 @@ export default async function PresentacionesPage({
       ...(q
         ? {
             OR: [
-              { nombre: { contains: q } },
-              { sku: { contains: q } },
-              { producto: { nombre: { contains: q } } },
+              { nombre: contiene(q) },
+              { sku: contiene(q) },
+              { producto: { nombre: contiene(q) } },
             ],
           }
         : {}),

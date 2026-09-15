@@ -8,6 +8,7 @@ import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { contiene } from "@/lib/busqueda";
 
 const COLOR_ESTADO: Record<string, string> = {
   PLANIFICADO: "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300",
@@ -35,7 +36,7 @@ export default async function LotesPage({
       empresaId: usuario.empresaId,
       ...(filtroEstado ? { estado: filtroEstado } : {}),
       ...(q
-        ? { OR: [{ codigo: { contains: q } }, { formula: { producto: { nombre: { contains: q } } } }] }
+        ? { OR: [{ codigo: contiene(q) }, { formula: { producto: { nombre: contiene(q) } } }] }
         : {}),
     },
     include: { formula: { include: { producto: true } } },

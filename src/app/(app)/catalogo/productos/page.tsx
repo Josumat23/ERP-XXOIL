@@ -9,6 +9,7 @@ import BarraFiltro from "@/components/BarraFiltro";
 import { ETIQUETA_SEGMENTO_MERCADO } from "@/lib/etiquetas";
 import { alternarActivoProducto } from "./actions";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 export default async function ProductosPage({
   searchParams,
@@ -33,9 +34,9 @@ export default async function ProductosPage({
       ...(q
         ? {
             OR: [
-              { nombre: { contains: q } },
-              { codigo: { contains: q } },
-              { marca: { contains: q } },
+              { nombre: contiene(q) },
+              { codigo: contiene(q) },
+              { marca: contiene(q) },
             ],
           }
         : {}),

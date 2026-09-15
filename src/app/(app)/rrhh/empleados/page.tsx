@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 const ETIQUETA_CONTRATO: Record<string, string> = {
   PLAZO_FIJO: "Plazo fijo",
@@ -34,10 +35,10 @@ export default async function EmpleadosPage({
       ...(q
         ? {
             OR: [
-              { nombres: { contains: q } },
-              { apellidos: { contains: q } },
-              { codigo: { contains: q } },
-              { cargo: { contains: q } },
+              { nombres: contiene(q) },
+              { apellidos: contiene(q) },
+              { codigo: contiene(q) },
+              { cargo: contiene(q) },
             ],
           }
         : {}),

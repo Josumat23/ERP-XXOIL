@@ -9,6 +9,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 const COLOR_ESTADO: Record<string, string> = {
   PENDIENTE: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400",
@@ -42,7 +43,7 @@ export default async function OrdenesCompraPage({
       empresaId,
       ...(filtroEstado ? { estado: filtroEstado } : {}),
       ...(q
-        ? { OR: [{ numero: { contains: q } }, { proveedor: { razonSocial: { contains: q } } }] }
+        ? { OR: [{ numero: contiene(q) }, { proveedor: { razonSocial: contiene(q) } }] }
         : {}),
     },
     include: { proveedor: true, almacen: true, _count: { select: { recepciones: true } } },

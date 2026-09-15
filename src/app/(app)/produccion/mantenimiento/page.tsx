@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { EstadoOrdenMantenimiento } from "@/generated/prisma/client";
+import { contiene } from "@/lib/busqueda";
 
 const ETIQUETA_ESTADO: Record<EstadoOrdenMantenimiento, string> = {
   PROGRAMADA: "Programada",
@@ -43,7 +44,7 @@ export default async function MantenimientoPage({
         ...(filtroTipo ? { tipo: filtroTipo } : {}),
         ...(filtroEstado ? { estado: filtroEstado } : {}),
         ...(q
-          ? { OR: [{ codigo: { contains: q } }, { equipo: { nombre: { contains: q } } }] }
+          ? { OR: [{ codigo: contiene(q) }, { equipo: { nombre: contiene(q) } }] }
           : {}),
       },
       include: { equipo: { include: { almacen: true } } },

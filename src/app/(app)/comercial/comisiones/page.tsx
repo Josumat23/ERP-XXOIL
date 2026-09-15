@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 export default async function ComisionesPage({
   searchParams,
@@ -27,7 +28,7 @@ export default async function ComisionesPage({
       empresaId,
       ...(vendedorId ? { vendedorId } : {}),
       ...(estado === "pagada" ? { estado: "PAGADA" } : estado === "pendiente" ? { estado: "PENDIENTE" } : {}),
-      ...(q ? { factura: { numero: { contains: q } } } : {}),
+      ...(q ? { factura: { numero: contiene(q) } } : {}),
     },
     include: { vendedor: true, factura: true },
     orderBy: { creadoEn: "desc" },

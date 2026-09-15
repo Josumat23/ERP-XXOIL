@@ -8,6 +8,7 @@ import { costoRealProyecto } from "@/lib/proyectos";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { contiene } from "@/lib/busqueda";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   PLANIFICADO: "Planificado",
@@ -37,7 +38,7 @@ export default async function ProyectosPage({
     where: {
       empresaId: usuario.empresaId,
       ...(estado ? { estado: estado as "PLANIFICADO" | "EN_PROGRESO" | "CERRADO" | "CANCELADO" } : {}),
-      ...(q ? { nombre: { contains: q } } : {}),
+      ...(q ? { nombre: contiene(q) } : {}),
     },
     include: { centroCosto: true, responsable: true },
     orderBy: { creadoEn: "desc" },

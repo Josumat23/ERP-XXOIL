@@ -9,6 +9,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { ETIQUETA_ORIGEN_ASIENTO } from "@/lib/etiquetas";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 const ORIGENES = Object.keys(ETIQUETA_ORIGEN_ASIENTO) as (keyof typeof ETIQUETA_ORIGEN_ASIENTO)[];
 
@@ -28,7 +29,7 @@ export default async function AsientosPage({
     where: {
       empresaId,
       ...(filtroOrigen ? { origen: filtroOrigen } : {}),
-      ...(q ? { OR: [{ numero: { contains: q } }, { glosa: { contains: q } }] } : {}),
+      ...(q ? { OR: [{ numero: contiene(q) }, { glosa: contiene(q) }] } : {}),
     },
     include: { detalles: true },
     orderBy: { numero: "desc" },

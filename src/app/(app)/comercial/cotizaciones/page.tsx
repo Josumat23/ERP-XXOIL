@@ -9,6 +9,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 const ETIQUETA_ESTADO: Record<$Enums.EstadoCotizacion, string> = {
   PENDIENTE: "Pendiente",
@@ -47,8 +48,8 @@ export default async function CotizacionesPage({
       ...(q
         ? {
             OR: [
-              { numero: { contains: q } },
-              { cliente: { razonSocial: { contains: q } } },
+              { numero: contiene(q) },
+              { cliente: { razonSocial: contiene(q) } },
             ],
           }
         : {}),

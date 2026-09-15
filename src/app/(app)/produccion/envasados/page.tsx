@@ -7,6 +7,7 @@ import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { contiene } from "@/lib/busqueda";
 
 export default async function EnvasadosPage({
   searchParams,
@@ -24,9 +25,9 @@ export default async function EnvasadosPage({
       ...(q
       ? {
           OR: [
-            { codigo: { contains: q } },
-            { presentacion: { nombre: { contains: q } } },
-            { presentacion: { sku: { contains: q } } },
+            { codigo: contiene(q) },
+            { presentacion: { nombre: contiene(q) } },
+            { presentacion: { sku: contiene(q) } },
           ],
         }
       : {}),

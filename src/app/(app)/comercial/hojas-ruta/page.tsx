@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 export default async function HojasRutaPage({
   searchParams,
@@ -28,7 +29,7 @@ export default async function HojasRutaPage({
       empresaId,
       ...(vendedorId ? { vendedorId } : {}),
       ...(filtroEstado ? { estado: filtroEstado } : {}),
-      ...(q ? { numero: { contains: q } } : {}),
+      ...(q ? { numero: contiene(q) } : {}),
     },
     include: { vendedor: true, _count: { select: { visitas: true } } },
     orderBy: { fecha: "desc" },

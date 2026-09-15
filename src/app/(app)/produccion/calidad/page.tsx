@@ -7,6 +7,7 @@ import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import BarraFiltro from "@/components/BarraFiltro";
 import CalidadFormulario from "./CalidadFormulario";
+import { contiene } from "@/lib/busqueda";
 
 export default async function CalidadPage({
   searchParams,
@@ -30,7 +31,7 @@ export default async function CalidadPage({
         loteGranel: {
           empresaId: usuario.empresaId,
           ...(q
-            ? { OR: [{ codigo: { contains: q } }, { formula: { producto: { nombre: { contains: q } } } }] }
+            ? { OR: [{ codigo: contiene(q) }, { formula: { producto: { nombre: contiene(q) } } }] }
             : {}),
         },
         ...(filtroResultado ? { resultado: filtroResultado } : {}),

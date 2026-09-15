@@ -10,6 +10,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { alternarActivoVendedor } from "./actions";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { contiene } from "@/lib/busqueda";
 
 export default async function VendedoresPage({
   searchParams,
@@ -26,7 +27,7 @@ export default async function VendedoresPage({
     where: {
       empresaId,
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
-      ...(q ? { nombre: { contains: q } } : {}),
+      ...(q ? { nombre: contiene(q) } : {}),
     },
     include: { zona: true, _count: { select: { facturas: true } } },
     orderBy: { nombre: "asc" },

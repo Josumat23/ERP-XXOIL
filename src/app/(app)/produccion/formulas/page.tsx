@@ -7,6 +7,7 @@ import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
+import { contiene } from "@/lib/busqueda";
 
 export default async function FormulasPage({
   searchParams,
@@ -22,7 +23,7 @@ export default async function FormulasPage({
     where: {
       empresaId: usuario.empresaId,
       ...(estado === "activa" ? { activo: true } : estado === "inactiva" ? { activo: false } : {}),
-      ...(q ? { producto: { nombre: { contains: q } } } : {}),
+      ...(q ? { producto: { nombre: contiene(q) } } : {}),
     },
     include: {
       producto: true,

@@ -8,6 +8,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { alternarActivoProveedor } from "./actions";
+import { contiene } from "@/lib/busqueda";
 
 export default async function ProveedoresPage({
   searchParams,
@@ -25,7 +26,7 @@ export default async function ProveedoresPage({
       empresaId,
       ...(estado === "activo" ? { activo: true } : estado === "inactivo" ? { activo: false } : {}),
       ...(q
-        ? { OR: [{ razonSocial: { contains: q } }, { ruc: { contains: q } }] }
+        ? { OR: [{ razonSocial: contiene(q) }, { ruc: contiene(q) }] }
         : {}),
     },
     include: { _count: { select: { insumos: true } } },
