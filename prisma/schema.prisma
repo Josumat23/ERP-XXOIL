@@ -1416,6 +1416,52 @@ model ContactoCliente {
   @@map("contactos_cliente")
 }
 
+/// Cuentas bancarias del cliente, para devolverle un saldo a favor o cobrarle
+/// por transferencia.
+///
+/// Dato restringido: lo ve y lo edita quien tiene permiso de **Finanzas**, no
+/// Ventas. Un número de cuenta cambiado por alguien que no debía tocarlo es
+/// una transferencia que se va a otro lado.
+///
+/// La auditoría guarda el número **enmascarado**: deja ver QUÉ cuenta cambió
+/// sin dejar el número completo en la bitácora, que es otro lugar con otras
+/// reglas de acceso.
+model CuentaBancariaCliente {
+  id        String  @id @default(cuid())
+  empresaId String  @default("1")
+  empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  clienteId String
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  banco        String
+  tipoCuenta   TipoCuentaBancaria @default(CORRIENTE)
+  numeroCuenta String
+  /// Código de Cuenta Interbancario: 20 dígitos en Perú. Es el que hace falta
+  /// para transferir entre bancos distintos.
+  cci          String?
+  moneda       String             @default("PEN")
+  /// A nombre de quién está. Puede no ser la razón social: muchas EIRL cobran
+  /// en la cuenta personal del titular, y anotarlo evita rechazos.
+  titular      String?
+
+  /// `true` en la cuenta principal y `null` en el resto — nunca `false`, para
+  /// que el índice único deje convivir varias secundarias.
+  esPrincipal Boolean?
+
+  activa   Boolean  @default(true)
+  notas    String?
+  creadoEn DateTime @default(now())
+
+  @@unique([clienteId, esPrincipal])
+  @@index([clienteId, activa])
+  @@map("cuentas_bancarias_cliente")
+}
+
+enum TipoCuentaBancaria {
+  CORRIENTE
+  AHORROS
+}
+
 enum PrioridadAtencion {
   ALTA
   NORMAL
@@ -1608,7 +1654,11 @@ model Cliente {
   requiereOrdenCompra Boolean @default(false)
 
   /// Moneda habitual. Se propone al crear el pedido; no lo obliga.
-  monedaDefecto        String        @default("PEN")
+  monedaDefecto String @default("PEN")
+
+  /// Cómo prefiere pagar. Es una preferencia del cliente, no de una cuenta:
+  /// quien paga en efectivo no tiene cuenta que declarar.
+  medioPagoPreferido   MedioPago?
   notas                String?
   /// Reemplaza al booleano `activo` desde el 2026-09-14.
   ///
@@ -1635,6 +1685,7 @@ model Cliente {
   ubigeo                 Ubigeo?                  @relation(fields: [ubigeoId], references: [id])
   direcciones            DireccionCliente[]
   contactos              ContactoCliente[]
+  cuentasBancarias       CuentaBancariaCliente[]
   solicitudesCredito     SolicitudCambioCredito[]
   zona                   Zona?                    @relation(fields: [zonaId], references: [id])
   vendedorAsignado       Vendedor?                @relation("ClienteVendedor", fields: [vendedorId], references: [id])
@@ -5536,6 +5587,7 @@ model Empresa {
   ordenesMantenimiento       OrdenMantenimiento[]
   direccionClientes          DireccionCliente[]
   contactoClientes           ContactoCliente[]
+  cuentaBancariaClientes     CuentaBancariaCliente[]
 
   @@map("empresas")
 }
