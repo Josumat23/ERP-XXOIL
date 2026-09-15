@@ -17,6 +17,14 @@ import DireccionesCliente from "./DireccionesCliente";
 import ContactosCliente from "./ContactosCliente";
 import { propositosSinContacto } from "@/lib/contactosCliente";
 import { depositoComprometido, saldoCascos } from "@/lib/logisticaCliente";
+import {
+  comportamientoPago,
+  creditoDisponible,
+  estadoCredito,
+  ETIQUETA_ESTADO_CREDITO,
+  ETIQUETA_NIVEL_RIESGO,
+} from "@/lib/creditoCliente";
+import { contactoPara, nombreCompleto } from "@/lib/contactosCliente";
 import { tiposFaltantes } from "@/lib/direccionesCliente";
 
 export default async function EditarClientePage({
@@ -30,7 +38,7 @@ export default async function EditarClientePage({
   const { id } = await params;
   const empresaId = await obtenerEmpresaActivaId();
 
-  const [cliente, clientes, zonas, vendedores, facturasPendientes, arbol, config, movimientosCasco, solicitudes] = await Promise.all([
+  const [cliente, clientes, zonas, vendedores, facturasPendientes, arbol, config, facturasPagadas, movimientosCasco, solicitudes] = await Promise.all([
     prisma.cliente.findFirst({
       where: { id, empresaId },
       include: {
@@ -61,6 +69,12 @@ export default async function EditarClientePage({
     prisma.factura.findMany({ where: { clienteId: id, empresaId, estado: "PENDIENTE" } }),
     arbolUbigeos(),
     obtenerConfiguracionEmpresa(empresaId),
+    prisma.factura.findMany({
+      where: { clienteId: id, empresaId, estado: "PAGADA" },
+      select: { fechaVencimiento: true, cobros: { select: { fecha: true } } },
+      take: 200,
+      orderBy: { fechaEmision: "desc" },
+    }),
     prisma.movimientoCasco.findMany({
       where: { clienteId: id, empresaId },
       include: { insumo: { select: { id: true, nombre: true, montoDeposito: true } } },
@@ -72,6 +86,18 @@ export default async function EditarClientePage({
     }),
   ]);
   if (!perteneceAEmpresaActiva(cliente, empresaId)) notFound();
+
+  // La factura no guarda cuándo quedó cancelada: es la fecha del último
+  // cobro. Derivarlo evita un campo más que mantener en sintonía.
+  const comportamiento = comportamientoPago(
+    facturasPagadas.map((fa) => ({
+      fechaVencimiento: fa.fechaVencimiento,
+      canceladaEn: fa.cobros.reduce<Date | null>(
+        (ultimo, c) => (ultimo === null || c.fecha > ultimo ? c.fecha : ultimo),
+        null
+      ),
+    }))
+  );
 
   const saldosCasco = saldoCascos(movimientosCasco);
   const insumosCasco: Record<string, string> = Object.fromEntries(
@@ -92,6 +118,11 @@ export default async function EditarClientePage({
 
   const deudaActual = facturasPendientes.reduce((acc, f) => acc + f.saldo.toNumber(), 0);
   const limite = cliente.limiteCredito?.toNumber() ?? null;
+  const situacionCredito = estadoCredito(cliente);
+  const disponible = creditoDisponible(limite, deudaActual);
+  // A quién se le reclama: ya lo resuelven los contactos con su propósito.
+  const contactoCobranzaId = contactoPara(cliente.contactos, "COBRANZA");
+  const contactoCobranza = cliente.contactos.find((c) => c.id === contactoCobranzaId) ?? null;
 
   return (
     <div>
@@ -231,6 +262,68 @@ export default async function EditarClientePage({
             entidadId={cliente.id}
             rutaRevalidar={`/comercial/clientes/${cliente.id}`}
           />
+          <section className="borde-seccion">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="titulo-seccion">Crédito y cobranza</h2>
+              <span
+                className={`insignia ${
+                  situacionCredito === "HABILITADO"
+                    ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-400"
+                    : situacionCredito === "SUJETO_A_APROBACION"
+                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-400"
+                      : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-400"
+                }`}
+              >
+                {ETIQUETA_ESTADO_CREDITO[situacionCredito]}
+              </span>
+            </div>
+            <dl className="mt-2 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-2">
+              <div className="flex justify-between">
+                <dt className="text-neutral-500">Cupo disponible</dt>
+                <dd className="font-medium">
+                  {disponible === null ? "Sin tope declarado" : formatMoneda(disponible)}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-neutral-500">Nivel de riesgo</dt>
+                <dd className="font-medium">
+                  {cliente.nivelRiesgo
+                    ? ETIQUETA_NIVEL_RIESGO[cliente.nivelRiesgo]
+                    : "Sin clasificar"}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-neutral-500">Tolerancia de vencimiento</dt>
+                <dd className="font-medium">
+                  {cliente.toleranciaVencimientoDias === null
+                    ? "Según la política de la compañía"
+                    : `${cliente.toleranciaVencimientoDias} días de gracia`}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-neutral-500">Contacto de cobranza</dt>
+                <dd className="font-medium">
+                  {contactoCobranza ? nombreCompleto(contactoCobranza) : "Nadie designado"}
+                </dd>
+              </div>
+            </dl>
+            {cliente.motivoNivelRiesgo && (
+              <p className="mt-2 text-sm text-neutral-600 dark:text-neutral-400">
+                <span className="font-medium">Motivo de la clasificación:</span>{" "}
+                {cliente.motivoNivelRiesgo}
+              </p>
+            )}
+            <p className="mt-3 text-sm">
+              {comportamiento.cerradas === 0
+                ? "Todavía no canceló ninguna factura: no hay historial de pago que mirar."
+                : `De ${comportamiento.cerradas} facturas canceladas, pagó ${comportamiento.pagadasTarde} fuera de plazo. Atraso promedio ${comportamiento.diasAtrasoPromedio} días; el mayor fue de ${comportamiento.diasAtrasoMaximo}.`}
+            </p>
+            <p className="mt-1 text-xs text-neutral-500">
+              El comportamiento sale del historial de cobros, no de un puntaje: es para que quien
+              clasifique el riesgo mire hechos.
+            </p>
+          </section>
+
           {saldosCasco.length > 0 && (
             <section className="borde-seccion">
               <h2 className="titulo-seccion">Envases retornables en poder del cliente</h2>

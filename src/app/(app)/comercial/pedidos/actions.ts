@@ -260,7 +260,10 @@ export async function crearPedido(
           importesFuncionales.totalFuncional,
           limiteCredito
         );
-        if (evaluacion.excede) {
+        // Un cliente «sujeto a aprobación» va a la bandeja aunque le sobre
+        // cupo: no es que no tenga límite, es que no tiene autonomía. Sin
+        // esto la bandera del maestro sería un dato que nadie usa.
+        if (evaluacion.excede || cliente.requiereAprobacionCredito) {
           credito = {
             estadoAprobacionCredito: "PENDIENTE",
             condicionPagoCredito: condicionPago,
