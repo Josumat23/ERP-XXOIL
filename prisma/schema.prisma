@@ -1462,6 +1462,24 @@ enum TipoCuentaBancaria {
   AHORROS
 }
 
+/// Estado del RUC según SUNAT. Es su lista, no una clasificación del sistema.
+enum EstadoRuc {
+  ACTIVO
+  SUSPENSION_TEMPORAL
+  BAJA_PROVISIONAL
+  BAJA_DEFINITIVA
+  BAJA_DE_OFICIO
+}
+
+/// Condición del domicilio según SUNAT: distinta del estado, y la que dice si
+/// se lo puede ubicar.
+enum CondicionRuc {
+  HABIDO
+  NO_HABIDO
+  NO_HALLADO
+  PENDIENTE
+}
+
 enum PrioridadAtencion {
   ALTA
   NORMAL
@@ -1581,8 +1599,39 @@ model Cliente {
   /// donde era inequívoco (10 → natural, 20 → jurídica) y dejó null en el
   /// resto, antes que inventarlo.
   tipoPersona          TipoPersona?
+
+  // --- Datos fiscales declarados ------------------------------------------
+  //
+  // TODO lo que sigue se carga a mano desde la ficha RUC. **No hay servicio
+  // de SUNAT conectado**, así que el sistema no valida ni refresca nada: son
+  // transcripciones, y por eso guardan cuándo y de dónde se consultaron. Un
+  // estado de RUC cacheado y nunca refrescado deja de ser un dato y pasa a
+  // ser una afirmación falsa.
+
+  /// Lo que dice la ficha RUC: «SOCIEDAD ANONIMA CERRADA», «PERSONA NATURAL
+  /// CON NEGOCIO». Se transcribe en vez de clasificarse, porque la lista es
+  /// de SUNAT y no del sistema.
+  tipoContribuyente String?
+  estadoRuc         EstadoRuc?
+  condicionRuc      CondicionRuc?
+  /// Cuándo se consultó y dónde. Sin esto, el estado de arriba no se puede
+  /// juzgar: no es lo mismo «activo, visto ayer» que «activo, visto en 2019».
+  rucConsultadoEn   DateTime?
+  rucFuenteConsulta String?
+
+  /// Regímenes de retención y percepción, y la calidad de buen contribuyente.
+  /// **No alteran ningún cálculo.** Las tasas y los supuestos son normativos
+  /// y el negocio todavía no confirmó su régimen; hacer que cambien un
+  /// comprobante sería inventar una regla tributaria. Hoy son información
+  /// para quien emite.
+  agenteRetencion      Boolean       @default(false)
+  agentePercepcion     Boolean       @default(false)
+  buenContribuyente    Boolean       @default(false)
+  /// Afectación declarada (exoneración de selva, inafectación...). Igual que
+  /// arriba: se transcribe y no cambia el IGV que se calcula.
+  afectacionTributaria String?
   canal                CanalCliente?
-  pais                 String              @default("Peru")
+  pais                 String        @default("Peru")
   // Texto libre heredado. Se conserva: tiene datos que no matchean ningún
   // ubigeo (direcciones en el extranjero, escrituras no oficiales) y es lo
   // que el usuario escribió. Para datos nuevos manda ubigeoId.
