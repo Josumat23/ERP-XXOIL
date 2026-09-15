@@ -15,6 +15,8 @@ import { actualizarCliente, aprobarCambioLimiteCredito } from "../actions";
 import ResolverLimiteFormulario from "./ResolverLimiteFormulario";
 import DireccionesCliente from "./DireccionesCliente";
 import ContactosCliente from "./ContactosCliente";
+import CuentasBancariasCliente from "./CuentasBancariasCliente";
+import { puedeVerCuentasBancarias } from "@/lib/cuentasBancariasCliente";
 import { propositosSinContacto } from "@/lib/contactosCliente";
 import { depositoComprometido, saldoCascos } from "@/lib/logisticaCliente";
 import {
@@ -111,6 +113,26 @@ export default async function EditarClientePage({
   // Editar direcciones es editar el maestro: mismo permiso que el resto de
   // la ficha, no el de aprobar.
   const puedeEditar = await puedeRealizar(usuario, "ventas", "editar");
+
+  // Las cuentas bancarias son de Finanzas. Dos cosas importan acá:
+  //
+  // 1. El ROL es la puerta. `puedeRealizar` devuelve `true` para un usuario sin
+  //    grupo de seguridad —el caso normal—, porque los grupos solo estrechan lo
+  //    que el rol concede. Confiar solo en él dejaba entrar a Ventas.
+  // 2. La consulta va aparte y SOLO si hay permiso: traer los números y no
+  //    pintarlos los dejaría igual en el payload que viaja al navegador, que es
+  //    donde un dato restringido no debe estar.
+  const puedeVerCuentas =
+    puedeVerCuentasBancarias(usuario.rol) &&
+    (await puedeRealizar(usuario, "finanzas", "ver"));
+  const puedeEditarCuentas =
+    puedeVerCuentas && (await puedeRealizar(usuario, "finanzas", "editar"));
+  const cuentasBancarias = puedeVerCuentas
+    ? await prisma.cuentaBancariaCliente.findMany({
+        where: { clienteId: id, empresaId },
+        orderBy: [{ activa: "desc" }, { esPrincipal: "desc" }, { banco: "asc" }],
+      })
+    : [];
 
   const puedeResolverLimite =
     (usuario.rol === "GERENCIA" || usuario.rol === "ADMIN") &&
@@ -251,6 +273,13 @@ export default async function EditarClientePage({
             faltantes={tiposFaltantes(cliente.direcciones)}
             puedeEditar={puedeEditar}
           />
+          {puedeVerCuentas && (
+            <CuentasBancariasCliente
+              clienteId={cliente.id}
+              cuentas={cuentasBancarias}
+              puedeEditar={puedeEditarCuentas}
+            />
+          )}
           <ContactosCliente
             clienteId={cliente.id}
             contactos={cliente.contactos}

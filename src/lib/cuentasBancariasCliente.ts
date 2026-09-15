@@ -5,6 +5,22 @@
 // Es el dato más delicado del maestro: un número de cuenta cambiado por quien
 // no debía tocarlo es una transferencia que se va a otro lado.
 
+/**
+ * Quién puede ver y tocar las cuentas bancarias de un cliente.
+ *
+ * El rol tiene que ser la puerta: `puedeRealizar` devuelve `true` para un
+ * usuario **sin grupo de seguridad**, porque los grupos solo estrechan lo que
+ * el rol ya concede. Confiar solo en él dejaba entrar a Ventas.
+ *
+ * ADMIN entra siempre por `requerirRol`; se nombra igual para que la lista se
+ * lea sola.
+ */
+export const ROLES_FINANZAS = ["ADMIN", "GERENCIA"] as const;
+
+export function puedeVerCuentasBancarias(rol: string): boolean {
+  return (ROLES_FINANZAS as readonly string[]).includes(rol);
+}
+
 export type TipoCuentaBancaria = "CORRIENTE" | "AHORROS";
 
 export const ETIQUETA_TIPO_CUENTA: Record<TipoCuentaBancaria, string> = {
