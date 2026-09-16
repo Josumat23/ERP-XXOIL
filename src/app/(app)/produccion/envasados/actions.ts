@@ -10,6 +10,7 @@ import { siguienteCodigoEnvasado } from "@/lib/correlativos";
 import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { normalizarInsumosEnvasado, type InsumoEnvasadoNormalizado } from "@/lib/insumosEnvasado";
 import { postearAsiento } from "@/lib/contabilidad";
+import { MENSAJE_ERROR_REANALISIS, validarReanalisis } from "@/lib/reanalisis";
 
 export type EstadoFormulario = { error?: string };
 
@@ -203,4 +204,94 @@ export async function crearEnvasado(
   revalidatePath("/produccion/envasados");
   revalidatePath("/produccion/lotes");
   redirect("/produccion/envasados");
+}
+
+/**
+ * Registra un re-análisis de vigencia sobre un lote envasado.
+ *
+ * Un lubricante no se echa a perder al llegar su fecha: el laboratorio lo
+ * vuelve a ensayar y, si sigue en especificación, le da vigencia nueva. Sin
+ * esto `vidaUtilMeses` vence duro y obliga a castigar stock bueno.
+ *
+ * **No es cambiar una fecha.** El evento conserva el vencimiento anterior,
+ * quién ensayó, contra qué plan y con qué resultado — extender un vencimiento
+ * sin dejar rastro es exactamente lo que una auditoría de calidad busca.
+ */
+export async function registrarReanalisis(
+  envasadoId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["PRODUCCION"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Producción." };
+  }
+
+  const resultado = String(formData.get("resultado") ?? "");
+  if (resultado !== "APROBADO" && resultado !== "RECHAZADO") {
+    return { error: "Seleccione el resultado del ensayo." };
+  }
+  const crudo = String(formData.get("vencimientoNuevo") ?? "").trim();
+  if (!crudo) return { error: "Indique el vencimiento nuevo." };
+  // `new Date("2027-03-01")` se interpreta en UTC y en Perú cae un día antes.
+  const [anio, mes, dia] = crudo.split("-").map(Number);
+  const vencimientoNuevo = new Date(anio, (mes ?? 1) - 1, dia ?? 1);
+  if (Number.isNaN(vencimientoNuevo.getTime())) return { error: "El vencimiento no es una fecha válida." };
+
+  const planInspeccionId = String(formData.get("planInspeccionId") ?? "").trim() || null;
+  const observaciones = String(formData.get("observaciones") ?? "").trim() || null;
+  const empresaId = auth.usuario.empresaId;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      const envasado = await tx.envasado.findFirst({ where: { id: envasadoId, empresaId } });
+      if (!envasado) throw new Error("El envasado no existe o no es de la compañía activa.");
+
+      const error = validarReanalisis({
+        vencimientoActual: envasado.fechaVencimiento,
+        vencimientoNuevo,
+        resultado,
+        unidadesDisponibles: envasado.unidadesDisponibles,
+      });
+      if (error) throw new Error(MENSAJE_ERROR_REANALISIS[error]);
+
+      // El plan tiene que ser de la compañía activa: no se confía en el id que
+      // llega del formulario.
+      let planVersion: number | null = null;
+      if (planInspeccionId) {
+        const plan = await tx.planInspeccionCalidad.findFirst({
+          where: { id: planInspeccionId, empresaId },
+          select: { version: true },
+        });
+        if (!plan) throw new Error("El plan de inspección no pertenece a la compañía activa.");
+        planVersion = plan.version;
+      }
+
+      await tx.reanalisisEnvasado.create({
+        data: {
+          empresaId,
+          envasadoId,
+          vencimientoAnterior: envasado.fechaVencimiento!,
+          vencimientoNuevo,
+          resultado,
+          planInspeccionId,
+          planVersion,
+          observaciones,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+
+      await tx.envasado.update({
+        where: { id: envasadoId },
+        data: { fechaVencimiento: vencimientoNuevo },
+      });
+    });
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "No se pudo registrar el re-análisis." };
+  }
+
+  revalidatePath(`/produccion/envasados/${envasadoId}`);
+  return {};
 }

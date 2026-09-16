@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { efectoReanalisis, vencimientoSugerido } from "@/lib/reanalisis";
+import { registrarReanalisis } from "../actions";
+import ReanalisisFormulario from "./ReanalisisFormulario";
 import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { formatMoneda, formatNumero } from "@/lib/format";
@@ -21,6 +24,10 @@ export default async function DetalleEnvasadoPage({
       where: { id, loteGranel: { empresaId: usuario.empresaId } },
       include: {
         loteGranel: { include: { formula: { include: { producto: true } } } },
+        reanalisis: {
+          include: { planInspeccion: { select: { nombre: true } } },
+          orderBy: { fecha: "desc" },
+        },
         presentacion: true,
         insumos: { include: { insumo: true } },
         asignacionesLote: {
@@ -48,6 +55,32 @@ export default async function DetalleEnvasadoPage({
     }),
   ]);
   if (!envasado) notFound();
+
+  // Planes de inspección vigentes del producto: contra qué se puede ensayar.
+  const [planes, puedeReanalizar] = await Promise.all([
+    prisma.planInspeccionCalidad.findMany({
+      where: {
+        empresaId: usuario.empresaId,
+        activo: true,
+        productoId: envasado.loteGranel.formula.productoId,
+      },
+      orderBy: { version: "desc" },
+    }),
+    puedeRealizar(usuario, "produccion", "editar"),
+  ]);
+
+  // Sugerencia para el formulario: la vida útil del producto contada desde hoy.
+  // Es una sugerencia y no una regla — la vigencia la decide el laboratorio.
+  const propuesto = vencimientoSugerido(envasado.loteGranel.formula.producto.vidaUtilMeses);
+  const sugerido = propuesto
+    ? [
+        propuesto.getFullYear(),
+        String(propuesto.getMonth() + 1).padStart(2, "0"),
+        String(propuesto.getDate()).padStart(2, "0"),
+      ].join("-")
+    : null;
+
+  const fechaCorta = new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" });
 
   // Neto vigente (ASIGNADA − LIBERADA) por línea de pedido, para saber a qué
   // clientes/facturas les llegó efectivamente unidades de este envasado hoy.
@@ -122,6 +155,12 @@ export default async function DetalleEnvasadoPage({
           >
             Vence: {new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(envasado.fechaVencimiento)}
             {envasado.fechaVencimiento < new Date() && " — VENCIDO"}
+            {envasado.reanalisis.length > 0 && (
+              <span className="text-neutral-500 font-normal">
+                {" "}· vigencia revisada {envasado.reanalisis.length}{" "}
+                {envasado.reanalisis.length === 1 ? "vez" : "veces"}
+              </span>
+            )}
           </p>
         )}
         <p className="text-xs mt-2" style={{ color: "var(--epicor-texto-tenue)" }}>
@@ -198,6 +237,79 @@ export default async function DetalleEnvasadoPage({
               )}
             </tbody>
           </table>
+        </section>
+
+        {/*
+          Re-análisis de vigencia. Un lubricante no se echa a perder al llegar
+          su fecha: se vuelve a ensayar y, si sigue en especificación, se le da
+          vigencia nueva. El historial se muestra siempre que exista, porque
+          extender un vencimiento sin dejar rastro es lo que una auditoría de
+          calidad busca.
+        */}
+        <section className="borde-seccion mt-6">
+          <h2 className="text-lg font-semibold mb-1">Vigencia y re-análisis</h2>
+          <p className="text-sm mb-3" style={{ color: "var(--epicor-texto-tenue)" }}>
+            La vida útil del producto es una estimación conservadora. Llegado el vencimiento, el
+            laboratorio vuelve a ensayar el lote y le da vigencia nueva si sigue en especificación.
+          </p>
+
+          {envasado.reanalisis.length > 0 && (
+            <div className="overflow-x-auto mb-4">
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Resultado</th>
+                    <th>Vencía</th>
+                    <th>Pasó a</th>
+                    <th>Efecto</th>
+                    <th>Plan</th>
+                    <th>Quién</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {envasado.reanalisis.map((r) => {
+                    const efecto = efectoReanalisis(r.vencimientoAnterior, r.vencimientoNuevo);
+                    return (
+                      <tr key={r.id}>
+                        <td>{fechaCorta.format(r.fecha)}</td>
+                        <td
+                          className={
+                            r.resultado === "RECHAZADO"
+                              ? "text-red-600 dark:text-red-400 font-medium"
+                              : ""
+                          }
+                        >
+                          {r.resultado}
+                        </td>
+                        <td>{fechaCorta.format(r.vencimientoAnterior)}</td>
+                        <td>{fechaCorta.format(r.vencimientoNuevo)}</td>
+                        <td>{efecto.texto}</td>
+                        <td>
+                          {r.planInspeccion
+                            ? `${r.planInspeccion.nombre} v${r.planVersion ?? "?"}`
+                            : "—"}
+                        </td>
+                        <td>{r.usuarioNombre}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {puedeReanalizar ? (
+            <ReanalisisFormulario
+              accion={registrarReanalisis.bind(null, envasado.id)}
+              planes={planes.map((p) => ({ id: p.id, etiqueta: `${p.nombre} v${p.version}` }))}
+              vencimientoSugerido={sugerido}
+            />
+          ) : (
+            <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
+              Su grupo de seguridad no permite registrar re-análisis.
+            </p>
+          )}
         </section>
       </div>
       </PanelMaestroDetalle>
