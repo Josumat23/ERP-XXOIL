@@ -1059,18 +1059,19 @@ model EventoNoConformidadCalidad {
 }
 
 model PlanInspeccionCalidad {
-  id            String    @id @default(cuid())
-  empresaId     String    @default("1")
-  empresa       Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  productoId    String
-  version       Int
-  nombre        String
-  vigenteDesde  DateTime  @default(now())
-  vigenteHasta  DateTime?
-  activo        Boolean   @default(true)
-  usuarioId     String
-  usuarioNombre String
-  creadoEn      DateTime  @default(now())
+  reanalisisEnvasado ReanalisisEnvasado[]
+  id                 String               @id @default(cuid())
+  empresaId          String               @default("1")
+  empresa            Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  productoId         String
+  version            Int
+  nombre             String
+  vigenteDesde       DateTime             @default(now())
+  vigenteHasta       DateTime?
+  activo             Boolean              @default(true)
+  usuarioId          String
+  usuarioNombre      String
+  creadoEn           DateTime             @default(now())
 
   producto        Producto                    @relation(fields: [productoId], references: [id])
   caracteristicas CaracteristicaPlanCalidad[]
@@ -1176,9 +1177,10 @@ model ReclamoCliente {
 // ---------------------------------------------------------------------------
 
 model Envasado {
-  id                  String    @id @default(cuid())
-  empresaId           String    @default("1")
-  empresa             Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  reanalisis          ReanalisisEnvasado[]
+  id                  String               @id @default(cuid())
+  empresaId           String               @default("1")
+  empresa             Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo              String // ENV-00001
   loteGranelId        String
   presentacionId      String
@@ -1187,13 +1189,13 @@ model Envasado {
   // venta (arranca en `unidades`, baja al facturar y sube si se anula/
   // devuelve). Permite trazar, ante un recall, qué facturas/clientes
   // recibieron un lote específico (ver AsignacionLoteVenta).
-  unidadesDisponibles Int       @default(0)
+  unidadesDisponibles Int                  @default(0)
   kgConsumidos        Decimal // unidades * contenidoKg de la presentación
-  horasManoObra       Decimal   @default(0) // horas-hombre invertidas en el envasado
-  costoManoObra       Decimal   @default(0) // horasManoObra * tarifa vigente al envasar
-  costoTotal          Decimal   @default(0) // granel consumido + envases/etiquetas + mano de obra
-  costoUnitario       Decimal   @default(0) // costoTotal / unidades
-  fecha               DateTime  @default(now())
+  horasManoObra       Decimal              @default(0) // horas-hombre invertidas en el envasado
+  costoManoObra       Decimal              @default(0) // horasManoObra * tarifa vigente al envasar
+  costoTotal          Decimal              @default(0) // granel consumido + envases/etiquetas + mano de obra
+  costoUnitario       Decimal              @default(0) // costoTotal / unidades
+  fecha               DateTime             @default(now())
   // El código del envasado (ENV-00001) YA funciona como número de lote. Esta
   // fecha se calcula sola desde Producto.vidaUtilMeses al envasar (editable);
   // null si el producto no tiene vida útil configurada.
@@ -5571,18 +5573,19 @@ model Contacto {
 // que operan sobre toda la base, no sobre una compañía.
 // ---------------------------------------------------------------------------
 model Empresa {
-  tanques         Tanque[]
-  id              String   @id @default(cuid())
-  razonSocial     String
-  ruc             String?
-  pais            String   @default("Peru")
-  monedaFuncional String   @default("PEN")
+  reanalisisEnvasado ReanalisisEnvasado[]
+  tanques            Tanque[]
+  id                 String               @id @default(cuid())
+  razonSocial        String
+  ruc                String?
+  pais               String               @default("Peru")
+  monedaFuncional    String               @default("PEN")
   // La compañía "1" (creada por asegurarEmpresaPrincipal()) es la que ya
   // tenían todos los registros existentes antes de este cambio — no se puede
   // desactivar porque toda la data histórica cuelga de ella.
-  esPrincipal     Boolean  @default(false)
-  activa          Boolean  @default(true)
-  creadoEn        DateTime @default(now())
+  esPrincipal        Boolean              @default(false)
+  activa             Boolean              @default(true)
+  creadoEn           DateTime             @default(now())
 
   cuentasBancarias           CuentaBancariaEmpresa[]
   usuarios                   Usuario[]
@@ -5754,4 +5757,46 @@ model AporteTanque {
 
   @@index([tanqueId])
   @@map("aportes_tanque")
+}
+
+/// Re-análisis de un lote envasado para extender (o acortar) su vigencia.
+///
+/// Un lubricante no se echa a perder al llegar su fecha: se vuelve a ensayar y,
+/// si sigue en especificación, se le da vigencia nueva. Sin esto, `vidaUtilMeses`
+/// vence duro y obliga a castigar stock bueno.
+///
+/// **No es cambiar una fecha: es un evento con evidencia.** Extender un
+/// vencimiento sin dejar rastro de quién ensayó, contra qué plan y con qué
+/// resultado es exactamente lo que una auditoría de calidad busca. Por eso el
+/// vencimiento anterior se conserva en la fila, y no solo el nuevo.
+model ReanalisisEnvasado {
+  id         String @id @default(cuid())
+  empresaId  String @default("1")
+  envasadoId String
+
+  /// Lo que decía antes. Se guarda acá y no se deduce del historial: el
+  /// envasado ya fue actualizado cuando alguien lee esto.
+  vencimientoAnterior DateTime
+  vencimientoNuevo    DateTime
+
+  /// Un resultado RECHAZADO no extiende nada — queda registrado justamente
+  /// para que conste que se ensayó y no pasó.
+  resultado ResultadoCalidad
+
+  /// Contra qué plan se ensayó, con su versión: un plan cambia, y el ensayo
+  /// tiene que poder reconstruirse tal como se hizo.
+  planInspeccionId String?
+  planVersion      Int?
+
+  observaciones String?
+  fecha         DateTime @default(now())
+  usuarioId     String
+  usuarioNombre String
+
+  empresa        Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  envasado       Envasado               @relation(fields: [envasadoId], references: [id], onDelete: Cascade)
+  planInspeccion PlanInspeccionCalidad? @relation(fields: [planInspeccionId], references: [id], onDelete: Restrict)
+
+  @@index([envasadoId])
+  @@map("reanalisis_envasado")
 }
