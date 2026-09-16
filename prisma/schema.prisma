@@ -322,28 +322,39 @@ enum SegmentoMercado {
 }
 
 model Producto {
-  id               String           @id @default(cuid())
-  empresaId        String           @default("1")
-  empresa          Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
-  categoriaId      String
-  codigo           String
-  nombre           String
-  descripcion      String?
-  unidadMedidaBase String           @default("kg") // UM en que se produce y controla el granel
-  segmentoMercado  SegmentoMercado?
-  marca            String?
-  gradoNlgi        String? // grasas: NLGI 000..6
-  viscosidad       String? // aceites: ISO VG / SAE
-  vidaUtilMeses    Int? // vida útil desde el envasado; null = no vence / no se controla
+  id                     String           @id @default(cuid())
+  empresaId              String           @default("1")
+  empresa                Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  categoriaId            String
+  codigo                 String
+  nombre                 String
+  descripcion            String?
+  unidadMedidaBase       String           @default("kg") // UM en que se produce y controla el granel
+  segmentoMercado        SegmentoMercado?
+  marca                  String?
+  gradoNlgi              String? // grasas: NLGI 000..6
+  viscosidad             String? // aceites: ISO VG / SAE
+  // Densidad de ESPECIFICACION, en kg por litro, a la temperatura de
+  // referencia declarada. Es lo que convierte masa en volumen: el granel se
+  // produce y cuesta en kg, y el producto se vende y se declara en litros o
+  // galones. Sin este dato el sistema no convierte, en vez de suponer un
+  // factor — que es como SAP se equivoca (MARM guarda un factor fijo por
+  // material y la conversion sale mal en silencio cuando el lote difiere).
+  densidadKgL            Decimal?
+  // Sin temperatura, una densidad no significa nada: un lubricante cambia
+  // ~0,7 % cada 10 grados. 15 C es la referencia habitual de los ensayos de
+  // petroleo (ASTM D1298 / D4052); se declara y no se asume.
+  temperaturaReferenciaC Decimal?
+  vidaUtilMeses          Int? // vida útil desde el envasado; null = no vence / no se controla
   // Enlaces a los documentos que un cliente industrial/distribuidor pide antes
   // de comprar (alojados fuera del sistema: Drive, S3, etc. — no hay
   // almacenamiento de archivos en esta app). null = no cargado todavía.
-  fichaTecnicaUrl  String?
-  hojaSeguridadUrl String?
-  notasTecnicas    String?
-  activo           Boolean          @default(true)
-  creadoEn         DateTime         @default(now())
-  actualizadoEn    DateTime         @updatedAt
+  fichaTecnicaUrl        String?
+  hojaSeguridadUrl       String?
+  notasTecnicas          String?
+  activo                 Boolean          @default(true)
+  creadoEn               DateTime         @default(now())
+  actualizadoEn          DateTime         @updatedAt
 
   categoria        Categoria               @relation(fields: [categoriaId], references: [id])
   presentaciones   Presentacion[]
@@ -822,6 +833,10 @@ model LoteGranel {
   kgObjetivo               Decimal
   kgProducidos             Decimal                   @default(0)
   mermaKg                  Decimal                   @default(0)
+  // Densidad MEDIDA de este lote, cuando el ensayo la registro. La densidad
+  // de un lote difiere de la especificacion del producto, y es la unica que
+  // describe lo que de verdad se envaso. Si es null rige la del producto.
+  densidadKgL              Decimal?
   kgDisponibles            Decimal                   @default(0) // granel aprobado aún no envasado
   costoInsumos             Decimal                   @default(0) // costo total de insumos consumidos al crear el lote
   costoReproceso           Decimal                   @default(0) // costo heredado del lote rechazado incorporado al reproceso

@@ -3,6 +3,11 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import {
+  densidadFueraDeRangoTipico,
+  DENSIDAD_TIPICA_MAX,
+  DENSIDAD_TIPICA_MIN,
+} from "@/lib/densidad";
 import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarMovimiento } from "@/lib/inventario";
@@ -285,6 +290,23 @@ export async function finalizarLote(
     return { error: "Las horas de mano de obra deben ser mayores o iguales a 0." };
   }
 
+  // Densidad MEDIDA de este lote. La especificación del producto dice a qué se
+  // apunta; esto dice qué salió, y lo que se envasó es lo que salió. Es
+  // opcional: si el ensayo no la registró, rige la del producto.
+  const densidadRaw = String(formData.get("densidadKgL") ?? "").trim();
+  const densidadKgL = densidadRaw ? Number(densidadRaw) : null;
+  if (densidadKgL !== null && (!Number.isFinite(densidadKgL) || densidadKgL <= 0)) {
+    return { error: "La densidad medida debe ser un número mayor a 0, en kg por litro." };
+  }
+  if (densidadKgL !== null && densidadFueraDeRangoTipico(densidadKgL)) {
+    // No se prohíbe: se avisa. Un lubricante ronda 0,80–1,05 kg/L, así que un
+    // 8,7 es casi seguro la coma corrida — y produciría un volumen diez veces
+    // menor en cada comprobante de este lote.
+    return {
+      error:`La densidad ${densidadKgL} kg/L está fuera del rango habitual de un lubricante (${DENSIDAD_TIPICA_MIN}–${DENSIDAD_TIPICA_MAX}). Verifique la coma decimal; si el valor es correcto, cárguelo desde la ficha del producto.`,
+    };
+  }
+
   const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa(auth.usuario.empresaId);
   try {
     await prisma.$transaction(async (tx) => {
@@ -313,6 +335,7 @@ export async function finalizarLote(
         where: { id, empresaId: auth.usuario.empresaId, estado: "EN_PROCESO" },
         data: {
           kgProducidos,
+          densidadKgL,
           mermaKg: merma,
           horasManoObra,
           costoManoObra,

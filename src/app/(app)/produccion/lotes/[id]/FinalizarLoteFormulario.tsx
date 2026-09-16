@@ -43,6 +43,24 @@ export default function FinalizarLoteFormulario({ loteId, kgObjetivo, tieneRuta 
             className="campo-input w-40"
           />
         </label>
+        {/*
+          Densidad medida de ESTE lote. La especificación del producto dice a
+          qué se apunta; esto dice qué salió, y lo que se envasa es lo que
+          salió. Opcional: si el ensayo no la registró, rige la del producto.
+        */}
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Densidad medida (kg/L)
+          </span>
+          <input
+            name="densidadKgL"
+            type="number"
+            step="0.0001"
+            min="0"
+            placeholder="opcional"
+            className="campo-input w-40"
+          />
+        </label>
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Registrando..." : "Finalizar y enviar a calidad"}
         </button>

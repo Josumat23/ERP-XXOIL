@@ -2,6 +2,7 @@ import "server-only";
 
 import { prisma } from "@/lib/prisma";
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
+import { itemComprobante } from "@/lib/itemComprobante";
 
 // Arma los datos SUNAT de una guía ya creada y los envía al OSE configurado.
 // Solo debe llamarse desde flujos que ya validaron autorización.
@@ -12,7 +13,7 @@ export async function enviarComprobanteGuiaInterno(guiaId: string): Promise<void
       cliente: true,
       ubigeoPartida: true,
       ubigeoLlegada: true,
-      detalles: { include: { presentacion: true } },
+      detalles: { include: { presentacion: { include: { producto: true } } } },
     },
   });
   if (!guia) return;
@@ -37,12 +38,7 @@ export async function enviarComprobanteGuiaInterno(guiaId: string): Promise<void
       totalGravada: 0,
       totalIgv: 0,
       total: 0,
-      items: guia.detalles.map((d) => ({
-        descripcion: d.presentacion.nombre,
-        unidadMedida: d.presentacion.unidadMedidaSunat,
-        cantidad: d.cantidad,
-        valorUnitario: 0,
-      })),
+      items: guia.detalles.map((d) => itemComprobante(d.presentacion, d.cantidad, 0)),
       guia: {
         destinatarioRuc: guia.cliente.ruc ?? "",
         destinatarioDenominacion: guia.cliente.razonSocial,

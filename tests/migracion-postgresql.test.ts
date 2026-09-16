@@ -17,11 +17,18 @@ const RAIZ = process.cwd();
 const VIVAS = resolve(RAIZ, "prisma/migrations");
 const ARCHIVO = resolve(RAIZ, "prisma/migraciones-sqlite-historico");
 
-test("la carpeta viva tiene una sola línea base, de PostgreSQL", async () => {
+test("la carpeta viva arranca en la línea base de PostgreSQL", async () => {
+  // Lo que se fija es que la PRIMERA migración sea la línea base, no que sea
+  // la única: agregar migraciones es lo normal. La versión anterior de esta
+  // guardia exigía exactamente una carpeta y se rompió con la primera
+  // migración nueva — una guardia que estorba al trabajo legítimo se termina
+  // borrando, y con ella la protección que sí importaba.
   const entradas = (await readdir(VIVAS, { withFileTypes: true }))
     .filter((e) => e.isDirectory())
-    .map((e) => e.name);
-  assert.deepEqual(entradas, ["00000000000000_baseline_postgres"]);
+    .map((e) => e.name)
+    .sort();
+  assert.ok(entradas.length >= 1, "no hay ninguna migración");
+  assert.equal(entradas[0], "00000000000000_baseline_postgres", "la línea base dejó de ser la primera");
 
   const lock = await readFile(resolve(VIVAS, "migration_lock.toml"), "utf8");
   assert.match(lock, /provider = "postgresql"/);
