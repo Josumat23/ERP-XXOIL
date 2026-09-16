@@ -15,6 +15,7 @@ import {
   postearNotaDebito,
 } from "@/lib/contabilidad";
 import { enviarComprobanteElectronico } from "@/lib/facturacionElectronica";
+import { itemComprobante } from "@/lib/itemComprobante";
 import { aplicarRecargoAFactura } from "@/lib/recargoMora";
 import { calcularSaldoAcreditableDevolucion, crearDocumentoDevolucion, inspeccionarDetalleDevolucion } from "@/lib/devolucionesCliente";
 import { calcularDistribucionNotaCredito } from "@/lib/creditosCliente";
@@ -51,7 +52,7 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
     where: { id: facturaId, empresaId },
     include: {
       cliente: true,
-      detalles: { include: { presentacion: true } },
+      detalles: { include: { presentacion: { include: { producto: true } } } },
     },
   });
   if (!factura) return;
@@ -84,12 +85,9 @@ export async function enviarComprobanteFactura(facturaId: string): Promise<void>
       totalIgv: factura.igv.toNumber(),
       total: factura.total.toNumber(),
       tasaIgv: factura.tasaIgv.toNumber(),
-      items: factura.detalles.map((d) => ({
-        descripcion: d.presentacion.nombre,
-        unidadMedida: d.presentacion.unidadMedidaSunat,
-        cantidad: d.cantidad,
-        valorUnitario: d.precioUnitario.toNumber(),
-      })),
+      items: factura.detalles.map((d) =>
+        itemComprobante(d.presentacion, d.cantidad, d.precioUnitario.toNumber())
+      ),
     },
   });
 }
@@ -109,7 +107,11 @@ export async function enviarComprobanteNotaCredito(notaCreditoId: string): Promi
     where: { id: notaCreditoId, empresaId },
     include: {
       factura: { include: { cliente: true } },
-      detalles: { include: { pedidoDetalle: { include: { presentacion: true } } } },
+      detalles: {
+        include: {
+          pedidoDetalle: { include: { presentacion: { include: { producto: true } } } },
+        },
+      },
     },
   });
   if (!nc) return;
@@ -139,12 +141,13 @@ export async function enviarComprobanteNotaCredito(notaCreditoId: string): Promi
       totalIgv: montoIgv,
       total: nc.monto.toNumber(),
       tasaIgv: nc.factura.tasaIgv.toNumber(),
-      items: nc.detalles.map((d) => ({
-        descripcion: d.pedidoDetalle.presentacion.nombre,
-        unidadMedida: d.pedidoDetalle.presentacion.unidadMedidaSunat,
-        cantidad: d.cantidad.toNumber(),
-        valorUnitario: d.precioUnitario.toNumber(),
-      })),
+      items: nc.detalles.map((d) =>
+        itemComprobante(
+          d.pedidoDetalle.presentacion,
+          d.cantidad.toNumber(),
+          d.precioUnitario.toNumber()
+        )
+      ),
       facturaAfectadaSerie: facturaSerie || nc.factura.numero,
       facturaAfectadaNumero: facturaNumeroStr || "",
       motivo: nc.motivo,

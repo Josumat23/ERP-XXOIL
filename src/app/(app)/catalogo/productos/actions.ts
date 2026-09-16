@@ -33,6 +33,16 @@ function leerDatos(formData: FormData) {
   const marca = String(formData.get("marca") ?? "").trim() || null;
   const gradoNlgi = String(formData.get("gradoNlgi") ?? "").trim() || null;
   const viscosidad = String(formData.get("viscosidad") ?? "").trim() || null;
+  // Densidad: es lo que convierte masa en volumen. El granel se produce y se
+  // cuesta en kg; el producto se vende y se declara a SUNAT en litros o
+  // galones. Se deja vacía si no se conoce — el sistema entonces no convierte,
+  // en vez de suponer un factor.
+  const densidadKgLRaw = String(formData.get("densidadKgL") ?? "").trim();
+  const densidadKgL = densidadKgLRaw ? Number(densidadKgLRaw) : null;
+  const temperaturaReferenciaCRaw = String(formData.get("temperaturaReferenciaC") ?? "").trim();
+  const temperaturaReferenciaC = temperaturaReferenciaCRaw
+    ? Number(temperaturaReferenciaCRaw)
+    : null;
   const notasTecnicas = String(formData.get("notasTecnicas") ?? "").trim() || null;
   const vidaUtilMesesRaw = String(formData.get("vidaUtilMeses") ?? "").trim();
   const vidaUtilMeses = vidaUtilMesesRaw ? Number(vidaUtilMesesRaw) : null;
@@ -45,6 +55,23 @@ function leerDatos(formData: FormData) {
 
   if (!codigo || !nombre || !categoriaId) {
     return { error: "Código, nombre y categoría son obligatorios." } as const;
+  }
+  if (densidadKgL !== null && (!Number.isFinite(densidadKgL) || densidadKgL <= 0)) {
+    return { error: "La densidad debe ser un número mayor a 0, en kg por litro." } as const;
+  }
+  // Una densidad sin temperatura no significa nada: un lubricante cambia ~0,7 %
+  // cada 10 grados, así que el número solo es comparable si dice a qué se midió.
+  if (densidadKgL !== null && temperaturaReferenciaC === null) {
+    return {
+      error:
+        "Indique a qué temperatura se midió la densidad (los ensayos de petróleo suelen informarla a 15 °C).",
+    } as const;
+  }
+  if (
+    temperaturaReferenciaC !== null &&
+    (!Number.isFinite(temperaturaReferenciaC) || temperaturaReferenciaC < -50 || temperaturaReferenciaC > 200)
+  ) {
+    return { error: "La temperatura de referencia no parece válida." } as const;
   }
   if (vidaUtilMeses !== null && (!Number.isInteger(vidaUtilMeses) || vidaUtilMeses <= 0)) {
     return { error: "La vida útil debe ser un número entero de meses mayor a 0 (o déjelo vacío si no vence)." } as const;
@@ -63,6 +90,8 @@ function leerDatos(formData: FormData) {
       marca,
       gradoNlgi,
       viscosidad,
+      densidadKgL,
+      temperaturaReferenciaC,
       vidaUtilMeses,
       segmentoMercado,
       fichaTecnicaUrl,

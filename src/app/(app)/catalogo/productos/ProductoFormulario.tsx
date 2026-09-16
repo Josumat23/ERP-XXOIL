@@ -20,6 +20,8 @@ type Props = {
     marca: string | null;
     gradoNlgi: string | null;
     viscosidad: string | null;
+    densidadKgL: number | null;
+    temperaturaReferenciaC: number | null;
     vidaUtilMeses: number | null;
     segmentoMercado: string | null;
     fichaTecnicaUrl: string | null;
@@ -164,6 +166,42 @@ export default function ProductoFormulario({
                       placeholder="SAE 15W-40, ISO VG 68..."
                       className="campo-input"
                     />
+                  </Campo>
+                </div>
+                {/*
+                  La densidad es lo que convierte masa en volumen: el granel se
+                  produce y se cuesta en kg, y el producto se vende y se declara
+                  a SUNAT en litros o galones. Sin ella el sistema no convierte,
+                  en vez de suponer un factor.
+                */}
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Campo etiqueta="Densidad (kg/L)">
+                    <input
+                      name="densidadKgL"
+                      type="number"
+                      step="0.0001"
+                      min="0"
+                      defaultValue={valoresIniciales?.densidadKgL ?? ""}
+                      placeholder="0.8750"
+                      className="campo-input"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Convierte kilogramos a litros y galones. Sin este dato no se puede
+                      declarar la presentación en LTR ni GLL.
+                    </p>
+                  </Campo>
+                  <Campo etiqueta="Temperatura de la medición (°C)">
+                    <input
+                      name="temperaturaReferenciaC"
+                      type="number"
+                      step="0.1"
+                      defaultValue={valoresIniciales?.temperaturaReferenciaC ?? ""}
+                      placeholder="15"
+                      className="campo-input"
+                    />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Obligatoria si carga densidad: un lubricante cambia ~0,7 % cada 10 °C.
+                    </p>
                   </Campo>
                 </div>
                 <Campo etiqueta="Vida útil (meses desde el envasado, vacío = no vence)">

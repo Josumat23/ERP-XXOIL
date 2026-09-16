@@ -67,6 +67,10 @@ export default async function EditarProductoPage({
             marca: producto.marca,
             gradoNlgi: producto.gradoNlgi,
             viscosidad: producto.viscosidad,
+            densidadKgL: producto.densidadKgL ? producto.densidadKgL.toNumber() : null,
+            temperaturaReferenciaC: producto.temperaturaReferenciaC
+              ? producto.temperaturaReferenciaC.toNumber()
+              : null,
             vidaUtilMeses: producto.vidaUtilMeses,
             segmentoMercado: producto.segmentoMercado,
             fichaTecnicaUrl: producto.fichaTecnicaUrl,

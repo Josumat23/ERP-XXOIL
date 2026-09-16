@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { contenidoLitrosCoherente, densidadAplicable } from "@/lib/densidad";
 import { Prisma } from "@/generated/prisma/client";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
@@ -85,6 +86,44 @@ function leerDatos(formData: FormData) {
   } as const;
 }
 
+/**
+ * ¿El contenido en litros declarado es coherente con el peso y la densidad?
+ *
+ * `contenidoLitros` se carga a mano y hasta el 2026-09-16 no se comparaba con
+ * nada. Un balde de 20 kg de un producto de 0,88 kg/L son 22,7 L: si alguien
+ * escribe 20, ese error viaja hasta la cantidad declarada en la factura.
+ *
+ * Solo se comprueba si el producto tiene densidad cargada. Los productos que
+ * todavía no la tienen siguen funcionando igual — la restricción se activa sola
+ * a medida que se carga el dato, sin romper lo que ya existe.
+ */
+async function contenidoIncoherente(
+  tx: Prisma.TransactionClient,
+  datos: { productoId: string; contenidoKg: number; contenidoLitros: number | null }
+): Promise<string | null> {
+  if (datos.contenidoLitros === null) return null;
+  const producto = await tx.producto.findUnique({
+    where: { id: datos.productoId },
+    select: { densidadKgL: true, temperaturaReferenciaC: true },
+  });
+  const densidad = densidadAplicable({
+    densidadProductoKgL: producto?.densidadKgL?.toNumber() ?? null,
+    temperaturaReferenciaC: producto?.temperaturaReferenciaC?.toNumber() ?? null,
+  });
+  if (typeof densidad === "string") return null;
+
+  const { coherente, litrosEsperados } = contenidoLitrosCoherente({
+    contenidoKg: datos.contenidoKg,
+    contenidoLitros: datos.contenidoLitros,
+    densidad,
+  });
+  if (coherente) return null;
+  return (
+    `El contenido en litros no cuadra con el peso: ${datos.contenidoKg} kg a ${densidad.kgPorLitro} kg/L ` +
+    `son ${litrosEsperados.toFixed(2)} L, no ${datos.contenidoLitros}. Corrija el volumen o la densidad del producto.`
+  );
+}
+
 export async function crearPresentacion(
   _prevState: EstadoFormulario,
   formData: FormData
@@ -108,6 +147,8 @@ export async function crearPresentacion(
     await prisma.$transaction(async (tx) => {
       if (await tx.producto.count({ where: { id: resultado.datos.productoId, empresaId, activo: true } }) !== 1) throw new Error("El producto no pertenece a la empresa activa.");
       if (resultado.datos.zonaAlmacenId && await tx.zonaAlmacen.count({ where: { id: resultado.datos.zonaAlmacenId, almacen: { empresaId } } }) !== 1) throw new Error("La ubicación no pertenece a la empresa activa.");
+      const incoherencia = await contenidoIncoherente(tx, resultado.datos);
+      if (incoherencia) throw new Error(incoherencia);
       const creada = await tx.presentacion.create({ data: { ...resultado.datos, empresaId } });
       await registrarAuditoriaMaestro(tx, { entidad: "Presentacion", registroId: creada.id, accion: "CREAR", despues: creada, usuario: auth.usuario });
       if (stockInicial > 0) {
@@ -157,6 +198,8 @@ export async function actualizarPresentacion(
       const antes = await tx.presentacion.findFirstOrThrow({ where: { id, empresaId } });
       if (await tx.producto.count({ where: { id: resultado.datos.productoId, empresaId, activo: true } }) !== 1) throw new Error("El producto no pertenece a la empresa activa.");
       if (resultado.datos.zonaAlmacenId && await tx.zonaAlmacen.count({ where: { id: resultado.datos.zonaAlmacenId, almacen: { empresaId } } }) !== 1) throw new Error("La ubicación no pertenece a la empresa activa.");
+      const incoherencia = await contenidoIncoherente(tx, resultado.datos);
+      if (incoherencia) throw new Error(incoherencia);
       const despues = await tx.presentacion.update({ where: { id, empresaId }, data: resultado.datos });
       await registrarAuditoriaMaestro(tx, { entidad: "Presentacion", registroId: id, accion: "ACTUALIZAR", antes, despues, usuario: auth.usuario });
     });
