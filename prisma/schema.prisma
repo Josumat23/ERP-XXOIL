@@ -1092,6 +1092,13 @@ model CaracteristicaPlanCalidad {
   limiteSuperior Decimal?
   metodoEnsayo   String?
   obligatoria    Boolean  @default(true)
+  // Marca la característica cuyo valor medido ES la densidad del lote. El
+  // laboratorio ya la mide en el ensayo de liberación; sin esta marca el dato
+  // se quedaba en el resultado y alguien volvía a teclearlo al finalizar el
+  // lote — dos fuentes para el mismo hecho, y la que gobernaba la conversión a
+  // litros de cada comprobante era la tecleada ANTES de medir.
+  // Como máximo una por plan: con dos no habría forma de decir cuál rige.
+  esDensidad     Boolean  @default(false)
 
   plan PlanInspeccionCalidad @relation(fields: [planId], references: [id], onDelete: Cascade)
 

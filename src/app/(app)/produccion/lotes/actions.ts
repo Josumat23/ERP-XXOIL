@@ -310,9 +310,22 @@ export async function finalizarLote(
   const { tarifaHoraManoObra } = await obtenerConfiguracionEmpresa(auth.usuario.empresaId);
   try {
     await prisma.$transaction(async (tx) => {
-      const lote = await tx.loteGranel.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, include: { operaciones: true } });
+      const lote = await tx.loteGranel.findFirst({ where: { id, empresaId: auth.usuario.empresaId }, include: { operaciones: true, formula: true } });
       if (!lote) throw new Error("El lote no existe.");
       if (lote.estado !== "EN_PROCESO") throw new Error("Solo se puede finalizar un lote en proceso.");
+      // Si el plan de inspección vigente mide la densidad, la del ensayo es la
+      // que vale y se escribe al registrar calidad. Aceptar además una tecleada
+      // aquí daría dos caminos para el mismo dato, y el de aquí ocurre ANTES de
+      // medir: ganaría el número provisional hasta que el laboratorio lo pisara.
+      const planMideDensidad = await tx.caracteristicaPlanCalidad.count({
+        where: {
+          esDensidad: true,
+          plan: { productoId: lote.formula.productoId, empresaId: auth.usuario.empresaId, activo: true },
+        },
+      });
+      if (planMideDensidad > 0 && densidadKgL !== null) {
+        throw new Error("El plan de inspección vigente mide la densidad de este producto: la carga el laboratorio al registrar la calidad, no se ingresa al finalizar el lote.");
+      }
       if (lote.operaciones.some((operacion) => operacion.estado !== "COMPLETADA")) throw new Error("Complete todas las operaciones de la ruta antes de finalizar el lote.");
       const horasManoObra = lote.operaciones.length > 0
         ? lote.operaciones.reduce((total, operacion) => total + operacion.manoObraRealHoras.toNumber(), 0)

@@ -3,9 +3,9 @@
 import { useActionState } from "react";
 import { finalizarLote, type EstadoFormulario } from "../actions";
 
-type Props = { loteId: string; kgObjetivo: number; tieneRuta: boolean };
+type Props = { loteId: string; kgObjetivo: number; tieneRuta: boolean; planMideDensidad: boolean };
 
-export default function FinalizarLoteFormulario({ loteId, kgObjetivo, tieneRuta }: Props) {
+export default function FinalizarLoteFormulario({ loteId, kgObjetivo, tieneRuta, planMideDensidad }: Props) {
   const accion = finalizarLote.bind(null, loteId);
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(accion, {});
 
@@ -47,20 +47,27 @@ export default function FinalizarLoteFormulario({ loteId, kgObjetivo, tieneRuta 
           Densidad medida de ESTE lote. La especificación del producto dice a
           qué se apunta; esto dice qué salió, y lo que se envasa es lo que
           salió. Opcional: si el ensayo no la registró, rige la del producto.
+
+          El campo desaparece cuando el plan de inspección vigente la mide: en
+          ese caso la carga el laboratorio con el resto del ensayo. Ofrecer los
+          dos caminos dejaría que el número tecleado aquí —antes de medir—
+          gobernara la conversión a litros hasta que alguien registre calidad.
         */}
-        <label className="flex flex-col gap-1 text-sm">
-          <span className="font-medium text-neutral-700 dark:text-neutral-300">
-            Densidad medida (kg/L)
-          </span>
-          <input
-            name="densidadKgL"
-            type="number"
-            step="0.0001"
-            min="0"
-            placeholder="opcional"
-            className="campo-input w-40"
-          />
-        </label>
+        {!planMideDensidad && (
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              Densidad medida (kg/L)
+            </span>
+            <input
+              name="densidadKgL"
+              type="number"
+              step="0.0001"
+              min="0"
+              placeholder="opcional"
+              className="campo-input w-40"
+            />
+          </label>
+        )}
         <button type="submit" disabled={enviando} className="boton-primario">
           {enviando ? "Registrando..." : "Finalizar y enviar a calidad"}
         </button>
