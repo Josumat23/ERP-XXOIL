@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { randomBytes } from "node:crypto";
 import { Client } from "pg";
 import {
@@ -285,6 +285,21 @@ test("si faltan las herramientas, el error dice qué configurar", async () => {
     if (anterior === undefined) delete process.env[VARIABLE_BIN];
     else process.env[VARIABLE_BIN] = anterior;
   }
+});
+
+test("CI comprueba la versión del cliente, no solo la imprime", async () => {
+  // Un cliente de versión menor que el servidor se niega a volcar, y en CI eso
+  // no se ve: `postgresql-client-17` se instala, pero `/usr/bin/pg_dump` es el
+  // wrapper de Debian y sigue eligiendo la 16.
+  //
+  // Pasó el 2026-09-15. El paso imprimía `pg_dump --version` y nadie lo
+  // comparaba: quedó en verde, y la suite falló seis minutos más tarde. Un
+  // `--version` que nadie mira es la misma clase de guardia que pasa sin
+  // comprobar nada, así que esto fija que la comprobación sea una aserción.
+  const flujo = await readFile(resolve(process.cwd(), ".github/workflows/ci.yml"), "utf8");
+  assert.match(flujo, /postgresql-client-17/, "CI no instala el cliente 17");
+  assert.match(flujo, /PG_BIN_DIR=/, "CI no apunta a los binarios de la 17");
+  assert.match(flujo, /::error::/, "CI imprime la versión pero no falla si no es la que toca");
 });
 
 test("un controlador no acepta el origen ni el destino de otro motor", async () => {

@@ -54,11 +54,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # El respaldo usa `pg_dump`/`pg_restore`, y una versión de cliente menor
+      # El respaldo usa `pg_dump`/`pg_restore`, y una versión de cliente MENOR
       # que la del servidor se niega a volcar («server version mismatch»). El
       # runner trae el cliente 16 y el servicio de arriba es 17, así que hace
-      # falta el repositorio oficial. `--version` al final: si esto falla, que
-      # el error diga «faltan las herramientas» y no «falló el respaldo».
+      # falta el repositorio oficial.
+      #
+      # Instalarlo no alcanza: `/usr/bin/pg_dump` es el wrapper de Debian y
+      # sigue eligiendo la 16 aunque la 17 esté instalada. Por eso se apunta
+      # `PG_BIN_DIR` al binario de la 17 — la misma variable que usa una
+      # instalación portable, así que CI ejercita ese camino de paso.
+      #
+      # Y la comprobación es una ASERCIÓN, no un `--version` informativo. La
+      # primera versión de este paso imprimía la versión y nadie la comparaba:
+      # CI instaló la 17, usó la 16, el paso pasó en verde y la suite falló seis
+      # minutos después con un error que no hablaba de versiones hasta el final.
       - name: PostgreSQL client tools
         run: |
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -68,8 +77,15 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
-          pg_dump --version
-          pg_restore --version
+          echo "PG_BIN_DIR=/usr/lib/postgresql/17/bin" >> "$GITHUB_ENV"
+          for herramienta in pg_dump pg_restore; do
+            version=$("/usr/lib/postgresql/17/bin/$herramienta" --version)
+            echo "$version"
+            case "$version" in
+              *"(PostgreSQL) 17."*) ;;
+              *) echo "::error::$herramienta no es la 17: $version"; exit 1 ;;
+            esac
+          done
 
       - name: Create the build database
         run: psql "postgresql://postgres:postgres@localhost:5432/postgres" -c 'CREATE DATABASE erp_ci'
