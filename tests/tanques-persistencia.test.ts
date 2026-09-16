@@ -35,10 +35,11 @@ async function escenario(sufijo: string) {
   const almacen = await prisma.almacen.findFirstOrThrow({ where: { empresaId } });
 
   const proveedor = await prisma.proveedor.create({
-    data: { razonSocial: "Base lubricante " + sufijo, ruc: "20" + sufijo.padStart(9, "0").slice(-9) },
+    data: { empresaId, razonSocial: "Base lubricante " + sufijo, ruc: "20" + sufijo.padStart(9, "0").slice(-9) },
   });
   const insumo = await prisma.insumo.create({
     data: {
+      empresaId,
       codigo: "BASE-" + sufijo,
       nombre: "Base 150 SN " + sufijo,
       tipo: "MATERIA_PRIMA",
@@ -49,6 +50,7 @@ async function escenario(sufijo: string) {
   });
   const oc = await prisma.ordenCompra.create({
     data: {
+      empresaId,
       numero: "OC-TQ-" + sufijo,
       proveedorId: proveedor.id,
       total: 1000,
@@ -57,7 +59,7 @@ async function escenario(sufijo: string) {
     },
   });
   const recepcion = await prisma.recepcionCompra.create({
-    data: { numero: "RC-TQ-" + sufijo, ordenCompraId: oc.id, ...audit },
+    data: { empresaId, numero: "RC-TQ-" + sufijo, ordenCompraId: oc.id, ...audit },
   });
 
   // Dos recepciones del MISMO insumo: es lo que se va a mezclar.
@@ -141,10 +143,11 @@ test("un tanque no acepta un insumo que no es el suyo", async () => {
   const audit = await auditoria();
 
   const proveedorAjeno = await prisma.proveedor.create({
-    data: { razonSocial: "Aditivos " + sufijo, ruc: "21" + sufijo.padStart(9, "0").slice(-9) },
+    data: { empresaId, razonSocial: "Aditivos " + sufijo, ruc: "21" + sufijo.padStart(9, "0").slice(-9) },
   });
   const otro = await prisma.insumo.create({
     data: {
+      empresaId,
       codigo: "OTRO-" + sufijo,
       nombre: "Aditivo " + sufijo,
       tipo: "MATERIA_PRIMA",
@@ -155,6 +158,7 @@ test("un tanque no acepta un insumo que no es el suyo", async () => {
   });
   const oc = await prisma.ordenCompra.create({
     data: {
+      empresaId,
       numero: "OC-X-" + sufijo,
       proveedorId: proveedorAjeno.id,
       total: 100,
@@ -163,7 +167,7 @@ test("un tanque no acepta un insumo que no es el suyo", async () => {
     },
   });
   const recepcion = await prisma.recepcionCompra.create({
-    data: { numero: "RC-X-" + sufijo, ordenCompraId: oc.id, ...audit },
+    data: { empresaId, numero: "RC-X-" + sufijo, ordenCompraId: oc.id, ...audit },
   });
   const ajeno = await prisma.recepcionCompraDetalle.create({
     data: { recepcionId: recepcion.id, insumoId: otro.id, cantidad: 100, cantidadDisponible: 100, costoUnitario: 30 },

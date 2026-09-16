@@ -11,6 +11,11 @@ import { sembrarUbigeos } from "./seed-ubigeos";
 const adapter = crearAdaptador();
 const prisma = new PrismaClient({ adapter });
 
+// La compañía que siembran estos guiones. Desde que `empresaId` dejó de
+// tener valor por omisión, cada fila la declara: el sembrador ya no depende
+// de que la base rellene el campo por él.
+const EMPRESA = "1";
+
 function hashPassword(password: string): string {
   const sal = randomBytes(16).toString("hex");
   return `${sal}:${scryptSync(password, sal, 64).toString("hex")}`;
@@ -62,7 +67,7 @@ async function main() {
     await prisma.usuario.upsert({
       where: { empresaId_usuario: { empresaId: "1", usuario: u.usuario } },
       update: {},
-      create: { ...u, passwordHash: hashPassword("cambiar123") },
+      create: { empresaId: EMPRESA, ...u, passwordHash: hashPassword("cambiar123") },
     });
   }
   const admin = await prisma.usuario.findUniqueOrThrow({
@@ -74,23 +79,24 @@ async function main() {
   const grasas = await prisma.categoria.upsert({
     where: { empresaId_nombre: { empresaId: "1", nombre: "Grasas" } },
     update: {},
-    create: { nombre: "Grasas", descripcion: "Grasas lubricantes industriales y automotrices" },
+    create: { empresaId: EMPRESA, nombre: "Grasas", descripcion: "Grasas lubricantes industriales y automotrices" },
   });
   await prisma.categoria.upsert({
     where: { empresaId_nombre: { empresaId: "1", nombre: "Aceites" } },
     update: {},
-    create: { nombre: "Aceites", descripcion: "Aceites lubricantes" },
+    create: { empresaId: EMPRESA, nombre: "Aceites", descripcion: "Aceites lubricantes" },
   });
   await prisma.categoria.upsert({
     where: { empresaId_nombre: { empresaId: "1", nombre: "Siliconas" } },
     update: {},
-    create: { nombre: "Siliconas", descripcion: "Siliconas y productos afines" },
+    create: { empresaId: EMPRESA, nombre: "Siliconas", descripcion: "Siliconas y productos afines" },
   });
 
   const proveedor = await prisma.proveedor.upsert({
     where: { empresaId_ruc: { empresaId: "1", ruc: "20123456789" } },
     update: {},
     create: {
+      empresaId: EMPRESA,
       razonSocial: "Envases y Etiquetas del Perú S.A.C.",
       ruc: "20123456789",
       telefono: "01-2345678",
@@ -101,6 +107,7 @@ async function main() {
     where: { empresaId_ruc: { empresaId: "1", ruc: "20456789012" } },
     update: {},
     create: {
+      empresaId: EMPRESA,
       razonSocial: "Química Industrial Andina S.A.",
       ruc: "20456789012",
       telefono: "01-8765432",
@@ -112,6 +119,7 @@ async function main() {
     where: { empresaId_codigo: { empresaId: "1", codigo: "GR-CHASIS" } },
     update: {},
     create: {
+      empresaId: EMPRESA,
       codigo: "GR-CHASIS",
       nombre: "Grasa Chasis",
       descripcion: "Grasa multipropósito para chasis",
@@ -123,6 +131,7 @@ async function main() {
     where: { empresaId_codigo: { empresaId: "1", codigo: "GR-LITIO" } },
     update: {},
     create: {
+      empresaId: EMPRESA,
       codigo: "GR-LITIO",
       nombre: "Grasa de Litio",
       descripcion: "Grasa a base de litio de alto desempeño",
@@ -141,7 +150,7 @@ async function main() {
     await prisma.presentacion.upsert({
       where: { empresaId_sku: { empresaId: "1", sku: p.sku } },
       update: {},
-      create: p,
+      create: { ...p, empresaId: EMPRESA },
     });
   }
 
@@ -158,7 +167,7 @@ async function main() {
     await prisma.insumo.upsert({
       where: { empresaId_codigo: { empresaId: "1", codigo: i.codigo } },
       update: {},
-      create: i,
+      create: { ...i, empresaId: EMPRESA },
     });
   }
 
@@ -172,7 +181,7 @@ async function main() {
     const plantaSemilla = await prisma.almacen.upsert({
       where: { empresaId_codigo: { empresaId: "1", codigo: "PLANTA" } },
       update: {},
-      create: { codigo: "PLANTA", nombre: "Planta de producción", tipo: "PLANTA" },
+      create: { empresaId: EMPRESA, codigo: "PLANTA", nombre: "Planta de producción", tipo: "PLANTA" },
     });
 
     const presentaciones = await prisma.presentacion.findMany();
@@ -181,6 +190,7 @@ async function main() {
       if (stock > 0) {
         await prisma.movimientoKardex.create({
           data: {
+            empresaId: EMPRESA,
             almacenId: plantaSemilla.id,
             tipoItem: "PRESENTACION",
             presentacionId: p.id,
@@ -213,6 +223,7 @@ async function main() {
       if (stock > 0) {
         await prisma.movimientoKardex.create({
           data: {
+            empresaId: EMPRESA,
             almacenId: plantaSemilla.id,
             tipoItem: "INSUMO",
             insumoId: i.id,
@@ -249,6 +260,7 @@ async function main() {
     const aditivo = await prisma.insumo.findUniqueOrThrow({ where: { empresaId_codigo: { empresaId: "1", codigo: "MP-ADITIVO-EP" } } });
     await prisma.formula.create({
       data: {
+        empresaId: EMPRESA,
         productoId: grasaChasis.id,
         version: 1,
         rendimientoKg: 100,
@@ -271,7 +283,7 @@ async function main() {
     await prisma.zona.upsert({
       where: { empresaId_nombre: { empresaId: "1", nombre } },
       update: {},
-      create: { nombre },
+      create: { empresaId: EMPRESA, nombre },
     });
   }
   const limaNorte = await prisma.zona.findUniqueOrThrow({
@@ -283,10 +295,10 @@ async function main() {
 
   if ((await prisma.vendedor.count()) === 0) {
     await prisma.vendedor.create({
-      data: { nombre: "Carlos Huamán", documento: "45678912", tipo: "CON_BASICO", tasaComision: 2.5, zonaId: limaNorte.id },
+      data: { empresaId: EMPRESA, nombre: "Carlos Huamán", documento: "45678912", tipo: "CON_BASICO", tasaComision: 2.5, zonaId: limaNorte.id },
     });
     await prisma.vendedor.create({
-      data: { nombre: "María Quispe", documento: "41234567", tipo: "SOLO_COMISION", tasaComision: 5.0, zonaId: provincias.id },
+      data: { empresaId: EMPRESA, nombre: "María Quispe", documento: "41234567", tipo: "SOLO_COMISION", tasaComision: 5.0, zonaId: provincias.id },
     });
   }
 
@@ -298,7 +310,7 @@ async function main() {
     await prisma.cliente.upsert({
       where: { empresaId_ruc: { empresaId: "1", ruc: c.ruc } },
       update: {},
-      create: c,
+      create: { ...c, empresaId: EMPRESA },
     });
   }
 
@@ -308,17 +320,17 @@ async function main() {
   const claseP = await prisma.claseUnidadMedida.upsert({
     where: { empresaId_codigo: { empresaId: "1", codigo: "PESO" } },
     update: {},
-    create: { codigo: "PESO", nombre: "Peso" },
+    create: { empresaId: EMPRESA, codigo: "PESO", nombre: "Peso" },
   });
   const claseV = await prisma.claseUnidadMedida.upsert({
     where: { empresaId_codigo: { empresaId: "1", codigo: "VOLUMEN" } },
     update: {},
-    create: { codigo: "VOLUMEN", nombre: "Volumen" },
+    create: { empresaId: EMPRESA, codigo: "VOLUMEN", nombre: "Volumen" },
   });
   const claseC = await prisma.claseUnidadMedida.upsert({
     where: { empresaId_codigo: { empresaId: "1", codigo: "CANTIDAD" } },
     update: {},
-    create: { codigo: "CANTIDAD", nombre: "Cantidad" },
+    create: { empresaId: EMPRESA, codigo: "CANTIDAD", nombre: "Cantidad" },
   });
   const unidadesSemilla = [
     { claseId: claseP.id, codigo: "kg", nombre: "Kilogramo" },
@@ -338,7 +350,7 @@ async function main() {
   const planta = await prisma.almacen.upsert({
     where: { empresaId_codigo: { empresaId: "1", codigo: "PLANTA" } },
     update: {},
-    create: { codigo: "PLANTA", nombre: "Planta de producción", tipo: "PLANTA" },
+    create: { empresaId: EMPRESA, codigo: "PLANTA", nombre: "Planta de producción", tipo: "PLANTA" },
   });
   const zonasSemillaAlmacen = [
     { almacenId: planta.id, codigo: "A-01", nombre: "Producto terminado" },
@@ -363,7 +375,7 @@ async function main() {
     await prisma.serieDocumento.upsert({
       where: { empresaId_tipoDocumento_serie: { empresaId: "1", tipoDocumento: s.tipoDocumento, serie: s.serie } },
       update: {},
-      create: s,
+      create: { ...s, empresaId: EMPRESA },
     });
   }
 
@@ -417,7 +429,7 @@ async function main() {
     const grupo = await prisma.grupoSeguridad.upsert({
       where: { empresaId_codigo: { empresaId: "1", codigo } },
       update: {},
-      create: { codigo, nombre: nombreGrupo[codigo], esPredefinido: true },
+      create: { empresaId: EMPRESA, codigo, nombre: nombreGrupo[codigo], esPredefinido: true },
     });
     for (const [modulo, [puedeVer, puedeCrear, puedeEditar]] of Object.entries(permisos)) {
       await prisma.permisoGrupo.upsert({
@@ -434,7 +446,7 @@ async function main() {
     await prisma.periodoFiscal.upsert({
       where: { empresaId_anio_mes: { empresaId: "1", anio: anioActual, mes } },
       update: {},
-      create: { anio: anioActual, mes },
+      create: { empresaId: EMPRESA, anio: anioActual, mes },
     });
   }
 
@@ -443,7 +455,7 @@ async function main() {
   const plan = await prisma.planCuentas.upsert({
     where: { empresaId_codigo: { empresaId: "1", codigo: "PCGE" } },
     update: {},
-    create: { codigo: "PCGE", nombre: "Plan Contable General Empresarial", esMaestro: true },
+    create: { empresaId: EMPRESA, codigo: "PCGE", nombre: "Plan Contable General Empresarial", esMaestro: true },
   });
 
   // Plan de cuentas mínimo viable para una fábrica (codificación PCGE)
@@ -504,7 +516,7 @@ async function main() {
   await prisma.libro.upsert({
     where: { empresaId_codigo: { empresaId: "1", codigo: "DIARIO" } },
     update: {},
-    create: { codigo: "DIARIO", nombre: "Libro diario" },
+    create: { empresaId: EMPRESA, codigo: "DIARIO", nombre: "Libro diario" },
   });
 
   // Controles contables: qué cuenta usa cada asiento automático
@@ -555,7 +567,7 @@ async function main() {
     await prisma.controlContable.upsert({
       where: { empresaId_clave: { empresaId: "1", clave } },
       update: {},
-      create: { clave, cuentaId },
+      create: { empresaId: EMPRESA, clave, cuentaId },
     });
   }
 

@@ -49,7 +49,7 @@ enum AlcanceAprobacionJerarquia {
 // se revierte, la incidencia desaparece con ella, que es lo correcto.
 model IncidenciaContable {
   id            String        @id @default(cuid())
-  empresaId     String        @default("1")
+  empresaId     String
   empresa       Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   origen        OrigenAsiento
   glosa         String
@@ -91,7 +91,7 @@ model ConfiguracionEmpresa {
   // histórica la conserva (es la de la compañía principal) y las nuevas
   // reciben un cuid. La clave real de lectura es empresaId, única.
   id                              String                     @id @default(cuid())
-  empresaId                       String                     @unique @default("1")
+  empresaId                       String                     @unique
   empresa                         Empresa                    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   razonSocial                     String                     @default("Mi Empresa S.A.C.")
   nombreComercial                 String?
@@ -184,7 +184,7 @@ model ConfiguracionEmpresa {
 // Factura/Nota de Crédito — una empresa real tiene varias (una por banco).
 model CuentaBancariaEmpresa {
   id           String  @id @default(cuid())
-  empresaId    String  @default("1")
+  empresaId    String
   empresa      Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   banco        String
   moneda       String  @default("PEN")
@@ -230,7 +230,7 @@ enum EstadoPasoAprobacion {
 
 model Usuario {
   id                     String     @id @default(cuid())
-  empresaId              String     @default("1")
+  empresaId              String
   empresa                Empresa    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre                 String
   usuario                String // nombre de acceso
@@ -274,7 +274,7 @@ enum AccionAuditoriaMaestro {
 
 model AuditoriaMaestro {
   id             String                 @id @default(cuid())
-  empresaId      String                 @default("1")
+  empresaId      String
   empresa        Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   entidad        String
   registroId     String
@@ -296,7 +296,7 @@ model AuditoriaMaestro {
 
 model Categoria {
   id          String   @id @default(cuid())
-  empresaId   String   @default("1")
+  empresaId   String
   empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre      String
   descripcion String?
@@ -323,7 +323,7 @@ enum SegmentoMercado {
 
 model Producto {
   id                     String           @id @default(cuid())
-  empresaId              String           @default("1")
+  empresaId              String
   empresa                Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   categoriaId            String
   codigo                 String
@@ -367,7 +367,7 @@ model Producto {
 
 model Presentacion {
   id                String   @id @default(cuid())
-  empresaId         String   @default("1")
+  empresaId         String
   empresa           Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   productoId        String
   sku               String
@@ -461,7 +461,7 @@ model CondicionComercialProveedor {
 
 model Proveedor {
   id                  String              @id @default(cuid())
-  empresaId           String              @default("1")
+  empresaId           String
   empresa             Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   razonSocial         String
   ruc                 String?
@@ -508,7 +508,7 @@ enum TipoInsumo {
 model Insumo {
   tanques              Tanque[]
   id                   String     @id @default(cuid())
-  empresaId            String     @default("1")
+  empresaId            String
   empresa              Empresa    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   proveedorId          String?
   codigo               String
@@ -574,7 +574,7 @@ enum TipoMovimientoCasco {
 // el cliente ya tiene). Pendiente por (cliente, insumo) = ENTREGADO − DEVUELTO.
 model MovimientoCasco {
   id            String              @id @default(cuid())
-  empresaId     String              @default("1")
+  empresaId     String
   empresa       Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId     String
   insumoId      String
@@ -622,7 +622,7 @@ enum OrigenMovimiento {
 
 model MovimientoKardex {
   id             String           @id @default(cuid())
-  empresaId      String           @default("1")
+  empresaId      String
   empresa        Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   fecha          DateTime         @default(now())
   almacenId      String
@@ -712,7 +712,7 @@ model SaldoAlmacen {
 // solo paso (contar → guardar → se ajusta solo).
 model ConteoInventario {
   id            String   @id @default(cuid())
-  empresaId     String   @default("1")
+  empresaId     String
   empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo        String // CI-00001
   fecha         DateTime @default(now())
@@ -748,7 +748,7 @@ model ConteoInventarioDetalle {
 
 model Formula {
   id            String    @id @default(cuid())
-  empresaId     String    @default("1")
+  empresaId     String
   empresa       Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   productoId    String
   version       Int
@@ -823,7 +823,7 @@ enum EstadoOperacionLote {
 
 model LoteGranel {
   id                       String                    @id @default(cuid())
-  empresaId                String                    @default("1")
+  empresaId                String
   empresa                  Empresa                   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo                   String // LG-00001
   formulaId                String
@@ -1019,7 +1019,7 @@ enum EstadoNoConformidad {
 
 model NoConformidadCalidad {
   id                   String              @id @default(cuid())
-  empresaId            String              @default("1")
+  empresaId            String
   empresa              Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   controlCalidadId     String              @unique
   estado               EstadoNoConformidad @default(ABIERTA)
@@ -1061,7 +1061,7 @@ model EventoNoConformidadCalidad {
 model PlanInspeccionCalidad {
   reanalisisEnvasado ReanalisisEnvasado[]
   id                 String               @id @default(cuid())
-  empresaId          String               @default("1")
+  empresaId          String
   empresa            Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   productoId         String
   version            Int
@@ -1123,7 +1123,7 @@ model ResultadoCaracteristicaCalidad {
 // agregados tipo "top 5 defectos".
 model CausaCalidad {
   id        String   @id @default(cuid())
-  empresaId String   @default("1")
+  empresaId String
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre    String
   activo    Boolean  @default(true)
@@ -1148,7 +1148,7 @@ enum EstadoReclamo {
 // estado hasta el cierre.
 model ReclamoCliente {
   id               String        @id @default(cuid())
-  empresaId        String        @default("1")
+  empresaId        String
   empresa          Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero           String // RCL-00001
   clienteId        String
@@ -1179,7 +1179,7 @@ model ReclamoCliente {
 model Envasado {
   reanalisis          ReanalisisEnvasado[]
   id                  String               @id @default(cuid())
-  empresaId           String               @default("1")
+  empresaId           String
   empresa             Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo              String // ENV-00001
   loteGranelId        String
@@ -1264,7 +1264,7 @@ model EnvasadoInsumo {
 
 model Zona {
   id        String   @id @default(cuid())
-  empresaId String   @default("1")
+  empresaId String
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre    String
   activo    Boolean  @default(true)
@@ -1284,7 +1284,7 @@ enum TipoVendedor {
 
 model Vendedor {
   id           String       @id @default(cuid())
-  empresaId    String       @default("1")
+  empresaId    String
   empresa      Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   nombre       String
   documento    String?
@@ -1318,7 +1318,7 @@ model Vendedor {
 /// cada vez.
 model DireccionCliente {
   id        String  @id @default(cuid())
-  empresaId String  @default("1")
+  empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId String
   cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
@@ -1397,7 +1397,7 @@ model DireccionCliente {
 /// solo casillero, el que quedaba escrito era el último que llamó.
 model ContactoCliente {
   id        String  @id @default(cuid())
-  empresaId String  @default("1")
+  empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId String
   cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
@@ -1446,7 +1446,7 @@ model ContactoCliente {
 /// reglas de acceso.
 model CuentaBancariaCliente {
   id        String  @id @default(cuid())
-  empresaId String  @default("1")
+  empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId String
   cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
@@ -1562,7 +1562,7 @@ enum CanalCliente {
 // cantidad: precioFinal = precioEscalonOBase * (1 - descuentoPct/100).
 model DescuentoCanal {
   id           String       @id @default(cuid())
-  empresaId    String       @default("1")
+  empresaId    String
   empresa      Empresa      @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   canal        CanalCliente
   descuentoPct Decimal      @default(0)
@@ -1582,7 +1582,7 @@ model DescuentoCanal {
 // necesita permiso de nadie — pedirlo solo lograría que nadie los baje.
 model SolicitudCambioCredito {
   id                  String           @id @default(cuid())
-  empresaId           String           @default("1")
+  empresaId           String
   empresa             Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId           String
   // Nullable por lo mismo que en el cliente: `null` es «venía sin tope».
@@ -1610,7 +1610,7 @@ model SolicitudCambioCredito {
 
 model Cliente {
   id                   String              @id @default(cuid())
-  empresaId            String              @default("1")
+  empresaId            String
   empresa              Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo               String // CLI-00001, asignado automáticamente al crear (nunca se reutiliza)
   razonSocial          String
@@ -1804,7 +1804,7 @@ enum EstadoCotizacion {
 // toca stock ni kardex — solo al convertirla se crea un Pedido real.
 model Cotizacion {
   id            String           @id @default(cuid())
-  empresaId     String           @default("1")
+  empresaId     String
   empresa       Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero        String // COT-00001
   clienteId     String
@@ -1847,7 +1847,7 @@ model CotizacionDetalle {
 
 model Pedido {
   id                      String            @id @default(cuid())
-  empresaId               String            @default("1")
+  empresaId               String
   empresa                 Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero                  String // PED-00001
   clienteId               String
@@ -1947,7 +1947,7 @@ enum TipoComprobanteVenta {
 
 model Factura {
   id                String               @id @default(cuid())
-  empresaId         String               @default("1")
+  empresaId         String
   empresa           Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero            String // número SUNAT, ej. F001-00000123 / B001-00000123
   // Qué comprobante es esta venta. Se DERIVA del documento del comprador al
@@ -2113,7 +2113,7 @@ enum EstadoAvisoCobranza {
 
 model AvisoCobranza {
   id            String   @id @default(cuid())
-  empresaId     String   @default("1")
+  empresaId     String
   empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId     String
   facturaId     String
@@ -2169,7 +2169,7 @@ enum EstadoEnvioSunat {
 // comercial ya está creado y la operación no se bloquea.
 model ComprobanteElectronico {
   id               String                     @id @default(cuid())
-  empresaId        String                     @default("1")
+  empresaId        String
   empresa          Empresa                    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   tipoDocumento    TipoComprobanteElectronico
   documentoId      String
@@ -2200,7 +2200,7 @@ enum MedioPago {
 
 model Cobro {
   id                   String    @id @default(cuid())
-  empresaId            String    @default("1")
+  empresaId            String
   empresa              Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   facturaId            String
   fecha                DateTime  @default(now())
@@ -2264,7 +2264,7 @@ enum TipoNotaDebito {
 // recargo.
 model NotaDebito {
   id             String         @id @default(cuid())
-  empresaId      String         @default("1")
+  empresaId      String
   empresa        Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero         String // número SUNAT de la ND
   facturaId      String
@@ -2307,7 +2307,7 @@ model NotaDebito {
 
 model NotaCredito {
   id             String          @id @default(cuid())
-  empresaId      String          @default("1")
+  empresaId      String
   empresa        Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero         String // número SUNAT de la NC
   facturaId      String
@@ -2356,7 +2356,7 @@ enum EstadoCreditoCliente {
 
 model CreditoCliente {
   id                     String               @id @default(cuid())
-  empresaId              String               @default("1")
+  empresaId              String
   empresa                Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clienteId              String
   notaCreditoId          String               @unique
@@ -2380,7 +2380,7 @@ model CreditoCliente {
 
 model AplicacionCreditoCliente {
   id                       String   @id @default(cuid())
-  empresaId                String   @default("1")
+  empresaId                String
   empresa                  Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   creditoId                String
   facturaId                String
@@ -2402,7 +2402,7 @@ model AplicacionCreditoCliente {
 
 model ReembolsoCliente {
   id                       String           @id @default(cuid())
-  empresaId                String           @default("1")
+  empresaId                String
   empresa                  Empresa          @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   creditoId                String
   fecha                    DateTime         @default(now())
@@ -2442,7 +2442,7 @@ enum DecisionDevolucionCliente {
 
 model DevolucionCliente {
   id               String                  @id @default(cuid())
-  empresaId        String                  @default("1")
+  empresaId        String
   empresa          Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero           String
   facturaId        String
@@ -2504,7 +2504,7 @@ enum EstadoComision {
 
 model Comision {
   id         String         @id @default(cuid())
-  empresaId  String         @default("1")
+  empresaId  String
   empresa    Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   vendedorId String
   facturaId  String
@@ -2540,7 +2540,7 @@ enum EstadoAcuerdoSuministro {
 
 model AcuerdoSuministro {
   id            String                  @id @default(cuid())
-  empresaId     String                  @default("1")
+  empresaId     String
   empresa       Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero        String
   proveedorId   String
@@ -2592,7 +2592,7 @@ enum EstadoOfertaRfq {
 
 model RfqCompra {
   id                        String          @id @default(cuid())
-  empresaId                 String          @default("1")
+  empresaId                 String
   empresa                   Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero                    String
   titulo                    String
@@ -2668,7 +2668,7 @@ model OfertaRfqLinea {
 
 model OrdenCompra {
   id              String            @id @default(cuid())
-  empresaId       String            @default("1")
+  empresaId       String
   empresa         Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero          String // OC-00001
   proveedorId     String
@@ -2719,7 +2719,7 @@ model OrdenCompra {
 
 model NivelAprobacionCompra {
   id            String     @id @default(cuid())
-  empresaId     String     @default("1")
+  empresaId     String
   empresa       Empresa    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   orden         Int
   nombre        String
@@ -2780,7 +2780,7 @@ model OrdenCompraDetalle {
 
 model RecepcionCompra {
   id            String   @id @default(cuid())
-  empresaId     String   @default("1")
+  empresaId     String
   empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero        String // RC-00001
   ordenCompraId String
@@ -2827,7 +2827,7 @@ model RecepcionCompraDetalle {
 // subledger del proveedor. El comprobante lo emite el proveedor, no XXOil.
 model DevolucionCompra {
   id                       String   @id @default(cuid())
-  empresaId                String   @default("1")
+  empresaId                String
   empresa                  Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   recepcionCompraDetalleId String
   cantidad                 Decimal
@@ -2851,7 +2851,7 @@ enum EstadoCreditoProveedor {
 
 model CreditoProveedor {
   id                     String                 @id @default(cuid())
-  empresaId              String                 @default("1")
+  empresaId              String
   empresa                Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   proveedorId            String
   devolucionCompraId     String                 @unique
@@ -2871,7 +2871,7 @@ model CreditoProveedor {
 
 model AplicacionCreditoProveedor {
   id               String   @id @default(cuid())
-  empresaId        String   @default("1")
+  empresaId        String
   empresa          Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   creditoId        String
   cuentaPorPagarId String
@@ -2890,7 +2890,7 @@ model AplicacionCreditoProveedor {
 
 model ReembolsoProveedor {
   id             String    @id @default(cuid())
-  empresaId      String    @default("1")
+  empresaId      String
   empresa        Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   creditoId      String
   fecha          DateTime  @default(now())
@@ -2954,7 +2954,7 @@ model InspeccionCompra {
 
 model PlanInspeccionInsumo {
   id            String    @id @default(cuid())
-  empresaId     String    @default("1")
+  empresaId     String
   empresa       Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   insumoId      String
   version       Int
@@ -3053,7 +3053,7 @@ enum DecisionCertificacion {
 // un mes después nadie podría decir qué fue lo que miró.
 model CampanaCertificacionAccesos {
   id        String  @id @default(cuid())
-  empresaId String  @default("1")
+  empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero    String
 
@@ -3144,7 +3144,7 @@ enum EstadoUnidadManipulacion {
 // dos respuestas a «qué lote salió», y la que valdría sería la del documento.
 model UnidadManipulacion {
   id        String                 @id @default(cuid())
-  empresaId String                 @default("1")
+  empresaId String
   empresa   Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   // La etiqueta que se pega al pallet: es lo que alguien lee o escanea.
   codigo    String
@@ -3206,7 +3206,7 @@ enum EstadoOleadaPicking {
 // físicamente mientras espera en la playa de despacho.
 model OleadaPicking {
   id        String  @id @default(cuid())
-  empresaId String  @default("1")
+  empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero    String
   // Todas las guías de la oleada salen de este almacén: una recorrida ocurre
@@ -3297,7 +3297,7 @@ enum EstadoOfertaFlete {
 // licitación.
 model LicitacionFlete {
   id        String  @id @default(cuid())
-  empresaId String  @default("1")
+  empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero    String
   titulo    String
@@ -3375,7 +3375,7 @@ model OfertaFlete {
 // son el respaldo de las guías que el backfill no logre emparejar.
 model Transportista {
   id             String   @id @default(cuid())
-  empresaId      String   @default("1")
+  empresaId      String
   empresa        Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo         String
   razonSocial    String
@@ -3436,7 +3436,7 @@ model TransportistaConductor {
 
 model GuiaRemision {
   id                  String              @id @default(cuid())
-  empresaId           String              @default("1")
+  empresaId           String
   empresa             Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero              String // ej. T001-00000001
   facturaId           String?
@@ -3577,7 +3577,7 @@ enum EstadoVerificacionFacturaProveedor {
 
 model CuentaPorPagar {
   id                            String                             @id @default(cuid())
-  empresaId                     String                             @default("1")
+  empresaId                     String
   empresa                       Empresa                            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   proveedorId                   String
   ordenCompraId                 String?
@@ -3625,7 +3625,7 @@ model CuentaPorPagar {
 
 model PagoProveedor {
   id               String    @id @default(cuid())
-  empresaId        String    @default("1")
+  empresaId        String
   empresa          Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   cuentaPorPagarId String
   fecha            DateTime  @default(now())
@@ -3657,7 +3657,7 @@ enum TipoMovimientoCaja {
 // movimientos automáticos; también admite movimientos manuales con concepto.
 model MovimientoCaja {
   id               String             @id @default(cuid())
-  empresaId        String             @default("1")
+  empresaId        String
   empresa          Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   fecha            DateTime           @default(now())
   tipo             TipoMovimientoCaja
@@ -3687,7 +3687,7 @@ enum EstadoConciliacionBancaria {
 
 model ConciliacionBancaria {
   id                   String                     @id @default(cuid())
-  empresaId            String                     @default("1")
+  empresaId            String
   empresa              Empresa                    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   cuentaBancariaId     String
   fechaDesde           DateTime
@@ -3761,7 +3761,7 @@ enum EstadoHojaRuta {
 
 model HojaRuta {
   id            String         @id @default(cuid())
-  empresaId     String         @default("1")
+  empresaId     String
   empresa       Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   numero        String // HR-00001
   vendedorId    String
@@ -3814,7 +3814,7 @@ enum TipoDocumentoSerie {
 // transcribe. Avanza cuando se usa la serie al crear el documento.
 model SerieDocumento {
   id                String             @id @default(cuid())
-  empresaId         String             @default("1")
+  empresaId         String
   empresa           Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   tipoDocumento     TipoDocumentoSerie
   serie             String // ej. F001, T001, FC01
@@ -3841,7 +3841,7 @@ enum TipoAlmacen {
 model Almacen {
   tanques      Tanque[]
   id           String      @id @default(cuid())
-  empresaId    String      @default("1")
+  empresaId    String
   tipo         TipoAlmacen @default(ALMACEN_DISTRIBUCION)
   empresa      Empresa     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo       String
@@ -3947,7 +3947,7 @@ model ZonaAlmacen {
 
 model ClaseUnidadMedida {
   id        String   @id @default(cuid())
-  empresaId String   @default("1")
+  empresaId String
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo    String // ej. PESO, VOLUMEN, CANTIDAD
   nombre    String
@@ -3985,7 +3985,7 @@ model UnidadMedida {
 
 model GrupoSeguridad {
   id            String   @id @default(cuid())
-  empresaId     String   @default("1")
+  empresaId     String
   empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo        String
   nombre        String
@@ -4052,7 +4052,7 @@ model TareaCierrePeriodo {
 
 model PeriodoFiscal {
   id                 String              @id @default(cuid())
-  empresaId          String              @default("1")
+  empresaId          String
   empresa            Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   anio               Int
   mes                Int // 1-12
@@ -4088,7 +4088,7 @@ enum TipoCuenta {
 
 model PlanCuentas {
   id        String   @id @default(cuid())
-  empresaId String   @default("1")
+  empresaId String
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo    String // ej. PCGE (Plan Contable General Empresarial)
   nombre    String
@@ -4120,7 +4120,7 @@ model CuentaContable {
 
 model Libro {
   id        String   @id @default(cuid())
-  empresaId String   @default("1")
+  empresaId String
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo    String // ej. DIARIO
   nombre    String
@@ -4171,7 +4171,7 @@ enum OrigenAsiento {
 
 model AsientoContable {
   id            String        @id @default(cuid())
-  empresaId     String        @default("1")
+  empresaId     String
   empresa       Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   libroId       String
   numero        String // AS-00001
@@ -4218,7 +4218,7 @@ model AsientoDetalle {
 // registra igual pero sin asiento (se avisa en la pantalla de controles).
 model ControlContable {
   id        String  @id @default(cuid())
-  empresaId String  @default("1")
+  empresaId String
   empresa   Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clave     String // CUENTAS_POR_COBRAR, VENTAS, IGV_POR_PAGAR, COSTO_VENTAS,
   //                  INVENTARIO_PT, INVENTARIO_INSUMOS, CAJA_BANCOS,
@@ -4250,7 +4250,7 @@ enum TipoCentroCosto {
 
 model CentroCosto {
   id        String          @id @default(cuid())
-  empresaId String          @default("1")
+  empresaId String
   empresa   Empresa         @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo    String // CC-PLANTA, CC-VENTAS
   nombre    String
@@ -4313,7 +4313,7 @@ enum EstadoOrdenInterna {
 // se contabiliza de una vez contra el centro de costo de destino.
 model OrdenInterna {
   id               String             @id @default(cuid())
-  empresaId        String             @default("1")
+  empresaId        String
   empresa          Empresa            @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo           String // OI-00001
   descripcion      String
@@ -4386,7 +4386,7 @@ model ReglaAsignacionCostoDetalle {
 // (best-effort, como el resto del motor contable).
 model CentroCostoControl {
   id            String  @id @default(cuid())
-  empresaId     String  @default("1")
+  empresaId     String
   empresa       Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   clave         String // mismo universo que ControlContable.clave
   centroCostoId String?
@@ -4414,7 +4414,7 @@ enum CategoriaActivoFijo {
 
 model ActivoFijo {
   id                    String              @id @default(cuid())
-  empresaId             String              @default("1")
+  empresaId             String
   empresa               Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo                String // AF-00001
   nombre                String
@@ -4485,7 +4485,7 @@ enum EstadoProyecto {
 
 model Proyecto {
   id               String         @id @default(cuid())
-  empresaId        String         @default("1")
+  empresaId        String
   empresa          Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo           String // PRY-00001
   nombre           String
@@ -4609,7 +4609,7 @@ enum TipoCentroTrabajo {
 
 model CentroTrabajo {
   id                String            @id @default(cuid())
-  empresaId         String            @default("1")
+  empresaId         String
   empresa           Empresa           @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo            String
   nombre            String
@@ -4641,7 +4641,7 @@ model CentroTrabajo {
 // equipo, y la ubicación dice dónde estaba instalado.
 model UbicacionTecnica {
   id        String   @id @default(cuid())
-  empresaId String   @default("1")
+  empresaId String
   empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo    String
   nombre    String
@@ -4664,7 +4664,7 @@ model UbicacionTecnica {
 
 model Equipo {
   id                 String   @id @default(cuid())
-  empresaId          String   @default("1")
+  empresaId          String
   empresa            Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo             String // EQ-00001
   nombre             String
@@ -4751,7 +4751,7 @@ model OrdenMantenimiento {
   // Hasta aquí colgaba solo del equipo. Se le da empresaId propio para que
   // su numeración sea por compañía como la del resto de documentos; la
   // migración lo rellena desde el equipo al que pertenece cada orden.
-  empresaId            String                   @default("1")
+  empresaId            String
   empresa              Empresa                  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo               String // OM-00001
   equipoId             String
@@ -4805,7 +4805,7 @@ enum EstadoAvisoMantenimiento {
 
 model AvisoMantenimiento {
   id             String                      @id @default(cuid())
-  empresaId      String                      @default("1")
+  empresaId      String
   empresa        Empresa                     @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   equipoId       String
   prioridad      PrioridadAvisoMantenimiento @default(MEDIA)
@@ -4839,7 +4839,7 @@ enum TipoPlanMantenimiento {
 // la fecha/contador real de ejecución, no la de programación.
 model PlanMantenimiento {
   id                      String                @id @default(cuid())
-  empresaId               String                @default("1")
+  empresaId               String
   empresa                 Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   equipoId                String
   nombre                  String // ej. "Cambio de aceite de motor"
@@ -4914,7 +4914,7 @@ model RepuestoOrdenMantenimiento {
 // ---------------------------------------------------------------------------
 model Proyeccion {
   id            String  @id @default(cuid())
-  empresaId     String  @default("1")
+  empresaId     String
   empresa       Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   anio          Int
   trimestre     Int // 1-4
@@ -5046,7 +5046,7 @@ enum Afp {
 // operativa vigente; la posición es la estructura.
 model PosicionOrganizativa {
   id            String   @id @default(cuid())
-  empresaId     String   @default("1")
+  empresaId     String
   empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo        String
   titulo        String
@@ -5073,7 +5073,7 @@ model PosicionOrganizativa {
 // histórico en vez de sobrescribirlo, igual que el resto del esquema.
 model AsignacionPosicion {
   id            String    @id @default(cuid())
-  empresaId     String    @default("1")
+  empresaId     String
   empresa       Empresa   @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   posicionId    String
   empleadoId    String
@@ -5094,7 +5094,7 @@ model AsignacionPosicion {
 
 model Empleado {
   id                     String                 @id @default(cuid())
-  empresaId              String                 @default("1")
+  empresaId              String
   empresa                Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo                 String // EMP-00001
   nombres                String
@@ -5186,7 +5186,7 @@ model CambioSalarial {
 
 model TurnoTrabajo {
   id               String   @id @default(cuid())
-  empresaId        String   @default("1")
+  empresaId        String
   empresa          Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   codigo           String
   nombre           String
@@ -5210,7 +5210,7 @@ enum EstadoRegistroAsistencia {
 
 model RegistroAsistencia {
   id                  String                   @id @default(cuid())
-  empresaId           String                   @default("1")
+  empresaId           String
   empresa             Empresa                  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   empleadoId          String
   fecha               DateTime
@@ -5274,7 +5274,7 @@ model SolicitudVacaciones {
 
 model ParametroPlanilla {
   id            String   @id @default(cuid())
-  empresaId     String   @default("1")
+  empresaId     String
   empresa       Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   rmv           Decimal // remuneración mínima vital vigente
   uit           Decimal // unidad impositiva tributaria vigente
@@ -5296,7 +5296,7 @@ enum EstadoPoliticaTiempo {
 
 model PoliticaTiempoTrabajo {
   id                     String               @id @default(cuid())
-  empresaId              String               @default("1")
+  empresaId              String
   empresa                Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   vigenteDesde           DateTime
   horasJornadaDiaria     Decimal              @default(8)
@@ -5351,7 +5351,7 @@ enum EstadoPeriodoPlanilla {
 
 model PlanillaPeriodo {
   id            String                @id @default(cuid())
-  empresaId     String                @default("1")
+  empresaId     String
   empresa       Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   anio          Int
   mes           Int
@@ -5437,7 +5437,7 @@ model LiquidacionDesvinculacion {
 // ---------------------------------------------------------------------------
 model Adjunto {
   id             String  @id @default(cuid())
-  empresaId      String  @default("1")
+  empresaId      String
   empresa        Empresa @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   entidadTipo    String // "Empleado", "ActivoFijo", "Equipo", "OrdenCompra", etc.
   entidadId      String
@@ -5701,7 +5701,7 @@ model Empresa {
 
 model Tanque {
   id        String @id @default(cuid())
-  empresaId String @default("1")
+  empresaId String
   almacenId String
   codigo    String
   nombre    String
@@ -5771,7 +5771,7 @@ model AporteTanque {
 /// vencimiento anterior se conserva en la fila, y no solo el nuevo.
 model ReanalisisEnvasado {
   id         String @id @default(cuid())
-  empresaId  String @default("1")
+  empresaId  String
   envasadoId String
 
   /// Lo que decía antes. Se guarda acá y no se deduce del historial: el
