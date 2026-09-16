@@ -27,6 +27,7 @@ import {
   otrasBasesDePruebas,
   urlConBase,
 } from "./lib/postgres.mjs";
+import { avisoParcial, errorDeFiltroVacio, seleccionarPruebas } from "./lib/pruebas.mjs";
 
 const workspace = resolve(process.cwd());
 const plantilla = process.env.DATABASE_URL;
@@ -61,10 +62,33 @@ const nodeOptions = [process.env.NODE_OPTIONS, `--import=${tsxWindowsBootstrap}`
   .filter(Boolean)
   .join(" ");
 const entorno = { ...process.env, DATABASE_URL: databaseUrl, NODE_ENV: "test", NODE_OPTIONS: nodeOptions };
-const archivosPruebas = readdirSync(resolve(workspace, "tests"))
+
+// ---------------------------------------------------------------------------
+// Filtro: `npm test -- respaldo` corre solo los archivos que lo contengan.
+//
+// Existe por una cuenta concreta. Los días 15 y 16 de septiembre la suite
+// completa se corrió unas diez veces, ~8 minutos cada una, y la mayoría fue
+// para comprobar arreglos de dos líneas: un mensaje de error, un número mal
+// contado. Sin filtro, verificar un cambio de dos líneas cuesta lo mismo que
+// verificar el sistema entero, así que o se paga de más o se verifica de menos.
+//
+// Dos cosas que el filtro NO puede hacer, porque serían peores que no tenerlo:
+//
+//   1. Pasar en silencio cuando no encuentra nada. Un filtro mal escrito
+//      correría cero pruebas y terminaría en verde, que es exactamente la
+//      forma de creer que algo está probado cuando no lo está.
+//   2. Parecerse a una corrida completa. Una corrida filtrada en verde NO
+//      autoriza a publicar nada, así que lo dice al empezar y al terminar.
+// ---------------------------------------------------------------------------
+const todos = readdirSync(resolve(workspace, "tests"))
   .filter((nombre) => nombre.endsWith(".test.ts"))
-  .sort()
-  .map((nombre) => resolve(workspace, "tests", nombre));
+  .sort();
+const seleccion = seleccionarPruebas(todos, process.argv.slice(2));
+
+const errorFiltro = errorDeFiltroVacio(seleccion, todos.length);
+if (errorFiltro) throw new Error(errorFiltro);
+
+const archivosPruebas = seleccion.archivos.map((nombre) => resolve(workspace, "tests", nombre));
 
 function ejecutar(etiqueta, argumentos) {
   console.log("\n[tests] " + etiqueta);
@@ -79,6 +103,10 @@ function ejecutar(etiqueta, argumentos) {
   }
 }
 
+const PARCIAL = avisoParcial(seleccion, todos.length);
+
+if (seleccion.parcial) console.log(`\n[tests] ${PARCIAL}`);
+
 console.log(`\n[tests] Creando la base efímera ${nombreBase}`);
 await crearBase(plantilla, nombreBase);
 
@@ -86,13 +114,16 @@ try {
   console.log("\n[tests] Aplicando migraciones");
   aplicarMigraciones(databaseUrl, workspace);
   ejecutar("Cargando datos maestros mínimos", ["--import", "tsx", "prisma/seed.ts"]);
-  ejecutar("Ejecutando ciclos críticos", [
-    "--import",
-    "tsx",
-    "--test",
-    "--test-concurrency=1",
-    ...archivosPruebas,
-  ]);
+  ejecutar(
+    seleccion.parcial
+      ? `Ejecutando ${seleccion.archivos.length} de ${todos.length} archivos`
+      : "Ejecutando ciclos críticos",
+    ["--import", "tsx", "--test", "--test-concurrency=1", ...archivosPruebas]
+  );
+  // Al final y no solo al principio: después de cientos de líneas de salida,
+  // lo que queda a la vista es esto. Una corrida filtrada en verde no autoriza
+  // a publicar nada.
+  if (seleccion.parcial) console.log(`\n[tests] ${PARCIAL}`);
 } finally {
   // Se destruye siempre, incluso si las pruebas fallaron: una base huérfana por
   // corrida fallida llenaría el servidor de `erp_test_…` en una tarde.

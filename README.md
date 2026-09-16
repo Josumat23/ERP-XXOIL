@@ -107,6 +107,25 @@ Nunca utiliza otra base: `@/lib/prisma` se niega a conectarse a nada que no llev
 el prefijo `erp_test_` cuando el proceso corre bajo el runner de pruebas, y lo
 comprueba **antes de construir el adaptador**.
 
+#### Correr solo una parte
+
+```bash
+npm test -- respaldo
+```
+
+Corre los archivos de `tests/` cuyo nombre contenga el filtro; varios filtros
+suman. Sirve para iterar: `npm test -- respaldo` tarda **38 segundos** contra los
+~8 minutos de la suite completa.
+
+Dos cosas que conviene saber, porque son las dos formas en que un filtro puede
+hacer daño:
+
+- **Un filtro que no encuentra nada falla**, no corre cero pruebas en verde. Un
+  error de tipeo alcanza para producir una corrida vacía, y una corrida vacía en
+  verde es la forma exacta de creer que algo está probado cuando no lo está.
+- **Una corrida filtrada se anuncia como PARCIAL** al empezar y al terminar. No
+  reemplaza a `npm test` y no autoriza a publicar nada.
+
 > Nota: los scripts `dev` y `build` usan webpack (`--webpack`) porque Turbopack
 > falla al procesar CSS en este entorno Windows/OneDrive.
 
