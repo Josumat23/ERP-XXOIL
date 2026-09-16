@@ -150,6 +150,9 @@ Cambie las contraseñas desde **Configuración → Usuarios** (sesión de admin)
 ## PostgreSQL
 
 La migración se ejecutó el 2026-09-15; esta sección era el plan y ya no lo es.
-Qué cambió, qué se rompió de verdad al correrlo y qué quedó pendiente —entre
-otras cosas, que **el respaldo todavía no tiene controlador para PostgreSQL**—
-está en `docs/postgresql.md`.
+Qué cambió, qué se rompió de verdad al correrlo y qué quedó pendiente está en
+`docs/postgresql.md`.
+
+El respaldo **ya tiene controlador para PostgreSQL** (`pg_dump`/`pg_restore`,
+desde el 2026-09-15). Necesita las herramientas cliente en el PATH o la variable
+`PG_BIN_DIR` apuntando a su directorio: véase `docs/backup-restauracion.md`.

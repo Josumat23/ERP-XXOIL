@@ -2,7 +2,7 @@
 
 Estrategia de respaldo y recuperación de la base del ERP. Cubre el ítem transversal de Oleada 1: *"Backup automatizado programado + procedimiento de restauración probado al menos una vez"*.
 
-> **Aviso 2026-09-15: la base de trabajo no tiene copias automáticas.** El proyecto migró a PostgreSQL y **PostgreSQL todavía no tiene controlador de respaldo**. Los respaldos `.db` ya existentes se siguen verificando y restaurando, pero mientras el controlador no exista, las copias de la base viva hay que hacerlas a mano. Véase [PostgreSQL se reconoce, pero todavía no se respalda](#postgresql-se-reconoce-pero-todavía-no-se-respalda).
+> **2026-09-15: PostgreSQL ya se respalda.** El controlador estuvo declarado y **rechazado** tres días, desde la migración de motor. Ahora existe, con `pg_dump -Fc` / `pg_restore`, y la suite lo ejerce **contra un PostgreSQL de verdad**: vuelca una base con datos, verifica el artefacto, lo restaura en otra base y comprueba que los datos llegaron. Los respaldos `.db` de SQLite se siguen verificando y restaurando. Véase [El controlador de PostgreSQL](#el-controlador-de-postgresql).
 
 El núcleo es agnóstico del motor y las primitivas de cada base viven en un controlador aparte. Ver [Portabilidad](#portabilidad-qué-es-del-motor-y-qué-no).
 
@@ -92,11 +92,11 @@ El módulo está partido en dos.
 
 **El motor aporta tres operaciones**, reunidas en un `ControladorRespaldo`:
 
-| Operación | SQLite | PostgreSQL (pendiente) |
+| Operación | SQLite | PostgreSQL |
 | --- | --- | --- |
-| `copiar` | `VACUUM INTO` | `pg_dump -Fc` |
+| `copiar` | `VACUUM INTO` | `pg_dump --format=custom` |
 | `verificar` | `PRAGMA integrity_check` | `pg_restore --list` |
-| `restaurar` | `VACUUM INTO` sobre el destino | `pg_restore` |
+| `restaurar` | `VACUUM INTO` sobre el destino | `pg_restore --exit-on-error` |
 | `extension` | `.db` | `.dump` |
 
 El controlador de SQLite abre el archivo **con better-sqlite3 directamente**. Hasta el 2026-09-15 lo hacía a través de un `PrismaClient`, y el día de migrar a PostgreSQL dejó de poder construirse: Prisma rechaza un adaptador de un motor distinto al del esquema, así que el módulo se quedó **sin ningún controlador capaz de correr** — ni siquiera para verificar los respaldos que ya existían. Ese intermediario nunca aportó nada: acá no hay modelos ni consultas generadas, solo dos sentencias contra un archivo que ni siquiera tiene el esquema de la aplicación. Vale la pena anotarlo porque la auditoría de portabilidad no lo previó, y es el tipo de acoplamiento que solo se ve cuando se rompe.
@@ -105,22 +105,65 @@ El día de la migración hay que escribir ese objeto y nada más. Que eso sea ci
 
 La retención respeta la extensión del motor, así que un respaldo `.db` y uno `.dump` pueden convivir en el mismo directorio sin que uno borre al otro durante la transición.
 
-### PostgreSQL se reconoce, pero todavía no se respalda
+### El controlador de PostgreSQL
 
-Si `DATABASE_URL` apunta a PostgreSQL, el respaldo **falla con un mensaje que dice exactamente qué falta**:
+Escrito el 2026-09-15, después de que la migración de motor lo volviera urgente.
 
-> DATABASE_URL apunta a PostgreSQL y el respaldo todavía no tiene controlador para ese motor. Hace falta implementarlo con pg_dump/pg_restore y probarlo contra una base real antes de confiar en él.
+| | |
+| --- | --- |
+| Copiar | `pg_dump --format=custom --no-owner --no-acl` |
+| Verificar | `pg_restore --list` |
+| Restaurar | `pg_restore --no-owner --no-acl --exit-on-error` |
+| Extensión | `.dump` |
 
-Antes el mensaje era *"DATABASE_URL no apunta a un archivo SQLite"* — cierto, y a la vez inútil el día de migrar, porque no distingue una URL de PostgreSQL de una cadena sin sentido.
+**`pg_dump` vuelca dentro de una transacción**, así que la copia es consistente aunque el sistema esté escribiendo y no bloquea a nadie — es la misma propiedad que hace correcto a `VACUUM INTO` en SQLite. El formato propio (`--format=custom`) además se puede inspeccionar sin restaurar, que es lo que hace posible verificar una copia sin tener adónde ponerla.
 
-**Por qué sigue sin escribirse, ahora que sí hay `pg_dump`.** El motivo original —en esta máquina no había PostgreSQL en ninguna forma— dejó de valer el 2026-09-15: `pg_dump` y `pg_restore` están en `D:/Escritorio/ERP-postgres/pgsql/bin`. Lo que queda es una razón distinta y más concreta: **el núcleo trata el destino de una restauración como un archivo** —lo consulta con `stat`, se niega a pisarlo, lo borra y le calcula el SHA256—, y el destino de un `pg_restore` es una **base**, no un archivo. Escribir `copiar` y `verificar` es directo; `restaurar` exige que esa parte del núcleo también se vuelva agnóstica, y eso es el trabajo de verdad.
+**`--no-owner --no-acl`** porque el dueño y los permisos son del servidor donde se hizo la copia. Conservarlos haría fallar la restauración en cualquier otro servidor, que es exactamente el día en que se necesita.
 
-Lo que no cambia es el criterio: un respaldo que nunca corrió contra una base real no es un respaldo, es una creencia — y creer que hay copias cuando no las hay es peor que saber que no las hay, porque el error se descubre el día que ya es tarde. Por eso el controlador sigue negándose en vez de existir a medias. **Mientras tanto la base de trabajo no tiene copias automáticas**, y eso hay que decirlo en voz alta, no dejarlo implícito en un mensaje de error.
+**`--exit-on-error` es lo que separa una restauración de una ilusión.** Por omisión `pg_restore` informa los errores y **sigue**, terminando con código 0: la base quedaría a medias y quien opera leería que salió bien.
 
-La restauración elige el controlador por la extensión del artefacto: intentar restaurar un `.dump` con el driver de SQLite diría *"no pasó la verificación de integridad"* y mandaría a buscar el problema donde no está.
+**Verificar exige que el volcado no esté vacío.** Un volcado de cero objetos es sintácticamente válido, `pg_restore --list` lo acepta, y no sirve para nada — es justo lo que produciría respaldar la base equivocada. Si `verificar` solo mirara el código de salida, eso pasaría por bueno.
 
-## Los comandos funcionaban solo en el papel
+#### Las herramientas tienen que estar
 
-`npm run respaldo` y `npm run restaurar` morían al arrancar, con `ERR_MODULE_NOT_FOUND`, desde que existen: definían `NODE_OPTIONS` **dentro de un proceso que ya había arrancado** —Node esa variable la lee al iniciar— y después importaban TypeScript, así que nadie registraba `tsx` y el alias `@/` no resolvía. Ninguna prueba lo notaba porque todas importaban la librería directamente, y la tarea programada sí funcionaba porque corre dentro del servidor.
+`pg_dump` y `pg_restore` son parte de las herramientas cliente de PostgreSQL. Si están en el PATH no hay nada que configurar; si no —el caso de la instalación portable de esta máquina, que no toca el PATH— se define `PG_BIN_DIR` con el directorio que las contiene:
 
-Ahora cada comando es un lanzador que ejecuta su lógica en un proceso hijo bajo `tsx` —el mismo patrón del runner de pruebas y de la demo—, y la suite ejecuta ambos comandos tal cual los corre una persona: si vuelven a no arrancar, la prueba lo dice.
+```
+PG_BIN_DIR="D:/Escritorio/ERP-postgres/pgsql/bin"
+```
+
+Sin ellas el error **nombra la variable**, en vez de un `ENOENT` que manda a buscar el problema donde no está.
+
+Una advertencia que cuesta descubrir sola: **el cliente no puede ser de una versión menor que el servidor.** `pg_dump` 16 contra un servidor 17 se niega con «server version mismatch». Al revés —cliente nuevo, servidor viejo— funciona.
+
+#### Restaurar sobre una base, no sobre un archivo
+
+Ésta es la parte que obligó a tocar el núcleo, y es la razón por la que el controlador no se pudo escribir antes.
+
+El núcleo trataba el destino de una restauración como una **ruta**: lo consultaba con `stat`, se negaba a pisarlo, lo borraba con `unlink` y le calculaba el SHA256 al terminar. El destino de un `pg_restore` es una **base**. Copiar nunca tuvo ese problema —un volcado siempre es un archivo—, pero restaurar sí.
+
+La solución fue la misma que ya se había usado para copiar: cinco preguntas que el núcleo hace **siempre en el mismo orden** y que cada motor contesta a su manera.
+
+| Pregunta del núcleo | SQLite | PostgreSQL |
+| --- | --- | --- |
+| ¿Qué es este destino? | una ruta | una URL de conexión |
+| ¿Es el mismo que el respaldo? | misma ruta resuelta | nunca (archivo vs. base) |
+| ¿Ya tiene contenido? | el archivo existe | el esquema tiene tablas |
+| Vacíalo | `unlink` | `DROP SCHEMA public CASCADE` |
+| ¿Qué quedó? | SHA256 del archivo | cuántas tablas |
+
+**El orden importa más que cualquiera de los pasos**, y por eso vive en el núcleo: si la verificación fuera después de vaciar, un respaldo corrupto dejaría la base destruida **y** sin nada con qué reemplazarla. Hay una prueba que lo ejerce con un volcado roto y comprueba que el destino sigue intacto.
+
+Vaciar es `DROP SCHEMA public CASCADE` y no borrar la base entera, a propósito: borrarla exigiría conectarse a `postgres` como superusuario, y quien restaura no tiene por qué serlo. Con el esquema alcanza para que la restauración parta de cero en vez de mezclarse con lo que hubiera antes — y hay una prueba que lo comprueba: restaura sobre una base con una tabla ajena y exige que después quede **solo** lo del respaldo.
+
+#### Las credenciales no salen en los mensajes
+
+Los resúmenes y errores de esta librería terminan en el registro de tareas programadas, que se lee **desde una pantalla**. Una contraseña ahí dentro queda guardada en la base y a la vista de cualquiera que abra esa pantalla, así que toda URL que salga en un mensaje pasa por `urlSinCredenciales()`.
+
+#### Restaurar, en concreto
+
+```bash
+npm run restaurar -- --respaldo /ruta/erp-20260915-030000.dump --destino "postgresql://usuario@maquina:5432/base_nueva"
+```
+
+El destino es una **ruta** para un `.db` y una **URL** para un `.dump`; el motor sale de la extensión del artefacto. Sin `--forzar` se niega si el destino ya tiene contenido.

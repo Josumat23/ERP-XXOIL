@@ -24,6 +24,7 @@ import {
   eliminarBase,
   esUrlPostgres,
   nombreDeUrl,
+  otrasBasesDePruebas,
   urlConBase,
 } from "./lib/postgres.mjs";
 
@@ -97,4 +98,16 @@ try {
   // corrida fallida llenaría el servidor de `erp_test_…` en una tarde.
   await eliminarBase(plantilla, nombreBase, PREFIJO_BASE_PRUEBAS);
   console.log(`\n[tests] Base ${nombreBase} eliminada.`);
+
+  // Las pruebas del respaldo crean bases auxiliares con el mismo prefijo y las
+  // destruyen en su propio `finally`. Si alguna sobrevivió, la corrida murió de
+  // mala manera: se avisa en vez de borrarla, porque también podría ser de otra
+  // corrida que está pasando ahora mismo.
+  const otras = await otrasBasesDePruebas(plantilla, nombreBase);
+  if (otras.length > 0) {
+    console.log(
+      `[tests] Aviso: quedan bases de pruebas de otras corridas: ${otras.join(", ")}.\n` +
+        "        Si no hay otra suite corriendo, se pueden borrar sin consecuencias."
+    );
+  }
 }
