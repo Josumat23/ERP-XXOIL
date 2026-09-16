@@ -48,6 +48,7 @@ export const MODULOS: Modulo[] = [
           { href: "/catalogo/presentaciones", etiqueta: "Presentaciones" },
           { href: "/catalogo/insumos", etiqueta: "Insumos" },
           { href: "/catalogo/categorias", etiqueta: "Categorías" },
+          { href: "/inventario/tanques", etiqueta: "Tanques de granel" },
           { href: "/inventario/kardex", etiqueta: "Kardex" },
           { href: "/inventario/ajustes", etiqueta: "Ajustes", roles: ["ADMIN", "ALMACEN"] },
           { href: "/inventario/traslados", etiqueta: "Traslados entre almacenes", roles: ["ADMIN", "ALMACEN"] },

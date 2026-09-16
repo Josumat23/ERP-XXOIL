@@ -1,0 +1,89 @@
+"use client";
+
+import { useActionState } from "react";
+import type { EstadoFormulario } from "./actions";
+
+type Opcion = { id: string; etiqueta: string };
+
+type Props = {
+  accion: (prevState: EstadoFormulario, formData: FormData) => Promise<EstadoFormulario>;
+  almacenes: Opcion[];
+  insumos: Opcion[];
+};
+
+export default function TanqueFormulario({ accion, almacenes, insumos }: Props) {
+  const [estado, formAction, enviando] = useActionState(accion, {});
+
+  return (
+    <form action={formAction} className="flex flex-col gap-4 max-w-xl">
+      {estado.error && (
+        <p
+          role="alert"
+          className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 rounded-md px-3 py-2"
+        >
+          {estado.error}
+        </p>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Código *</span>
+          <input name="codigo" required placeholder="TQ-01" className="campo-input font-mono" />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium">Nombre *</span>
+          <input name="nombre" required placeholder="Tanque base 150 SN" className="campo-input" />
+        </label>
+      </div>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Almacén *</span>
+        <select name="almacenId" required defaultValue="" className="campo-input">
+          <option value="" disabled>
+            Seleccione
+          </option>
+          {almacenes.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.etiqueta}
+            </option>
+          ))}
+        </select>
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Insumo que contiene *</span>
+        <select name="insumoId" required defaultValue="" className="campo-input">
+          <option value="" disabled>
+            Seleccione
+          </option>
+          {insumos.map((i) => (
+            <option key={i.id} value={i.id}>
+              {i.etiqueta}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-slate-500">
+          Un tanque contiene un solo producto. Descargar otro insumo lo contamina, así que el
+          sistema lo rechaza.
+        </span>
+      </label>
+
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="font-medium">Capacidad (kg) *</span>
+        <input
+          name="capacidadKg"
+          type="number"
+          step="0.01"
+          min="0"
+          required
+          placeholder="20000"
+          className="campo-input w-48"
+        />
+      </label>
+
+      <button type="submit" disabled={enviando} className="boton-primario self-start">
+        {enviando ? "Guardando…" : "Crear tanque"}
+      </button>
+    </form>
+  );
+}

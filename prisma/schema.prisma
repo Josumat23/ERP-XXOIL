@@ -506,6 +506,7 @@ enum TipoInsumo {
 }
 
 model Insumo {
+  tanques              Tanque[]
   id                   String     @id @default(cuid())
   empresaId            String     @default("1")
   empresa              Empresa    @relation(fields: [empresaId], references: [id], onDelete: Restrict)
@@ -2795,7 +2796,8 @@ model RecepcionCompra {
 }
 
 model RecepcionCompraDetalle {
-  id                  String  @id @default(cuid())
+  aportesTanque       AporteTanque[]
+  id                  String         @id @default(cuid())
   recepcionId         String
   insumoId            String
   cantidad            Decimal
@@ -2806,7 +2808,7 @@ model RecepcionCompraDetalle {
   // consume en producción (ver AsignacionLoteInsumo) — mismo patrón que
   // Envasado.unidadesDisponibles para la venta.
   numeroLoteProveedor String?
-  cantidadDisponible  Decimal @default(0)
+  cantidadDisponible  Decimal        @default(0)
 
   recepcion        RecepcionCompra        @relation(fields: [recepcionId], references: [id])
   insumo           Insumo                 @relation(fields: [insumoId], references: [id])
@@ -3835,6 +3837,7 @@ enum TipoAlmacen {
 }
 
 model Almacen {
+  tanques      Tanque[]
   id           String      @id @default(cuid())
   empresaId    String      @default("1")
   tipo         TipoAlmacen @default(ALMACEN_DISTRIBUCION)
@@ -5568,6 +5571,7 @@ model Contacto {
 // que operan sobre toda la base, no sobre una compañía.
 // ---------------------------------------------------------------------------
 model Empresa {
+  tanques         Tanque[]
   id              String   @id @default(cuid())
   razonSocial     String
   ruc             String?
@@ -5675,4 +5679,79 @@ model Empresa {
   cuentaBancariaClientes     CuentaBancariaCliente[]
 
   @@map("empresas")
+}
+
+// ---------------------------------------------------------------------------
+// Tanques de granel.
+//
+// La base lubricante llega en cisterna y se descarga sobre el remanente de la
+// recepción anterior. Desde ese momento los lotes están MEZCLADOS: ningún kilo
+// que salga de ahí se puede atribuir a una sola recepción. Es un hecho físico.
+//
+// Hasta el 2026-09-16 el sistema no tenía dónde representarlo, así que la
+// trazabilidad se cortaba en la descarga. Lo que llega envasado —cilindro, IBC—
+// no pasa por acá: cada envase conserva su lote y `AsignacionLoteInsumo` ya
+// alcanza.
+//
+// Ver docs/tanques-mezcla-lotes.md.
+// ---------------------------------------------------------------------------
+
+model Tanque {
+  id        String @id @default(cuid())
+  empresaId String @default("1")
+  almacenId String
+  codigo    String
+  nombre    String
+
+  /// Un tanque contiene UN insumo. Mezclar productos distintos en un tanque no
+  /// es un caso a soportar: es un incidente.
+  insumoId String
+
+  capacidadKg Decimal
+  /// Contenido actual. Es la suma de los aportes vigentes, y se mantiene acá
+  /// para no recalcularla en cada consulta de stock.
+  contenidoKg Decimal @default(0)
+
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+
+  empresa Empresa        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  almacen Almacen        @relation(fields: [almacenId], references: [id], onDelete: Restrict)
+  insumo  Insumo         @relation(fields: [insumoId], references: [id], onDelete: Restrict)
+  aportes AporteTanque[]
+
+  @@unique([empresaId, codigo])
+  @@map("tanques")
+}
+
+/// Qué recepción aporta cuánto al contenido actual de un tanque.
+///
+/// Es el eslabón que conserva la trazabilidad a través de la mezcla: al
+/// consumir, el sistema reparte el consumo EN PROPORCIÓN entre estos aportes y
+/// genera una `AsignacionLoteInsumo` por cada uno. La cadena existente
+/// —LoteGranel → AsignacionLoteInsumo → RecepcionCompraDetalle → lote del
+/// proveedor— sigue funcionando sin cambios, y ahora además dice con qué
+/// porcentaje participó cada lote.
+model AporteTanque {
+  id       String @id @default(cuid())
+  tanqueId String
+
+  recepcionCompraDetalleId String
+
+  /// Cuánto QUEDA de este aporte dentro del tanque. Baja proporcionalmente con
+  /// cada consumo; llega a 0 y la fila se conserva como historia.
+  cantidadKg Decimal
+
+  /// Cuánto entró originalmente. Se conserva para poder reconstruir la mezcla
+  /// de un despacho pasado: la proporción de hoy no es la de ayer.
+  cantidadInicialKg Decimal
+
+  ingresadoEn DateTime @default(now())
+
+  tanque                 Tanque                 @relation(fields: [tanqueId], references: [id], onDelete: Cascade)
+  recepcionCompraDetalle RecepcionCompraDetalle @relation(fields: [recepcionCompraDetalleId], references: [id], onDelete: Restrict)
+
+  @@index([tanqueId])
+  @@map("aportes_tanque")
 }
