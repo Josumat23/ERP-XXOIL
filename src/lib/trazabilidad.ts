@@ -1,4 +1,5 @@
 import type { Tx } from "@/lib/inventario";
+import { consumirDeTanque } from "@/lib/tanquesServicio";
 
 // ---------------------------------------------------------------------------
 // Trazabilidad de lote: qué envasado(s) — y por lo tanto qué lote granel —
@@ -81,6 +82,42 @@ export async function asignarLoteInsumo(
     });
     restante -= tomar;
   }
+
+  // --- Y lo que está en un tanque ------------------------------------------
+  //
+  // Una base descargada en tanque tiene `cantidadDisponible = 0` en su
+  // recepción: el saldo se movió al tanque. Sin este tramo, el FIFO de arriba
+  // no encontraría nada y el consumo quedaría **sin trazar, en silencio** —
+  // justo para el insumo donde más importa, porque es el que llega a granel.
+  //
+  // El tanque no se consume eligiendo un lote: se reparte en proporción entre
+  // las recepciones que lo componen, y `consumirDeTanque` crea una asignación
+  // por cada una. Ver `src/lib/tanques.ts`.
+  if (restante > 0) {
+    const lote = await tx.loteGranel.findUnique({
+      where: { id: loteGranelId },
+      select: { empresaId: true },
+    });
+    if (lote) {
+      const tanques = await tx.tanque.findMany({
+        where: { insumoId, empresaId: lote.empresaId, activo: true, contenidoKg: { gt: 0 } },
+        orderBy: { codigo: "asc" },
+      });
+      for (const tanque of tanques) {
+        if (restante <= 0) break;
+        const tomar = Math.min(restante, tanque.contenidoKg.toNumber());
+        if (tomar <= 0) continue;
+        const resultado = await consumirDeTanque(tx, {
+          tanqueId: tanque.id,
+          loteGranelId,
+          cantidadKg: tomar,
+          empresaId: lote.empresaId,
+        });
+        if (resultado.ok) restante -= tomar;
+      }
+    }
+  }
+
   // Si restante > 0, no se pudo trazar todo (ej. stock cargado antes de este
   // feature) — no es un error, best-effort igual que asignarLoteVenta.
 }
