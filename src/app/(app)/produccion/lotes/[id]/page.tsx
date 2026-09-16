@@ -54,6 +54,15 @@ export default async function DetalleLotePage({
     }),
   ]);
   if (!lote) notFound();
+  // ¿El plan de inspección vigente mide la densidad de este producto? Si lo
+  // hace, el formulario de cierre no la pide: la carga el laboratorio.
+  const planMideDensidad = (await prisma.caracteristicaPlanCalidad.count({
+    where: {
+      esDensidad: true,
+      plan: { productoId: lote.formula.productoId, empresaId: usuario.empresaId, activo: true },
+    },
+  })) > 0;
+
   const [equipos, insumosActivos] = await Promise.all([
     prisma.equipo.findMany({ where: { empresaId: usuario.empresaId, activo: true, centroTrabajoId: { in: lote.operaciones.map((operacion) => operacion.centroTrabajoId) } }, orderBy: { codigo: "asc" } }),
     prisma.insumo.findMany({ where: { empresaId: usuario.empresaId, activo: true, tipo: "MATERIA_PRIMA" }, orderBy: { codigo: "asc" } }),
@@ -218,7 +227,7 @@ export default async function DetalleLotePage({
           <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
             Finalizar cocción
           </h2>
-          <FinalizarLoteFormulario loteId={lote.id} kgObjetivo={lote.kgObjetivo.toNumber()} tieneRuta={lote.operaciones.length > 0} />
+          <FinalizarLoteFormulario loteId={lote.id} kgObjetivo={lote.kgObjetivo.toNumber()} tieneRuta={lote.operaciones.length > 0} planMideDensidad={planMideDensidad} />
         </section>
       )}
 

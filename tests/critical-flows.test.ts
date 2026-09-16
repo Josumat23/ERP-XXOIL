@@ -2604,7 +2604,9 @@ test("planes de calidad validan especificaciones y mediciones", () => {
   const caracteristicas = normalizarCaracteristicasPlan(JSON.stringify([
     { nombre: "Viscosidad", unidadMedida: "cSt", limiteInferior: "90", limiteSuperior: "110", metodoEnsayo: "ASTM D445", obligatoria: true },
   ]));
-  assert.deepEqual(caracteristicas[0], { secuencia: 1, nombre: "Viscosidad", unidadMedida: "cSt", limiteInferior: 90, limiteSuperior: 110, metodoEnsayo: "ASTM D445", obligatoria: true });
+  // `esDensidad` sale en false sin que el plan lo pida: es lo que hace que los
+  // planes anteriores al 2026-09-16 se comporten igual que siempre.
+  assert.deepEqual(caracteristicas[0], { secuencia: 1, nombre: "Viscosidad", unidadMedida: "cSt", limiteInferior: 90, limiteSuperior: 110, metodoEnsayo: "ASTM D445", obligatoria: true, esDensidad: false });
   assert.deepEqual(normalizarLecturasCalidad('[{"caracteristicaId":"visc","valorMedido":"100.5"}]'), [{ caracteristicaId: "visc", valorMedido: 100.5 }]);
   assert.equal(valorCumpleEspecificacion(100, 90, 110), true);
   assert.equal(valorCumpleEspecificacion(111, 90, 110), false);

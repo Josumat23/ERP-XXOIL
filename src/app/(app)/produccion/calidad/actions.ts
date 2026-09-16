@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { postearAsiento } from "@/lib/contabilidad";
-import { normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
+import { densidadMedida, normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
 import { EstadoLote, ResultadoCalidad } from "@/generated/prisma/client";
 
 export type EstadoFormulario = { error?: string };
@@ -62,6 +62,10 @@ export async function registrarCalidad(
       }
 
       let planVersion: number | null = null;
+      // La densidad que el laboratorio midió en este ensayo, cuando el plan
+      // declara cuál de sus características lo es. Gobierna la conversión a
+      // litros de cada comprobante que salga de este lote.
+      let densidadDelEnsayo: number | null = null;
       let resultados: { secuencia: number; nombre: string; unidadMedida: string; limiteInferior: number | null; limiteSuperior: number | null; metodoEnsayo: string | null; valorMedido: number; conforme: boolean }[] = [];
       const plan = await tx.planInspeccionCalidad.findFirst({ where: { productoId: lote.formula.productoId, empresaId: auth.usuario.empresaId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } });
       if (plan && planId !== plan.id) throw new Error("Debe evaluar el lote con el plan de inspección vigente. Actualice la página.");
@@ -80,6 +84,9 @@ export async function registrarCalidad(
         });
         resultado = resultados.every(r => r.conforme) ? ResultadoCalidad.APROBADO : ResultadoCalidad.RECHAZADO;
         planVersion = plan.version;
+        // Se toma aunque el lote salga rechazado: es un hecho medido, y un
+        // lote rechazado puede reprocesarse.
+        densidadDelEnsayo = densidadMedida(plan.caracteristicas, lecturas);
       }
       if (resultado === "RECHAZADO" && !observaciones) throw new Error("Al rechazar un lote, las observaciones son obligatorias.");
       if (resultado === "RECHAZADO" && (!causaId || !accionCorrectiva)) throw new Error("Al rechazar un lote, la causa y la acción correctiva son obligatorias.");
@@ -89,6 +96,9 @@ export async function registrarCalidad(
         data: {
           estado: resultado === ResultadoCalidad.APROBADO ? EstadoLote.APROBADO : EstadoLote.RECHAZADO,
           kgDisponibles: resultado === "APROBADO" ? lote.kgProducidos : 0,
+          // Solo cuando el plan la mide. Si no, el lote conserva lo que se
+          // haya cargado al finalizar — o nada, y rige la del producto.
+          ...(densidadDelEnsayo !== null ? { densidadKgL: densidadDelEnsayo } : {}),
         },
       });
       if (reclamo.count !== 1) {
