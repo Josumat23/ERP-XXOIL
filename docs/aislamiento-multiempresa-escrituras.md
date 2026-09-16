@@ -49,10 +49,12 @@ Además hay dos pruebas de comportamiento sobre el caso más completo:
 1. La tarea preventiva genera la orden **en la compañía del equipo**, no en la `"1"`, y sigue siendo idempotente (con una orden abierta no genera otra).
 2. Dos compañías pueden tener cada una su `OM-00001`, y repetir el código dentro de una se rechaza en base. Es la mitad del índice único que hacía que omitir el campo fuera un fallo duro y no solo un desvío.
 
-## Por qué no se quitó el default
+## Por qué no se quitó el default entonces, y cuándo se quitó
 
 Sería lo correcto en un motor que permita alterar una columna: sin default, omitir el campo no compilaría, y no haría falta ninguna guardia.
 
-En SQLite quitar un default obliga a reconstruir la tabla (el patrón `RedefineTables` de Prisma: crear la nueva, copiar, borrar, renombrar). Ochenta y ocho tablas, entre ellas las de kardex, facturas y planilla. Es una migración enorme, difícil de revertir y con riesgo propio, para un defecto que la guardia ya deja imposible de reintroducir sin que la suite lo diga.
+En SQLite quitar un default obliga a reconstruir la tabla (el patrón `RedefineTables` de Prisma: crear la nueva, copiar, borrar, renombrar). Ochenta y ocho tablas, entre ellas las de kardex, facturas y planilla. Era una migración enorme, difícil de revertir y con riesgo propio, para un defecto que la guardia ya dejaba imposible de reintroducir sin que la suite lo dijera.
 
-Queda anotado como parte del trabajo de la **migración a PostgreSQL**, donde `ALTER TABLE ... DROP DEFAULT` es una línea por tabla y no una reconstrucción.
+**Se quitó el 2026-09-16**, ya sobre PostgreSQL, en la migración `20260916221229_empresa_explicita`: 94 `ALTER COLUMN "empresaId" DROP DEFAULT`. El olvido pasó de ser algo que esta guardia detectaba a algo que no compila. El escaneo por expresiones regulares que se describe arriba ya no existe; lo que queda de este archivo es el registro de por qué hizo falta y qué encontró. El detalle del cambio está en [`empresa-explicita.md`](empresa-explicita.md).
+
+Vale la pena dejar anotado el resultado: cuando se quitaron los defaults, TypeScript reportó **cero** errores en `src/`. Los 103 que aparecieron estaban todos en semillas y pruebas, que esta guardia excluía a propósito. El regex sostuvo la aplicación limpia durante los cuatro días que separaron una cosa de la otra.

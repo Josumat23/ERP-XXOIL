@@ -127,6 +127,11 @@ import { evaluarVerificacionFactura } from "@/lib/verificacionFacturaProveedor";
 import { construirValorizacionInventario } from "@/lib/valorizacionInventario";
 import { cantidadLiberable, normalizarLineasAcuerdo } from "@/lib/acuerdosSuministro";
 
+// La suite corre contra una base recién sembrada por `prisma/seed.ts`, que
+// crea la compañía principal "1". Desde que `empresaId` dejó de tener valor
+// por omisión, las filas de prueba también la declaran.
+const EMPRESA = "1";
+
 test("acuerdos de suministro validan líneas y saldo contractual", () => {
   assert.deepEqual(normalizarLineasAcuerdo([{ insumoId: " ins-1 ", cantidadComprometida: 100, precioUnitario: 8.5 }]), [{ insumoId: "ins-1", cantidadComprometida: 100, precioUnitario: 8.5 }]);
   assert.equal(normalizarLineasAcuerdo([{ insumoId: "i", cantidadComprometida: 1, precioUnitario: 2 }, { insumoId: "i", cantidadComprometida: 2, precioUnitario: 2 }]), null);
@@ -723,10 +728,11 @@ test("kardex mantiene saldo por almacén y total agregado de forma atómica", as
     auditoria(),
   ]);
   const producto = await prisma.producto.create({
-    data: { categoriaId: categoria.id, codigo: "TEST-" + sufijo, nombre: "Producto prueba " + sufijo },
+    data: { empresaId: EMPRESA, categoriaId: categoria.id, codigo: "TEST-" + sufijo, nombre: "Producto prueba " + sufijo },
   });
   const presentacion = await prisma.presentacion.create({
     data: {
+      empresaId: EMPRESA,
       productoId: producto.id,
       sku: "TEST-" + sufijo,
       nombre: "Presentación prueba " + sufijo,
@@ -878,13 +884,14 @@ test("saldo a favor compensa CxC y reembolsa con aprobación segregada", async (
   const audit = await auditoria();
   const aprobador = { usuarioId: "aprobador-" + sufijo, usuarioNombre: "Gerencia prueba" };
   const vendedor = await prisma.vendedor.create({
-    data: { nombre: "Vendedor crédito " + sufijo, tipo: "SOLO_COMISION", tasaComision: 0 },
+    data: { empresaId: EMPRESA, nombre: "Vendedor crédito " + sufijo, tipo: "SOLO_COMISION", tasaComision: 0 },
   });
   const cliente = await prisma.cliente.create({
-    data: { codigo: "CLI-CRED-" + sufijo, razonSocial: "Cliente crédito " + sufijo },
+    data: { empresaId: EMPRESA, codigo: "CLI-CRED-" + sufijo, razonSocial: "Cliente crédito " + sufijo },
   });
   const pedido = await prisma.pedido.create({
     data: {
+      empresaId: EMPRESA,
       numero: "PED-CRED-" + sufijo,
       clienteId: cliente.id,
       vendedorId: vendedor.id,
@@ -894,6 +901,7 @@ test("saldo a favor compensa CxC y reembolsa con aprobación segregada", async (
   });
   const facturaOrigen = await prisma.factura.create({
     data: {
+      empresaId: EMPRESA,
       numero: "F-CRED-O-" + sufijo,
       pedidoId: pedido.id,
       clienteId: cliente.id,
@@ -915,6 +923,7 @@ test("saldo a favor compensa CxC y reembolsa con aprobación segregada", async (
   });
   const facturaDestino = await prisma.factura.create({
     data: {
+      empresaId: EMPRESA,
       numero: "F-CRED-D-" + sufijo,
       pedidoId: pedido.id,
       clienteId: cliente.id,
@@ -935,6 +944,7 @@ test("saldo a favor compensa CxC y reembolsa con aprobación segregada", async (
   });
   const nota = await prisma.notaCredito.create({
     data: {
+      empresaId: EMPRESA,
       numero: "NC-CRED-" + sufijo,
       facturaId: facturaOrigen.id,
       monto: 118,
@@ -946,6 +956,7 @@ test("saldo a favor compensa CxC y reembolsa con aprobación segregada", async (
   });
   const credito = await prisma.creditoCliente.create({
     data: {
+      empresaId: EMPRESA,
       clienteId: cliente.id,
       notaCreditoId: nota.id,
       montoOriginal: 118,
@@ -1058,10 +1069,11 @@ test("saldo de proveedor compensa CxP y registra reembolso recibido", async () =
   const sufijo = Date.now().toString(36);
   const audit = await auditoria();
   const proveedor = await prisma.proveedor.create({
-    data: { razonSocial: "Proveedor crédito " + sufijo, ruc: "20" + sufijo.padStart(9, "0").slice(-9) },
+    data: { empresaId: EMPRESA, razonSocial: "Proveedor crédito " + sufijo, ruc: "20" + sufijo.padStart(9, "0").slice(-9) },
   });
   const insumo = await prisma.insumo.create({
     data: {
+      empresaId: EMPRESA,
       codigo: "INS-CRED-" + sufijo,
       nombre: "Insumo crédito " + sufijo,
       tipo: "MATERIA_PRIMA",
@@ -1071,22 +1083,22 @@ test("saldo de proveedor compensa CxP y registra reembolso recibido", async () =
     },
   });
   const oc = await prisma.ordenCompra.create({
-    data: { numero: "OC-CRED-" + sufijo, proveedorId: proveedor.id, total: 300, usuarioId: audit.usuarioId, usuarioNombre: audit.usuarioNombre },
+    data: { empresaId: EMPRESA, numero: "OC-CRED-" + sufijo, proveedorId: proveedor.id, total: 300, usuarioId: audit.usuarioId, usuarioNombre: audit.usuarioNombre },
   });
   const recepcion = await prisma.recepcionCompra.create({
-    data: { numero: "RC-CRED-" + sufijo, ordenCompraId: oc.id, ...audit },
+    data: { empresaId: EMPRESA, numero: "RC-CRED-" + sufijo, ordenCompraId: oc.id, ...audit },
   });
   const detalle = await prisma.recepcionCompraDetalle.create({
     data: { recepcionId: recepcion.id, insumoId: insumo.id, cantidad: 10, costoUnitario: 10 },
   });
   const devolucion = await prisma.devolucionCompra.create({
-    data: { recepcionCompraDetalleId: detalle.id, cantidad: 10, motivo: "Prueba", montoCredito: 100, montoFuncional: 100, ...audit },
+    data: { empresaId: EMPRESA, recepcionCompraDetalleId: detalle.id, cantidad: 10, motivo: "Prueba", montoCredito: 100, montoFuncional: 100, ...audit },
   });
   const credito = await prisma.creditoProveedor.create({
-    data: { proveedorId: proveedor.id, devolucionCompraId: devolucion.id, montoFuncionalOriginal: 100, saldoFuncional: 100 },
+    data: { empresaId: EMPRESA, proveedorId: proveedor.id, devolucionCompraId: devolucion.id, montoFuncionalOriginal: 100, saldoFuncional: 100 },
   });
   const cxp = await prisma.cuentaPorPagar.create({
-    data: { proveedorId: proveedor.id, numeroDocumento: "F-CRED-" + sufijo, total: 80, saldo: 80, ...audit },
+    data: { empresaId: EMPRESA, proveedorId: proveedor.id, numeroDocumento: "F-CRED-" + sufijo, total: 80, saldo: 80, ...audit },
   });
   await prisma.$transaction((tx) => aplicarCreditoProveedor(tx, { creditoId: credito.id, cuentaPorPagarId: cxp.id, montoFuncional: 60 }, audit));
   await prisma.$transaction((tx) => registrarReembolsoProveedor(tx, { creditoId: credito.id, montoFuncional: 25, medioPago: "TRANSFERENCIA", referencia: "REF-" + sufijo }, audit));
@@ -1129,10 +1141,11 @@ test("conciliación bancaria admite partidas agrupadas y cierra solo al cuadrar"
   const sufijo = Date.now().toString(36);
   const audit = await auditoria();
   const cuenta = await prisma.cuentaBancariaEmpresa.create({
-    data: { banco: "Banco prueba", moneda: "PEN", numeroCuenta: "REC-" + sufijo },
+    data: { empresaId: EMPRESA, banco: "Banco prueba", moneda: "PEN", numeroCuenta: "REC-" + sufijo },
   });
   const conciliacion = await prisma.conciliacionBancaria.create({
     data: {
+      empresaId: EMPRESA,
       cuentaBancariaId: cuenta.id,
       fechaDesde: crearFechaCalendarioLocal("2026-08-01")!,
       fechaHasta: crearFechaCalendarioLocal("2026-08-31")!,
@@ -1147,9 +1160,9 @@ test("conciliación bancaria admite partidas agrupadas y cierra solo al cuadrar"
   const egreso = await prisma.movimientoExtractoBancario.create({
     data: { conciliacionId: conciliacion.id, fecha: crearFechaCalendarioLocal("2026-08-12")!, tipo: "EGRESO", descripcion: "Pago", monto: 30, huella: "egr-" + sufijo },
   });
-  const cajaIngreso1 = await prisma.movimientoCaja.create({ data: { fecha: crearFechaCalendarioLocal("2026-08-10")!, tipo: "INGRESO", concepto: "Cobro A", monto: 50, medioPago: "TRANSFERENCIA", ...audit } });
-  const cajaIngreso2 = await prisma.movimientoCaja.create({ data: { fecha: crearFechaCalendarioLocal("2026-08-10")!, tipo: "INGRESO", concepto: "Cobro B", monto: 30, medioPago: "DEPOSITO", ...audit } });
-  const cajaEgreso = await prisma.movimientoCaja.create({ data: { fecha: crearFechaCalendarioLocal("2026-08-12")!, tipo: "EGRESO", concepto: "Pago C", monto: 30, medioPago: "TRANSFERENCIA", ...audit } });
+  const cajaIngreso1 = await prisma.movimientoCaja.create({ data: { empresaId: EMPRESA, fecha: crearFechaCalendarioLocal("2026-08-10")!, tipo: "INGRESO", concepto: "Cobro A", monto: 50, medioPago: "TRANSFERENCIA", ...audit } });
+  const cajaIngreso2 = await prisma.movimientoCaja.create({ data: { empresaId: EMPRESA, fecha: crearFechaCalendarioLocal("2026-08-10")!, tipo: "INGRESO", concepto: "Cobro B", monto: 30, medioPago: "DEPOSITO", ...audit } });
+  const cajaEgreso = await prisma.movimientoCaja.create({ data: { empresaId: EMPRESA, fecha: crearFechaCalendarioLocal("2026-08-12")!, tipo: "EGRESO", concepto: "Pago C", monto: 30, medioPago: "TRANSFERENCIA", ...audit } });
   await assert.rejects(
     prisma.$transaction((tx) => cerrarConciliacionBancaria(tx, conciliacion.id, { usuarioId: "revisor-temprano-" + sufijo, usuarioNombre: "Revisor" })),
     /pendientes de conciliar/
@@ -1315,10 +1328,11 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
     auditoria(),
   ]);
   const producto = await prisma.producto.create({
-    data: { categoriaId: categoria.id, codigo: "PROD-" + sufijo, nombre: "Grasa prueba " + sufijo },
+    data: { empresaId: EMPRESA, categoriaId: categoria.id, codigo: "PROD-" + sufijo, nombre: "Grasa prueba " + sufijo },
   });
   const presentacion = await prisma.presentacion.create({
     data: {
+      empresaId: EMPRESA,
       productoId: producto.id,
       sku: "ENV-" + sufijo,
       nombre: "Balde prueba " + sufijo,
@@ -1328,6 +1342,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   });
   const insumo = await prisma.insumo.create({
     data: {
+      empresaId: EMPRESA,
       codigo: "MP-" + sufijo,
       nombre: "Materia prima prueba " + sufijo,
       tipo: "MATERIA_PRIMA",
@@ -1337,6 +1352,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   });
   const formula = await prisma.formula.create({
     data: {
+      empresaId: EMPRESA,
       productoId: producto.id,
       version: 1,
       rendimientoKg: 10,
@@ -1363,6 +1379,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
 
     const lote = await tx.loteGranel.create({
       data: {
+        empresaId: EMPRESA,
         codigo: "LG-TEST-" + sufijo,
         formulaId: formula.id,
         kgObjetivo: 20,
@@ -1412,6 +1429,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
     });
     const envasado = await tx.envasado.create({
       data: {
+        empresaId: EMPRESA,
         codigo: "ENV-TEST-" + sufijo,
         loteGranelId: lote.id,
         presentacionId: presentacion.id,
@@ -1479,13 +1497,14 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   assert.equal(asientoInicio.origen, "INICIO_PRODUCCION");
   assert.equal(asientoEnvasado.origen, "ENVASADO_PRODUCCION");
   const vendedor = await prisma.vendedor.create({
-    data: { nombre: "Vendedor recall " + sufijo, tipo: "SOLO_COMISION", tasaComision: 2 },
+    data: { empresaId: EMPRESA, nombre: "Vendedor recall " + sufijo, tipo: "SOLO_COMISION", tasaComision: 2 },
   });
   const cliente = await prisma.cliente.create({
-    data: { codigo: "CLI-RECALL-" + sufijo, razonSocial: "Cliente recall " + sufijo },
+    data: { empresaId: EMPRESA, codigo: "CLI-RECALL-" + sufijo, razonSocial: "Cliente recall " + sufijo },
   });
   const pedido = await prisma.pedido.create({
     data: {
+      empresaId: EMPRESA,
       numero: "PED-RECALL-" + sufijo,
       clienteId: cliente.id,
       vendedorId: vendedor.id,
@@ -1517,6 +1536,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   assert.equal(pedido.referenciaCliente, "Parada de planta");
   const facturaRecall = await prisma.factura.create({
     data: {
+      empresaId: EMPRESA,
       numero: "F-RECALL-" + sufijo,
       pedidoId: pedido.id,
       clienteId: cliente.id,
@@ -1533,6 +1553,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   });
   const segundaFacturaMismoPedido = await prisma.factura.create({
     data: {
+      empresaId: EMPRESA,
       numero: "F-RECALL-2-" + sufijo,
       pedidoId: pedido.id,
       clienteId: cliente.id,
@@ -1661,6 +1682,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
 
   const guia = await prisma.guiaRemision.create({
     data: {
+      empresaId: EMPRESA,
       numero: "T-RECALL-" + sufijo,
       pedidoId: pedido.id,
       clienteId: cliente.id,
@@ -1721,6 +1743,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
   const presentacionAntesReversa = await prisma.presentacion.findUniqueOrThrow({ where: { id: presentacion.id } });
   const guiaReversible = await prisma.guiaRemision.create({
     data: {
+      empresaId: EMPRESA,
       numero: "T-REV-" + sufijo,
       pedidoId: pedido.id,
       clienteId: cliente.id,
@@ -1793,6 +1816,7 @@ test("producción, calidad y envasado conservan inventario y trazabilidad", asyn
 
   const guiaPlanificada = await prisma.guiaRemision.create({
     data: {
+      empresaId: EMPRESA,
       numero: "T-PLAN-" + sufijo,
       pedidoId: pedido.id,
       clienteId: cliente.id,
@@ -1843,7 +1867,7 @@ test("planilla aísla compañías, usa parámetros versionados, excluye configur
       await prisma.controlContable.upsert({
         where: { empresaId_clave: { empresaId: "1", clave } },
         update: { cuentaId: cuenta.id },
-        create: { clave, cuentaId: cuenta.id },
+        create: { empresaId: EMPRESA, clave, cuentaId: cuenta.id },
       });
       return cuenta;
     })
@@ -1852,6 +1876,7 @@ test("planilla aísla compañías, usa parámetros versionados, excluye configur
 
   await prisma.parametroPlanilla.create({
     data: {
+      empresaId: EMPRESA,
       rmv: 1_000,
       uit: 5_000,
       tasaEsSalud: 9,
@@ -1874,6 +1899,7 @@ test("planilla aísla compañías, usa parámetros versionados, excluye configur
   const empleados = await Promise.all([
     prisma.empleado.create({
       data: {
+        empresaId: EMPRESA,
         codigo: "EMP-TEST-ONP",
         nombres: "Ana",
         apellidos: "ONP",
@@ -1888,6 +1914,7 @@ test("planilla aísla compañías, usa parámetros versionados, excluye configur
     }),
     prisma.empleado.create({
       data: {
+        empresaId: EMPRESA,
         codigo: "EMP-TEST-AFP",
         nombres: "Bruno",
         apellidos: "AFP",
@@ -1902,6 +1929,7 @@ test("planilla aísla compañías, usa parámetros versionados, excluye configur
     }),
     prisma.empleado.create({
       data: {
+        empresaId: EMPRESA,
         codigo: "EMP-TEST-INCOMPLETO",
         nombres: "Carla",
         apellidos: "Sin pensión",
@@ -1933,10 +1961,10 @@ test("planilla aísla compañías, usa parámetros versionados, excluye configur
   });
 
   const politicaTiempo = await prisma.politicaTiempoTrabajo.create({
-    data: { vigenteDesde: new Date(2099, 2, 1), horasJornadaDiaria: 8, primerasHorasRecargo: 2, recargoPrimerTramo: 25, recargoSegundoTramo: 35, aplicarPagoSobretiempo: true, estado: "APROBADA", aprobadoEn: new Date(), aprobadoPorId: "aprobador-test", aprobadoPorNombre: "Aprobador Test", ...audit },
+    data: { empresaId: EMPRESA, vigenteDesde: new Date(2099, 2, 1), horasJornadaDiaria: 8, primerasHorasRecargo: 2, recargoPrimerTramo: 25, recargoSegundoTramo: 35, aplicarPagoSobretiempo: true, estado: "APROBADA", aprobadoEn: new Date(), aprobadoPorId: "aprobador-test", aprobadoPorNombre: "Aprobador Test", ...audit },
   });
   await prisma.registroAsistencia.create({
-    data: { empleadoId: empleados[0].id, fecha: new Date(2099, 2, 5), entrada: new Date(2099, 2, 5, 8), salida: new Date(2099, 2, 5, 19), minutosTrabajados: 600, minutosSobretiempo: 180, estado: "APROBADO", aprobadoEn: new Date(), aprobadoPorId: "aprobador-test", aprobadoPorNombre: "Aprobador Test", ...audit },
+    data: { empresaId: EMPRESA, empleadoId: empleados[0].id, fecha: new Date(2099, 2, 5), entrada: new Date(2099, 2, 5, 8), salida: new Date(2099, 2, 5, 19), minutosTrabajados: 600, minutosSobretiempo: 180, estado: "APROBADO", aprobadoEn: new Date(), aprobadoPorId: "aprobador-test", aprobadoPorNombre: "Aprobador Test", ...audit },
   });
 
   const resultado = await prisma.$transaction((tx) =>
@@ -2268,6 +2296,7 @@ test("permisos de grupo restringen la lectura financiera sin limitar al administ
     prisma.usuario.findFirstOrThrow({ where: { rol: "ADMIN", activo: true } }),
     prisma.grupoSeguridad.create({
       data: {
+        empresaId: EMPRESA,
         codigo: "TEST-SIN-FINANZAS",
         nombre: "Prueba sin lectura financiera",
         permisos: {

@@ -51,6 +51,11 @@ import { obtenerFactorMacro } from "../src/lib/bcrp";
 const adapter = crearAdaptador();
 const prisma = new PrismaClient({ adapter });
 
+// La compañía que siembran estos guiones. Desde que `empresaId` dejó de
+// tener valor por omisión, cada fila la declara: el sembrador ya no depende
+// de que la base rellene el campo por él.
+const EMPRESA = "1";
+
 const hoy = new Date();
 function fechaHace(mesesAtras: number, dia: number): Date {
   return new Date(hoy.getFullYear(), hoy.getMonth() - mesesAtras, dia, 10, 0, 0);
@@ -204,6 +209,7 @@ async function main() {
     where: { empresaId_codigo: { empresaId: "1", codigo: "TRUJILLO" } },
     update: {},
     create: {
+      empresaId: EMPRESA,
       codigo: "TRUJILLO",
       nombre: "Almacén Trujillo",
       ciudad: "Trujillo",
@@ -258,7 +264,7 @@ async function main() {
     }
     const cliente = await prisma.$transaction(async (tx) => {
       const codigo = await siguienteCodigoCliente(tx, "1");
-      return tx.cliente.create({ data: { codigo, ...c } });
+      return tx.cliente.create({ data: { empresaId: EMPRESA, codigo, ...c } });
     });
     clientes.push({ id: cliente.id, razonSocial: cliente.razonSocial, vendedorId: c.vendedorId });
     console.log(`Cliente creado: ${cliente.codigo} — ${cliente.razonSocial}`);
@@ -287,6 +293,7 @@ async function main() {
       const numeroOC = await siguienteNumeroOrdenCompra(tx, "1");
       const oc = await tx.ordenCompra.create({
         data: {
+          empresaId: EMPRESA,
           numero: numeroOC,
           proveedorId,
           total: cantidad * costoUnitario,
@@ -301,6 +308,7 @@ async function main() {
       const numeroRecepcion = await siguienteNumeroRecepcion(tx, "1");
       await tx.recepcionCompra.create({
         data: {
+          empresaId: EMPRESA,
           numero: numeroRecepcion,
           ordenCompraId: oc.id,
           ...audit,
@@ -329,6 +337,7 @@ async function main() {
       const proveedor = await tx.proveedor.findUniqueOrThrow({ where: { id: proveedorId } });
       const cxp = await tx.cuentaPorPagar.create({
         data: {
+          empresaId: EMPRESA,
           proveedorId,
           ordenCompraId: oc.id,
           numeroDocumento: docProveedor,
@@ -357,10 +366,11 @@ async function main() {
         const pago = cantidad * costoUnitario * 0.6;
         const nuevoSaldo = cantidad * costoUnitario - pago;
         await tx.pagoProveedor.create({
-          data: { cuentaPorPagarId: cxp.id, monto: pago, medioPago: "TRANSFERENCIA", ...audit },
+          data: { empresaId: EMPRESA, cuentaPorPagarId: cxp.id, monto: pago, medioPago: "TRANSFERENCIA", ...audit },
         });
         await tx.movimientoCaja.create({
           data: {
+            empresaId: EMPRESA,
             tipo: "EGRESO",
             concepto: `Pago a ${proveedor.razonSocial} (doc. ${docProveedor})`,
             monto: pago,
@@ -402,7 +412,7 @@ async function main() {
       const codigo = await siguienteCodigoLote(tx, "1");
       const factor = kgObjetivo / formula.rendimientoKg.toNumber();
       const lote = await tx.loteGranel.create({
-        data: { codigo, formulaId: formula.id, kgObjetivo, ...audit },
+        data: { empresaId: EMPRESA, codigo, formulaId: formula.id, kgObjetivo, ...audit },
       });
 
       let costoInsumos = 0;
@@ -466,6 +476,7 @@ async function main() {
 
       const envasado = await tx.envasado.create({
         data: {
+          empresaId: EMPRESA,
           codigo,
           loteGranelId: lote.id,
           presentacionId,
@@ -593,6 +604,7 @@ async function main() {
       );
       const pedido = await tx.pedido.create({
         data: {
+          empresaId: EMPRESA,
           numero: numeroPedido,
           clienteId: venta.cliente.id,
           vendedorId: venta.cliente.vendedorId,
@@ -654,6 +666,7 @@ async function main() {
       const montoInicial = venta.cobro === "NINGUNO" ? 0 : venta.cobro === "PARCIAL" ? totalConIgv * 0.5 : totalConIgv;
       const factura = await tx.factura.create({
         data: {
+          empresaId: EMPRESA,
           numero: numeroFactura,
           pedidoId: pedido.id,
           clienteId: venta.cliente.id,
@@ -709,6 +722,7 @@ async function main() {
       const tasa = (await tx.vendedor.findUniqueOrThrow({ where: { id: venta.cliente.vendedorId } })).tasaComision.toNumber();
       await tx.comision.create({
         data: {
+          empresaId: EMPRESA,
           vendedorId: venta.cliente.vendedorId,
           facturaId: factura.id,
           tipo: "GENERADA",
@@ -736,6 +750,7 @@ async function main() {
       if (montoInicial > 0) {
         await tx.cobro.create({
           data: {
+            empresaId: EMPRESA,
             facturaId: factura.id,
             monto: montoInicial,
             moneda: "PEN",
@@ -750,6 +765,7 @@ async function main() {
         });
         await tx.movimientoCaja.create({
           data: {
+            empresaId: EMPRESA,
             tipo: "INGRESO",
             concepto: `Cobro factura ${numeroFactura}`,
             monto: montoInicial,
@@ -779,6 +795,7 @@ async function main() {
       const montoNC = Math.min(20, facturaParaNC.total.toNumber() * 0.15);
       await tx.notaCredito.create({
         data: {
+          empresaId: EMPRESA,
           numero: "FC01-00000001",
           facturaId: facturaParaNC.id,
           monto: montoNC,
@@ -868,6 +885,7 @@ async function main() {
       const codigo = await siguienteCodigoActivoFijo(tx, "1");
       return tx.activoFijo.create({
         data: {
+          empresaId: EMPRESA,
           codigo,
           nombre: a.nombre,
           categoria: a.categoria,
@@ -923,6 +941,7 @@ async function main() {
     const codigo = await siguienteCodigoEquipo(tx, "1");
     return tx.equipo.create({
       data: {
+        empresaId: EMPRESA,
         codigo,
         nombre: "Mezcladora de grasas MG-500",
         almacenId: planta.id,
@@ -934,6 +953,7 @@ async function main() {
     const codigo = await siguienteCodigoEquipo(tx, "1");
     return tx.equipo.create({
       data: {
+        empresaId: EMPRESA,
         codigo,
         nombre: "Camioneta de reparto Hyundai H100",
         almacenId: planta.id,
@@ -950,6 +970,7 @@ async function main() {
     const costoRepuestos = 320;
     await tx.ordenMantenimiento.create({
       data: {
+        empresaId: EMPRESA,
         codigo,
         equipoId: mezcladora.id,
         tipo: "CORRECTIVO",
@@ -967,6 +988,7 @@ async function main() {
     const total = costoManoObra + costoRepuestos;
     await tx.movimientoCaja.create({
       data: {
+        empresaId: EMPRESA,
         tipo: "EGRESO",
         concepto: `Mantenimiento ${codigo} — ${mezcladora.nombre}`,
         monto: total,
@@ -990,6 +1012,7 @@ async function main() {
     const fechaProgramada = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 5);
     await tx.ordenMantenimiento.create({
       data: {
+        empresaId: EMPRESA,
         codigo,
         equipoId: camioneta.id,
         tipo: "PREVENTIVO",

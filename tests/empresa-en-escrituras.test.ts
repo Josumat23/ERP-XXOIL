@@ -1,110 +1,72 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join, relative, resolve } from "node:path";
+import { readFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { prisma } from "@/lib/prisma";
 import { generarOrdenesPreventivasVencidas } from "@/lib/mantenimientoPreventivo";
 
 // ---------------------------------------------------------------------------
 // Quién escribe en qué compañía.
 //
-// Los 88 modelos con `empresaId` lo declaran como `String @default("1")`. Ese
-// default existe por una razón buena —las migraciones que agregaron la columna
+// Los modelos con `empresaId` lo declaraban como `String @default("1")`. Ese
+// default existió por una razón buena —las migraciones que agregaron la columna
 // tenían que rellenar las filas existentes, todas de la compañía original "1"—
-// pero quedó convertido en una trampa: una escritura que **omite** el campo no
-// falla ni avisa, simplemente archiva la fila en la compañía "1".
+// pero quedó convertido en una trampa: una escritura que **omitía** el campo no
+// fallaba ni avisaba, simplemente archivaba la fila en la compañía "1". Una
+// auditoría de 2026-09-12 encontró así nueve escrituras sin compañía, entre
+// ellas notas de crédito y comisiones, que además se **leen** filtrando por ese
+// mismo campo: con una segunda sociedad habrían aparecido en el P&L equivocado.
 //
-// La mitad de lectura del aislamiento multiempresa está cubierta y probada. La
-// de escritura no lo estaba: una auditoría de 2026-09-12 encontró nueve
-// escrituras de la aplicación sin compañía, entre ellas notas de crédito y
-// comisiones, que además se **leen** filtrando por ese mismo campo. Con una
-// segunda sociedad habrían aparecido en el P&L equivocado.
+// Hasta el 2026-09-16 este archivo compensaba eso leyendo `src/` con
+// expresiones regulares, porque en SQLite quitar el default de 88 modelos era
+// reconstruir 88 tablas. En PostgreSQL es `ALTER COLUMN ... DROP DEFAULT`, así
+// que la migración `20260916221229_empresa_explicita` lo quitó de los 94 y el
+// trabajo pasó al compilador, que lo hace mejor: no se le escapa una escritura
+// por una forma sintáctica que el regex no previó, y falla antes de correr.
 //
-// Quitar el default de 88 modelos sería una reconstrucción de 88 tablas en
-// SQLite, desproporcionada frente al riesgo. Esta guardia es el control
-// proporcionado: hace ruidoso lo que el default vuelve silencioso.
+// Lo que queda aquí es lo que el compilador no puede cuidar de sí mismo: que
+// nadie le devuelva el default y apague la exigencia sin que se note.
 // ---------------------------------------------------------------------------
 
 const RAIZ = process.cwd();
 
-/** Modelos cuyo `empresaId` tiene default, es decir: los que se pueden omitir. */
-async function modelosConCompaniaPorDefecto(): Promise<Map<string, string>> {
+test("ningún modelo le pone compañía por defecto", async () => {
+  // Devolver el `@default("1")` a un solo modelo basta para que sus escrituras
+  // vuelvan a ser silenciosas: Prisma dejaría de exigir el campo justo ahí.
   const esquema = await readFile(resolve(RAIZ, "prisma/schema.prisma"), "utf8");
-  const modelos = new Map<string, string>();
+  const conDefault: string[] = [];
+  let conEmpresa = 0;
+
   for (const bloque of esquema.split(/\nmodel /).slice(1)) {
     const nombre = bloque.slice(0, bloque.indexOf(" ")).trim();
     const cuerpo = bloque.slice(0, bloque.indexOf("\n}"));
-    if (/empresaId\s+String\s+@default\("1"\)/.test(cuerpo)) {
-      modelos.set(nombre[0].toLowerCase() + nombre.slice(1), nombre);
-    }
-  }
-  return modelos;
-}
-
-async function fuentesDeAplicacion(dir: string, acc: string[] = []): Promise<string[]> {
-  for (const nombre of await readdir(dir)) {
-    // `src/generated` es el cliente de Prisma: no es código nuestro.
-    if (nombre === "generated") continue;
-    const ruta = join(dir, nombre);
-    if ((await stat(ruta)).isDirectory()) await fuentesDeAplicacion(ruta, acc);
-    else if (/\.tsx?$/.test(ruta)) acc.push(ruta);
-  }
-  return acc;
-}
-
-/** El objeto que abre en `desde`, contando llaves. */
-function objetoDesde(texto: string, desde: number): string {
-  let nivel = 0;
-  for (let i = desde; i < texto.length; i++) {
-    if (texto[i] === "{") nivel++;
-    else if (texto[i] === "}" && --nivel === 0) return texto.slice(desde, i + 1);
-  }
-  return texto.slice(desde);
-}
-
-test("ninguna escritura de la aplicación deja que la compañía la ponga el default", async () => {
-  const modelos = await modelosConCompaniaPorDefecto();
-  // Si esto queda en cero, la guardia dejó de mirar algo y pasaría siempre.
-  assert.ok(modelos.size > 50, `solo ${modelos.size} modelos con empresaId por defecto`);
-
-  const fuentes = await fuentesDeAplicacion(resolve(RAIZ, "src"));
-  const sinCompania: string[] = [];
-
-  for (const archivo of fuentes) {
-    const texto = await readFile(archivo, "utf8");
-    for (const [accessor, modelo] of modelos) {
-      const re = new RegExp(`\\.${accessor}\\.(create|createMany|upsert)\\s*\\(`, "g");
-      let coincidencia: RegExpExecArray | null;
-      while ((coincidencia = re.exec(texto))) {
-        const inicio = texto.indexOf("{", coincidencia.index + coincidencia[0].length - 1);
-        if (inicio === -1) continue;
-        if (/\bempresaId\b/.test(objetoDesde(texto, inicio))) continue;
-        const linea = texto.slice(0, coincidencia.index).split("\n").length;
-        sinCompania.push(
-          `${relative(RAIZ, archivo).replaceAll("\\", "/")}:${linea} ${modelo}.${coincidencia[1]}`
-        );
-      }
-    }
+    if (!/^\s*empresaId\s+String/m.test(cuerpo)) continue;
+    conEmpresa++;
+    if (/^\s*empresaId\s+String[^\n]*@default\(/m.test(cuerpo)) conDefault.push(nombre);
   }
 
+  // Si esto queda en cero la guardia dejó de mirar algo y pasaría siempre.
+  assert.ok(conEmpresa > 50, `solo ${conEmpresa} modelos con empresaId`);
   assert.deepEqual(
-    sinCompania,
+    conDefault,
     [],
-    `Escrituras que caerían en la compañía "1":\n  ${sinCompania.join("\n  ")}`
+    `Estos modelos volverían a aceptar escrituras sin compañía:\n  ${conDefault.join("\n  ")}`
   );
 });
 
-test("las semillas quedan fuera a propósito, y la guardia sí las vería", async () => {
-  // `prisma/seed.ts` y `seed-demo.ts` pueblan deliberadamente la compañía "1":
-  // ahí el default es la respuesta correcta y no un olvido. Se excluyen por
-  // directorio, no por lista de excepciones, para que agregar una escritura
-  // nueva en `src/` no tenga forma de quedar exenta.
-  const fuentes = await fuentesDeAplicacion(resolve(RAIZ, "src"));
-  assert.ok(fuentes.length > 100, "la guardia no está leyendo el código de la aplicación");
-  assert.ok(
-    !fuentes.some((f) => f.includes(`${join("src", "generated")}`)),
-    "el cliente generado no debe auditarse"
+test("el cliente generado exige la compañía, no la ofrece", async () => {
+  // La guardia de arriba mira la intención; esta mira el resultado. Entre las
+  // dos está el paso que de verdad protege: que `prisma generate` haya corrido
+  // y el tipo diga `empresaId: string` y no `empresaId?: string`. Un esquema
+  // corregido con un cliente viejo compila igual de mal que antes.
+  const modelo = await readFile(
+    resolve(RAIZ, "src/generated/prisma/models/Cliente.ts"),
+    "utf8"
   );
+  const bloque = modelo.slice(modelo.indexOf("export type ClienteUncheckedCreateInput = {"));
+  const cuerpo = bloque.slice(0, bloque.indexOf("\n}"));
+  assert.ok(cuerpo.length > 50, "el corte del tipo quedó vacío");
+  assert.match(cuerpo, /^\s*empresaId: string$/m, "empresaId volvió a ser opcional");
 });
 
 test("la orden preventiva se archiva en la compañía del equipo, no en la «1»", async () => {
