@@ -115,17 +115,17 @@ Confirmado corriendo, no supuesto:
 - **El `ON CONFLICT` del cerrojo**, que sí era portable.
 - **Las funciones puras y sus pruebas.**
 
-## Los datos de `local.db` siguen en `local.db`
+## Los datos de `local.db`
 
-`erp_dev` arranca **vacía**. El archivo `local.db` —la base de desarrollo hasta hoy— sigue donde estaba, intacto, con 2.752 filas: 1.834 son el catálogo UBIGEO, que se vuelve a sembrar solo, y las ~900 restantes son trabajo real (95 asientos contables con 210 detalles, 19 facturas, 22 pedidos, 56 movimientos de kardex, 49 depreciaciones).
+El día de la migración de motor `erp_dev` arrancó **vacía**, y los datos quedaron en `local.db`: 2.752 filas, de las que 1.834 son el catálogo UBIGEO —que se vuelve a sembrar solo— y las ~900 restantes trabajo real (95 asientos contables con 210 detalles, 19 facturas, 22 pedidos, 56 movimientos de kardex, 49 depreciaciones).
 
-**No se migraron a propósito**, por dos razones. Copiar filas entre motores no es un `INSERT ... SELECT`: hay 100 enums, fechas que en SQLite son texto y acá son `TIMESTAMP`, booleanos que allá son `0`/`1`, y 357 claves foráneas que obligan a un orden de carga. Y hacerlo mal no falla ruidosamente — deja datos torcidos que aparecen semanas después. Es un trabajo propio, no un apéndice de éste.
+**Se migraron el 2026-09-16**, en un ciclo propio y no como apéndice de éste — que era justamente el punto. Copiar filas entre motores no es un `INSERT ... SELECT`, y la trampa peor resultó ser la de las fechas: pasar un `Date` de JS a una columna `timestamp without time zone` las corre a la zona horaria de la máquina, cinco horas acá, sin un solo error. Véase [migracion-datos-sqlite-postgres.md](migracion-datos-sqlite-postgres.md).
 
-Mientras tanto: `npm run dev:demo` levanta la aplicación contra datos sembrados, y `local.db` no se toca. Hay un respaldo verificado en `D:\Escritorio\ERP-respaldos`.
+`local.db` **no se tocó**: el migrador lo abre en solo lectura y el archivo sigue donde estaba, con su respaldo verificado en `D:\Escritorio\ERP-respaldos`. Conviene conservarlo hasta haber usado `erp_dev` lo suficiente como para confiar en ella.
 
 ## Lo que queda pendiente
 
 1. ~~El controlador de respaldo con `pg_dump`/`pg_restore`.~~ **Hecho el 2026-09-15**, con la suite ejerciéndolo contra un PostgreSQL de verdad. Véase [backup-restauracion.md](backup-restauracion.md).
-2. **Traer los datos de `local.db`**, si se quieren conservar (ver arriba). Es lo siguiente.
+2. ~~Traer los datos de `local.db`.~~ **Hecho el 2026-09-16**: 2.677 filas en 59 tablas, verificadas valor por valor. Véase [migracion-datos-sqlite-postgres.md](migracion-datos-sqlite-postgres.md).
 3. **Quitar el `@default("1")` de `empresaId`.** Hoy convierte el olvido de declarar compañía en una escritura silenciosa a la compañía 1. En SQLite exigía reconstruir 88 tablas; en PostgreSQL es un `ALTER TABLE ... DROP DEFAULT` por tabla. El costo desapareció, así que ya no hay razón para no hacerlo.
 4. **Las credenciales.** `trust` sirve para esta máquina y para nada más.
