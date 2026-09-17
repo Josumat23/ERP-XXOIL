@@ -1345,16 +1345,28 @@ model CaracteristicaPlanCalidad {
 }
 
 model ResultadoCaracteristicaCalidad {
-  id               String               @id @default(cuid())
-  controlCalidadId String
-  secuencia        Int
-  nombre           String
-  unidadMedida     String
-  limiteInferior   Decimal?
-  limiteSuperior   Decimal?
-  metodoEnsayo     String?
-  valorMedido      Decimal
-  conforme         Boolean
+  id String @id @default(cuid())
+
+  // Una lectura pertenece a UN ensayo, y hay dos clases de ensayo: el del lote
+  // granel antes de liberarlo, y el re-análisis que le da vigencia nueva a un
+  // envasado. Son la misma cosa medida en dos momentos, así que viven en la
+  // misma tabla: partirlas obligaría a unir dos tablas cada vez que se
+  // pregunta «¿qué midió este instrumento?», y la consulta que se olvidara de
+  // una devolvería una respuesta incompleta sin avisar.
+  //
+  // Exactamente una de las dos está puesta; lo garantiza un CHECK en la base,
+  // no la disciplina de quien escribe.
+  controlCalidadId String?
+  reanalisisId     String?
+
+  secuencia      Int
+  nombre         String
+  unidadMedida   String
+  limiteInferior Decimal?
+  limiteSuperior Decimal?
+  metodoEnsayo   String?
+  valorMedido    Decimal
+  conforme       Boolean
   // Con qué instrumento se tomó ESTA lectura. Es el hecho que permite
   // contestar «¿qué lotes se liberaron con este instrumento?» el día que una
   // calibración vuelve fuera de tolerancia.
@@ -1364,12 +1376,14 @@ model ResultadoCaracteristicaCalidad {
   // sola a medida que se carga el historial —que es exactamente lo que va a
   // pasar mientras el laboratorio se pone en marcha— y que además podría
   // discrepar del ledger sin que nada lo avise.
-  instrumentoId    String?
-  instrumento      InstrumentoMedicion? @relation(fields: [instrumentoId], references: [id], onDelete: SetNull)
+  instrumentoId  String?
+  instrumento    InstrumentoMedicion? @relation(fields: [instrumentoId], references: [id], onDelete: SetNull)
 
-  controlCalidad ControlCalidad @relation(fields: [controlCalidadId], references: [id], onDelete: Cascade)
+  controlCalidad ControlCalidad?     @relation(fields: [controlCalidadId], references: [id], onDelete: Cascade)
+  reanalisis     ReanalisisEnvasado? @relation(fields: [reanalisisId], references: [id], onDelete: Cascade)
 
   @@unique([controlCalidadId, secuencia])
+  @@unique([reanalisisId, secuencia])
   @@map("resultados_caracteristica_calidad")
 }
 
@@ -6062,6 +6076,10 @@ model ReanalisisEnvasado {
   empresa        Empresa                @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   envasado       Envasado               @relation(fields: [envasadoId], references: [id], onDelete: Cascade)
   planInspeccion PlanInspeccionCalidad? @relation(fields: [planInspeccionId], references: [id], onDelete: Restrict)
+
+  /// Qué se midió en el re-ensayo. Sin esto, extender una vigencia 333 días es
+  /// una afirmación sin evidencia: consta que se ensayó, no qué dio.
+  resultadosCaracteristica ResultadoCaracteristicaCalidad[]
 
   @@index([envasadoId])
   @@map("reanalisis_envasado")

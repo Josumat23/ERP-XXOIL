@@ -417,7 +417,7 @@ export default async function PanelPage() {
   );
   // Y el producto medido con ellos: reparar el instrumento no arregla el lote
   // que ya se liberó con él.
-  const porReensayar = resumenReensayos(reensayos.lotes);
+  const porReensayar = resumenReensayos(reensayos.items);
 
   // Homologaciones: una vencida deja de imprimirse en el certificado y baja
   // la cobertura de las equivalencias que se apoyaban en ella.

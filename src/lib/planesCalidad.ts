@@ -116,3 +116,80 @@ export function normalizarLecturasCalidad(valor: string): LecturaCalidad[] {
 export function valorCumpleEspecificacion(valor: number, minimo: number | null, maximo: number | null) {
   return (minimo === null || valor >= minimo) && (maximo === null || valor <= maximo);
 }
+
+export type CaracteristicaDelPlan = {
+  id: string;
+  secuencia: number;
+  nombre: string;
+  unidadMedida: string;
+  limiteInferior: number | null;
+  limiteSuperior: number | null;
+  metodoEnsayo: string | null;
+  obligatoria: boolean;
+  /** Con el que el plan espera medirla. Rige si el ensayo no declara otro. */
+  instrumentoId: string | null;
+};
+
+/** Una lectura ya contrastada contra la especificación, lista para asentar. */
+export type ResultadoDeEnsayo = {
+  secuencia: number;
+  nombre: string;
+  unidadMedida: string;
+  limiteInferior: number | null;
+  limiteSuperior: number | null;
+  metodoEnsayo: string | null;
+  valorMedido: number;
+  conforme: boolean;
+  instrumentoId: string | null;
+};
+
+/**
+ * Convierte las lecturas del formulario en los resultados que se asientan.
+ *
+ * Copia la especificación de cada característica dentro del resultado a
+ * propósito: el plan puede cambiar mañana, y el ensayo tiene que poder leerse
+ * tal como se hizo sin depender de la versión vigente.
+ *
+ * Es la misma operación para el ensayo de liberación del lote y para el
+ * re-análisis de un envasado. Estaba escrita solo en el primero; al necesitarla
+ * en el segundo se extrajo, en vez de copiarla —que es cómo dos ensayos
+ * terminan aplicando criterios distintos sin que nadie lo decida—.
+ */
+export function resultadosDelEnsayo(
+  caracteristicas: CaracteristicaDelPlan[],
+  lecturas: LecturaCalidad[]
+): ResultadoDeEnsayo[] {
+  const porId = new Map(lecturas.map((l) => [l.caracteristicaId, l.valorMedido]));
+  const instrumentoPorId = new Map(lecturas.map((l) => [l.caracteristicaId, l.instrumentoId]));
+  const idsPlan = new Set(caracteristicas.map((c) => c.id));
+
+  // Una lectura repetida, una que no está en el plan, o una obligatoria que
+  // falta: en los tres casos el ensayo no es el que dice ser.
+  if (
+    new Set(lecturas.map((l) => l.caracteristicaId)).size !== lecturas.length ||
+    lecturas.some((l) => !idsPlan.has(l.caracteristicaId)) ||
+    caracteristicas.some((c) => c.obligatoria && !porId.has(c.id))
+  ) {
+    throw new Error("Las mediciones no corresponden exactamente al plan vigente.");
+  }
+
+  return caracteristicas
+    .filter((c) => porId.has(c.id))
+    .map((c) => {
+      const valorMedido = porId.get(c.id);
+      if (valorMedido === undefined) throw new Error(`Falta la medición de ${c.nombre}.`);
+      return {
+        secuencia: c.secuencia,
+        nombre: c.nombre,
+        unidadMedida: c.unidadMedida,
+        limiteInferior: c.limiteInferior,
+        limiteSuperior: c.limiteSuperior,
+        metodoEnsayo: c.metodoEnsayo,
+        valorMedido,
+        conforme: valorCumpleEspecificacion(valorMedido, c.limiteInferior, c.limiteSuperior),
+        // Si el ensayo no dice con qué se midió, rige el del plan; si el plan
+        // tampoco, queda en null — que es la verdad: no se sabe.
+        instrumentoId: instrumentoPorId.get(c.id) ?? c.instrumentoId,
+      };
+    });
+}

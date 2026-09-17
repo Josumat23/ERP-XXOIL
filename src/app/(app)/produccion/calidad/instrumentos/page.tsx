@@ -14,6 +14,7 @@ import {
   requiereAtencion,
   respaldoDeMedicion,
 } from "@/lib/calibracion";
+import { MENSAJE_TIPO_ENSAYO, type TipoEnsayo } from "@/lib/reensayos";
 import InstrumentoFormulario from "./InstrumentoFormulario";
 import CalibracionFormulario from "./CalibracionFormulario";
 import {
@@ -32,24 +33,7 @@ export default async function InstrumentosPage() {
   const [instrumentos, configuracion] = await Promise.all([
     prisma.instrumentoMedicion.findMany({
       where: { empresaId },
-      include: {
-        calibraciones: { orderBy: { fecha: "desc" } },
-        // Qué midió este instrumento. Es la pregunta del día que una
-        // calibración vuelve fuera de tolerancia.
-        mediciones: {
-          include: {
-            controlCalidad: {
-              select: {
-                fecha: true,
-                resultado: true,
-                loteGranel: { select: { id: true, codigo: true } },
-              },
-            },
-          },
-          orderBy: { controlCalidad: { fecha: "desc" } },
-          take: 50,
-        },
-      },
+      include: { calibraciones: { orderBy: { fecha: "desc" } } },
       orderBy: { codigo: "asc" },
     }),
     prisma.configuracionEmpresa.findUnique({
@@ -58,6 +42,97 @@ export default async function InstrumentosPage() {
     }),
   ]);
   const controlActivo = configuracion?.controlCalibracion ?? false;
+
+  // Qué midió cada instrumento. Es la pregunta del día que una calibración
+  // vuelve fuera de tolerancia.
+  //
+  // Van dos consultas y no un `include` porque hay dos clases de ensayo con su
+  // propia fecha —la liberación del lote y el re-análisis del envasado— y
+  // Prisma no sabe ordenar una relación por el campo de dos padres distintos.
+  // Cada una trae su tope y se mezclan acá.
+  const TOPE_POR_CONSULTA = 300;
+  const idsInstrumento = instrumentos.map((i) => i.id);
+  const [deLiberacion, deReanalisis] = idsInstrumento.length === 0
+    ? [[], []]
+    : await Promise.all([
+        prisma.resultadoCaracteristicaCalidad.findMany({
+          where: {
+            instrumentoId: { in: idsInstrumento },
+            controlCalidad: { loteGranel: { empresaId } },
+          },
+          select: {
+            id: true,
+            nombre: true,
+            valorMedido: true,
+            unidadMedida: true,
+            instrumentoId: true,
+            controlCalidad: {
+              select: { fecha: true, loteGranel: { select: { id: true, codigo: true } } },
+            },
+          },
+          orderBy: { controlCalidad: { fecha: "desc" } },
+          take: TOPE_POR_CONSULTA,
+        }),
+        prisma.resultadoCaracteristicaCalidad.findMany({
+          where: { instrumentoId: { in: idsInstrumento }, reanalisis: { empresaId } },
+          select: {
+            id: true,
+            nombre: true,
+            valorMedido: true,
+            unidadMedida: true,
+            instrumentoId: true,
+            reanalisis: {
+              select: { fecha: true, envasado: { select: { id: true, codigo: true } } },
+            },
+          },
+          orderBy: { reanalisis: { fecha: "desc" } },
+          take: TOPE_POR_CONSULTA,
+        }),
+      ]);
+
+  type MedicionDeFicha = {
+    id: string;
+    instrumentoId: string | null;
+    fecha: Date;
+    ensayo: TipoEnsayo;
+    itemId: string;
+    itemCodigo: string;
+    nombre: string;
+    valorMedido: { toString(): string };
+    unidadMedida: string;
+  };
+  const medicionesPorInstrumento = new Map<string, MedicionDeFicha[]>();
+  const filasMedicion: MedicionDeFicha[] = [
+    ...deLiberacion.flatMap((m) =>
+      m.controlCalidad
+        ? [{
+            ...m,
+            fecha: m.controlCalidad.fecha,
+            ensayo: "LIBERACION" as const,
+            itemId: m.controlCalidad.loteGranel.id,
+            itemCodigo: m.controlCalidad.loteGranel.codigo,
+          }]
+        : []
+    ),
+    ...deReanalisis.flatMap((m) =>
+      m.reanalisis
+        ? [{
+            ...m,
+            fecha: m.reanalisis.fecha,
+            ensayo: "REANALISIS" as const,
+            itemId: m.reanalisis.envasado.id,
+            itemCodigo: m.reanalisis.envasado.codigo,
+          }]
+        : []
+    ),
+  ].sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
+  for (const fila of filasMedicion) {
+    if (!fila.instrumentoId) continue;
+    const suyas = medicionesPorInstrumento.get(fila.instrumentoId) ?? [];
+    if (suyas.length >= 50) continue;
+    suyas.push(fila);
+    medicionesPorInstrumento.set(fila.instrumentoId, suyas);
+  }
 
   const filas = instrumentos.map((i) => {
     const vigente = calibracionVigente(i.calibraciones);
@@ -226,9 +301,9 @@ export default async function InstrumentosPage() {
                   </table>
                 )}
 
-                {instrumento.mediciones.length > 0 && (
+                {(medicionesPorInstrumento.get(instrumento.id) ?? []).length > 0 && (
                   <div className="mt-4">
-                    <h3 className="text-sm font-semibold">Lotes medidos con este instrumento</h3>
+                    <h3 className="text-sm font-semibold">Qué se midió con este instrumento</h3>
                     <p className="text-xs mb-2" style={{ color: "var(--epicor-texto-tenue)" }}>
                       El respaldo se calcula contra el historial de arriba, no se guarda con la
                       medición: así mejora solo cuando se carga una calibración que faltaba.
@@ -236,30 +311,33 @@ export default async function InstrumentosPage() {
                     <table className="tabla">
                       <thead>
                         <tr>
-                          <th>Lote</th>
-                          <th>Fecha del ensayo</th>
+                          <th>Lote / envasado</th>
+                          <th>Ensayo</th>
+                          <th>Fecha</th>
                           <th>Medición</th>
                           <th>Valor</th>
                           <th>Respaldo</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {instrumento.mediciones.map((m) => {
-                          const respaldo = respaldoDeMedicion(
-                            instrumento.calibraciones,
-                            m.controlCalidad.fecha
-                          );
+                        {(medicionesPorInstrumento.get(instrumento.id) ?? []).map((m) => {
+                          const respaldo = respaldoDeMedicion(instrumento.calibraciones, m.fecha);
                           return (
                             <tr key={m.id}>
                               <td className="font-medium">
                                 <Link
-                                  href={`/produccion/lotes/${m.controlCalidad.loteGranel.id}`}
+                                  href={
+                                    m.ensayo === "LIBERACION"
+                                      ? `/produccion/lotes/${m.itemId}`
+                                      : `/produccion/envasados/${m.itemId}`
+                                  }
                                   className="hover:underline"
                                 >
-                                  {m.controlCalidad.loteGranel.codigo}
+                                  {m.itemCodigo}
                                 </Link>
                               </td>
-                              <td>{fechaCorta.format(m.controlCalidad.fecha)}</td>
+                              <td className="text-xs">{MENSAJE_TIPO_ENSAYO[m.ensayo]}</td>
+                              <td>{fechaCorta.format(m.fecha)}</td>
                               <td>{m.nombre}</td>
                               <td>
                                 {m.valorMedido.toString()} {m.unidadMedida}

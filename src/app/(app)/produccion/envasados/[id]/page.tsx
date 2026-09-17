@@ -25,7 +25,14 @@ export default async function DetalleEnvasadoPage({
       include: {
         loteGranel: { include: { formula: { include: { producto: true } } } },
         reanalisis: {
-          include: { planInspeccion: { select: { nombre: true } } },
+          include: {
+            planInspeccion: { select: { nombre: true } },
+            // Qué dio el re-ensayo, no solo que se hizo.
+            resultadosCaracteristica: {
+              orderBy: { secuencia: "asc" },
+              include: { instrumento: { select: { codigo: true, nombre: true } } },
+            },
+          },
           orderBy: { fecha: "desc" },
         },
         presentacion: true,
@@ -57,14 +64,20 @@ export default async function DetalleEnvasadoPage({
   if (!envasado) notFound();
 
   // Planes de inspección vigentes del producto: contra qué se puede ensayar.
-  const [planes, puedeReanalizar] = await Promise.all([
+  const [planes, instrumentos, puedeReanalizar] = await Promise.all([
     prisma.planInspeccionCalidad.findMany({
       where: {
         empresaId: usuario.empresaId,
         activo: true,
         productoId: envasado.loteGranel.formula.productoId,
       },
+      include: { caracteristicas: { orderBy: { secuencia: "asc" } } },
       orderBy: { version: "desc" },
+    }),
+    prisma.instrumentoMedicion.findMany({
+      where: { empresaId: usuario.empresaId, activo: true },
+      select: { id: true, codigo: true, nombre: true },
+      orderBy: { codigo: "asc" },
     }),
     puedeRealizar(usuario, "produccion", "editar"),
   ]);
@@ -289,6 +302,35 @@ export default async function DetalleEnvasadoPage({
                           {r.planInspeccion
                             ? `${r.planInspeccion.nombre} v${r.planVersion ?? "?"}`
                             : "—"}
+                          {/* Qué dio el ensayo. Una vigencia extendida sin esto
+                              es una afirmación sin evidencia. */}
+                          {r.resultadosCaracteristica.length > 0 ? (
+                            <ul className="mt-1 text-xs flex flex-col gap-0.5">
+                              {r.resultadosCaracteristica.map((m) => (
+                                <li
+                                  key={m.id}
+                                  className={
+                                    m.conforme ? "" : "text-red-600 dark:text-red-400 font-medium"
+                                  }
+                                >
+                                  {m.nombre}: {m.valorMedido.toString()} {m.unidadMedida}
+                                  <span style={{ color: "var(--epicor-texto-tenue)" }}>
+                                    {" "}
+                                    ({m.limiteInferior?.toString() ?? "−∞"} a{" "}
+                                    {m.limiteSuperior?.toString() ?? "+∞"})
+                                    {m.instrumento ? ` · ${m.instrumento.codigo}` : ""}
+                                  </span>
+                                </li>
+                              ))}
+                            </ul>
+                          ) : (
+                            <span
+                              className="block mt-1 text-xs"
+                              style={{ color: "var(--epicor-texto-tenue)" }}
+                            >
+                              Sin mediciones registradas
+                            </span>
+                          )}
                         </td>
                         <td>{r.usuarioNombre}</td>
                       </tr>
@@ -302,8 +344,26 @@ export default async function DetalleEnvasadoPage({
           {puedeReanalizar ? (
             <ReanalisisFormulario
               accion={registrarReanalisis.bind(null, envasado.id)}
-              planes={planes.map((p) => ({ id: p.id, etiqueta: `${p.nombre} v${p.version}` }))}
+              planes={planes.map((p) => ({
+                id: p.id,
+                etiqueta: `${p.nombre} v${p.version}`,
+                caracteristicas: p.caracteristicas.map((c) => ({
+                  id: c.id,
+                  secuencia: c.secuencia,
+                  nombre: c.nombre,
+                  unidadMedida: c.unidadMedida,
+                  limiteInferior: c.limiteInferior?.toString() ?? null,
+                  limiteSuperior: c.limiteSuperior?.toString() ?? null,
+                  metodoEnsayo: c.metodoEnsayo,
+                  obligatoria: c.obligatoria,
+                  instrumentoId: c.instrumentoId,
+                })),
+              }))}
               vencimientoSugerido={sugerido}
+              instrumentosDisponibles={instrumentos.map((i) => ({
+                id: i.id,
+                etiqueta: `${i.codigo} — ${i.nombre}`,
+              }))}
             />
           ) : (
             <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requerirRolEmpresaActiva as requerirRol } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
 import { postearAsiento } from "@/lib/contabilidad";
-import { densidadMedida, normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
+import { densidadMedida, normalizarLecturasCalidad, resultadosDelEnsayo } from "@/lib/planesCalidad";
 import { EstadoLote, ResultadoCalidad } from "@/generated/prisma/client";
 
 export type EstadoFormulario = { error?: string };
@@ -72,20 +72,11 @@ export async function registrarCalidad(
       if (!plan && planId) throw new Error("El plan de inspección ya no está vigente para este producto. Actualice la página.");
       if (plan) {
         const lecturas = normalizarLecturasCalidad(String(formData.get("lecturas") ?? ""));
-        const porId = new Map(lecturas.map(l => [l.caracteristicaId, l.valorMedido]));
-        // Con qué instrumento se tomó CADA lectura. Si el ensayo no lo dice,
-        // rige el que el plan declara — y si el plan tampoco, queda en null,
-        // que es la verdad: no se sabe.
-        const instrumentoPorId = new Map(lecturas.map(l => [l.caracteristicaId, l.instrumentoId]));
-        const idsPlan = new Set(plan.caracteristicas.map(c => c.id));
-        if (new Set(lecturas.map(l => l.caracteristicaId)).size !== lecturas.length || lecturas.some(l => !idsPlan.has(l.caracteristicaId)) || plan.caracteristicas.some(c => c.obligatoria && !porId.has(c.id))) throw new Error("Las mediciones no corresponden exactamente al plan vigente.");
-        resultados = plan.caracteristicas.filter(c => porId.has(c.id)).map(c => {
-          const valorMedido = porId.get(c.id);
-          if (valorMedido === undefined) throw new Error(`Falta la medición de ${c.nombre}.`);
-          const minimo = c.limiteInferior === null ? null : c.limiteInferior.toNumber();
-          const maximo = c.limiteSuperior === null ? null : c.limiteSuperior.toNumber();
-          return { secuencia: c.secuencia, nombre: c.nombre, unidadMedida: c.unidadMedida, limiteInferior: minimo, limiteSuperior: maximo, metodoEnsayo: c.metodoEnsayo, valorMedido, conforme: valorCumpleEspecificacion(valorMedido, minimo, maximo), instrumentoId: instrumentoPorId.get(c.id) ?? c.instrumentoId };
-        });
+        resultados = resultadosDelEnsayo(plan.caracteristicas.map(c => ({
+          ...c,
+          limiteInferior: c.limiteInferior === null ? null : c.limiteInferior.toNumber(),
+          limiteSuperior: c.limiteSuperior === null ? null : c.limiteSuperior.toNumber(),
+        })), lecturas);
         // Los instrumentos llegan del navegador: se comprueban antes de
         // asentar el ensayo.
         const instrumentosUsados = [...new Set(resultados.map(r => r.instrumentoId).filter((x): x is string => x !== null))];
