@@ -4,9 +4,9 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { prisma } from "@/lib/prisma";
 import {
-  EXPLICACION_NIVEL_CONTROL,
+  EXPLICACION_NIVEL_CALIBRACION,
   MENSAJE_NIVEL_CONTROL,
-  NIVELES_CONTROL_CALIBRACION,
+  NIVELES_CONTROL,
   avisaAlgo,
   controlAlLiberar,
 } from "@/lib/calibracion";
@@ -29,14 +29,14 @@ const RAIZ = process.cwd();
 // --- Los tres niveles -------------------------------------------------------
 
 test("son exactamente tres, de menos a más exigente", () => {
-  assert.deepEqual(NIVELES_CONTROL_CALIBRACION, ["NO_APLICA", "ADVIERTE", "BLOQUEA"]);
+  assert.deepEqual(NIVELES_CONTROL, ["NO_APLICA", "ADVIERTE", "BLOQUEA"]);
 });
 
 test("cada nivel se nombra y se explica en palabras", () => {
-  for (const nivel of NIVELES_CONTROL_CALIBRACION) {
+  for (const nivel of NIVELES_CONTROL) {
     assert.ok(MENSAJE_NIVEL_CONTROL[nivel], `falta el nombre de ${nivel}`);
     assert.ok(
-      EXPLICACION_NIVEL_CONTROL[nivel].length > 40,
+      EXPLICACION_NIVEL_CALIBRACION[nivel].length > 40,
       `${nivel} no explica qué hace; un control que nadie entiende se deja en el que menos moleste`
     );
   }
@@ -52,7 +52,7 @@ test("solo NO_APLICA apaga el semáforo", () => {
 
 test("sin instrumentos en falta no pasa nada, en ningún nivel", () => {
   // El control no inventa problemas donde no los hay. Ni siquiera BLOQUEA.
-  for (const nivel of NIVELES_CONTROL_CALIBRACION) {
+  for (const nivel of NIVELES_CONTROL) {
     assert.deepEqual(controlAlLiberar(nivel, []), { bloquea: false, aviso: null });
   }
 });
@@ -128,9 +128,9 @@ test("la pantalla de instrumentos ofrece los tres niveles", async () => {
     resolve(RAIZ, "src/app/(app)/produccion/calidad/instrumentos/page.tsx"),
     "utf8"
   );
-  assert.match(pagina, /NIVELES_CONTROL_CALIBRACION\.map/, "no ofrece los tres");
+  assert.match(pagina, /NIVELES_CONTROL\.map/, "no ofrece los tres");
   assert.match(pagina, /fijarNivelControlCalibracion\(/);
-  assert.match(pagina, /EXPLICACION_NIVEL_CONTROL/, "no explica qué hace cada uno");
+  assert.match(pagina, /EXPLICACION_NIVEL_CALIBRACION/, "no explica qué hace cada uno");
 });
 
 test("el interruptor viejo ya no existe en ningún lado", async () => {
@@ -202,7 +202,7 @@ test("BLOQUEA impide liberar, NO_APLICA deja, y el lote no se toca en el intento
 test("el nivel se guarda y se lee tal cual", async () => {
   const antes = await prisma.configuracionEmpresa.findFirstOrThrow({ where: { empresaId: "1" } });
   try {
-    for (const nivel of NIVELES_CONTROL_CALIBRACION) {
+    for (const nivel of NIVELES_CONTROL) {
       await prisma.configuracionEmpresa.update({
         where: { empresaId: "1" },
         data: { nivelControlCalibracion: nivel },

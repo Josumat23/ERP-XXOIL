@@ -6,10 +6,10 @@ import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import {
   DIAS_DE_AVISO_CALIBRACION,
-  EXPLICACION_NIVEL_CONTROL,
+  EXPLICACION_NIVEL_CALIBRACION,
   MENSAJE_ESTADO_CALIBRACION,
   MENSAJE_NIVEL_CONTROL,
-  NIVELES_CONTROL_CALIBRACION,
+  NIVELES_CONTROL,
   avisaAlgo,
   calibracionVigente,
   estadoCalibracion,
@@ -225,7 +225,7 @@ export default async function InstrumentosPage() {
           cambia es el control, no el registro.
         </p>
         <div className="flex flex-col gap-2">
-          {NIVELES_CONTROL_CALIBRACION.map((opcion) => (
+          {NIVELES_CONTROL.map((opcion) => (
             <form
               key={opcion}
               action={async () => {
@@ -248,7 +248,7 @@ export default async function InstrumentosPage() {
                   )}
                 </p>
                 <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
-                  {EXPLICACION_NIVEL_CONTROL[opcion]}
+                  {EXPLICACION_NIVEL_CALIBRACION[opcion]}
                 </p>
               </div>
               {opcion !== nivel && (

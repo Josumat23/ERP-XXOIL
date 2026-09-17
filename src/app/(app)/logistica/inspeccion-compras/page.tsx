@@ -9,6 +9,12 @@ import BarraFiltro from "@/components/BarraFiltro";
 import { ResultadoInspeccion } from "@/generated/prisma/client";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { contiene } from "@/lib/busqueda";
+import {
+  EXPLICACION_NIVEL_RECEPCION,
+  MENSAJE_NIVEL_CONTROL,
+  NIVELES_CONTROL,
+} from "@/lib/calibracion";
+import { fijarNivelInspeccionRecepcion } from "./actions";
 
 const ETIQUETA_RESULTADO: Record<ResultadoInspeccion, string> = {
   PENDIENTE: "Pendiente",
@@ -35,6 +41,12 @@ export default async function InspeccionesCompraPage({
   const { q, resultado } = await searchParams;
   const filtroResultado = RESULTADOS.find((r) => r === resultado);
   const empresaId = await obtenerEmpresaActivaId();
+
+  const configuracion = await prisma.configuracionEmpresa.findUnique({
+    where: { empresaId },
+    select: { nivelInspeccionRecepcion: true },
+  });
+  const nivelRecepcion = configuracion?.nivelInspeccionRecepcion ?? "ADVIERTE";
 
   const inspecciones = await prisma.inspeccionCompra.findMany({
     where: {
@@ -70,10 +82,54 @@ export default async function InspeccionesCompraPage({
         }))}
       >
         <div className="max-w-3xl">
-          <p className="text-sm mb-3" style={{ color: "var(--epicor-texto-tenue)" }}>
-            Recepciones de insumos marcados como &quot;requiere inspección&quot;: no suman stock
-            disponible hasta que se aprueban aquí.
-          </p>
+          {/*
+            Tres niveles, como el control de calibración. Nace en ADVIERTE por
+            decisión del negocio: todo insumo se compra y puede ir directo a
+            producción, pase o no por laboratorio. Retener el material es el
+            bloqueo más caro del sistema y solo se justifica si alguien lo pide.
+          */}
+          <section className="borde-seccion mb-5">
+            <h2 className="font-medium">Qué hace la inspección con el material</h2>
+            <p className="text-sm mb-3" style={{ color: "var(--epicor-texto-tenue)" }}>
+              En cualquier nivel se registra la inspección: lo que cambia es si el material espera
+              o no. Qué insumos se inspeccionan se marca en cada insumo, no acá.
+            </p>
+            <div className="flex flex-col gap-2">
+              {NIVELES_CONTROL.map((opcion) => (
+                <form
+                  key={opcion}
+                  action={async () => {
+                    "use server";
+                    await fijarNivelInspeccionRecepcion(opcion);
+                  }}
+                  className={`flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 ${
+                    opcion === nivelRecepcion
+                      ? "border-blue-400 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800"
+                      : "border-black/10 dark:border-white/10"
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <p className="font-medium text-sm">
+                      {MENSAJE_NIVEL_CONTROL[opcion]}
+                      {opcion === nivelRecepcion && (
+                        <span className="insignia ml-2 bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                          Vigente
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
+                      {EXPLICACION_NIVEL_RECEPCION[opcion]}
+                    </p>
+                  </div>
+                  {opcion !== nivelRecepcion && (
+                    <button type="submit" className="boton-secundario shrink-0">
+                      Usar este
+                    </button>
+                  )}
+                </form>
+              ))}
+            </div>
+          </section>
           <BarraFiltro q={q} placeholder="Insumo...">
             <label className="flex flex-col gap-1 text-sm">
               <span className="font-medium text-neutral-700 dark:text-neutral-300">Resultado</span>

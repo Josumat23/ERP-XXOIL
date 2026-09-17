@@ -175,7 +175,7 @@ test("el control nace apagado", async () => {
   const esquema = await readFile(resolve(RAIZ, "prisma/schema.prisma"), "utf8");
   // Ya no es un booleano sino tres niveles (decisión del negocio 2026-09-17),
   // pero la propiedad que importa es la misma: nace sin frenar ni avisar.
-  assert.match(esquema, /nivelControlCalibracion\s+NivelControlCalibracion\s+@default\(NO_APLICA\)/);
+  assert.match(esquema, /nivelControlCalibracion\s+NivelControl\s+@default\(NO_APLICA\)/);
 });
 
 test("la vigencia se guarda, no se calcula desde la frecuencia", async () => {

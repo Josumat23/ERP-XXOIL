@@ -8,14 +8,24 @@ import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inven
 import { normalizarLecturasCalidad, resultadosDelEnsayo, type ResultadoDeEnsayo } from "@/lib/planesCalidad";
 import { ResultadoInspeccion } from "@/generated/prisma/client";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { NIVELES_CONTROL, type NivelControl } from "@/lib/calibracion";
 
 export type EstadoFormulario = { error?: string };
 
-// Resultado de la inspección de calidad de una recepción de compra: si se
-// aprueba, recién aquí entra al kardex y se actualiza el costo promedio
-// (quedó pendiente desde la recepción). Si se rechaza, nunca suma stock; la
-// devolución/nota de crédito al proveedor se registra después desde la OC;
-// cualquier exceso sobre la CxP queda en el subledger de saldos a favor.
+// Resultado de la inspección de calidad de una recepción de compra.
+//
+// Qué hace con el stock depende del nivel que la compañía eligió y que la
+// recepción ya aplicó:
+//
+// - Con el control en BLOQUEA el material quedó retenido, y aprobar acá es lo
+//   que lo ingresa al kardex y actualiza el costo promedio. La devolución o
+//   nota de crédito al proveedor se registra después desde la OC.
+// - Con el control en ADVIERTE el material ya entró al recibirlo, y esta
+//   inspección solo agrega el dictamen. Volver a ingresarlo duplicaría el
+//   kardex.
+//
+// Si se rechaza material que ya entró, el sistema no revierte solo: devolución,
+// ajuste o reclamo son flujos propios con sus propias consecuencias contables.
 export async function resolverInspeccionCompra(
   inspeccionId: string,
   _prevState: EstadoFormulario,
@@ -117,7 +127,16 @@ export async function resolverInspeccionCompra(
       const cantidad = detalle.cantidad.toNumber();
       const costo = detalle.costoUnitario.toNumber();
 
-      if (resultado === "APROBADO") {
+      // Si el material ya entró al stock en la recepción —control en ADVIERTE—
+      // aprobar la inspección NO lo vuelve a ingresar: sería el mismo material
+      // dos veces en el kardex y el costo promedio calculado sobre el doble de
+      // cantidad. Lo que la inspección aporta acá es el dictamen, no el stock.
+      //
+      // Y si sale RECHAZADO con el material ya consumido, el sistema NO revierte
+      // solo: deshacer un ingreso que producción ya usó dejaría el kardex
+      // mintiendo. Queda registrado, y qué hacer —devolución al proveedor,
+      // ajuste, reclamo— es una decisión con sus propios flujos.
+      if (resultado === "APROBADO" && !inspeccion.stockIngresadoEnRecepcion) {
         await tx.recepcionCompraDetalle.update({
           where: { id: detalle.id },
           data: { cantidadDisponible: cantidad },
@@ -156,4 +175,27 @@ export async function resolverInspeccionCompra(
   revalidatePath("/inventario/kardex");
   revalidatePath("/catalogo/insumos");
   return {};
+}
+
+/**
+ * Fija cuánto pesa la inspección de entrada para la compañía activa.
+ *
+ * Nace en `ADVIERTE` por decisión del negocio: todo insumo se compra y puede ir
+ * directo a producción, pase o no por laboratorio. `BLOQUEA` reproduce el
+ * comportamiento anterior —retener el material— pero ahora es algo que alguien
+ * eligió, no el efecto secundario de marcar un insumo.
+ */
+export async function fijarNivelInspeccionRecepcion(nivel: NivelControl) {
+  const auth = await requerirRol(["ALMACEN", "PRODUCCION", "GERENCIA"]);
+  if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
+  // El nivel llega del formulario: se comprueba contra los que existen.
+  if (!NIVELES_CONTROL.includes(nivel)) return;
+  const empresaId = await obtenerEmpresaActivaId();
+  await prisma.configuracionEmpresa.update({
+    where: { empresaId },
+    data: { nivelInspeccionRecepcion: nivel },
+  });
+  revalidatePath("/logistica/inspeccion-compras");
+  revalidatePath("/logistica/ordenes-compra");
 }

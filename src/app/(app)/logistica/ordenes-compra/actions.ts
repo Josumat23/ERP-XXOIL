@@ -24,6 +24,7 @@ import {
 import { crearOrdenCompraDesdeDatos } from "@/lib/ordenesCompra";
 import { calcularDistribucionDevolucionProveedor } from "@/lib/creditosProveedor";
 import { evaluarVerificacionFactura } from "@/lib/verificacionFacturaProveedor";
+import { controlDeRecepcion } from "@/lib/calibracion";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export type EstadoFormulario = { error?: string };
@@ -214,6 +215,13 @@ export async function registrarRecepcion(
         }
       }
 
+      // Cuánto pesa la inspección de entrada para esta compañía. Se lee una
+      // vez y rige para todas las líneas de la recepción.
+      const configuracionRecepcion = await tx.configuracionEmpresa.findUnique({
+        where: { empresaId },
+        select: { nivelInspeccionRecepcion: true },
+      });
+
       const numero = await siguienteNumeroRecepcion(tx, empresaId);
       const recepcion = await tx.recepcionCompra.create({
         data: {
@@ -263,13 +271,25 @@ export async function registrarRecepcion(
         });
 
         const insumo = detalle.insumo;
-        if (insumo.requiereInspeccion) {
-          // No suma stock ni recalcula costo promedio hasta que calidad
-          // apruebe — cantidadDisponible se activa recién ahí (ver
-          // resolverInspeccionCompra).
+        // Cuánto pesa la inspección de entrada lo decide la compañía, no el
+        // hecho de que el insumo esté marcado. Hasta que el negocio lo definió,
+        // marcar un insumo era retenerlo: el bloqueo más caro del sistema,
+        // puesto sin que nadie lo eligiera.
+        const control = controlDeRecepcion(
+          configuracionRecepcion?.nivelInspeccionRecepcion ?? "ADVIERTE",
+          insumo.requiereInspeccion
+        );
+        if (control.creaInspeccion) {
           await tx.inspeccionCompra.create({
-            data: { recepcionCompraDetalleId: detalleRecepcion.id },
+            data: {
+              recepcionCompraDetalleId: detalleRecepcion.id,
+              stockIngresadoEnRecepcion: control.ingresaStock,
+            },
           });
+        }
+        if (!control.ingresaStock) {
+          // BLOQUEA: el material espera. No suma stock ni recalcula costo
+          // promedio hasta que calidad apruebe (ver resolverInspeccionCompra).
         } else {
           await tx.recepcionCompraDetalle.update({
             where: { id: detalleRecepcion.id },
