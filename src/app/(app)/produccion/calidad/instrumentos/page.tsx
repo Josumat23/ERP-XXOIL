@@ -29,10 +29,15 @@ import {
 
 const fechaCorta = new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" });
 
-export default async function InstrumentosPage() {
+export default async function InstrumentosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ mediciones?: string }>;
+}) {
   const usuario = await obtenerUsuarioEmpresaActiva();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
   const empresaId = usuario.empresaId;
+  const { mediciones: medicionesPedidas } = await searchParams;
 
   const [instrumentos, configuracion] = await Promise.all([
     prisma.instrumentoMedicion.findMany({
@@ -48,21 +53,79 @@ export default async function InstrumentosPage() {
   const nivel = configuracion?.nivelControlCalibracion ?? "NO_APLICA";
   const controlActivo = avisaAlgo(nivel);
 
+  // -------------------------------------------------------------------------
   // Qué midió cada instrumento. Es la pregunta del día que una calibración
   // vuelve fuera de tolerancia.
   //
-  // Van dos consultas y no un `include` porque hay dos clases de ensayo con su
-  // propia fecha —la liberación del lote y el re-análisis del envasado— y
-  // Prisma no sabe ordenar una relación por el campo de dos padres distintos.
-  // Cada una trae su tope y se mezclan acá.
-  const TOPE_POR_CONSULTA = 300;
+  // Van consultas sueltas y no un `include` porque hay tres clases de ensayo
+  // con su propia fecha —la liberación del lote, el re-análisis del envasado y
+  // la inspección de lo que entra— y Prisma no sabe ordenar una relación por el
+  // campo de tres padres distintos.
+  //
+  // Antes las tres traían un tope de 300 filas COMPARTIDO entre todos los
+  // instrumentos, ordenado por fecha: con volumen real, el instrumento que más
+  // se usa se lleva el tope entero y uno poco usado aparece SIN NINGUNA
+  // medición. No «con menos»: con ninguna, que en pantalla se lee igual que
+  // «nunca midió nada». Y la columna que se está ocultando es la del respaldo
+  // de calibración, o sea justo la evidencia que esta pantalla existe para dar.
+  //
+  // Ahora son dos cosas separadas:
+  //
+  //   1. CUÁNTO midió cada instrumento: un conteo agrupado en la base. Exacto,
+  //      barato y sin traer una sola fila.
+  //   2. QUÉ midió: solo del instrumento que se pide ver. Un instrumento no
+  //      puede quedarse sin su tope porque no lo comparte con nadie.
+  //
+  // El costo es un clic. A cambio, lo que la pantalla muestra es verdad.
+  // -------------------------------------------------------------------------
   const idsInstrumento = instrumentos.map((i) => i.id);
-  const [deLiberacion, deReanalisis, deRecepcion] = idsInstrumento.length === 0
+
+  // Un ensayo pertenece a la compañía por un camino distinto según su clase.
+  const deProduccionDeLaCompania = {
+    OR: [{ controlCalidad: { loteGranel: { empresaId } } }, { reanalisis: { empresaId } }],
+  };
+  // Una inspección sin fecha está pendiente: no se ensayó nada y no se cuenta,
+  // porque tampoco se lista. El conteo y la lista tienen que decir lo mismo.
+  const deRecepcionDeLaCompania = {
+    inspeccion: {
+      fecha: { not: null },
+      recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } },
+    },
+  };
+
+  const [conteoProduccion, conteoRecepcion] = idsInstrumento.length === 0
+    ? [[], []]
+    : await Promise.all([
+        prisma.resultadoCaracteristicaCalidad.groupBy({
+          by: ["instrumentoId"],
+          where: { instrumentoId: { in: idsInstrumento }, ...deProduccionDeLaCompania },
+          _count: { _all: true },
+        }),
+        prisma.medicionInspeccionCompra.groupBy({
+          by: ["instrumentoId"],
+          where: { instrumentoId: { in: idsInstrumento }, ...deRecepcionDeLaCompania },
+          _count: { _all: true },
+        }),
+      ]);
+  const medidasPorInstrumento = new Map<string, number>();
+  for (const grupo of [...conteoProduccion, ...conteoRecepcion]) {
+    if (!grupo.instrumentoId) continue;
+    const previo = medidasPorInstrumento.get(grupo.instrumentoId) ?? 0;
+    medidasPorInstrumento.set(grupo.instrumentoId, previo + grupo._count._all);
+  }
+
+  // El id llega del navegador: se comprueba contra los instrumentos de ESTA
+  // compañía antes de usarlo, como cualquier otro dato de afuera.
+  const instrumentoAbierto =
+    medicionesPedidas && idsInstrumento.includes(medicionesPedidas) ? medicionesPedidas : null;
+  const TOPE_MEDICIONES = 50;
+
+  const [deLiberacion, deReanalisis, deRecepcion] = instrumentoAbierto === null
     ? [[], [], []]
     : await Promise.all([
         prisma.resultadoCaracteristicaCalidad.findMany({
           where: {
-            instrumentoId: { in: idsInstrumento },
+            instrumentoId: instrumentoAbierto,
             controlCalidad: { loteGranel: { empresaId } },
           },
           select: {
@@ -76,10 +139,10 @@ export default async function InstrumentosPage() {
             },
           },
           orderBy: { controlCalidad: { fecha: "desc" } },
-          take: TOPE_POR_CONSULTA,
+          take: TOPE_MEDICIONES,
         }),
         prisma.resultadoCaracteristicaCalidad.findMany({
-          where: { instrumentoId: { in: idsInstrumento }, reanalisis: { empresaId } },
+          where: { instrumentoId: instrumentoAbierto, reanalisis: { empresaId } },
           select: {
             id: true,
             nombre: true,
@@ -91,14 +154,14 @@ export default async function InstrumentosPage() {
             },
           },
           orderBy: { reanalisis: { fecha: "desc" } },
-          take: TOPE_POR_CONSULTA,
+          take: TOPE_MEDICIONES,
         }),
         // Lo que ENTRA se mide con los mismos equipos. Omitirlo haría que la
         // ficha dijera que el instrumento midió menos de lo que midió.
         prisma.medicionInspeccionCompra.findMany({
           where: {
-            instrumentoId: { in: idsInstrumento },
-            inspeccion: { recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } } },
+            instrumentoId: instrumentoAbierto,
+            ...deRecepcionDeLaCompania,
           },
           select: {
             id: true,
@@ -120,7 +183,7 @@ export default async function InstrumentosPage() {
             },
           },
           orderBy: { inspeccion: { fecha: "desc" } },
-          take: TOPE_POR_CONSULTA,
+          take: TOPE_MEDICIONES,
         }),
       ]);
 
@@ -135,8 +198,7 @@ export default async function InstrumentosPage() {
     valorMedido: { toString(): string };
     unidadMedida: string;
   };
-  const medicionesPorInstrumento = new Map<string, MedicionDeFicha[]>();
-  const filasMedicion: MedicionDeFicha[] = [
+  const medicionesDelAbierto: MedicionDeFicha[] = [
     ...deLiberacion.flatMap((m) =>
       m.controlCalidad
         ? [{
@@ -171,14 +233,11 @@ export default async function InstrumentosPage() {
           }]
         : []
     ),
-  ].sort((a, b) => b.fecha.getTime() - a.fecha.getTime());
-  for (const fila of filasMedicion) {
-    if (!fila.instrumentoId) continue;
-    const suyas = medicionesPorInstrumento.get(fila.instrumentoId) ?? [];
-    if (suyas.length >= 50) continue;
-    suyas.push(fila);
-    medicionesPorInstrumento.set(fila.instrumentoId, suyas);
-  }
+  ]
+    .sort((a, b) => b.fecha.getTime() - a.fecha.getTime())
+    // Cada consulta trajo SUS 50 más recientes, así que las 50 más recientes
+    // del conjunto están dentro de esa unión: recortar acá no pierde ninguna.
+    .slice(0, TOPE_MEDICIONES);
 
   const filas = instrumentos.map((i) => {
     const vigente = calibracionVigente(i.calibraciones);
@@ -189,6 +248,8 @@ export default async function InstrumentosPage() {
       sugerido: vigente
         ? proximaCalibracionSugerida(vigente.fecha, i.frecuenciaCalibracionDias)
         : null,
+      medidas: medidasPorInstrumento.get(i.id) ?? 0,
+      abierto: i.id === instrumentoAbierto,
     };
   });
   const enAtencion = filas.filter((f) => f.instrumento.activo && requiereAtencion(f.estado)).length;
@@ -282,8 +343,12 @@ export default async function InstrumentosPage() {
           </p>
         ) : (
           <div className="mt-8 flex flex-col gap-6">
-            {filas.map(({ instrumento, vigente, estado, sugerido }) => (
-              <section key={instrumento.id} className="borde-seccion">
+            {filas.map(({ instrumento, vigente, estado, sugerido, medidas, abierto }) => (
+              <section
+                key={instrumento.id}
+                id={`instrumento-${instrumento.id}`}
+                className="borde-seccion"
+              >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <h2 className="font-medium">
@@ -379,12 +444,55 @@ export default async function InstrumentosPage() {
                   </table>
                 )}
 
-                {(medicionesPorInstrumento.get(instrumento.id) ?? []).length > 0 && (
-                  <div className="mt-4">
+                {/*
+                  Cuánto midió se dice SIEMPRE, aunque sea cero, y aunque la
+                  lista esté cerrada. Que no apareciera nada era lo que hacía
+                  indistinguible «no midió nunca» de «su tope se lo llevó otro
+                  instrumento».
+                */}
+                <p className="text-sm mt-4">
+                  {medidas === 0 ? (
+                    <span style={{ color: "var(--epicor-texto-tenue)" }}>
+                      Todavía no se registró ninguna medición con este instrumento.
+                    </span>
+                  ) : (
+                    <>
+                      <strong>{medidas}</strong> medici{medidas === 1 ? "ón" : "ones"} registrada
+                      {medidas === 1 ? "" : "s"} con este instrumento.{" "}
+                      <Link
+                        href={
+                          abierto
+                            ? "/produccion/calidad/instrumentos"
+                            : `/produccion/calidad/instrumentos?mediciones=${instrumento.id}#instrumento-${instrumento.id}`
+                        }
+                        className="hover:underline text-blue-700 dark:text-blue-400"
+                      >
+                        {abierto ? "Ocultar el detalle" : "Ver qué midió"}
+                      </Link>
+                    </>
+                  )}
+                </p>
+
+                {abierto && medicionesDelAbierto.length > 0 && (
+                  <div className="mt-3">
                     <h3 className="text-sm font-semibold">Qué se midió con este instrumento</h3>
                     <p className="text-xs mb-2" style={{ color: "var(--epicor-texto-tenue)" }}>
                       El respaldo se calcula contra el historial de arriba, no se guarda con la
                       medición: así mejora solo cuando se carga una calibración que faltaba.
+                      {medidas > medicionesDelAbierto.length && (
+                        <>
+                          {" "}
+                          <strong>
+                            Se muestran las {medicionesDelAbierto.length} más recientes de {medidas}
+                          </strong>
+                          ; para revisar las que no tienen respaldo, la lista completa y ordenada
+                          por urgencia está en{" "}
+                          <Link href="/produccion/calidad/reensayos" className="hover:underline">
+                            Qué hay que reensayar
+                          </Link>
+                          .
+                        </>
+                      )}
                     </p>
                     <table className="tabla">
                       <thead>
@@ -398,7 +506,7 @@ export default async function InstrumentosPage() {
                         </tr>
                       </thead>
                       <tbody>
-                        {(medicionesPorInstrumento.get(instrumento.id) ?? []).map((m) => {
+                        {medicionesDelAbierto.map((m) => {
                           const respaldo = respaldoDeMedicion(instrumento.calibraciones, m.fecha);
                           return (
                             <tr key={m.id}>
