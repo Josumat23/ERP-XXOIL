@@ -291,3 +291,7 @@ La pantalla de trazabilidad recorre ahora la cadena en las dos direcciones. La f
 ## Actualización: la inspección de entrada deja de retener el material
 
 Decisión del negocio (2026-09-17): todo insumo se compra y puede ir directo a producción, pase o no por laboratorio. Marcar un insumo como «requiere inspección» retenía el stock hasta que calidad lo aprobara —el bloqueo más caro del sistema, puesto sin que nadie lo decidiera—. Ahora es el mismo control de tres niveles que rige la calibración y nace en ADVIERTE: la inspección se crea igual, pero el material entra y producción lo puede usar. Véase `docs/recepcion-no-bloqueante.md`.
+
+## Actualización: aviso de inspecciones de entrada pendientes
+
+Efecto secundario del ciclo anterior: mientras la recepción retenía el material, una inspección olvidada se hacía notar sola porque producción venía a reclamar su materia prima. Al quitar el bloqueo, esa presión desapareció. El panel avisa ahora de las inspecciones sin resolver, con su antigüedad, y marca como crítico el caso en que haya material retenido. Véase `docs/aviso-inspecciones-pendientes.md`.
