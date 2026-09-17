@@ -72,6 +72,9 @@ export default async function CalidadPage({
         <Link href="/produccion/calidad/reclamos" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
           Reclamos de cliente
         </Link>
+        <Link href="/produccion/calidad/reensayos" className="hover:underline" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Qué reensayar
+        </Link>
       </div>
 
       <section className="mt-6">

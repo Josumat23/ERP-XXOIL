@@ -136,12 +136,22 @@ test("Calidad es una fila permanente y no depende del interruptor", async () => 
     "la fila de Calidad volvió a colgar del interruptor"
   );
   assert.match(panel, /modulo: "Calidad"/);
-  // Pero la señal de calibración sí sigue dependiendo de él.
-  assert.match(
-    panel,
-    /\.\.\.\(controlCalibracion[\s\S]{0,80}senalCalibraciones\(/,
-    "la calibración dejó de respetar el interruptor"
-  );
+
+  // Pero lo que sí es del laboratorio sigue dependiendo de él. Se comprueba
+  // por estructura y no por cercanía de texto: la primera versión exigía que
+  // `senalCalibraciones` apareciera dentro de los 80 caracteres siguientes al
+  // interruptor, y se rompió sola al agregar una segunda señal gobernada por
+  // el mismo interruptor — que es justo lo que había que dejar pasar.
+  const abre = panel.indexOf("...(controlCalibracion");
+  assert.notEqual(abre, -1, "la calibración dejó de respetar el interruptor");
+  const cierra = panel.indexOf(": []", abre);
+  assert.notEqual(cierra, -1, "el bloque del interruptor no cierra en una lista vacía");
+  const gobernado = panel.slice(abre, cierra);
+  assert.match(gobernado, /senalCalibraciones\(/, "la calibración quedó fuera del interruptor");
+  assert.match(gobernado, /senalReensayos\(/, "los reensayos quedaron fuera del interruptor");
+
+  // Y las homologaciones NO: se ven con el laboratorio apagado.
+  assert.doesNotMatch(gobernado, /senalHomologaciones\(/);
 });
 
 test("la severidad no se decide con ternarios anidados en la pantalla", async () => {
