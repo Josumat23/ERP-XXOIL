@@ -1,6 +1,7 @@
 import type { Tx } from "@/lib/inventario";
 import { consumirDeTanque } from "@/lib/tanquesServicio";
 
+import { netoConsumido } from "./trazabilidadInsumo";
 // ---------------------------------------------------------------------------
 // Trazabilidad de lote: qué envasado(s) — y por lo tanto qué lote granel —
 // terminó en manos de qué cliente. Necesario para poder responder, ante un
@@ -134,7 +135,14 @@ export async function devolverLoteInsumo(
   });
   const disponibles = asignaciones.map((asignacion) => ({
     ...asignacion,
-    neto: asignacion.cantidad.toNumber() - asignacion.devolucionAsignacionLoteInsumos.reduce((total, devolucion) => total + devolucion.cantidad.toNumber(), 0),
+    // Misma resta que usa la trazabilidad hacia adelante: lo asignado menos lo
+    // devuelto. Vive en una sola función para que las dos digan lo mismo.
+    neto: netoConsumido({
+      cantidad: asignacion.cantidad.toNumber(),
+      devoluciones: asignacion.devolucionAsignacionLoteInsumos.map((d) => ({
+        cantidad: d.cantidad.toNumber(),
+      })),
+    }),
   }));
   const totalDisponible = disponibles.reduce((total, asignacion) => total + asignacion.neto, 0);
   if (params.cantidad > totalDisponible + 0.000001) throw new Error("La devolución supera el consumo trazado pendiente del insumo.");
