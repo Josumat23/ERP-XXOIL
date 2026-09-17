@@ -303,3 +303,7 @@ La verificación local y la de CI no eran la misma lista, y la diferencia costab
 ## Actualización: buscar el material en la trazabilidad
 
 Los dos selectores de la pantalla de trazabilidad se pueden filtrar y están acotados: uno traía todos los lotes de la historia y el otro las últimas 200 recepciones. Se busca por lote del proveedor —el dato con el que llama quien reporta el problema—, por insumo y por número de recepción, y cada lista dice cuántas opciones muestra de cuántas hay. Véase `docs/buscar-material-trazabilidad.md`.
+
+## Actualización: datos de prueba del laboratorio
+
+`seed-demo.ts` sembraba el flujo comercial completo y cero de los módulos de calidad: seis ciclos de trabajo quedaban invisibles porque el sembrador se había quedado atrás, no porque faltaran datos del negocio. `npm run seed:calidad` carga especificaciones de grasas, competidores ficticios, equivalencias, instrumentos y planes de inspección, con casos elegidos para que cada alerta tenga algo que decir: una homologación vencida, una equivalencia degradada, un instrumento vencido y otro fuera de tolerancia. Véase `docs/datos-de-prueba-calidad.md`.
