@@ -1359,14 +1359,14 @@ model ResultadoCaracteristicaCalidad {
   controlCalidadId String?
   reanalisisId     String?
 
-  secuencia        Int
-  nombre           String
-  unidadMedida     String
-  limiteInferior   Decimal?
-  limiteSuperior   Decimal?
-  metodoEnsayo     String?
-  valorMedido      Decimal
-  conforme         Boolean
+  secuencia      Int
+  nombre         String
+  unidadMedida   String
+  limiteInferior Decimal?
+  limiteSuperior Decimal?
+  metodoEnsayo   String?
+  valorMedido    Decimal
+  conforme       Boolean
   // Con qué instrumento se tomó ESTA lectura. Es el hecho que permite
   // contestar «¿qué lotes se liberaron con este instrumento?» el día que una
   // calibración vuelve fuera de tolerancia.
@@ -1376,8 +1376,8 @@ model ResultadoCaracteristicaCalidad {
   // sola a medida que se carga el historial —que es exactamente lo que va a
   // pasar mientras el laboratorio se pone en marcha— y que además podría
   // discrepar del ledger sin que nada lo avise.
-  instrumentoId    String?
-  instrumento      InstrumentoMedicion? @relation(fields: [instrumentoId], references: [id], onDelete: SetNull)
+  instrumentoId  String?
+  instrumento    InstrumentoMedicion? @relation(fields: [instrumentoId], references: [id], onDelete: SetNull)
 
   controlCalidad ControlCalidad?     @relation(fields: [controlCalidadId], references: [id], onDelete: Cascade)
   reanalisis     ReanalisisEnvasado? @relation(fields: [reanalisisId], references: [id], onDelete: Cascade)
