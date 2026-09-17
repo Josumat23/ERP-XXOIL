@@ -154,3 +154,75 @@ export function resumenParaSemaforo(
     porVencer: estados.filter((e) => e === "POR_VENCER").length,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Trazabilidad: ¿con qué respaldo se tomó una medición?
+//
+// La pregunta que importa el día que una calibración vuelve fuera de
+// tolerancia: «¿qué lotes se liberaron con este instrumento, y cuáles quedan en
+// duda?».
+//
+// El estado NO se congela en el resultado del ensayo, se deriva del historial.
+// Guardarlo fijaría una respuesta que mejora sola a medida que se carga el
+// historial —justo lo que va a pasar mientras el laboratorio se pone en
+// marcha— y que además podría discrepar del ledger sin que nada lo avise.
+// ---------------------------------------------------------------------------
+
+export type RespaldoMedicion = "CALIBRADO" | "EN_DUDA" | "SIN_RESPALDO";
+
+export const MENSAJE_RESPALDO: Record<RespaldoMedicion, string> = {
+  CALIBRADO: "Con calibración vigente",
+  EN_DUDA: "En duda: la siguiente verificación salió fuera de tolerancia",
+  SIN_RESPALDO: "Sin calibración vigente a esa fecha",
+};
+
+/**
+ * Con qué respaldo se tomó una medición en `fecha`.
+ *
+ * - `CALIBRADO`: una calibración conforme cubría esa fecha.
+ * - `EN_DUDA`: la cubría, pero la verificación siguiente salió `NO_CONFORME`.
+ *   Es el caso clásico: si el instrumento se encontró fuera de tolerancia,
+ *   todo lo medido desde su última calibración buena queda en cuestión.
+ * - `SIN_RESPALDO`: ninguna calibración cubría esa fecha.
+ *
+ * Lo que el sistema hace es **informar**, no dictaminar. Si una medición en
+ * duda invalida el lote, obliga a reensayar o no cambia nada es criterio de
+ * calidad, y no se decide desde acá.
+ */
+export function respaldoDeMedicion(
+  calibraciones: Calibracion[],
+  fecha: Date
+): RespaldoMedicion {
+  const cuando = fecha.getTime();
+
+  // La calibración conforme MÁS RECIENTE que cubre esa fecha. Tomar «la
+  // primera que encaje» dependería del orden en que vino el arreglo.
+  const cubre = calibraciones
+    .filter(
+      (c) =>
+        c.resultado !== "NO_CONFORME" &&
+        c.fecha.getTime() <= cuando &&
+        cuando <= c.vigenteHasta.getTime()
+    )
+    .sort((a, b) => b.fecha.getTime() - a.fecha.getTime())[0];
+  if (!cubre) return "SIN_RESPALDO";
+
+  // La verificación siguiente a esa calibración.
+  const siguiente = calibraciones
+    .filter((c) => c.fecha.getTime() > cubre.fecha.getTime())
+    .sort((a, b) => a.fecha.getTime() - b.fecha.getTime())[0];
+  if (siguiente?.resultado !== "NO_CONFORME") return "CALIBRADO";
+
+  // Se encontró fuera de tolerancia. Si eso pasó ANTES de la medición, ya se
+  // sabía que el instrumento estaba mal y la vigencia anterior no lo respalda.
+  // Si pasó DESPUÉS, lo medido en el medio queda en cuestión: nadie podía
+  // saberlo entonces.
+  return siguiente.fecha.getTime() <= cuando ? "SIN_RESPALDO" : "EN_DUDA";
+}
+
+/** Las mediciones que no se pueden dar por respaldadas. */
+export function medicionesSinRespaldo<
+  T extends { fecha: Date; calibraciones: Calibracion[] },
+>(mediciones: T[]): T[] {
+  return mediciones.filter((m) => respaldoDeMedicion(m.calibraciones, m.fecha) !== "CALIBRADO");
+}

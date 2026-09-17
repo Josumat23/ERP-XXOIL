@@ -473,7 +473,9 @@ model InstrumentoMedicion {
   notas                     String?
   creadoEn                  DateTime @default(now())
 
-  calibraciones CalibracionInstrumento[]
+  calibraciones       CalibracionInstrumento[]
+  caracteristicasPlan CaracteristicaPlanCalidad[]
+  mediciones          ResultadoCaracteristicaCalidad[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId, activo])
@@ -1314,7 +1316,7 @@ model PlanInspeccionCalidad {
 }
 
 model CaracteristicaPlanCalidad {
-  id             String   @id @default(cuid())
+  id             String               @id @default(cuid())
   planId         String
   secuencia      Int
   nombre         String
@@ -1322,14 +1324,19 @@ model CaracteristicaPlanCalidad {
   limiteInferior Decimal?
   limiteSuperior Decimal?
   metodoEnsayo   String?
-  obligatoria    Boolean  @default(true)
+  obligatoria    Boolean              @default(true)
   // Marca la característica cuyo valor medido ES la densidad del lote. El
   // laboratorio ya la mide en el ensayo de liberación; sin esta marca el dato
   // se quedaba en el resultado y alguien volvía a teclearlo al finalizar el
   // lote — dos fuentes para el mismo hecho, y la que gobernaba la conversión a
   // litros de cada comprobante era la tecleada ANTES de medir.
   // Como máximo una por plan: con dos no habría forma de decir cuál rige.
-  esDensidad     Boolean  @default(false)
+  esDensidad     Boolean              @default(false)
+  // Con qué instrumento se espera medir esto. Es el valor por omisión del
+  // ensayo, no una obligación: quien mide puede haber usado otro y eso es lo
+  // que queda registrado en el resultado.
+  instrumentoId  String?
+  instrumento    InstrumentoMedicion? @relation(fields: [instrumentoId], references: [id], onDelete: SetNull)
 
   plan PlanInspeccionCalidad @relation(fields: [planId], references: [id], onDelete: Cascade)
 
@@ -1338,7 +1345,7 @@ model CaracteristicaPlanCalidad {
 }
 
 model ResultadoCaracteristicaCalidad {
-  id               String   @id @default(cuid())
+  id               String               @id @default(cuid())
   controlCalidadId String
   secuencia        Int
   nombre           String
@@ -1348,6 +1355,17 @@ model ResultadoCaracteristicaCalidad {
   metodoEnsayo     String?
   valorMedido      Decimal
   conforme         Boolean
+  // Con qué instrumento se tomó ESTA lectura. Es el hecho que permite
+  // contestar «¿qué lotes se liberaron con este instrumento?» el día que una
+  // calibración vuelve fuera de tolerancia.
+  //
+  // NO se guarda el estado de calibración de ese momento: se deriva del
+  // historial del instrumento. Guardarlo congelaría una respuesta que mejora
+  // sola a medida que se carga el historial —que es exactamente lo que va a
+  // pasar mientras el laboratorio se pone en marcha— y que además podría
+  // discrepar del ledger sin que nada lo avise.
+  instrumentoId    String?
+  instrumento      InstrumentoMedicion? @relation(fields: [instrumentoId], references: [id], onDelete: SetNull)
 
   controlCalidad ControlCalidad @relation(fields: [controlCalidadId], references: [id], onDelete: Cascade)
 

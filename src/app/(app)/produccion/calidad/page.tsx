@@ -20,7 +20,7 @@ export default async function CalidadPage({
   const { q, resultado } = await searchParams;
   const filtroResultado = resultado === "APROBADO" || resultado === "RECHAZADO" ? resultado : undefined;
 
-  const [pendientes, evaluados, causas, planes] = await Promise.all([
+  const [pendientes, evaluados, causas, planes, instrumentos] = await Promise.all([
     prisma.loteGranel.findMany({
       where: { empresaId: usuario.empresaId, estado: "PENDIENTE_CALIDAD" },
       include: { formula: { include: { producto: true } } },
@@ -45,6 +45,7 @@ export default async function CalidadPage({
       orderBy: { nombre: "asc" },
     }),
     prisma.planInspeccionCalidad.findMany({ where: { empresaId: usuario.empresaId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } }),
+    prisma.instrumentoMedicion.findMany({ where: { empresaId: usuario.empresaId, activo: true }, select: { id: true, codigo: true, nombre: true }, orderBy: { codigo: "asc" } }),
   ]);
 
   return (
@@ -90,7 +91,7 @@ export default async function CalidadPage({
                   {formatNumero(l.mermaKg, 2)} kg
                 </p>
               </div>
-              <CalidadFormulario loteId={l.id} causas={causas} plan={planes.find(p => p.productoId === l.formula.productoId) ?? null} />
+              <CalidadFormulario loteId={l.id} causas={causas} plan={planes.find(p => p.productoId === l.formula.productoId) ?? null} instrumentosDisponibles={instrumentos.map(i => ({ id: i.id, etiqueta: `${i.codigo} — ${i.nombre}` }))} />
             </div>
           ))}
           {pendientes.length === 0 && (
