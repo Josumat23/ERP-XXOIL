@@ -10,6 +10,28 @@ import { destinosDeLote, resumenDespacho } from "@/lib/despachoLote";
 import { lotesQueConsumieron, resumenTrazabilidadInsumo } from "@/lib/trazabilidadInsumo";
 import { contiene } from "@/lib/busqueda";
 
+/** Lo que hace falta de una línea de venta para saber cuánto salió y a quién. */
+const SELECT_ASIGNACIONES_VENTA = {
+  tipo: true,
+  cantidad: true,
+  pedidoDetalleId: true,
+  facturaDetalleId: true,
+  guiaDetalleId: true,
+  pedidoDetalle: {
+    select: { pedido: { select: { numero: true, cliente: { select: { razonSocial: true } } } } },
+  },
+  facturaDetalle: { select: { factura: { select: { numero: true } } } },
+  guiaDetalle: {
+    select: {
+      facturaAsignaciones: {
+        select: {
+          facturaDetalle: { select: { factura: { select: { numero: true, estado: true } } } },
+        },
+      },
+    },
+  },
+} as const;
+
 // Vista de recall: dado un lote granel, agrega TODOS sus envasados y TODOS
 // los clientes/facturas que recibieron unidades — de un vistazo, sin tener
 // que entrar envasado por envasado (que es como se ve la trazabilidad en el
@@ -20,6 +42,7 @@ export default async function RecallPage({
   searchParams: Promise<{
     loteId?: string;
     recepcionId?: string;
+    porLoteProveedor?: string;
     qLote?: string;
     qMaterial?: string;
   }>;
@@ -27,7 +50,10 @@ export default async function RecallPage({
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
-  const { loteId, recepcionId, qLote, qMaterial } = await searchParams;
+  const parametros = await searchParams;
+  const { loteId, recepcionId, qLote, qMaterial } = parametros;
+  // Ampliar el alcance a todas las recepciones del mismo lote del proveedor.
+  const porLoteProveedor = parametros.porLoteProveedor === "1";
   const empresaId = usuario.empresaId;
 
   // Los dos selectores se acotan y se pueden buscar. Antes uno traía TODOS los
@@ -134,6 +160,7 @@ export default async function RecallPage({
           cantidad: true,
           cantidadDisponible: true,
           numeroLoteProveedor: true,
+          insumoId: true,
           insumo: { select: { codigo: true, nombre: true, unidadMedida: true } },
           recepcion: {
             select: {
@@ -159,37 +186,7 @@ export default async function RecallPage({
                       id: true,
                       codigo: true,
                       presentacion: { select: { nombre: true } },
-                      asignacionesLote: {
-                        select: {
-                          tipo: true,
-                          cantidad: true,
-                          pedidoDetalleId: true,
-                          facturaDetalleId: true,
-                          guiaDetalleId: true,
-                          pedidoDetalle: {
-                            select: {
-                              pedido: {
-                                select: {
-                                  numero: true,
-                                  cliente: { select: { razonSocial: true } },
-                                },
-                              },
-                            },
-                          },
-                          facturaDetalle: { select: { factura: { select: { numero: true } } } },
-                          guiaDetalle: {
-                            select: {
-                              facturaAsignaciones: {
-                                select: {
-                                  facturaDetalle: {
-                                    select: { factura: { select: { numero: true, estado: true } } },
-                                  },
-                                },
-                              },
-                            },
-                          },
-                        },
-                      },
+                      asignacionesLote: { select: SELECT_ASIGNACIONES_VENTA },
                     },
                   },
                 },
@@ -200,9 +197,78 @@ export default async function RecallPage({
       })
     : null;
 
+  // ---------------------------------------------------------------------
+  // El mismo lote del proveedor puede haber llegado en varias recepciones.
+  //
+  // Consultar una sola devuelve la mitad de lo fabricado — y la devuelve con
+  // cara de respuesta completa, que en un recall es el peor error posible:
+  // quien lee concluye que el alcance es menor de lo que es.
+  //
+  // No se agrega en silencio: a veces la pregunta SÍ es por una entrega
+  // puntual (llegó dañada, se descargó mal). Se avisa que hay hermanas y se
+  // ofrece ampliar el alcance en un clic.
+  // ---------------------------------------------------------------------
+  const hermanas =
+    recepcion?.numeroLoteProveedor && recepcionId
+      ? await prisma.recepcionCompraDetalle.findMany({
+          where: {
+            recepcion: { ordenCompra: { empresaId } },
+            insumoId: recepcion.insumoId,
+            numeroLoteProveedor: recepcion.numeroLoteProveedor,
+            id: { not: recepcionId },
+          },
+          select: {
+            id: true,
+            cantidad: true,
+            cantidadDisponible: true,
+            recepcion: { select: { numero: true } },
+            asignacionesLote: {
+              select: {
+                cantidad: true,
+                devolucionAsignacionLoteInsumos: { select: { cantidad: true } },
+                loteGranel: {
+                  select: {
+                    id: true,
+                    codigo: true,
+                    estado: true,
+                    formula: { select: { producto: { select: { nombre: true } } } },
+                    envasados: {
+                      select: {
+                        id: true,
+                        codigo: true,
+                        presentacion: { select: { nombre: true } },
+                        asignacionesLote: { select: SELECT_ASIGNACIONES_VENTA },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { recepcion: { fecha: "asc" } },
+        })
+      : [];
+
+  // Las asignaciones que entran en la consulta: solo las de la recepción
+  // elegida, o las de todas las del mismo lote del proveedor.
+  const asignacionesEnAlcance = [
+    ...(recepcion?.asignacionesLote ?? []),
+    ...(porLoteProveedor ? hermanas.flatMap((h) => h.asignacionesLote) : []),
+  ];
+
+  // Las cantidades del encabezado tienen que cubrir el mismo alcance que la
+  // tabla: decir «recibido 300 kg» encima de un consumo de 600 sería una
+  // contradicción impresa.
+  const recibidoEnAlcance =
+    (recepcion?.cantidad.toNumber() ?? 0) +
+    (porLoteProveedor ? hermanas.reduce((t, h) => t + h.cantidad.toNumber(), 0) : 0);
+  const sinConsumirEnAlcance =
+    (recepcion?.cantidadDisponible.toNumber() ?? 0) +
+    (porLoteProveedor ? hermanas.reduce((t, h) => t + h.cantidadDisponible.toNumber(), 0) : 0);
+
   const consumos = recepcion
     ? lotesQueConsumieron(
-        recepcion.asignacionesLote.map((a) => ({
+        asignacionesEnAlcance.map((a) => ({
           loteGranelId: a.loteGranel.id,
           loteCodigo: a.loteGranel.codigo,
           productoNombre: a.loteGranel.formula.producto.nombre,
@@ -405,14 +471,60 @@ export default async function RecallPage({
                 : ""}
             </p>
 
+            {/*
+              El aviso que evita la respuesta incompleta con cara de completa.
+              No se agrega solo: a veces la pregunta SÍ es por una entrega
+              puntual —llegó dañada, se descargó mal— y ampliar el alcance por
+              nuestra cuenta contestaría otra cosa.
+            */}
+            {hermanas.length > 0 && (
+              <p
+                className={`text-sm mt-3 rounded-md border px-3 py-2 ${
+                  porLoteProveedor
+                    ? "border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-900"
+                    : "border-amber-200 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 text-amber-900 dark:text-amber-200"
+                }`}
+              >
+                {porLoteProveedor ? (
+                  <>
+                    Alcance ampliado: el lote del proveedor{" "}
+                    <strong>{recepcion.numeroLoteProveedor}</strong> llegó en{" "}
+                    {hermanas.length + 1} recepciones y esta consulta las cubre todas (
+                    {[recepcion.recepcion.numero, ...hermanas.map((h) => h.recepcion.numero)].join(
+                      ", "
+                    )}
+                    ).{" "}
+                    <Link
+                      href={`/produccion/lotes/recall?recepcionId=${recepcion.id}`}
+                      className="hover:underline text-blue-700 dark:text-blue-400"
+                    >
+                      Ver solo {recepcion.recepcion.numero}
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    El lote del proveedor <strong>{recepcion.numeroLoteProveedor}</strong> también
+                    llegó en {hermanas.map((h) => h.recepcion.numero).join(", ")}. Esta consulta
+                    cubre solo {recepcion.recepcion.numero}.{" "}
+                    <Link
+                      href={`/produccion/lotes/recall?recepcionId=${recepcion.id}&porLoteProveedor=1`}
+                      className="hover:underline font-medium"
+                    >
+                      Ver todo el lote del proveedor
+                    </Link>
+                  </>
+                )}
+              </p>
+            )}
+
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
               <Dato
-                etiqueta="Recibido"
-                valor={`${formatNumero(recepcion.cantidad, 3)} ${recepcion.insumo.unidadMedida}`}
+                etiqueta={porLoteProveedor ? "Recibido (todo el lote)" : "Recibido"}
+                valor={`${formatNumero(recibidoEnAlcance, 3)} ${recepcion.insumo.unidadMedida}`}
               />
               <Dato
-                etiqueta="Sin consumir"
-                valor={`${formatNumero(recepcion.cantidadDisponible, 3)} ${recepcion.insumo.unidadMedida}`}
+                etiqueta={porLoteProveedor ? "Sin consumir (todo el lote)" : "Sin consumir"}
+                valor={`${formatNumero(sinConsumirEnAlcance, 3)} ${recepcion.insumo.unidadMedida}`}
               />
               <Dato etiqueta="Lotes fabricados" valor={String(resumenInsumo.lotes)} />
               <Dato
