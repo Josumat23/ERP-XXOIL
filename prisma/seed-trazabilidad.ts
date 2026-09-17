@@ -5,7 +5,14 @@ import { crearAdaptador } from "../src/lib/adaptadorBase";
 import { PrismaClient } from "../src/generated/prisma/client";
 
 // ---------------------------------------------------------------------------
-// El número de lote del proveedor en las recepciones de prueba.
+// Los datos que hacen usable la trazabilidad / recall.
+//
+// Dos cosas que el sistema sabe registrar y que los sembradores no llenaban, y
+// sin las cuales la pantalla se podía abrir pero no estrenar: el número de lote
+// del proveedor en las recepciones, y a quién llamar en cada cliente.
+//
+// ---------------------------------------------------------------------------
+// 1. El número de lote del proveedor en las recepciones de prueba.
 //
 // La pantalla de trazabilidad / recall contesta «¿a quién le llegó este
 // material?» entrando por el lote del PROVEEDOR, que es el dato con el que
@@ -127,6 +134,67 @@ async function main() {
         "lote llegó en más de una recepción, la pantalla ofrece ampliar el alcance a todas."
     );
   }
+
+  await sembrarContactosDeDespacho();
+}
+
+// ---------------------------------------------------------------------------
+// 2. A quién llamar en cada cliente.
+//
+// «A quiénes hay que avisar» muestra el contacto de DESPACHO —quien atiende la
+// mercadería— y, si nadie está designado, cae en los datos de la empresa. Los
+// clientes sembrados no tienen ni un contacto cargado, así que la pantalla solo
+// podía mostrar el camino de respaldo.
+//
+// Las personas son INVENTADAS, igual que las marcas de la competencia en
+// `seed-calidad.ts`: un sembrador viaja con el repositorio y termina en demos y
+// capturas, y poner ahí el nombre y el celular de alguien real es publicar el
+// dato de un tercero. Los números arrancan en 9 como los celulares peruanos y
+// no corresponden a ninguna línea asignada.
+//
+// Se siembra uno solo por cliente y solo si el cliente no tiene ninguno: el que
+// alguien cargó a mano no se toca.
+// ---------------------------------------------------------------------------
+const CONTACTOS_DE_PRUEBA = [
+  { nombres: "Rosa", apellidos: "Quispe Mamani", cargo: "Jefa de almacén", celular: "900000101" },
+  { nombres: "Julio", apellidos: "Paredes Chávez", cargo: "Encargado de recepción", celular: "900000102" },
+  { nombres: "Elena", apellidos: "Vargas Ríos", cargo: "Supervisora de despacho", celular: "900000103" },
+  { nombres: "Marco", apellidos: "Salazar Nuñez", cargo: "Jefe de logística", celular: "900000104" },
+  { nombres: "Pilar", apellidos: "Ccahuana Soto", cargo: "Administradora", celular: "900000105" },
+];
+
+async function sembrarContactosDeDespacho() {
+  const clientes = await prisma.cliente.findMany({
+    where: { empresaId: EMPRESA_ID, contactos: { none: {} } },
+    select: { id: true, codigo: true, razonSocial: true },
+    orderBy: { codigo: "asc" },
+  });
+
+  if (clientes.length === 0) {
+    console.log("\nTodos los clientes ya tienen contactos cargados: no se toca ninguno.");
+    return;
+  }
+
+  let creados = 0;
+  for (const [i, cliente] of clientes.entries()) {
+    const persona = CONTACTOS_DE_PRUEBA[i % CONTACTOS_DE_PRUEBA.length];
+    await prisma.contactoCliente.create({
+      data: {
+        empresaId: EMPRESA_ID,
+        clienteId: cliente.id,
+        ...persona,
+        email: `${persona.nombres.toLowerCase()}@${cliente.codigo.toLowerCase()}.ejemplo.pe`,
+        paraDespacho: true,
+        esPrincipal: true,
+      },
+    });
+    creados += 1;
+    console.log(`${cliente.codigo} → ${persona.nombres} ${persona.apellidos} (despacho)`);
+  }
+  console.log(
+    `\nContactos de despacho creados: ${creados}. Son personas inventadas, para que\n` +
+      "«A quiénes hay que avisar» muestre a quién llamar y no solo el teléfono de la empresa."
+  );
 }
 
 main()

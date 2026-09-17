@@ -32,7 +32,7 @@ const SELECT_ASIGNACIONES = {
   facturaDetalleId: true,
   guiaDetalleId: true,
   pedidoDetalle: {
-    select: { pedido: { select: { numero: true, cliente: { select: { razonSocial: true } } } } },
+    select: { pedido: { select: { numero: true, cliente: { select: { id: true, razonSocial: true } } } } },
   },
   facturaDetalle: { select: { factura: { select: { numero: true } } } },
   guiaDetalle: {

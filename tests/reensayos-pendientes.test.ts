@@ -267,7 +267,7 @@ const asignacion = (
   pedidoDetalleId: linea,
   facturaDetalleId: null,
   guiaDetalleId: null,
-  pedidoDetalle: { pedido: { numero: "P-001", cliente: { razonSocial: cliente } } },
+  pedidoDetalle: { pedido: { numero: "P-001", cliente: { id: cliente, razonSocial: cliente } } },
   facturaDetalle: null,
   guiaDetalle: null,
 });
