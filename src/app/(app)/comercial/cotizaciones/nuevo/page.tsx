@@ -7,10 +7,15 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import CotizacionFormulario from "../CotizacionFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
-export default async function NuevaCotizacionPage() {
+export default async function NuevaCotizacionPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ presentacion?: string }>;
+}) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
   const empresaId = await obtenerEmpresaActivaId();
+  const { presentacion: presentacionPedida } = await searchParams;
 
   const [clientes, vendedores, presentaciones, cotizaciones, descuentosCanal] = await Promise.all([
     prisma.cliente.findMany({ where: { empresaId, estado: "ACTIVO" }, orderBy: { razonSocial: "asc" } }),
@@ -23,6 +28,13 @@ export default async function NuevaCotizacionPage() {
     prisma.cotizacion.findMany({ where: { empresaId }, include: { cliente: true }, orderBy: { fecha: "desc" } }),
     prisma.descuentoCanal.findMany({ where: { empresaId } }),
   ]);
+
+  // Solo se precarga una presentación que exista y esté activa: el id viene
+  // de la URL y no se confía en él.
+  const presentacionInicial =
+    presentacionPedida && presentaciones.some((p) => p.id === presentacionPedida)
+      ? presentacionPedida
+      : null;
   const descuentoPorCanal = Object.fromEntries(
     descuentosCanal.map((d) => [d.canal, d.descuentoPct.toNumber()])
   );
@@ -47,7 +59,20 @@ export default async function NuevaCotizacionPage() {
         }))}
       >
       <div className="max-w-3xl">
+        {/*
+          El buscador vive en su propia pantalla: es un GET, y tenerlo acá
+          adentro haría que buscar borrara lo que ya se escribió.
+        */}
+        <p className="text-sm mb-4" style={{ color: "var(--epicor-texto-tenue)" }}>
+          ¿El cliente pide un producto de la competencia?{" "}
+          <Link href="/comercial/equivalentes" className="hover:underline">
+            Buscar equivalente
+          </Link>
+          .
+        </p>
         <CotizacionFormulario
+          key={presentacionInicial ?? "vacio"}
+          presentacionInicial={presentacionInicial}
           clientes={clientes.map((c) => ({
             id: c.id,
             etiqueta: c.razonSocial,

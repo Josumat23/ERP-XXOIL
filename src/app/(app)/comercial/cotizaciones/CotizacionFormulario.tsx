@@ -15,6 +15,9 @@ type Props = {
   vendedores: Opcion[];
   presentaciones: PresentacionOpcion[];
   descuentoPorCanal: Record<string, number>;
+  /** Presentación con la que abrir la primera línea, cuando se llegó desde el
+   * buscador de equivalentes. Ya validada contra la compañía en el servidor. */
+  presentacionInicial?: string | null;
 };
 
 function fechaEn30Dias(): string {
@@ -28,6 +31,7 @@ export default function CotizacionFormulario({
   vendedores,
   presentaciones,
   descuentoPorCanal,
+  presentacionInicial = null,
 }: Props) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     crearCotizacion,
@@ -36,8 +40,16 @@ export default function CotizacionFormulario({
   const [vendedorId, setVendedorId] = useState("");
   const [descuentoPct, setDescuentoPct] = useState(0);
   const [probabilidad, setProbabilidad] = useState(50);
+  // La primera línea llega cargada cuando se entró desde «Cotizar este»: el
+  // vendedor no tiene que volver a buscar el SKU que el buscador ya resolvió.
   const [lineas, setLineas] = useState<Linea[]>([
-    { presentacionId: "", cantidad: "", precioUnitario: "" },
+    {
+      presentacionId: presentacionInicial ?? "",
+      cantidad: "",
+      precioUnitario: presentacionInicial
+        ? String(presentaciones.find((p) => p.id === presentacionInicial)?.precio ?? "")
+        : "",
+    },
   ]);
 
   function precioConDescuento(precioBase: number): number {
