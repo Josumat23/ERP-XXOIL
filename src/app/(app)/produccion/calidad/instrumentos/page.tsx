@@ -52,8 +52,8 @@ export default async function InstrumentosPage() {
   // Cada una trae su tope y se mezclan acá.
   const TOPE_POR_CONSULTA = 300;
   const idsInstrumento = instrumentos.map((i) => i.id);
-  const [deLiberacion, deReanalisis] = idsInstrumento.length === 0
-    ? [[], []]
+  const [deLiberacion, deReanalisis, deRecepcion] = idsInstrumento.length === 0
+    ? [[], [], []]
     : await Promise.all([
         prisma.resultadoCaracteristicaCalidad.findMany({
           where: {
@@ -86,6 +86,35 @@ export default async function InstrumentosPage() {
             },
           },
           orderBy: { reanalisis: { fecha: "desc" } },
+          take: TOPE_POR_CONSULTA,
+        }),
+        // Lo que ENTRA se mide con los mismos equipos. Omitirlo haría que la
+        // ficha dijera que el instrumento midió menos de lo que midió.
+        prisma.medicionInspeccionCompra.findMany({
+          where: {
+            instrumentoId: { in: idsInstrumento },
+            inspeccion: { recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } } },
+          },
+          select: {
+            id: true,
+            nombre: true,
+            valorMedido: true,
+            unidadMedida: true,
+            instrumentoId: true,
+            inspeccion: {
+              select: {
+                fecha: true,
+                recepcionDetalle: {
+                  select: {
+                    id: true,
+                    insumo: { select: { codigo: true } },
+                    recepcion: { select: { numero: true } },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { inspeccion: { fecha: "desc" } },
           take: TOPE_POR_CONSULTA,
         }),
       ]);
@@ -122,6 +151,18 @@ export default async function InstrumentosPage() {
             ensayo: "REANALISIS" as const,
             itemId: m.reanalisis.envasado.id,
             itemCodigo: m.reanalisis.envasado.codigo,
+          }]
+        : []
+    ),
+    ...deRecepcion.flatMap((m) =>
+      // Una inspección pendiente todavía no tiene fecha: no se ensayó nada.
+      m.inspeccion.fecha
+        ? [{
+            ...m,
+            fecha: m.inspeccion.fecha,
+            ensayo: "RECEPCION" as const,
+            itemId: m.inspeccion.recepcionDetalle.id,
+            itemCodigo: `${m.inspeccion.recepcionDetalle.recepcion.numero} · ${m.inspeccion.recepcionDetalle.insumo.codigo}`,
           }]
         : []
     ),
@@ -325,16 +366,22 @@ export default async function InstrumentosPage() {
                           return (
                             <tr key={m.id}>
                               <td className="font-medium">
-                                <Link
-                                  href={
-                                    m.ensayo === "LIBERACION"
-                                      ? `/produccion/lotes/${m.itemId}`
-                                      : `/produccion/envasados/${m.itemId}`
-                                  }
-                                  className="hover:underline"
-                                >
-                                  {m.itemCodigo}
-                                </Link>
+                                {m.ensayo === "RECEPCION" ? (
+                                  // La recepción no tiene ficha propia: se
+                                  // identifica por su número y el insumo.
+                                  <span className="font-mono text-xs">{m.itemCodigo}</span>
+                                ) : (
+                                  <Link
+                                    href={
+                                      m.ensayo === "LIBERACION"
+                                        ? `/produccion/lotes/${m.itemId}`
+                                        : `/produccion/envasados/${m.itemId}`
+                                    }
+                                    className="hover:underline"
+                                  >
+                                    {m.itemCodigo}
+                                  </Link>
+                                )}
                               </td>
                               <td className="text-xs">{MENSAJE_TIPO_ENSAYO[m.ensayo]}</td>
                               <td>{fechaCorta.format(m.fecha)}</td>

@@ -30,8 +30,8 @@ export default async function ReensayosPage() {
       </div>
       <p className="text-sm mb-5" style={{ color: "var(--epicor-texto-tenue)" }}>
         Todo lo que se ensayó con un instrumento sin calibración vigente, de todo el laboratorio y
-        de una sola vez: la liberación de un lote y el re-análisis que le dio vigencia nueva a un
-        envasado.{" "}
+        de una sola vez: la liberación de un lote, el re-análisis que le dio vigencia nueva a un
+        envasado y la inspección de lo que entró por compras.{" "}
         <Link href="/produccion/calidad/instrumentos" className="hover:underline">
           Ver instrumentos
         </Link>
@@ -73,16 +73,22 @@ export default async function ReensayosPage() {
               {items.map((l) => (
                 <tr key={`${l.ensayo}:${l.itemId}`}>
                   <td className="font-medium align-top">
-                    <Link
-                      href={
-                        l.ensayo === "LIBERACION"
-                          ? `/produccion/lotes/${l.itemId}`
-                          : `/produccion/envasados/${l.itemId}`
-                      }
-                      className="hover:underline"
-                    >
-                      {l.itemCodigo}
-                    </Link>
+                    {l.ensayo === "RECEPCION" ? (
+                      // La recepción no tiene ficha propia a la que llevar: se
+                      // identifica por su número y el código del insumo.
+                      <span className="font-mono text-xs">{l.itemCodigo}</span>
+                    ) : (
+                      <Link
+                        href={
+                          l.ensayo === "LIBERACION"
+                            ? `/produccion/lotes/${l.itemId}`
+                            : `/produccion/envasados/${l.itemId}`
+                        }
+                        className="hover:underline"
+                      >
+                        {l.itemCodigo}
+                      </Link>
+                    )}
                   </td>
                   <td className="align-top">{l.productoNombre}</td>
                   <td className="align-top">
@@ -123,9 +129,9 @@ export default async function ReensayosPage() {
                             : "bg-neutral-100 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300"
                       }`}
                     >
-                      {MENSAJE_DESTINO[l.destino]}
+                      {MENSAJE_DESTINO[l.ensayo][l.destino]}
                     </span>
-                    {l.destino === "DESPACHADO" && (
+                    {l.destino === "DESPACHADO" && l.ensayo !== "RECEPCION" && (
                       <p className="text-sm mt-1">
                         {formatNumero(l.unidadesDespachadas, 0)} unidades en{" "}
                         {l.clientesAfectados === 1 ? "1 cliente" : `${l.clientesAfectados} clientes`}
@@ -136,6 +142,14 @@ export default async function ReensayosPage() {
                         >
                           ver a quiénes
                         </Link>
+                      </p>
+                    )}
+                    {l.destino === "DESPACHADO" && l.ensayo === "RECEPCION" && (
+                      <p className="text-sm mt-1">
+                        {formatNumero(l.unidadesDespachadas, 2)} consumidos en producción.{" "}
+                        <span style={{ color: "var(--epicor-texto-tenue)" }}>
+                          Qué lotes lo usaron todavía se consulta lote por lote.
+                        </span>
                       </p>
                     )}
                   </td>

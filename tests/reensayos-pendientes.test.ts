@@ -120,9 +120,9 @@ test("un lote despachado lo es aunque su estado no sea APROBADO", () => {
 });
 
 test("cada destino se explica en palabras, no con la sigla", () => {
-  assert.equal(MENSAJE_DESTINO.DESPACHADO, "Ya está en poder del cliente");
-  assert.equal(MENSAJE_DESTINO.EN_ALMACEN, "Todavía en almacén");
-  assert.equal(MENSAJE_DESTINO.SIN_SALIDA, "Nunca salió");
+  assert.equal(MENSAJE_DESTINO.LIBERACION.DESPACHADO, "Ya está en poder del cliente");
+  assert.equal(MENSAJE_DESTINO.LIBERACION.EN_ALMACEN, "Todavía en almacén");
+  assert.equal(MENSAJE_DESTINO.LIBERACION.SIN_SALIDA, "Nunca salió");
 });
 
 // --- El orden: la decisión del ciclo ----------------------------------------

@@ -30,16 +30,18 @@ import { respaldoDeMedicion, type Calibracion, type RespaldoMedicion } from "./c
  * que está en duda es que el lote cumpliera; si no se sostiene la del
  * re-análisis, lo que está en duda es la vigencia que se le dio.
  */
-export type TipoEnsayo = "LIBERACION" | "REANALISIS";
+export type TipoEnsayo = "LIBERACION" | "REANALISIS" | "RECEPCION";
 
 export const MENSAJE_TIPO_ENSAYO: Record<TipoEnsayo, string> = {
   LIBERACION: "Liberación del lote",
   REANALISIS: "Re-análisis de vigencia",
+  RECEPCION: "Inspección de recepción",
 };
 
 export const CONSECUENCIA_ENSAYO: Record<TipoEnsayo, string> = {
   LIBERACION: "No se sostiene que el lote cumpliera al liberarlo",
   REANALISIS: "No se sostiene la vigencia que se le dio",
+  RECEPCION: "No se sostiene que el insumo cumpliera al recibirlo",
 };
 
 /**
@@ -95,10 +97,31 @@ export type ItemPorReensayar = {
  */
 export type DestinoDelProducto = "DESPACHADO" | "EN_ALMACEN" | "SIN_SALIDA";
 
-export const MENSAJE_DESTINO: Record<DestinoDelProducto, string> = {
-  DESPACHADO: "Ya está en poder del cliente",
-  EN_ALMACEN: "Todavía en almacén",
-  SIN_SALIDA: "Nunca salió",
+/**
+ * Cómo se dice cada destino, según qué se ensayó.
+ *
+ * `DESPACHADO` significa «ya no lo tenemos». Para un lote o un envase eso es
+ * que lo tiene el cliente; para un insumo, que ya se consumió en producción
+ * —y entonces el problema no es el insumo sino lo que se fabricó con él—.
+ * Es la misma posición en la lista y son dos conversaciones distintas, así
+ * que se nombran distinto.
+ */
+export const MENSAJE_DESTINO: Record<TipoEnsayo, Record<DestinoDelProducto, string>> = {
+  LIBERACION: {
+    DESPACHADO: "Ya está en poder del cliente",
+    EN_ALMACEN: "Todavía en almacén",
+    SIN_SALIDA: "Nunca salió",
+  },
+  REANALISIS: {
+    DESPACHADO: "Ya está en poder del cliente",
+    EN_ALMACEN: "Todavía en almacén",
+    SIN_SALIDA: "Nunca salió",
+  },
+  RECEPCION: {
+    DESPACHADO: "Ya se consumió en producción",
+    EN_ALMACEN: "Todavía en almacén, sin consumir",
+    SIN_SALIDA: "Ni consumido ni en stock",
+  },
 };
 
 /**

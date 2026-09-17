@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { actualizarCostoPromedioEntrada, registrarMovimiento } from "@/lib/inventario";
-import { normalizarLecturasCalidad, valorCumpleEspecificacion } from "@/lib/planesCalidad";
+import { normalizarLecturasCalidad, resultadosDelEnsayo, type ResultadoDeEnsayo } from "@/lib/planesCalidad";
 import { ResultadoInspeccion } from "@/generated/prisma/client";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
@@ -57,14 +57,27 @@ export async function resolverInspeccionCompra(
       const plan = await tx.planInspeccionInsumo.findFirst({ where: { empresaId, insumoId: inspeccion.recepcionDetalle.insumoId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } });
       if (plan && plan.id !== planId) throw new Error("Debe usar el plan de inspección vigente. Actualice la página.");
       if (!plan && planId) throw new Error("El plan de inspección ya no está vigente.");
-      let mediciones: { secuencia: number; nombre: string; unidadMedida: string; limiteInferior: number | null; limiteSuperior: number | null; metodoEnsayo: string | null; valorMedido: number; conforme: boolean }[] = [];
+      // Misma operación que el ensayo de liberación y que el re-análisis del
+      // envasado, con la misma librería: estaba copiada a mano acá, y una regla
+      // de negocio copiada es cómo dos ensayos terminan aplicando criterios
+      // distintos sin que nadie lo decida.
+      let mediciones: ResultadoDeEnsayo[] = [];
       if (plan) {
         const lecturas = normalizarLecturasCalidad(String(formData.get("lecturas") ?? ""));
-        const porId = new Map(lecturas.map(l => [l.caracteristicaId, l.valorMedido]));
-        const idsPlan = new Set(plan.caracteristicas.map(c => c.id));
-        if (new Set(lecturas.map(l => l.caracteristicaId)).size !== lecturas.length || lecturas.some(l => !idsPlan.has(l.caracteristicaId)) || plan.caracteristicas.some(c => c.obligatoria && !porId.has(c.id))) throw new Error("Las mediciones no corresponden al plan vigente.");
-        mediciones = plan.caracteristicas.filter(c => porId.has(c.id)).map(c => { const valorMedido = porId.get(c.id); if (valorMedido === undefined) throw new Error(`Falta ${c.nombre}.`); const minimo = c.limiteInferior?.toNumber() ?? null; const maximo = c.limiteSuperior?.toNumber() ?? null; return { secuencia: c.secuencia, nombre: c.nombre, unidadMedida: c.unidadMedida, limiteInferior: minimo, limiteSuperior: maximo, metodoEnsayo: c.metodoEnsayo, valorMedido, conforme: valorCumpleEspecificacion(valorMedido, minimo, maximo) }; });
+        mediciones = resultadosDelEnsayo(plan.caracteristicas.map(c => ({
+          ...c,
+          limiteInferior: c.limiteInferior?.toNumber() ?? null,
+          limiteSuperior: c.limiteSuperior?.toNumber() ?? null,
+        })), lecturas);
         resultado = mediciones.every(m => m.conforme) ? ResultadoInspeccion.APROBADO : ResultadoInspeccion.RECHAZADO;
+
+        // Los instrumentos llegan del navegador: se comprueban antes de
+        // asentar la inspección.
+        const instrumentos = [...new Set(mediciones.map(m => m.instrumentoId).filter((x): x is string => x !== null))];
+        if (instrumentos.length > 0) {
+          const propios = await tx.instrumentoMedicion.count({ where: { id: { in: instrumentos }, empresaId } });
+          if (propios !== instrumentos.length) throw new Error("Algún instrumento no pertenece a la compañía activa.");
+        }
       }
       if (resultado === ResultadoInspeccion.RECHAZADO && !observaciones) throw new Error("Al rechazar una recepción, las observaciones son obligatorias.");
 
@@ -83,7 +96,21 @@ export async function resolverInspeccionCompra(
       if (reclamo.count !== 1) {
         throw new Error("Esta recepción cambió mientras se evaluaba. Actualice la página e intente nuevamente.");
       }
-      if (mediciones.length > 0) await tx.medicionInspeccionCompra.createMany({ data: mediciones.map(m => ({ ...m, inspeccionCompraId: inspeccion.id })) });
+      // Campo por campo y no con el objeto entero: el tipo que devuelve la
+      // librería lo comparten tres ensayos con modelos distintos, y un campo
+      // nuevo en uno de ellos rompía este create en silencio. Ya pasó.
+      if (mediciones.length > 0) await tx.medicionInspeccionCompra.createMany({ data: mediciones.map(m => ({
+        inspeccionCompraId: inspeccion.id,
+        secuencia: m.secuencia,
+        nombre: m.nombre,
+        unidadMedida: m.unidadMedida,
+        limiteInferior: m.limiteInferior,
+        limiteSuperior: m.limiteSuperior,
+        metodoEnsayo: m.metodoEnsayo,
+        valorMedido: m.valorMedido,
+        conforme: m.conforme,
+        instrumentoId: m.instrumentoId,
+      })) });
 
       const detalle = inspeccion.recepcionDetalle;
       const insumo = detalle.insumo;
