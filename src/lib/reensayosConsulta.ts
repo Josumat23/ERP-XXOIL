@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { respaldoDeMedicion } from "./calibracion";
+import { respaldoDeMedicion, ventanasRespaldadas } from "./calibracion";
 import { destinosDeLote, resumenDespacho, type EnvasadoDespachado } from "./despachoLote";
 import { lotesPorReensayar, type ItemPorReensayar, type MedicionParaRevisar } from "./reensayos";
 
@@ -67,17 +67,87 @@ export async function revisarReensayos(empresaId: string): Promise<RevisionDeRee
     inspeccion: { recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } } },
   };
 
-  const [instrumentos, sinInstrumentoProduccion, sinInstrumentoRecepcion] = await Promise.all([
-    prisma.instrumentoMedicion.findMany({
-      where: { empresaId },
-      select: {
-        id: true,
-        codigo: true,
-        nombre: true,
-        calibraciones: { select: { fecha: true, vigenteHasta: true, resultado: true } },
-        mediciones: {
-          where: deLaCompania,
+  // -------------------------------------------------------------------------
+  // Se le pregunta a la base por lo que FALTA, no se trae todo para descartarlo.
+  //
+  // Antes esta función traía TODAS las mediciones de TODOS los instrumentos
+  // —sin tope— y filtraba en memoria. Con seis mediciones es gratis; con un año
+  // de producción son decenas de miles de filas por visita, y no solo acá: el
+  // semáforo del panel general llama a lo mismo, así que el costo lo paga
+  // cualquiera que abra el inicio.
+  //
+  // Un tope no sirve: el orden que importa —lo que ya está en el cliente
+  // primero— se calcula recién después de traer la cadena comercial, así que
+  // recortar antes de ordenar devolvería una lista incompleta con cara de
+  // completa. Lo que se hace es FILTRAR. Las mediciones sin respaldo son la
+  // excepción y no la regla: si el laboratorio está al día el resultado es
+  // chico, y si es enorme eso mismo es la alarma. El tamaño queda acotado por
+  // el tamaño del problema, que es el límite correcto.
+  //
+  // La base acota; la regla decide. El filtro SQL trae un conjunto que
+  // CONTIENE a las mediciones sin respaldo, y `respaldoDeMedicion()` sigue
+  // siendo quien dictamina cada una más abajo — sin eso, un tramo mal
+  // calculado se convertiría en silencio en la respuesta.
+  // -------------------------------------------------------------------------
+  const catalogo = await prisma.instrumentoMedicion.findMany({
+    where: { empresaId },
+    select: {
+      id: true,
+      codigo: true,
+      nombre: true,
+      calibraciones: { select: { fecha: true, vigenteHasta: true, resultado: true } },
+    },
+  });
+  const idsInstrumento = catalogo.map((i) => i.id);
+  const ventanasPorInstrumento = new Map(
+    catalogo.map((i) => [i.id, ventanasRespaldadas(i.calibraciones)])
+  );
+
+  // «Lo que midió este instrumento fuera de los tramos en que estuvo
+  // respaldado». Sin tramos respaldados no hay nada que excluir: todo lo que
+  // midió está en cuestión.
+  const fueraDeRespaldoProduccion = catalogo.map((i) => {
+    const ventanas = ventanasPorInstrumento.get(i.id) ?? [];
+    if (ventanas.length === 0) return { instrumentoId: i.id };
+    return {
+      instrumentoId: i.id,
+      NOT: {
+        // Las dos clases de ensayo de producción llevan su fecha en padres
+        // distintos, y cada medición cuelga de uno solo: la rama que no
+        // corresponde simplemente no encaja.
+        OR: ventanas.flatMap((v) => [
+          { controlCalidad: { fecha: { gte: v.desde, lte: v.hasta } } },
+          { reanalisis: { fecha: { gte: v.desde, lte: v.hasta } } },
+        ]),
+      },
+    };
+  });
+  const fueraDeRespaldoRecepcion = catalogo.map((i) => {
+    const ventanas = ventanasPorInstrumento.get(i.id) ?? [];
+    if (ventanas.length === 0) return { instrumentoId: i.id };
+    return {
+      instrumentoId: i.id,
+      NOT: {
+        OR: ventanas.map((v) => ({ inspeccion: { fecha: { gte: v.desde, lte: v.hasta } } })),
+      },
+    };
+  });
+
+  const sinInstrumentos = catalogo.length === 0;
+  const [
+    filasProduccion,
+    filasRecepcion,
+    evaluadasProduccion,
+    evaluadasRecepcion,
+    sinInstrumentoProduccion,
+    sinInstrumentoRecepcion,
+  ] = await Promise.all([
+    sinInstrumentos
+      ? []
+      : prisma.resultadoCaracteristicaCalidad.findMany({
+          where: { AND: [deLaCompania, { OR: fueraDeRespaldoProduccion }] },
           select: {
+            instrumentoId: true,
             nombre: true,
             controlCalidad: {
               select: { fecha: true, loteGranel: { select: { id: true, codigo: true } } },
@@ -89,10 +159,13 @@ export async function revisarReensayos(empresaId: string): Promise<RevisionDeRee
               },
             },
           },
-        },
-        medicionesInspeccion: {
-          where: inspeccionDeLaCompania,
+        }),
+    sinInstrumentos
+      ? []
+      : prisma.medicionInspeccionCompra.findMany({
+          where: { AND: [inspeccionDeLaCompania, { OR: fueraDeRespaldoRecepcion }] },
           select: {
+            instrumentoId: true,
             nombre: true,
             inspeccion: {
               select: {
@@ -109,8 +182,14 @@ export async function revisarReensayos(empresaId: string): Promise<RevisionDeRee
               },
             },
           },
-        },
-      },
+        }),
+    // Cuántas se pudieron evaluar. Antes salía de contar lo que se había
+    // traído; ahora que solo se trae lo que falta, se cuenta en la base.
+    prisma.resultadoCaracteristicaCalidad.count({
+      where: { instrumentoId: { in: idsInstrumento }, ...deLaCompania },
+    }),
+    prisma.medicionInspeccionCompra.count({
+      where: { instrumentoId: { in: idsInstrumento }, ...inspeccionDeLaCompania },
     }),
     prisma.resultadoCaracteristicaCalidad.count({
       where: { instrumentoId: null, ...deLaCompania },
@@ -120,6 +199,15 @@ export async function revisarReensayos(empresaId: string): Promise<RevisionDeRee
     }),
   ]);
   const medicionesSinInstrumento = sinInstrumentoProduccion + sinInstrumentoRecepcion;
+  const medicionesEvaluadas = evaluadasProduccion + evaluadasRecepcion;
+
+  // Se rearma la forma de antes —cada instrumento con sus mediciones— para que
+  // el resto de la función no tenga que enterarse de dónde vinieron.
+  const instrumentos = catalogo.map((i) => ({
+    ...i,
+    mediciones: filasProduccion.filter((m) => m.instrumentoId === i.id),
+    medicionesInspeccion: filasRecepcion.filter((m) => m.instrumentoId === i.id),
+  }));
 
   // Se filtra ANTES de ir a buscar a dónde salió cada cosa: derivar el respaldo
   // es aritmética sobre datos que ya están en memoria, y consultar el despacho
@@ -150,10 +238,6 @@ export async function revisarReensayos(empresaId: string): Promise<RevisionDeRee
     })
   );
 
-  const medicionesEvaluadas = instrumentos.reduce(
-    (n, i) => n + i.mediciones.length + i.medicionesInspeccion.length,
-    0
-  );
 
   const loteIds = [
     ...new Set(

@@ -227,6 +227,67 @@ export function medicionesSinRespaldo<
   return mediciones.filter((m) => respaldoDeMedicion(m.calibraciones, m.fecha) !== "CALIBRADO");
 }
 
+/** Un tramo de tiempo, con los dos extremos incluidos. */
+export type VentanaRespaldada = { desde: Date; hasta: Date };
+
+/**
+ * Los tramos en los que este instrumento SÍ estaba respaldado.
+ *
+ * Existe para poder preguntarle a la base «tráeme lo que se midió FUERA de
+ * estos tramos» en vez de traer todas las mediciones del laboratorio y
+ * descartarlas en memoria. Sin esto, la pantalla de «qué hay que reensayar» y
+ * el semáforo del panel cargan el historial completo de ensayos en cada
+ * visita.
+ *
+ * No reimplementa la regla: la EJECUTA. Parte la línea de tiempo en los
+ * instantes donde algo puede cambiar —cada fecha de calibración y cada
+ * vencimiento— y le pregunta a `respaldoDeMedicion` por cada tramo. Así las dos
+ * respuestas no pueden discrepar: si mañana la regla cambia, los tramos cambian
+ * con ella. Hay una prueba que compara las dos sobre fechas al azar.
+ *
+ * Los extremos de cada tramo se evalúan aparte porque la regla los incluye
+ * (`<=` en los dos lados): el día del vencimiento todavía respalda.
+ */
+export function ventanasRespaldadas(calibraciones: Calibracion[]): VentanaRespaldada[] {
+  if (calibraciones.length === 0) return [];
+
+  // Los instantes donde la respuesta puede cambiar, sin repetir.
+  const hitos = [
+    ...new Set(
+      calibraciones.flatMap((c) => [c.fecha.getTime(), c.vigenteHasta.getTime()])
+    ),
+  ].sort((a, b) => a - b);
+
+  // Cada hito por sí solo, y el tramo abierto entre dos hitos consecutivos
+  // representado por su punto medio. Un tramo entero contesta lo mismo que su
+  // medio: entre dos hitos no hay nada que cambie la respuesta.
+  const tramos: { desde: number; hasta: number; muestra: number }[] = [];
+  for (const [i, hito] of hitos.entries()) {
+    tramos.push({ desde: hito, hasta: hito, muestra: hito });
+    const siguiente = hitos[i + 1];
+    if (siguiente === undefined || siguiente - hito <= 1) continue;
+    tramos.push({
+      desde: hito + 1,
+      hasta: siguiente - 1,
+      muestra: hito + Math.floor((siguiente - hito) / 2),
+    });
+  }
+
+  const ventanas: VentanaRespaldada[] = [];
+  for (const tramo of tramos) {
+    if (respaldoDeMedicion(calibraciones, new Date(tramo.muestra)) !== "CALIBRADO") continue;
+    const ultima = ventanas.at(-1);
+    // Pegado al anterior: se unen, para no mandarle a la base veinte rangos
+    // donde hay uno.
+    if (ultima && ultima.hasta.getTime() + 1 >= tramo.desde) {
+      ultima.hasta = new Date(tramo.hasta);
+      continue;
+    }
+    ventanas.push({ desde: new Date(tramo.desde), hasta: new Date(tramo.hasta) });
+  }
+  return ventanas;
+}
+
 // ---------------------------------------------------------------------------
 // Cuánto pesa el control al liberar un lote.
 //
