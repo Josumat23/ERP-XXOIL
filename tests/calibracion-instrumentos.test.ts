@@ -208,9 +208,14 @@ test("el aviso llega al panel general y no se queda en su pantalla", async () =>
   assert.match(panel, /resumenParaSemaforo\(/, "el panel no resume las calibraciones");
   assert.match(panel, /modulo: "Calidad"/, "no hay fila de Calidad en el semáforo");
   // Y solo cuando el control está encendido.
-  // Tolerante al formato —el salto de línea lo pone el formateador— pero no al
-  // fondo: la fila tiene que colgar del interruptor.
-  assert.match(panel, /\.\.\.\(controlCalibracion\s*\?\s*\[/, "la fila no depende del interruptor");
+  // La SEÑAL de calibración cuelga del interruptor. La fila de Calidad ya no:
+  // desde que también lleva las homologaciones —que no tienen nada que ver con
+  // el laboratorio— colgarla entera dejaría esas invisibles.
+  assert.match(
+    panel,
+    /\.\.\.\(controlCalibracion[\s\S]{0,80}senalCalibraciones\(/,
+    "la calibración no depende del interruptor"
+  );
   assert.match(panel, /"critico"/, "un instrumento sin calibración vigente no es solo un aviso");
 });
 
