@@ -173,7 +173,9 @@ test("el control nace apagado", async () => {
   // El laboratorio está en implementación: exigirlo o alertar sobre él antes de
   // que exista sería ruido. Lo pidió el negocio explícitamente.
   const esquema = await readFile(resolve(RAIZ, "prisma/schema.prisma"), "utf8");
-  assert.match(esquema, /controlCalibracion\s+Boolean\s+@default\(false\)/);
+  // Ya no es un booleano sino tres niveles (decisión del negocio 2026-09-17),
+  // pero la propiedad que importa es la misma: nace sin frenar ni avisar.
+  assert.match(esquema, /nivelControlCalibracion\s+NivelControlCalibracion\s+@default\(NO_APLICA\)/);
 });
 
 test("la vigencia se guarda, no se calcula desde la frecuencia", async () => {
@@ -216,7 +218,7 @@ test("el aviso llega al panel general y no se queda en su pantalla", async () =>
   // `senalCalibraciones` apareciera a menos de 80 caracteres del interruptor
   // hacía fallar la prueba cada vez que otra señal se sumaba al mismo bloque,
   // que es exactamente lo que había que dejar pasar.
-  const abre = panel.indexOf("...(controlCalibracion");
+  const abre = panel.indexOf("...(avisaCalibracion");
   assert.notEqual(abre, -1, "la calibración no depende del interruptor");
   const cierra = panel.indexOf(": []", abre);
   assert.notEqual(cierra, -1, "el bloque del interruptor no cierra en una lista vacía");
@@ -237,7 +239,7 @@ test("la acción valida con la librería y no confía en el id del formulario", 
   assert.match(acciones, /validarCalibracion\(/, "no usa la validación compartida");
   assert.match(acciones, /instrumentoMedicion\.findFirst\(\{[\s\S]{0,80}empresaId/);
   // El interruptor también es una escritura: pasa por permisos.
-  assert.match(acciones, /export async function alternarControlCalibracion/);
+  assert.match(acciones, /export async function fijarNivelControlCalibracion/);
   assert.match(acciones, /puedeRealizar\(auth\.usuario, "produccion", "editar"\)/);
 });
 

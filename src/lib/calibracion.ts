@@ -226,3 +226,88 @@ export function medicionesSinRespaldo<
 >(mediciones: T[]): T[] {
   return mediciones.filter((m) => respaldoDeMedicion(m.calibraciones, m.fecha) !== "CALIBRADO");
 }
+
+// ---------------------------------------------------------------------------
+// Cuánto pesa el control al liberar un lote.
+//
+// Decisión del negocio (2026-09-17), después de tres ciclos preguntándola: no
+// son dos opciones sino TRES. El laboratorio informa siempre; frenar la
+// liberación es algo que la empresa elige, y «no aplica» existe para que el
+// proceso siga su curso mientras el laboratorio se implementa.
+//
+// Es la regla que faltaba para cerrar el laboratorio, y se resolvió al revés
+// de lo que suelen hacer los ERP: por omisión NO frena. Un control de calidad
+// que detiene la producción el día que alguien olvidó cargar un certificado no
+// se usa — se apaga, y con él se apaga todo lo demás.
+// ---------------------------------------------------------------------------
+
+export type NivelControlCalibracion = $Enums.NivelControlCalibracion;
+
+export const MENSAJE_NIVEL_CONTROL: Record<NivelControlCalibracion, string> = {
+  NO_APLICA: "No aplica",
+  ADVIERTE: "Advierte",
+  BLOQUEA: "Bloquea",
+};
+
+export const EXPLICACION_NIVEL_CONTROL: Record<NivelControlCalibracion, string> = {
+  NO_APLICA:
+    "El laboratorio todavía no aplica. Se pueden cargar instrumentos y calibraciones igual; el semáforo y los avisos quedan apagados.",
+  ADVIERTE:
+    "Los instrumentos sin calibración vigente aparecen en el semáforo, y liberar un lote medido con uno de ellos avisa pero deja pasar. El lote queda listado en «Qué hay que reensayar».",
+  BLOQUEA:
+    "Además de avisar, no deja liberar un lote medido con un instrumento sin calibración vigente. Úselo cuando el laboratorio ya esté en régimen: antes, frena producción por un certificado que falta cargar.",
+};
+
+/** ¿El nivel hace que el semáforo y los avisos se vean? */
+export function avisaAlgo(nivel: NivelControlCalibracion): boolean {
+  return nivel !== "NO_APLICA";
+}
+
+export type ControlAlLiberar = {
+  /** Si `true`, la liberación no se asienta. */
+  bloquea: boolean;
+  /** Qué decirle a quien libera. `null` cuando no hay nada que decir. */
+  aviso: string | null;
+};
+
+/**
+ * Qué hace el sistema al liberar un lote medido con instrumentos sin respaldo.
+ *
+ * `instrumentosSinRespaldo` son los códigos de los instrumentos cuya medición
+ * en este ensayo no se sostiene. Si está vacío no pasa nada, cualquiera sea el
+ * nivel: el control no inventa problemas donde no los hay.
+ */
+export function controlAlLiberar(
+  nivel: NivelControlCalibracion,
+  instrumentosSinRespaldo: string[]
+): ControlAlLiberar {
+  if (nivel === "NO_APLICA" || instrumentosSinRespaldo.length === 0) {
+    return { bloquea: false, aviso: null };
+  }
+  const lista = instrumentosSinRespaldo.join(", ");
+  const uno = instrumentosSinRespaldo.length === 1;
+  const sujeto = uno
+    ? `El instrumento ${lista} no tiene`
+    : `Los instrumentos ${lista} no tienen`;
+
+  if (nivel === "BLOQUEA") {
+    return {
+      bloquea: true,
+      // El mensaje dice qué hacer, no solo que no se puede: quien libera un
+      // lote a las 11 de la noche necesita saber si esto se resuelve cargando
+      // un certificado o si hay que llamar a alguien.
+      aviso: `${sujeto} calibración vigente, y el control está en BLOQUEA. Cargue la calibración que falta en Instrumentos de medición, o baje el control a ADVIERTE si el negocio acepta liberar con esta medición.`,
+    };
+  }
+  return {
+    bloquea: false,
+    aviso: `${sujeto} calibración vigente. El lote se libera igual y queda listado en «Qué hay que reensayar» para que calidad decida.`,
+  };
+}
+
+/** Los niveles que existen, en orden de menos a más exigente. */
+export const NIVELES_CONTROL_CALIBRACION: NivelControlCalibracion[] = [
+  "NO_APLICA",
+  "ADVIERTE",
+  "BLOQUEA",
+];

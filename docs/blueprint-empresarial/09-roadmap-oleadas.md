@@ -279,3 +279,7 @@ El re-análisis de un envasado registra ahora las mediciones del re-ensayo, no s
 ## Actualización: el laboratorio también mide lo que entra
 
 La inspección de recepción registra con qué instrumento se midió cada característica, igual que los ensayos de producción, y entra en «Qué hay que reensayar» y en la ficha del instrumento. En el camino se corrigieron dos defectos preexistentes: publicar un plan de inspección de insumos estaba roto desde el ciclo de la densidad —el normalizador compartido devolvía campos que ese modelo no tiene— y la pantalla de evaluar una recepción no se podía usar con un plan vigente, porque le pasaba objetos `Decimal` de Prisma a un componente cliente. Véase `docs/laboratorio-en-recepcion.md`.
+
+## Actualización: el control de calibración pasa a tres niveles
+
+Decisión del negocio (2026-09-17), pendiente desde hacía cuatro ciclos: liberar un lote con un instrumento sin calibración vigente no es «bloquea o advierte» sino tres niveles, con `NO_APLICA` para que el proceso siga su curso. El principio fijado es que el laboratorio no sea un bloqueante: el sistema nace sin frenar y frenar es algo que la empresa elige. Aplica al liberar un lote granel; la inspección de recepción y el re-análisis nunca se bloquean. Véase `docs/control-calibracion-tres-niveles.md`.

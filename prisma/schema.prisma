@@ -139,11 +139,15 @@ model ConfiguracionEmpresa {
   // (default: no cambia el comportamiento hasta que el usuario lo configure).
   tasaRecargoMora                 Decimal                    @default(0)
   tarifaHoraManoObra              Decimal                    @default(0) // S/ por hora, usado al costear lotes y envasados
-  // ¿Aplica el control de calibración de instrumentos? Nace APAGADO: hasta
-  // que exista el laboratorio, exigirlo o alertar sobre él sería ruido. El
-  // maestro de instrumentos se puede cargar igual mientras tanto; lo que este
-  // interruptor gobierna es el control, no el registro.
-  controlCalibracion              Boolean                    @default(false)
+  // Qué hace el sistema cuando se libera un lote medido con un instrumento sin
+  // calibración vigente. Son TRES niveles y no dos por decisión del negocio
+  // (2026-09-17): el laboratorio informa y, si la empresa lo pide, frena — pero
+  // nunca por omisión. `NO_APLICA` existe para que el proceso siga su curso
+  // mientras el laboratorio se implementa.
+  //
+  // Gobierna el CONTROL, no el registro: el maestro de instrumentos y las
+  // calibraciones se cargan igual en cualquier nivel.
+  nivelControlCalibracion         NivelControlCalibracion    @default(NO_APLICA)
   // Aprobación por monto (0 = todo requiere aprobación siempre; un número muy
   // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
   montoAprobacionCompras          Decimal                    @default(5000)
@@ -446,6 +450,20 @@ enum ResultadoCalibracion {
   CONFORME
   CONFORME_CON_AJUSTE // volvió dentro de tolerancia después de ajustarlo
   NO_CONFORME
+}
+
+/// Cuánto pesa el control de calibración al liberar un lote.
+///
+/// Decisión del negocio (2026-09-17): tres niveles, no dos. El laboratorio
+/// informa siempre y frena solo si la empresa lo pide; `NO_APLICA` existe
+/// para que el proceso siga su curso mientras el laboratorio se implementa.
+enum NivelControlCalibracion {
+  /// No se mira. Ni semáforo ni aviso al liberar.
+  NO_APLICA
+  /// Avisa y deja pasar: el lote se libera y queda listado para reensayo.
+  ADVIERTE
+  /// No deja liberar el lote hasta que el instrumento tenga calibración.
+  BLOQUEA
 }
 
 // Instrumento de medición del laboratorio: densímetro, viscosímetro, balanza,

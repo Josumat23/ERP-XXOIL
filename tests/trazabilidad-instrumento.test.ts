@@ -143,8 +143,15 @@ test("el ensayo registra el instrumento y lo valida contra la compañía", async
     "utf8"
   );
   assert.match(acciones, /resultadosDelEnsayo\(/, "no arma las lecturas con la librería común");
-  // Los ids llegan del navegador: se comprueban.
-  assert.match(acciones, /instrumentoMedicion\.count\(\{[\s\S]{0,120}empresaId/);
+  // Los ids llegan del navegador: se comprueban contra la compañía activa. Se
+  // busca la comprobación, no el método — pasó de `count` a `findMany` cuando
+  // además hubo que mirar sus calibraciones para aplicar el control.
+  assert.match(acciones, /instrumentoMedicion\.findMany\(\{[\s\S]{0,140}empresaId/);
+  assert.match(
+    acciones,
+    /usados\.length !== instrumentosUsados\.length/,
+    "no rechaza cuando algún instrumento no es de la compañía"
+  );
 
   // La regla «si el ensayo no dice con qué se midió, rige el del plan» se mudó
   // a la librería cuando el re-análisis del envasado necesitó la misma

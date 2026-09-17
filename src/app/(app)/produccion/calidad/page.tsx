@@ -8,6 +8,7 @@ import BotonImprimir from "@/components/BotonImprimir";
 import BarraFiltro from "@/components/BarraFiltro";
 import CalidadFormulario from "./CalidadFormulario";
 import { contiene } from "@/lib/busqueda";
+import { estadoCalibracion } from "@/lib/calibracion";
 
 export default async function CalidadPage({
   searchParams,
@@ -20,7 +21,7 @@ export default async function CalidadPage({
   const { q, resultado } = await searchParams;
   const filtroResultado = resultado === "APROBADO" || resultado === "RECHAZADO" ? resultado : undefined;
 
-  const [pendientes, evaluados, causas, planes, instrumentos] = await Promise.all([
+  const [pendientes, evaluados, causas, planes, instrumentos, configuracion] = await Promise.all([
     prisma.loteGranel.findMany({
       where: { empresaId: usuario.empresaId, estado: "PENDIENTE_CALIDAD" },
       include: { formula: { include: { producto: true } } },
@@ -45,7 +46,8 @@ export default async function CalidadPage({
       orderBy: { nombre: "asc" },
     }),
     prisma.planInspeccionCalidad.findMany({ where: { empresaId: usuario.empresaId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } }),
-    prisma.instrumentoMedicion.findMany({ where: { empresaId: usuario.empresaId, activo: true }, select: { id: true, codigo: true, nombre: true }, orderBy: { codigo: "asc" } }),
+    prisma.instrumentoMedicion.findMany({ where: { empresaId: usuario.empresaId, activo: true }, select: { id: true, codigo: true, nombre: true, calibraciones: { select: { fecha: true, vigenteHasta: true, resultado: true } } }, orderBy: { codigo: "asc" } }),
+    prisma.configuracionEmpresa.findUnique({ where: { empresaId: usuario.empresaId }, select: { nivelControlCalibracion: true } }),
   ]);
 
   return (
@@ -94,7 +96,7 @@ export default async function CalidadPage({
                   {formatNumero(l.mermaKg, 2)} kg
                 </p>
               </div>
-              <CalidadFormulario loteId={l.id} causas={causas} plan={planes.find(p => p.productoId === l.formula.productoId) ?? null} instrumentosDisponibles={instrumentos.map(i => ({ id: i.id, etiqueta: `${i.codigo} — ${i.nombre}` }))} />
+              <CalidadFormulario loteId={l.id} causas={causas} plan={planes.find(p => p.productoId === l.formula.productoId) ?? null} instrumentosDisponibles={instrumentos.map(i => ({ id: i.id, etiqueta: `${i.codigo} — ${i.nombre}`, codigo: i.codigo, estado: estadoCalibracion(i.calibraciones) }))} nivelControl={configuracion?.nivelControlCalibracion ?? "NO_APLICA"} />
             </div>
           ))}
           {pendientes.length === 0 && (

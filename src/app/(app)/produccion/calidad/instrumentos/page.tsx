@@ -6,7 +6,11 @@ import { puedeRealizar } from "@/lib/permisos";
 import BotonImprimir from "@/components/BotonImprimir";
 import {
   DIAS_DE_AVISO_CALIBRACION,
+  EXPLICACION_NIVEL_CONTROL,
   MENSAJE_ESTADO_CALIBRACION,
+  MENSAJE_NIVEL_CONTROL,
+  NIVELES_CONTROL_CALIBRACION,
+  avisaAlgo,
   calibracionVigente,
   estadoCalibracion,
   MENSAJE_RESPALDO,
@@ -19,7 +23,7 @@ import InstrumentoFormulario from "./InstrumentoFormulario";
 import CalibracionFormulario from "./CalibracionFormulario";
 import {
   alternarActivoInstrumento,
-  alternarControlCalibracion,
+  fijarNivelControlCalibracion,
   registrarCalibracion,
 } from "./actions";
 
@@ -38,10 +42,11 @@ export default async function InstrumentosPage() {
     }),
     prisma.configuracionEmpresa.findUnique({
       where: { empresaId },
-      select: { controlCalibracion: true },
+      select: { nivelControlCalibracion: true },
     }),
   ]);
-  const controlActivo = configuracion?.controlCalibracion ?? false;
+  const nivel = configuracion?.nivelControlCalibracion ?? "NO_APLICA";
+  const controlActivo = avisaAlgo(nivel);
 
   // Qué midió cada instrumento. Es la pregunta del día que una calibración
   // vuelve fuera de tolerancia.
@@ -206,27 +211,59 @@ export default async function InstrumentosPage() {
         implementación, así que el control nace apagado. Lo que gobierna es la
         alerta, no el registro — el maestro se carga igual mientras tanto.
       */}
+      {/*
+        Tres niveles y no un interruptor, por decisión del negocio: el
+        laboratorio informa siempre y frena solo si la empresa lo pide. El
+        nivel de hoy se muestra elegido, y cada opción explica qué hace — un
+        control que nadie entiende se deja en el que menos moleste.
+      */}
       <section className="borde-seccion mb-6">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="font-medium">Control de calibración</h2>
-            <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
-              {controlActivo
-                ? `Activo: los instrumentos vencidos, sin calibrar o fuera de tolerancia aparecen en el semáforo del panel general, y se avisa ${DIAS_DE_AVISO_CALIBRACION} días antes del vencimiento.`
-                : "No aplica todavía. Puede cargar instrumentos y calibraciones igual; el semáforo y los avisos quedan apagados hasta que lo active."}
-            </p>
-          </div>
-          <form
-            action={async () => {
-              "use server";
-              await alternarControlCalibracion(!controlActivo);
-            }}
-          >
-            <button type="submit" className={controlActivo ? "boton-secundario" : "boton-primario"}>
-              {controlActivo ? "Marcar como no aplica" : "Activar el control"}
-            </button>
-          </form>
+        <h2 className="font-medium">Control de calibración</h2>
+        <p className="text-sm mb-3" style={{ color: "var(--epicor-texto-tenue)" }}>
+          Qué hace el sistema al liberar un lote medido con un instrumento sin calibración
+          vigente. En cualquier nivel se pueden cargar instrumentos y calibraciones: lo que
+          cambia es el control, no el registro.
+        </p>
+        <div className="flex flex-col gap-2">
+          {NIVELES_CONTROL_CALIBRACION.map((opcion) => (
+            <form
+              key={opcion}
+              action={async () => {
+                "use server";
+                await fijarNivelControlCalibracion(opcion);
+              }}
+              className={`flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 ${
+                opcion === nivel
+                  ? "border-blue-400 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-800"
+                  : "border-black/10 dark:border-white/10"
+              }`}
+            >
+              <div className="min-w-0">
+                <p className="font-medium text-sm">
+                  {MENSAJE_NIVEL_CONTROL[opcion]}
+                  {opcion === nivel && (
+                    <span className="insignia ml-2 bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300">
+                      Vigente
+                    </span>
+                  )}
+                </p>
+                <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
+                  {EXPLICACION_NIVEL_CONTROL[opcion]}
+                </p>
+              </div>
+              {opcion !== nivel && (
+                <button type="submit" className="boton-secundario shrink-0">
+                  Usar este
+                </button>
+              )}
+            </form>
+          ))}
         </div>
+        {controlActivo && (
+          <p className="text-xs mt-3" style={{ color: "var(--epicor-texto-tenue)" }}>
+            Se avisa {DIAS_DE_AVISO_CALIBRACION} días antes de que venza una calibración.
+          </p>
+        )}
         {controlActivo && enAtencion > 0 && (
           <p className="text-sm mt-3 text-red-600 dark:text-red-400 font-medium">
             {enAtencion} instrumento{enAtencion === 1 ? "" : "s"} activo

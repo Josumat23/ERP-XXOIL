@@ -132,7 +132,7 @@ test("Calidad es una fila permanente y no depende del interruptor", async () => 
   const panel = await readFile(resolve(RAIZ, "src/app/(app)/page.tsx"), "utf8");
   assert.doesNotMatch(
     panel,
-    /\.\.\.\(controlCalibracion\s*\?\s*\[\s*\{\s*modulo: "Calidad"/,
+    /\.\.\.\(avisaCalibracion\s*\?\s*\[\s*\{\s*modulo: "Calidad"/,
     "la fila de Calidad volvió a colgar del interruptor"
   );
   assert.match(panel, /modulo: "Calidad"/);
@@ -142,7 +142,7 @@ test("Calidad es una fila permanente y no depende del interruptor", async () => 
   // `senalCalibraciones` apareciera dentro de los 80 caracteres siguientes al
   // interruptor, y se rompió sola al agregar una segunda señal gobernada por
   // el mismo interruptor — que es justo lo que había que dejar pasar.
-  const abre = panel.indexOf("...(controlCalibracion");
+  const abre = panel.indexOf("...(avisaCalibracion");
   assert.notEqual(abre, -1, "la calibración dejó de respetar el interruptor");
   const cierra = panel.indexOf(": []", abre);
   assert.notEqual(cierra, -1, "el bloque del interruptor no cierra en una lista vacía");
