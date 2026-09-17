@@ -327,7 +327,8 @@ model EspecificacionTecnica {
   activo      Boolean                 @default(true)
   creadoEn    DateTime                @default(now())
 
-  productos EspecificacionProducto[]
+  productos   EspecificacionProducto[]
+  competencia EspecificacionCompetencia[]
 
   @@unique([empresaId, organismo, codigo])
   @@index([empresaId, activo])
@@ -356,6 +357,80 @@ model EspecificacionProducto {
   @@unique([productoId, especificacionId])
   @@index([empresaId, productoId])
   @@map("especificaciones_producto")
+}
+
+// Un producto de la competencia, para poder contestar la pregunta que más se
+// repite en una venta de lubricantes: «¿cuál es tu equivalente al Delvac 1340?».
+model ProductoCompetencia {
+  id        String   @id @default(cuid())
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  marca     String // Mobil, Shell, Castrol
+  nombre    String // Delvac 1340
+  // De dónde salió lo que se le atribuye. Lo que este maestro guarda no son
+  // hechos verificados por XXOIL sino lo que la literatura del competidor
+  // declara, y eso cambia con cada revisión de su ficha. Sin la fuente, dentro
+  // de dos años nadie sabrá contra qué se comparó.
+  fuente    String?
+  notas     String?
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+
+  especificaciones EspecificacionCompetencia[]
+  equivalencias    EquivalenciaProducto[]
+
+  @@unique([empresaId, marca, nombre])
+  @@index([empresaId, activo])
+  @@map("productos_competencia")
+}
+
+// Lo que la ficha del competidor dice que cumple. A diferencia del producto
+// propio no se distingue CUMPLE de HOMOLOGADO: no tenemos forma de saber cuál
+// de las dos es, y suponerlo sería atribuirle al competidor algo que no dijo.
+model EspecificacionCompetencia {
+  id                    String                @id @default(cuid())
+  empresaId             String
+  empresa               Empresa               @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  productoCompetenciaId String
+  productoCompetencia   ProductoCompetencia   @relation(fields: [productoCompetenciaId], references: [id], onDelete: Cascade)
+  especificacionId      String
+  especificacion        EspecificacionTecnica @relation(fields: [especificacionId], references: [id], onDelete: Restrict)
+  creadoEn              DateTime              @default(now())
+
+  @@unique([productoCompetenciaId, especificacionId])
+  @@index([empresaId, productoCompetenciaId])
+  @@map("especificaciones_competencia")
+}
+
+// La equivalencia la declara una persona, no el sistema. El sistema calcula la
+// COBERTURA —qué especificaciones del competidor cubre nuestro producto— y la
+// muestra; decir que dos lubricantes se reemplazan es criterio técnico y
+// comercial, no aritmética.
+//
+// Cuando la cobertura no es total, la justificación es obligatoria: si falta
+// una especificación y aun así se declara equivalente, la razón tiene que
+// quedar escrita y con nombre.
+model EquivalenciaProducto {
+  id                    String              @id @default(cuid())
+  empresaId             String
+  empresa               Empresa             @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  productoId            String
+  producto              Producto            @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  productoCompetenciaId String
+  productoCompetencia   ProductoCompetencia @relation(fields: [productoCompetenciaId], references: [id], onDelete: Cascade)
+  justificacion         String?
+  // Cobertura al momento de declararla. Se guarda para que después se pueda
+  // ver que cambió: una homologación que vence baja la cobertura de hoy sin
+  // tocar la equivalencia, y ese contraste es justo lo que hay que notar.
+  cubiertasAlDeclarar   Int
+  totalAlDeclarar       Int
+  usuarioId             String
+  usuarioNombre         String
+  creadoEn              DateTime            @default(now())
+
+  @@unique([productoId, productoCompetenciaId])
+  @@index([empresaId, productoId])
+  @@map("equivalencias_producto")
 }
 
 // Organismos que emiten especificaciones de lubricantes. Son los cuerpos, no
@@ -441,6 +516,7 @@ model Producto {
   formulas         Formula[]
   planesInspeccion PlanInspeccionCalidad[]
   especificaciones EspecificacionProducto[]
+  equivalencias    EquivalenciaProducto[]
 
   @@unique([empresaId, codigo])
   @@map("productos")
@@ -5771,6 +5847,10 @@ model Empresa {
 
   especificacionesTecnicas EspecificacionTecnica[]
   especificacionesProducto EspecificacionProducto[]
+
+  productosCompetencia        ProductoCompetencia[]
+  especificacionesCompetencia EspecificacionCompetencia[]
+  equivalenciasProducto       EquivalenciaProducto[]
 
   @@map("empresas")
 }
