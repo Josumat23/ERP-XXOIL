@@ -299,3 +299,7 @@ Efecto secundario del ciclo anterior: mientras la recepción retenía el materia
 ## Actualización: `npm run verificar`
 
 La verificación local y la de CI no eran la misma lista, y la diferencia costaba ciclos de CI enteros: `prisma format --check` solo corría allá, y `lint` corre allá con `--max-warnings=0`. Un solo comando corre ahora los siete pasos de CI en el mismo orden, y una prueba lee el flujo de CI para que las dos listas no vuelvan a separarse. Véase `docs/verificar-igual-que-ci.md`.
+
+## Actualización: buscar el material en la trazabilidad
+
+Los dos selectores de la pantalla de trazabilidad se pueden filtrar y están acotados: uno traía todos los lotes de la historia y el otro las últimas 200 recepciones. Se busca por lote del proveedor —el dato con el que llama quien reporta el problema—, por insumo y por número de recepción, y cada lista dice cuántas opciones muestra de cuántas hay. Véase `docs/buscar-material-trazabilidad.md`.
