@@ -8,6 +8,7 @@ import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import { destinosDeLote, resumenDespacho } from "@/lib/despachoLote";
 import { lotesQueConsumieron, resumenTrazabilidadInsumo } from "@/lib/trazabilidadInsumo";
+import { contiene } from "@/lib/busqueda";
 
 // Vista de recall: dado un lote granel, agrega TODOS sus envasados y TODOS
 // los clientes/facturas que recibieron unidades — de un vistazo, sin tener
@@ -16,27 +17,65 @@ import { lotesQueConsumieron, resumenTrazabilidadInsumo } from "@/lib/trazabilid
 export default async function RecallPage({
   searchParams,
 }: {
-  searchParams: Promise<{ loteId?: string; recepcionId?: string }>;
+  searchParams: Promise<{
+    loteId?: string;
+    recepcionId?: string;
+    qLote?: string;
+    qMaterial?: string;
+  }>;
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
-  const { loteId, recepcionId } = await searchParams;
+  const { loteId, recepcionId, qLote, qMaterial } = await searchParams;
   const empresaId = usuario.empresaId;
 
-  const [lotes, recepciones] = await Promise.all([
+  // Los dos selectores se acotan y se pueden buscar. Antes uno traía TODOS los
+  // lotes de la historia y el otro las últimas 200 recepciones: con volumen
+  // real, encontrar algo en una lista desplegable de miles es imposible, y el
+  // día del recall es cuando menos tiempo hay.
+  const TOPE_SELECTOR = 50;
+
+  const [lotes, lotesTotales, recepciones, recepcionesTotales] = await Promise.all([
     prisma.loteGranel.findMany({
-      where: { empresaId },
+      where: {
+        empresaId,
+        ...(qLote
+          ? {
+              OR: [
+                { codigo: contiene(qLote) },
+                { formula: { producto: { nombre: contiene(qLote) } } },
+              ],
+            }
+          : {}),
+      },
       include: { formula: { include: { producto: true } } },
       orderBy: { fechaInicio: "desc" },
+      take: TOPE_SELECTOR,
     }),
+    prisma.loteGranel.count({ where: { empresaId } }),
     // Las recepciones que de verdad entraron en producción. Ofrecer las que
     // nunca se consumieron llenaría el selector de opciones que no contestan
     // nada.
+    //
+    // Se busca por código o nombre del insumo, por el número de recepción, y
+    // por el LOTE DEL PROVEEDOR — que es el dato con el que llama el proveedor
+    // cuando avisa de un problema, y el único que no se puede deducir de los
+    // demás.
     prisma.recepcionCompraDetalle.findMany({
       where: {
         recepcion: { ordenCompra: { empresaId } },
         asignacionesLote: { some: {} },
+        ...(qMaterial
+          ? {
+              OR: [
+                { numeroLoteProveedor: contiene(qMaterial) },
+                { insumo: { codigo: contiene(qMaterial) } },
+                { insumo: { nombre: contiene(qMaterial) } },
+                { recepcion: { numero: contiene(qMaterial) } },
+              ],
+            }
+          : {}),
       },
       select: {
         id: true,
@@ -45,7 +84,13 @@ export default async function RecallPage({
         recepcion: { select: { numero: true, fecha: true } },
       },
       orderBy: { recepcion: { fecha: "desc" } },
-      take: 200,
+      take: TOPE_SELECTOR,
+    }),
+    prisma.recepcionCompraDetalle.count({
+      where: {
+        recepcion: { ordenCompra: { empresaId } },
+        asignacionesLote: { some: {} },
+      },
     }),
   ]);
 
@@ -195,6 +240,18 @@ export default async function RecallPage({
 
       <form method="get" className="mt-5 flex flex-wrap gap-3 items-end">
         <label className="flex flex-col gap-1 text-sm">
+          <span className="font-medium text-neutral-700 dark:text-neutral-300">
+            Filtrar lotes
+          </span>
+          <input
+            type="search"
+            name="qLote"
+            defaultValue={qLote ?? ""}
+            placeholder="Código de lote o producto"
+            className="campo-input"
+          />
+        </label>
+        <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Lote granel</span>
           <select name="loteId" defaultValue={loteId ?? ""} className="campo-input min-w-72">
             <option value="" disabled>
@@ -211,6 +268,13 @@ export default async function RecallPage({
           Buscar
         </button>
       </form>
+      <Alcance
+        mostrados={lotes.length}
+        totales={lotesTotales}
+        tope={TOPE_SELECTOR}
+        busqueda={qLote}
+        queBusca="lotes"
+      />
 
       {lote && (
         <>
@@ -276,6 +340,21 @@ export default async function RecallPage({
         <form method="get" className="mt-4 flex flex-wrap gap-3 items-end">
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              Filtrar materiales
+            </span>
+            <input
+              type="search"
+              name="qMaterial"
+              defaultValue={qMaterial ?? ""}
+              placeholder="Insumo, recepción o lote del proveedor"
+              className="campo-input min-w-64"
+            />
+            <span className="text-xs text-neutral-500">
+              El lote del proveedor es el dato con el que llama quien reporta el problema.
+            </span>
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
               Material recibido
             </span>
             <select name="recepcionId" defaultValue={recepcionId ?? ""} className="campo-input min-w-96">
@@ -294,8 +373,21 @@ export default async function RecallPage({
             Buscar
           </button>
         </form>
+        <Alcance
+          mostrados={recepciones.length}
+          totales={recepcionesTotales}
+          tope={TOPE_SELECTOR}
+          busqueda={qMaterial}
+          queBusca="materiales consumidos"
+        />
 
-        {recepciones.length === 0 && (
+        {/*
+          Solo cuando de verdad no hay ninguna, no cuando la búsqueda no
+          encontró: con el filtro puesto, este texto contradecía al de arriba
+          —«ningún resultado para X entre los 3 materiales»— y dejaba al lector
+          eligiendo a cuál de los dos creerle.
+        */}
+        {recepcionesTotales === 0 && (
           <p className="text-sm text-neutral-500 mt-3">
             Todavía no hay recepciones consumidas en producción. Solo se listan las que ya entraron
             en algún lote: las demás no tienen nada que rastrear.
@@ -396,6 +488,52 @@ export default async function RecallPage({
       </section>
     </div>
   );
+}
+
+/**
+ * Dice cuántas opciones se están mostrando de cuántas hay.
+ *
+ * Un selector acotado sin decirlo es peor que uno largo: quien no encuentra su
+ * lote concluye que no existe, y el día de un recall esa conclusión es cara.
+ */
+function Alcance({
+  mostrados,
+  totales,
+  tope,
+  busqueda,
+  queBusca,
+}: {
+  mostrados: number;
+  totales: number;
+  tope: number;
+  busqueda?: string;
+  queBusca: string;
+}) {
+  const clase = "text-xs text-neutral-500 -mt-2 mb-1";
+  if (busqueda) {
+    if (mostrados === 0) {
+      return (
+        <p className={clase}>
+          Ningún resultado para «{busqueda}» entre los {totales} {queBusca}.
+        </p>
+      );
+    }
+    return (
+      <p className={clase}>
+        {mostrados} de {totales} {queBusca} coinciden con «{busqueda}»
+        {mostrados >= tope ? ` (se muestran los ${tope} más recientes)` : ""}.
+      </p>
+    );
+  }
+  if (totales > mostrados) {
+    return (
+      <p className={clase}>
+        Se muestran los {mostrados} más recientes de {totales} {queBusca}. Use el filtro para
+        encontrar el resto.
+      </p>
+    );
+  }
+  return null;
 }
 
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
