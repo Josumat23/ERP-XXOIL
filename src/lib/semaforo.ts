@@ -122,3 +122,37 @@ export function senalReensayos(total: number, despachados: number): SenalSemafor
   }
   return senales;
 }
+
+/**
+ * Inspecciones de entrada que nadie resolvió.
+ *
+ * Nace de un efecto secundario del cambio que dejó de retener el material:
+ * desde que la recepción no frena, una inspección olvidada **no molesta a
+ * nadie** — y por eso es más fácil olvidarla. Antes se hacía notar sola,
+ * porque producción venía a reclamar su materia prima.
+ *
+ * `retenidas` son las que sí están frenando material (control en BLOQUEA): ahí
+ * hay materia prima parada en el almacén, y eso es crítico, no un aviso.
+ */
+export function senalInspeccionesPendientes(
+  pendientes: number,
+  retenidas: number,
+  diasDeLaMasAntigua: number
+): SenalSemaforo[] {
+  if (pendientes === 0) return [];
+  const antiguedad = diasDeLaMasAntigua > 0 ? ` (la más antigua, ${plural(diasDeLaMasAntigua, "día", "días")})` : "";
+  if (retenidas > 0) {
+    return [
+      {
+        indicador: `${plural(retenidas, "recepción retenida", "recepciones retenidas")} esperando calidad${antiguedad}`,
+        estado: "critico",
+      },
+    ];
+  }
+  return [
+    {
+      indicador: `${plural(pendientes, "inspección de entrada pendiente", "inspecciones de entrada pendientes")}${antiguedad}`,
+      estado: "atencion",
+    },
+  ];
+}

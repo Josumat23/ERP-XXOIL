@@ -9,6 +9,7 @@ import {
   senalCalibraciones,
   senalEquivalencias,
   senalHomologaciones,
+  senalInspeccionesPendientes,
   senalMasSevera,
   senalReensayos,
 } from "@/lib/semaforo";
@@ -371,8 +372,14 @@ export default async function PanelPage() {
   // Aparte del Promise.all de arriba a propósito: ese ya tiene tantas entradas
   // que TypeScript deja de inferir la tupla y devuelve una unión — los dos
   // valores llegaban con el tipo del otro.
-  const [instrumentosMedicion, configuracionPanel, homologaciones, equivalencias, reensayos] =
-    await Promise.all([
+  const [
+    instrumentosMedicion,
+    configuracionPanel,
+    homologaciones,
+    equivalencias,
+    reensayos,
+    inspeccionesPendientes,
+  ] = await Promise.all([
       prisma.instrumentoMedicion.findMany({
         where: { empresaId, activo: true },
         include: { calibraciones: { orderBy: { fecha: "desc" } } },
@@ -404,6 +411,17 @@ export default async function PanelPage() {
       // derivaciones del mismo hecho terminan discrepando sin que nadie lo
       // note.
       revisarReensayos(empresaId),
+      // Inspecciones de entrada que nadie resolvió. Desde que la recepción dejó
+      // de retener el material, una inspección olvidada no molesta a nadie — y
+      // por eso es más fácil olvidarla. Antes se hacía notar sola, porque
+      // producción venía a reclamar su materia prima.
+      prisma.inspeccionCompra.findMany({
+        where: {
+          resultado: "PENDIENTE",
+          recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } },
+        },
+        select: { creadoEn: true, stockIngresadoEnRecepcion: true },
+      }),
     ]);
 
   // Calidad: instrumentos que no están en condiciones de liberar un lote.
@@ -418,6 +436,14 @@ export default async function PanelPage() {
   // Y el producto medido con ellos: reparar el instrumento no arregla el lote
   // que ya se liberó con él.
   const porReensayar = resumenReensayos(reensayos.items);
+
+  // Las inspecciones de entrada sin resolver. Las que retienen material son
+  // críticas: hay materia prima parada en el almacén esperando una firma.
+  const retenidas = inspeccionesPendientes.filter((i) => !i.stockIngresadoEnRecepcion).length;
+  const diasDeLaMasAntigua = inspeccionesPendientes.reduce((maximo, i) => {
+    const dias = Math.floor((hoy.getTime() - i.creadoEn.getTime()) / (24 * 60 * 60 * 1000));
+    return Math.max(maximo, dias);
+  }, 0);
 
   // Homologaciones: una vencida deja de imprimirse en el certificado y baja
   // la cobertura de las equivalencias que se apoyaban en ella.
@@ -511,6 +537,19 @@ export default async function PanelPage() {
                 ...senalCalibraciones(calibraciones.criticos, calibraciones.porVencer),
               ]
             : []),
+          // Antes de las homologaciones, y no por casualidad: entre señales de
+          // la misma severidad gana la primera, y una inspección sin resolver
+          // es trabajo no hecho sobre material que ya está en producción,
+          // mientras que una homologación vencida es documentación que dejó de
+          // imprimirse. Las dos avisan; una de las dos se puede hacer hoy.
+          //
+          // Fuera del interruptor de calibración a propósito: esto es trabajo
+          // pendiente con o sin laboratorio en régimen.
+          ...senalInspeccionesPendientes(
+            inspeccionesPendientes.length,
+            retenidas,
+            diasDeLaMasAntigua
+          ),
           ...senalHomologaciones(homologacionesVencidas, homologacionesPorVencerCount),
         ],
         "Sin evidencia vencida"
