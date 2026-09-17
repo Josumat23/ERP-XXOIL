@@ -12,6 +12,9 @@ import {
   textoDeclaracion,
 } from "@/lib/especificaciones";
 
+const fechaLarga = new Intl.DateTimeFormat("es-PE", { dateStyle: "long" });
+const fechaCorta = new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" });
+
 export default async function CertificadoAnalisisPage({ params }: { params: Promise<{ loteId: string }> }) {
   const usuario = await obtenerUsuarioEmpresaActiva();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
@@ -31,7 +34,37 @@ export default async function CertificadoAnalisisPage({ params }: { params: Prom
           },
         },
       },
-      controlCalidad: { include: { planInspeccion: true, resultadosCaracteristica: { orderBy: { secuencia: "asc" } } } },
+      controlCalidad: {
+        include: {
+          planInspeccion: true,
+          resultadosCaracteristica: {
+            orderBy: { secuencia: "asc" },
+            include: { instrumento: { select: { codigo: true, nombre: true } } },
+          },
+        },
+      },
+      // El certificado es del LOTE y los re-análisis son de cada ENVASADO: un
+      // lote puede tener varios envases y solo algunos revalidados. Por eso la
+      // sección de abajo dice de qué envase habla cada uno — quien recibe el
+      // EV-00003 tiene que poder encontrar el suyo y no leer el de otro.
+      envasados: {
+        where: { reanalisis: { some: {} } },
+        select: {
+          codigo: true,
+          fechaVencimiento: true,
+          reanalisis: {
+            orderBy: { fecha: "asc" },
+            include: {
+              planInspeccion: { select: { nombre: true } },
+              resultadosCaracteristica: {
+                orderBy: { secuencia: "asc" },
+                include: { instrumento: { select: { codigo: true } } },
+              },
+            },
+          },
+        },
+        orderBy: { codigo: "asc" },
+      },
     },
   });
   if (!lote?.controlCalidad || lote.controlCalidad.resultado !== "APROBADO" || lote.controlCalidad.resultadosCaracteristica.length === 0) notFound();
@@ -52,8 +85,15 @@ export default async function CertificadoAnalisisPage({ params }: { params: Prom
         <Dato etiqueta="Plan de inspección" valor={control.planInspeccion ? `${control.planInspeccion.nombre} v${control.planVersion}` : "Evaluación heredada"} />
         <Dato etiqueta="Decisión de uso" valor="APROBADO PARA USO / ENVASADO" />
       </div>
-      <table className="tabla mt-7"><thead><tr><th>#</th><th>Característica</th><th>Método</th><th>Especificación</th><th>Resultado</th><th>Conformidad</th></tr></thead><tbody>
-        {control.resultadosCaracteristica.map(r => <tr key={r.id}><td>{r.secuencia}</td><td>{r.nombre}</td><td>{r.metodoEnsayo ?? "—"}</td><td>{r.limiteInferior?.toString() ?? "−∞"} a {r.limiteSuperior?.toString() ?? "+∞"} {r.unidadMedida}</td><td className="font-medium">{r.valorMedido.toString()} {r.unidadMedida}</td><td className={r.conforme ? "text-green-700 font-medium" : "text-red-700 font-medium"}>{r.conforme ? "Conforme" : "No conforme"}</td></tr>)}
+      {/*
+        El instrumento va bajo el método, no en columna propia: en un documento
+        que se imprime, una columna más aprieta todo lo demás. Se imprime el
+        EQUIPO, que es un hecho del ensayo; no se imprime si su calibración
+        estaba vigente —eso el sistema lo deriva y es criterio de calidad, no
+        un dato que corresponda afirmar en un documento que va al cliente—.
+      */}
+      <table className="tabla mt-7"><thead><tr><th>#</th><th>Característica</th><th>Método / equipo</th><th>Especificación</th><th>Resultado</th><th>Conformidad</th></tr></thead><tbody>
+        {control.resultadosCaracteristica.map(r => <tr key={r.id}><td>{r.secuencia}</td><td>{r.nombre}</td><td>{r.metodoEnsayo ?? "—"}{r.instrumento && <span className="block text-xs text-neutral-500">{r.instrumento.codigo} — {r.instrumento.nombre}</span>}</td><td>{r.limiteInferior?.toString() ?? "−∞"} a {r.limiteSuperior?.toString() ?? "+∞"} {r.unidadMedida}</td><td className="font-medium">{r.valorMedido.toString()} {r.unidadMedida}</td><td className={r.conforme ? "text-green-700 font-medium" : "text-red-700 font-medium"}>{r.conforme ? "Conforme" : "No conforme"}</td></tr>)}
       </tbody></table>
       {/*
         Las especificaciones son del PRODUCTO, no resultados de ensayo de este
@@ -86,6 +126,78 @@ export default async function CertificadoAnalisisPage({ params }: { params: Prom
             Corresponden al producto y no a los ensayos de este lote, que son los de la tabla
             anterior. «Cumple» es una declaración del fabricante; «Homologado» es una aprobación
             otorgada por el organismo, identificada por su número.
+          </p>
+        </div>
+      )}
+
+      {/*
+        Revalidación de vigencia.
+        =========================
+        Un lubricante no se echa a perder al llegar su fecha: el laboratorio
+        vuelve a ensayarlo y, si sigue en especificación, le da vigencia nueva.
+        Quien recibe producto con la fecha extendida tiene derecho a ver que la
+        extensión se sostiene en un ensayo y no en una decisión administrativa
+        — que es, exactamente, la diferencia entre revalidar y reetiquetar.
+      */}
+      {lote.envasados.length > 0 && (
+        <div className="mt-7">
+          <h3 className="text-sm font-semibold uppercase tracking-wide">
+            Revalidación de vigencia
+          </h3>
+          <table className="tabla mt-2">
+            <thead>
+              <tr>
+                <th>Envase</th>
+                <th>Fecha</th>
+                <th>Resultado</th>
+                <th>Vigencia</th>
+                <th>Mediciones del re-ensayo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lote.envasados.flatMap((e) =>
+                e.reanalisis.map((r) => (
+                  <tr key={r.id}>
+                    <td className="font-medium">
+                      {e.codigo}
+                      {e.fechaVencimiento && (
+                        <span className="block text-xs font-normal text-neutral-500">
+                          vence {fechaCorta.format(e.fechaVencimiento)}
+                        </span>
+                      )}
+                    </td>
+                    <td>{fechaLarga.format(r.fecha)}</td>
+                    <td className={r.resultado === "APROBADO" ? "" : "text-red-700 font-medium"}>
+                      {r.resultado}
+                    </td>
+                    <td>
+                      {fechaCorta.format(r.vencimientoAnterior)} →{" "}
+                      <strong>{fechaCorta.format(r.vencimientoNuevo)}</strong>
+                    </td>
+                    <td className="text-xs">
+                      {r.resultadosCaracteristica.length > 0 ? (
+                        <ul>
+                          {r.resultadosCaracteristica.map((m) => (
+                            <li key={m.id} className={m.conforme ? "" : "text-red-700 font-medium"}>
+                              {m.nombre}: {m.valorMedido.toString()} {m.unidadMedida}
+                              {m.instrumento ? ` · ${m.instrumento.codigo}` : ""}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-neutral-500">
+                          {r.planInspeccion ? r.planInspeccion.nombre : "Sin mediciones registradas"}
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+          <p className="mt-2 text-xs text-neutral-500">
+            La vigencia de cada envase es la de su última revalidación. Un re-ensayo con resultado
+            RECHAZADO no extiende la vigencia; se deja asentado porque consta que se ensayó.
           </p>
         </div>
       )}
