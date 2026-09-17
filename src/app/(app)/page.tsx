@@ -2,6 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { formatMoneda, formatNumero, formatFecha } from "@/lib/format";
+import { estadoCalibracion, resumenParaSemaforo } from "@/lib/calibracion";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import GraficoLinea from "@/components/GraficoLinea";
@@ -356,6 +357,30 @@ export default async function PanelPage() {
     .sort((a, b) => b.valor - a.valor)
     .slice(0, 5);
 
+  // Aparte del Promise.all de arriba a propósito: ese ya tiene tantas entradas
+  // que TypeScript deja de inferir la tupla y devuelve una unión — los dos
+  // valores llegaban con el tipo del otro.
+  const [instrumentosMedicion, configuracionPanel] = await Promise.all([
+    prisma.instrumentoMedicion.findMany({
+      where: { empresaId, activo: true },
+      include: { calibraciones: { orderBy: { fecha: "desc" } } },
+    }),
+    prisma.configuracionEmpresa.findUnique({
+      where: { empresaId },
+      select: { controlCalibracion: true },
+    }),
+  ]);
+
+  // Calidad: instrumentos que no están en condiciones de liberar un lote.
+  //
+  // Está acá y no solo en su pantalla porque una alerta que hay que ir a
+  // buscar no alerta a nadie — el mismo defecto que quedó anotado con las
+  // homologaciones por vencer y con las equivalencias degradadas.
+  const controlCalibracion = configuracionPanel?.controlCalibracion ?? false;
+  const calibraciones = resumenParaSemaforo(
+    instrumentosMedicion.map((i) => estadoCalibracion(i.calibraciones))
+  );
+
   // Semáforo por módulo (resumen ejecutivo).
   const semaforo = [
     {
@@ -401,6 +426,27 @@ export default async function PanelPage() {
             ? "critico"
             : "atencion",
     },
+    ...(controlCalibracion
+      ? [
+          {
+            modulo: "Calidad",
+            indicador:
+              calibraciones.criticos > 0
+                ? `${calibraciones.criticos} instrumento(s) sin calibración vigente`
+                : calibraciones.porVencer > 0
+                  ? `${calibraciones.porVencer} instrumento(s) por vencer`
+                  : "Instrumentos calibrados",
+            // Un instrumento vencido o fuera de tolerancia no puede liberar
+            // un lote: lo que mida no se sostiene. Eso es crítico, no aviso.
+            estado:
+              calibraciones.criticos > 0
+                ? "critico"
+                : calibraciones.porVencer > 0
+                  ? "atencion"
+                  : "bien",
+          },
+        ]
+      : []),
   ] as const;
 
   const PILL: Record<string, string> = {

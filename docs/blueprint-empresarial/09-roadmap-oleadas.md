@@ -212,7 +212,7 @@ Confirmado por el propio repositorio como buena práctica ya establecida (`docs/
 | Comercio exterior (exportación, incoterms) | Primer pedido real de cliente extranjero |
 | Subcontratación de fabricación (maquila) | Decisión confirmada de tercerizar producción de algún SKU |
 | Nivelación de recursos y calendario de días hábiles en Proyectos | Portafolio real de proyectos concurrentes que lo justifique |
-| Calibración de instrumentos críticos (PM) | Incorporación de instrumentos de medición que la requieran |
+| ~~Calibración de instrumentos críticos~~ | **Disparador confirmado el 2026-09-17: el laboratorio está en implementación.** Construido el mismo día. `InstrumentoMedicion` + `CalibracionInstrumento` (ledger, la vigencia sale del certificado y no de «última + frecuencia»), con `ConfiguracionEmpresa.controlCalibracion` que nace apagado — el maestro se carga igual mientras el laboratorio se arma. `NO_CONFORME` gana sobre la fecha: vencido es «no se sabe», fuera de tolerancia es «se sabe que no». El semáforo del panel general gana fila de Calidad en crítico. Falta la trazabilidad instrumento↔ensayo, declarada para el ciclo siguiente. Véase `docs/calibracion-instrumentos.md`. |
 
 ---
 

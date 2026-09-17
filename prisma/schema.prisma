@@ -139,6 +139,11 @@ model ConfiguracionEmpresa {
   // (default: no cambia el comportamiento hasta que el usuario lo configure).
   tasaRecargoMora                 Decimal                    @default(0)
   tarifaHoraManoObra              Decimal                    @default(0) // S/ por hora, usado al costear lotes y envasados
+  // ¿Aplica el control de calibración de instrumentos? Nace APAGADO: hasta
+  // que exista el laboratorio, exigirlo o alertar sobre él sería ruido. El
+  // maestro de instrumentos se puede cargar igual mientras tanto; lo que este
+  // interruptor gobierna es el control, no el registro.
+  controlCalibracion              Boolean                    @default(false)
   // Aprobación por monto (0 = todo requiere aprobación siempre; un número muy
   // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
   montoAprobacionCompras          Decimal                    @default(5000)
@@ -431,6 +436,75 @@ model EquivalenciaProducto {
   @@unique([productoId, productoCompetenciaId])
   @@index([empresaId, productoId])
   @@map("equivalencias_producto")
+}
+
+// Una calibración puede volver fuera de tolerancia. No es lo mismo que estar
+// vencida: un instrumento vencido no se sabe si mide bien, uno NO_CONFORME se
+// sabe que no. Qué hacer con los ensayos que ya se hicieron con él es criterio
+// de calidad, no del sistema.
+enum ResultadoCalibracion {
+  CONFORME
+  CONFORME_CON_AJUSTE // volvió dentro de tolerancia después de ajustarlo
+  NO_CONFORME
+}
+
+// Instrumento de medición del laboratorio: densímetro, viscosímetro, balanza,
+// termómetro, copa de inflamación.
+//
+// No se modela como `Equipo` a propósito. Comparten identidad —código, marca,
+// serie— pero no el ciclo de vida: `Equipo` exige almacén, arrastra órdenes de
+// mantenimiento, centro de trabajo y horómetro, y un densímetro aparecería en
+// pantallas donde no pinta nada. Si mañana un instrumento necesita además
+// mantenimiento, se le agrega la relación; hoy sería un campo sin lector.
+model InstrumentoMedicion {
+  id                        String   @id @default(cuid())
+  empresaId                 String
+  empresa                   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  codigo                    String // DM-01
+  nombre                    String // Densímetro digital
+  marca                     String?
+  modelo                    String?
+  serie                     String?
+  ubicacion                 String? // dónde está físicamente dentro del laboratorio
+  // Cada cuántos días toca calibrarlo. Es una ayuda para PLANIFICAR y sugerir
+  // la próxima fecha: la vigencia que manda es la del certificado, no esta.
+  frecuenciaCalibracionDias Int?
+  activo                    Boolean  @default(true)
+  notas                     String?
+  creadoEn                  DateTime @default(now())
+
+  calibraciones CalibracionInstrumento[]
+
+  @@unique([empresaId, codigo])
+  @@index([empresaId, activo])
+  @@map("instrumentos_medicion")
+}
+
+// Cada calibración es un hecho con su certificado. Es un ledger: no se edita,
+// se agrega — el estado de hoy sale de la última.
+//
+// `vigenteHasta` viene del CERTIFICADO y no se calcula como «fecha +
+// frecuencia». Un sistema que lo calcula termina afirmando una vigencia que
+// discrepa en silencio con el papel que firmó el laboratorio.
+model CalibracionInstrumento {
+  id                String               @id @default(cuid())
+  empresaId         String
+  empresa           Empresa              @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  instrumentoId     String
+  instrumento       InstrumentoMedicion  @relation(fields: [instrumentoId], references: [id], onDelete: Cascade)
+  fecha             DateTime
+  vigenteHasta      DateTime
+  resultado         ResultadoCalibracion
+  numeroCertificado String
+  // Quién la hizo. Un certificado sin emisor no se puede rastrear.
+  entidad           String
+  observaciones     String?
+  usuarioId         String
+  usuarioNombre     String
+  creadoEn          DateTime             @default(now())
+
+  @@index([empresaId, instrumentoId])
+  @@map("calibraciones_instrumento")
 }
 
 // Organismos que emiten especificaciones de lubricantes. Son los cuerpos, no
@@ -5851,6 +5925,9 @@ model Empresa {
   productosCompetencia        ProductoCompetencia[]
   especificacionesCompetencia EspecificacionCompetencia[]
   equivalenciasProducto       EquivalenciaProducto[]
+
+  instrumentosMedicion     InstrumentoMedicion[]
+  calibracionesInstrumento CalibracionInstrumento[]
 
   @@map("empresas")
 }
