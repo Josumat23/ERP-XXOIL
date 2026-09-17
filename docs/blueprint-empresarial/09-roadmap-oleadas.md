@@ -311,3 +311,7 @@ Los dos selectores de la pantalla de trazabilidad se pueden filtrar y están aco
 ## Actualización: el certificado declara equipo y revalidación de vigencia
 
 Decisión del negocio (2026-09-18): el certificado de análisis imprime ahora con qué instrumento se midió cada característica y, cuando corresponde, que la vigencia de un envase fue revalidada por un re-ensayo, con sus mediciones. Lo que NO se imprime es si la calibración del equipo estaba vigente: eso el sistema lo deriva y afirmarlo en un documento que va al cliente es criterio de calidad. Véase `docs/certificado-instrumento-y-reanalisis.md`.
+
+## Actualización: lo pendiente no frena la operación
+
+El principio que el negocio repitió tres veces —lo que falta desarrollar se agrega más adelante, pero mientras tanto la planta produce, compras recibe y ventas factura— estaba respetado en cada punto pero como decisiones sueltas, y ya había fallado una vez: la recepción retenía material sin que nadie lo hubiera decidido. `tests/la-operacion-no-se-bloquea.test.ts` lo junta en 12 pruebas que verifican que nada frene, incluida una que comprueba que ningún control nace en BLOQUEA. Véase `docs/la-operacion-no-se-bloquea.md`.
