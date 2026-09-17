@@ -319,3 +319,7 @@ El principio que el negocio repitió tres veces —lo que falta desarrollar se a
 ## Actualización: el recall alcanza todo el lote del proveedor
 
 La pantalla de trazabilidad contestaba por recepción, pero el proveedor llama por su lote, y un lote suele entrar en varias descargas: la respuesta cubría la mitad de lo fabricado sin decir que faltaba algo. Ahora avisa cuando hay recepciones hermanas y amplía el alcance en un clic —no en silencio, porque a veces la pregunta sí es por una entrega puntual—, con el encabezado sumado sobre el alcance vigente para que no diga «recibido 300 kg» encima de un consumo de 600. `npm run seed:trazabilidad` completa el número de lote del proveedor en las recepciones sembradas, que era el dato que faltaba para poder estrenar la pantalla. Véase `docs/recall-por-lote-proveedor.md`.
+
+## Actualización: la ficha del instrumento deja de truncar en silencio
+
+«Qué se midió con este instrumento» traía 300 filas con un tope COMPARTIDO entre todos los instrumentos: con volumen real, el que más se usa se lleva el tope y uno poco usado aparece sin ninguna medición, que en pantalla se lee igual que «nunca midió nada» —y lo que se ocultaba era la columna del respaldo de calibración—. Ahora son dos cosas separadas: cuánto midió cada uno es un conteo agrupado en la base, exacto y siempre visible aunque sea cero; qué midió se consulta de a un instrumento, con su propio tope, y si recorta lo dice. El defecto viejo está reproducido contra la base en una prueba. Véase `docs/ficha-instrumento-sin-truncar.md`.
