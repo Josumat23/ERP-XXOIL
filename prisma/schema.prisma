@@ -147,7 +147,19 @@ model ConfiguracionEmpresa {
   //
   // Gobierna el CONTROL, no el registro: el maestro de instrumentos y las
   // calibraciones se cargan igual en cualquier nivel.
-  nivelControlCalibracion         NivelControlCalibracion    @default(NO_APLICA)
+  nivelControlCalibracion         NivelControl               @default(NO_APLICA)
+  // Qué hace la inspección de entrada con el material recibido.
+  //
+  // Nace en ADVIERTE por decisión del negocio (2026-09-17): todo insumo se
+  // compra y puede ir directo a producción, pase o no por laboratorio.
+  // Retener el material hasta que calidad lo mire es el bloqueo más caro del
+  // sistema —la planta ve la materia prima en el almacén y no la puede usar—
+  // y solo se justifica si la empresa lo pide expresamente.
+  //
+  // ADVIERTE no apaga la inspección: la crea igual, el laboratorio la resuelve
+  // cuando puede, y si sale rechazada el material ya consumido se rastrea con
+  // la trazabilidad de recepción a cliente.
+  nivelInspeccionRecepcion        NivelControl               @default(ADVIERTE)
   // Aprobación por monto (0 = todo requiere aprobación siempre; un número muy
   // alto equivale a desactivar el control). Las aprueba Gerencia o un Admin.
   montoAprobacionCompras          Decimal                    @default(5000)
@@ -452,17 +464,21 @@ enum ResultadoCalibracion {
   NO_CONFORME
 }
 
-/// Cuánto pesa el control de calibración al liberar un lote.
+/// Cuánto pesa un control de calidad sobre el proceso que vigila.
 ///
-/// Decisión del negocio (2026-09-17): tres niveles, no dos. El laboratorio
-/// informa siempre y frena solo si la empresa lo pide; `NO_APLICA` existe
-/// para que el proceso siga su curso mientras el laboratorio se implementa.
-enum NivelControlCalibracion {
-  /// No se mira. Ni semáforo ni aviso al liberar.
+/// Decisión del negocio (2026-09-17): tres niveles, no dos, y el laboratorio
+/// NUNCA es un bloqueante por omisión. `NO_APLICA` existe para que el proceso
+/// siga su curso mientras el laboratorio se implementa.
+///
+/// Es el mismo concepto para los dos controles que existen —la calibración al
+/// liberar un lote y la inspección de lo que entra— y por eso comparten tipo:
+/// dos enumeraciones idénticas terminan divergiendo.
+enum NivelControl {
+  /// No se mira. El control no existe para el proceso.
   NO_APLICA
-  /// Avisa y deja pasar: el lote se libera y queda listado para reensayo.
+  /// Avisa y deja pasar. El proceso continúa y queda el registro.
   ADVIERTE
-  /// No deja liberar el lote hasta que el instrumento tenga calibración.
+  /// Frena el proceso hasta que se resuelva.
   BLOQUEA
 }
 
@@ -3234,6 +3250,12 @@ model InspeccionCompra {
   creadoEn                 DateTime            @default(now())
   planInspeccionId         String?
   planVersion              Int?
+
+  /// El material ya entró al stock cuando se recibió, sin esperar a calidad.
+  /// Lo pone la recepción cuando el control está en ADVIERTE, y sirve para que
+  /// aprobar la inspección NO vuelva a ingresarlo: sin esta marca, el mismo
+  /// material entraría dos veces al kardex.
+  stockIngresadoEnRecepcion Boolean @default(false)
 
   recepcionDetalle RecepcionCompraDetalle     @relation(fields: [recepcionCompraDetalleId], references: [id])
   planInspeccion   PlanInspeccionInsumo?      @relation(fields: [planInspeccionId], references: [id])

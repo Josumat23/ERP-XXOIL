@@ -9,7 +9,7 @@ import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { esValorEnum } from "@/lib/enums";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
-import { MENSAJE_ERROR_CALIBRACION, NIVELES_CONTROL_CALIBRACION, validarCalibracion, type NivelControlCalibracion } from "@/lib/calibracion";
+import { MENSAJE_ERROR_CALIBRACION, NIVELES_CONTROL, validarCalibracion, type NivelControl } from "@/lib/calibracion";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -154,13 +154,13 @@ export async function alternarActivoInstrumento(id: string, activo: boolean) {
  * Lo que gobierna es el control, no el registro: el maestro de instrumentos y
  * las calibraciones se cargan igual en cualquier nivel.
  */
-export async function fijarNivelControlCalibracion(nivel: NivelControlCalibracion) {
+export async function fijarNivelControlCalibracion(nivel: NivelControl) {
   const auth = await requerirRol(["PRODUCCION", "GERENCIA"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
   // El nivel llega del formulario: se comprueba contra los que existen en vez
   // de escribir lo que venga.
-  if (!NIVELES_CONTROL_CALIBRACION.includes(nivel)) return;
+  if (!NIVELES_CONTROL.includes(nivel)) return;
   const empresaId = await obtenerEmpresaActivaId();
   await prisma.configuracionEmpresa.update({
     where: { empresaId },

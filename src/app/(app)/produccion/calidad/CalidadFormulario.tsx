@@ -7,7 +7,7 @@ import {
   controlAlLiberar,
   requiereAtencion,
   type EstadoCalibracion,
-  type NivelControlCalibracion,
+  type NivelControl,
 } from "@/lib/calibracion";
 
 type Causa = { id: string; nombre: string };
@@ -28,7 +28,7 @@ export default function CalidadFormulario({
   instrumentosDisponibles: { id: string; etiqueta: string; codigo: string; estado: EstadoCalibracion }[];
   /** Qué hace el control al liberar. El servidor vuelve a decidirlo: acá solo
    *  se avisa ANTES, que es cuando todavía se puede elegir otro instrumento. */
-  nivelControl: NivelControlCalibracion;
+  nivelControl: NivelControl;
 }) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     registrarCalidad,

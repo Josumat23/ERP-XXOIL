@@ -287,3 +287,7 @@ Decisión del negocio (2026-09-17), pendiente desde hacía cuatro ciclos: libera
 ## Actualización: de un material recibido a los clientes que lo tienen
 
 La pantalla de trazabilidad recorre ahora la cadena en las dos direcciones. La ficha del lote ya contestaba de qué recepciones salió; faltaba la de ida —qué lotes se fabricaron con una recepción y hasta dónde llegó cada uno—, que es la consulta del día que un proveedor avisa de un problema. Es consulta y no control: no frena ni exige nada, según lo pedido por el negocio. Véase `docs/trazabilidad-insumo-a-cliente.md`.
+
+## Actualización: la inspección de entrada deja de retener el material
+
+Decisión del negocio (2026-09-17): todo insumo se compra y puede ir directo a producción, pase o no por laboratorio. Marcar un insumo como «requiere inspección» retenía el stock hasta que calidad lo aprobara —el bloqueo más caro del sistema, puesto sin que nadie lo decidiera—. Ahora es el mismo control de tres niveles que rige la calibración y nace en ADVIERTE: la inspección se crea igual, pero el material entra y producción lo puede usar. Véase `docs/recepcion-no-bloqueante.md`.

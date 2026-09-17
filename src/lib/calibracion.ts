@@ -241,15 +241,15 @@ export function medicionesSinRespaldo<
 // se usa — se apaga, y con él se apaga todo lo demás.
 // ---------------------------------------------------------------------------
 
-export type NivelControlCalibracion = $Enums.NivelControlCalibracion;
+export type NivelControl = $Enums.NivelControl;
 
-export const MENSAJE_NIVEL_CONTROL: Record<NivelControlCalibracion, string> = {
+export const MENSAJE_NIVEL_CONTROL: Record<NivelControl, string> = {
   NO_APLICA: "No aplica",
   ADVIERTE: "Advierte",
   BLOQUEA: "Bloquea",
 };
 
-export const EXPLICACION_NIVEL_CONTROL: Record<NivelControlCalibracion, string> = {
+export const EXPLICACION_NIVEL_CALIBRACION: Record<NivelControl, string> = {
   NO_APLICA:
     "El laboratorio todavía no aplica. Se pueden cargar instrumentos y calibraciones igual; el semáforo y los avisos quedan apagados.",
   ADVIERTE:
@@ -259,7 +259,7 @@ export const EXPLICACION_NIVEL_CONTROL: Record<NivelControlCalibracion, string> 
 };
 
 /** ¿El nivel hace que el semáforo y los avisos se vean? */
-export function avisaAlgo(nivel: NivelControlCalibracion): boolean {
+export function avisaAlgo(nivel: NivelControl): boolean {
   return nivel !== "NO_APLICA";
 }
 
@@ -278,7 +278,7 @@ export type ControlAlLiberar = {
  * nivel: el control no inventa problemas donde no los hay.
  */
 export function controlAlLiberar(
-  nivel: NivelControlCalibracion,
+  nivel: NivelControl,
   instrumentosSinRespaldo: string[]
 ): ControlAlLiberar {
   if (nivel === "NO_APLICA" || instrumentosSinRespaldo.length === 0) {
@@ -306,8 +306,58 @@ export function controlAlLiberar(
 }
 
 /** Los niveles que existen, en orden de menos a más exigente. */
-export const NIVELES_CONTROL_CALIBRACION: NivelControlCalibracion[] = [
+export const NIVELES_CONTROL: NivelControl[] = [
   "NO_APLICA",
   "ADVIERTE",
   "BLOQUEA",
 ];
+
+// ---------------------------------------------------------------------------
+// El mismo control, aplicado a lo que entra.
+//
+// Decisión del negocio (2026-09-17): todo insumo se compra y puede ir directo a
+// producción, pase o no por laboratorio. Retener el material hasta que calidad
+// lo mire es el bloqueo más caro del sistema —la planta ve la materia prima en
+// el almacén y no la puede usar— y hasta ahora estaba puesto sin que nadie lo
+// decidiera: marcar un insumo como «requiere inspección» lo activaba.
+// ---------------------------------------------------------------------------
+
+export type ControlDeRecepcion = {
+  /** Si `true`, se crea la inspección y el laboratorio la resolverá. */
+  creaInspeccion: boolean;
+  /** Si `true`, el material entra al stock ya mismo y producción puede usarlo. */
+  ingresaStock: boolean;
+};
+
+/**
+ * Qué hace la recepción de un insumo que requiere inspección.
+ *
+ * - `NO_APLICA`: ni se inspecciona. El insumo entra como cualquier otro.
+ * - `ADVIERTE`: entra al stock Y queda la inspección pendiente. El laboratorio
+ *   la resuelve cuando puede; si sale rechazada, el material que ya se consumió
+ *   se rastrea con la trazabilidad de recepción a cliente.
+ * - `BLOQUEA`: el material espera. Es el comportamiento anterior, ahora
+ *   explícito y elegido.
+ *
+ * `requiereInspeccion` es del insumo y dice SI se mira; el nivel es de la
+ * compañía y dice CUÁNTO pesa. Un insumo que no la requiere entra directo en
+ * cualquier nivel.
+ */
+export function controlDeRecepcion(
+  nivel: NivelControl,
+  requiereInspeccion: boolean
+): ControlDeRecepcion {
+  if (!requiereInspeccion || nivel === "NO_APLICA") {
+    return { creaInspeccion: false, ingresaStock: true };
+  }
+  return { creaInspeccion: true, ingresaStock: nivel !== "BLOQUEA" };
+}
+
+export const EXPLICACION_NIVEL_RECEPCION: Record<NivelControl, string> = {
+  NO_APLICA:
+    "No se inspecciona nada al recibir. Los insumos marcados como «requiere inspección» entran como cualquier otro.",
+  ADVIERTE:
+    "El material entra al stock y producción puede usarlo; la inspección queda pendiente para el laboratorio. Si sale rechazada, se rastrea a dónde fue con la trazabilidad del material.",
+  BLOQUEA:
+    "El material queda retenido hasta que calidad apruebe: no suma stock y producción no lo puede consumir. Es el bloqueo más caro del sistema — úselo solo si el laboratorio responde en el día.",
+};
