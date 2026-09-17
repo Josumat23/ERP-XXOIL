@@ -271,3 +271,7 @@ Los ajustes, traslados, ubicaciones, conteos, kardex y análisis de exactitud/ro
 El laboratorio contesta ahora la pregunta inversa a la del ciclo anterior: no «qué midió este instrumento» sino «qué tengo que reensayar de todo el laboratorio, y por dónde empiezo». La lista se ordena por dónde está el producto —lo que ya está en el cliente primero— y cruza el ensayo con la cadena comercial para decir a cuántas unidades y clientes llegó. Véase `docs/que-hay-que-reensayar.md`.
 
 Sigue pendiente la misma decisión de calidad: si liberar un lote con un instrumento sin calibración vigente se bloquea o solo se advierte.
+
+## Actualización: qué midió el re-análisis
+
+El re-análisis de un envasado registra ahora las mediciones del re-ensayo, no solo que se hizo: sin ellas, extender una vigencia es una afirmación sin evidencia. Con un plan declarado el resultado sale de las mediciones y no de quien carga, así que una lectura fuera de especificación ya no puede extender la vigencia. Las lecturas comparten tabla con las del lote granel —con un CHECK que exige exactamente un ensayo padre— y por eso el re-análisis se revisa en «Qué hay que reensayar» igual que una liberación. Véase `docs/mediciones-del-reanalisis.md`.

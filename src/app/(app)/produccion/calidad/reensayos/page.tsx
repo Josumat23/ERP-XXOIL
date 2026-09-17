@@ -5,7 +5,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import BotonImprimir from "@/components/BotonImprimir";
 import { MENSAJE_RESPALDO } from "@/lib/calibracion";
-import { MENSAJE_DESTINO, resumenReensayos } from "@/lib/reensayos";
+import { CONSECUENCIA_ENSAYO, MENSAJE_DESTINO, MENSAJE_TIPO_ENSAYO, resumenReensayos } from "@/lib/reensayos";
 import { revisarReensayos } from "@/lib/reensayosConsulta";
 
 const fechaCorta = new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" });
@@ -14,11 +14,11 @@ export default async function ReensayosPage() {
   const usuario = await obtenerUsuarioEmpresaActiva();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
-  const { lotes, medicionesEvaluadas, medicionesSinInstrumento } = await revisarReensayos(
+  const { items, medicionesEvaluadas, medicionesSinInstrumento } = await revisarReensayos(
     usuario.empresaId
   );
-  const resumen = resumenReensayos(lotes);
-  const unidadesAfuera = lotes.reduce((acc, l) => acc + l.unidadesDespachadas, 0);
+  const resumen = resumenReensayos(items);
+  const unidadesAfuera = items.reduce((acc, i) => acc + i.unidadesDespachadas, 0);
 
   return (
     <div>
@@ -29,17 +29,18 @@ export default async function ReensayosPage() {
         <BotonImprimir />
       </div>
       <p className="text-sm mb-5" style={{ color: "var(--epicor-texto-tenue)" }}>
-        Todos los lotes cuyo ensayo se apoya en un instrumento sin calibración vigente, de todo el
-        laboratorio y de una sola vez.{" "}
+        Todo lo que se ensayó con un instrumento sin calibración vigente, de todo el laboratorio y
+        de una sola vez: la liberación de un lote y el re-análisis que le dio vigencia nueva a un
+        envasado.{" "}
         <Link href="/produccion/calidad/instrumentos" className="hover:underline">
           Ver instrumentos
         </Link>
       </p>
 
       <div className="max-w-6xl">
-        {lotes.length > 0 && (
+        {items.length > 0 && (
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
-            <Dato etiqueta="Lotes a revisar" valor={String(resumen.total)} />
+            <Dato etiqueta="Ensayos a revisar" valor={String(resumen.total)} />
             <Dato
               etiqueta="Ya en poder del cliente"
               valor={String(resumen.despachados)}
@@ -49,7 +50,7 @@ export default async function ReensayosPage() {
           </div>
         )}
 
-        {lotes.length === 0 ? (
+        {items.length === 0 ? (
           <p className="text-sm borde-seccion" style={{ color: "var(--epicor-texto-tenue)" }}>
             {medicionesEvaluadas === 0
               ? "Todavía no hay ensayos que declaren con qué instrumento se midieron. En cuanto los haya, acá aparece lo que haya que reensayar."
@@ -61,7 +62,7 @@ export default async function ReensayosPage() {
           <table className="tabla">
             <thead>
               <tr>
-                <th>Lote</th>
+                <th>Lote / envasado</th>
                 <th>Producto</th>
                 <th>Ensayo</th>
                 <th>Qué queda sin respaldo</th>
@@ -69,15 +70,27 @@ export default async function ReensayosPage() {
               </tr>
             </thead>
             <tbody>
-              {lotes.map((l) => (
-                <tr key={l.loteId}>
+              {items.map((l) => (
+                <tr key={`${l.ensayo}:${l.itemId}`}>
                   <td className="font-medium align-top">
-                    <Link href={`/produccion/lotes/${l.loteId}`} className="hover:underline">
-                      {l.loteCodigo}
+                    <Link
+                      href={
+                        l.ensayo === "LIBERACION"
+                          ? `/produccion/lotes/${l.itemId}`
+                          : `/produccion/envasados/${l.itemId}`
+                      }
+                      className="hover:underline"
+                    >
+                      {l.itemCodigo}
                     </Link>
                   </td>
                   <td className="align-top">{l.productoNombre}</td>
-                  <td className="align-top">{fechaCorta.format(l.fechaEnsayo)}</td>
+                  <td className="align-top">
+                    {MENSAJE_TIPO_ENSAYO[l.ensayo]}
+                    <span className="block text-xs" style={{ color: "var(--epicor-texto-tenue)" }}>
+                      {fechaCorta.format(l.fechaEnsayo)} · {CONSECUENCIA_ENSAYO[l.ensayo]}
+                    </span>
+                  </td>
                   <td className="align-top">
                     <ul className="flex flex-col gap-1">
                       {l.mediciones.map((m, i) => (
@@ -118,7 +131,7 @@ export default async function ReensayosPage() {
                         {l.clientesAfectados === 1 ? "1 cliente" : `${l.clientesAfectados} clientes`}
                         {" · "}
                         <Link
-                          href={`/produccion/lotes/recall?loteId=${l.loteId}`}
+                          href={`/produccion/lotes/recall?loteId=${l.loteGranelId}`}
                           className="hover:underline text-blue-700 dark:text-blue-400"
                         >
                           ver a quiénes

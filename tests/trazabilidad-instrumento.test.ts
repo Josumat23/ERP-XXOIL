@@ -142,11 +142,15 @@ test("el ensayo registra el instrumento y lo valida contra la compañía", async
     resolve(RAIZ, "src/app/(app)/produccion/calidad/actions.ts"),
     "utf8"
   );
-  assert.match(acciones, /instrumentoPorId/, "no lee el instrumento de cada lectura");
-  // Si el ensayo no lo dice, rige el del plan.
-  assert.match(acciones, /instrumentoPorId\.get\(c\.id\) \?\? c\.instrumentoId/);
+  assert.match(acciones, /resultadosDelEnsayo\(/, "no arma las lecturas con la librería común");
   // Los ids llegan del navegador: se comprueban.
   assert.match(acciones, /instrumentoMedicion\.count\(\{[\s\S]{0,120}empresaId/);
+
+  // La regla «si el ensayo no dice con qué se midió, rige el del plan» se mudó
+  // a la librería cuando el re-análisis del envasado necesitó la misma
+  // operación. Se comprueba donde vive ahora, no donde vivía.
+  const libreria = await readFile(resolve(RAIZ, "src/lib/planesCalidad.ts"), "utf8");
+  assert.match(libreria, /instrumentoPorId\.get\(c\.id\) \?\? c\.instrumentoId/);
 });
 
 test("el plan valida los instrumentos que declara", async () => {
@@ -164,9 +168,12 @@ test("la ficha del instrumento contesta qué lotes midió", async () => {
     resolve(RAIZ, "src/app/(app)/produccion/calidad/instrumentos/page.tsx"),
     "utf8"
   );
-  assert.match(pagina, /Lotes medidos con este instrumento/);
+  assert.match(pagina, /Qué se midió con este instrumento/);
   assert.match(pagina, /respaldoDeMedicion\(/, "no calcula el respaldo de cada medición");
-  assert.match(pagina, /mediciones:/, "no trae las mediciones");
+  // Trae las dos clases de ensayo: si se olvidara del re-análisis, la ficha
+  // diría que el instrumento midió menos de lo que midió.
+  assert.match(pagina, /controlCalidad: \{/, "no trae los ensayos de liberación");
+  assert.match(pagina, /reanalisis: \{/, "no trae los re-análisis");
 });
 
 test("se puede elegir el instrumento en el plan y en el ensayo", async () => {
@@ -268,12 +275,14 @@ test("la cadena completa: el ensayo queda atado al instrumento que lo midió", a
       },
     });
     assert.equal(leido.mediciones.length, 1);
-    assert.equal(leido.mediciones[0].controlCalidad.loteGranel.codigo, lote.codigo);
+    // Desde que el re-análisis de un envasado también deja mediciones, una
+    // lectura puede colgar de un control o de un re-análisis: acá es un
+    // control, y que lo sea es parte de lo que se comprueba.
+    const medicion = leido.mediciones[0].controlCalidad;
+    assert.ok(medicion, "la lectura del ensayo de liberación perdió su control de calidad");
+    assert.equal(medicion.loteGranel.codigo, lote.codigo);
     // Y el respaldo se deriva: la calibración venció antes del ensayo.
-    assert.equal(
-      respaldoDeMedicion(leido.calibraciones, leido.mediciones[0].controlCalidad.fecha),
-      "SIN_RESPALDO"
-    );
+    assert.equal(respaldoDeMedicion(leido.calibraciones, medicion.fecha), "SIN_RESPALDO");
 
     // Se carga la calibración que faltaba y la respuesta mejora sola, sin tocar
     // el ensayo. Eso es lo que se perdería si el estado estuviera congelado.

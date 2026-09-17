@@ -6,7 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { destinosDeLote, resumenDespacho, type EnvasadoDespachado } from "@/lib/despachoLote";
 import {
   MENSAJE_DESTINO,
-  destinoDelLote,
+  destinoDelProducto,
   lotesPorReensayar,
   resumenReensayos,
   type MedicionParaRevisar,
@@ -37,10 +37,12 @@ const cal = (
 ) => ({ fecha: F(desde), vigenteHasta: F(hasta), resultado }) as const;
 
 const medicion = (parcial: Partial<MedicionParaRevisar> = {}): MedicionParaRevisar => ({
-  loteId: "L1",
-  loteCodigo: "LG-0001",
+  ensayo: "LIBERACION",
+  itemId: "L1",
+  itemCodigo: "LG-0001",
+  loteGranelId: "L1",
   productoNombre: "Grasa EP-2",
-  loteAprobado: true,
+  disponibleEnAlmacen: true,
   unidadesDespachadas: 0,
   clientesAfectados: 0,
   fechaEnsayo: F(100),
@@ -60,7 +62,7 @@ test("una medición respaldada no genera trabajo", () => {
 test("una medición sin calibración vigente pone al lote en la lista", () => {
   const lotes = lotesPorReensayar([medicion({ calibraciones: [] })]);
   assert.equal(lotes.length, 1);
-  assert.equal(lotes[0].loteCodigo, "LG-0001");
+  assert.equal(lotes[0].itemCodigo, "LG-0001");
   assert.equal(lotes[0].peorRespaldo, "SIN_RESPALDO");
 });
 
@@ -107,19 +109,19 @@ test("el peor respaldo del lote es el que lo describe", () => {
 // --- Dónde está el producto -------------------------------------------------
 
 test("el destino distingue lo despachado de lo que sigue en casa", () => {
-  assert.equal(destinoDelLote({ unidadesDespachadas: 5, loteAprobado: true }), "DESPACHADO");
-  assert.equal(destinoDelLote({ unidadesDespachadas: 0, loteAprobado: true }), "EN_ALMACEN");
-  assert.equal(destinoDelLote({ unidadesDespachadas: 0, loteAprobado: false }), "SIN_SALIDA");
+  assert.equal(destinoDelProducto({ unidadesDespachadas: 5, disponibleEnAlmacen: true }), "DESPACHADO");
+  assert.equal(destinoDelProducto({ unidadesDespachadas: 0, disponibleEnAlmacen: true }), "EN_ALMACEN");
+  assert.equal(destinoDelProducto({ unidadesDespachadas: 0, disponibleEnAlmacen: false }), "SIN_SALIDA");
 });
 
 test("un lote despachado lo es aunque su estado no sea APROBADO", () => {
   // Si salió, salió: el estado posterior del lote no lo trae de vuelta.
-  assert.equal(destinoDelLote({ unidadesDespachadas: 3, loteAprobado: false }), "DESPACHADO");
+  assert.equal(destinoDelProducto({ unidadesDespachadas: 3, disponibleEnAlmacen: false }), "DESPACHADO");
 });
 
 test("cada destino se explica en palabras, no con la sigla", () => {
   assert.equal(MENSAJE_DESTINO.DESPACHADO, "Ya está en poder del cliente");
-  assert.equal(MENSAJE_DESTINO.EN_ALMACEN, "Aprobado, todavía sin despachar");
+  assert.equal(MENSAJE_DESTINO.EN_ALMACEN, "Todavía en almacén");
   assert.equal(MENSAJE_DESTINO.SIN_SALIDA, "Nunca salió");
 });
 
@@ -132,17 +134,17 @@ test("lo que ya está en el cliente va primero, aunque su problema sea menor", (
   // es una conversación con el cliente.
   const enDuda = [cal(0, 365), cal(200, 560, "NO_CONFORME")];
   const lotes = lotesPorReensayar([
-    medicion({ loteId: "A", loteCodigo: "LG-A", calibraciones: enDuda }),
+    medicion({ itemId: "A", itemCodigo: "LG-A", calibraciones: enDuda }),
     medicion({
-      loteId: "B",
-      loteCodigo: "LG-B",
+      itemId: "B",
+      itemCodigo: "LG-B",
       calibraciones: [],
       unidadesDespachadas: 40,
       clientesAfectados: 2,
     }),
   ]);
   assert.deepEqual(
-    lotes.map((l) => l.loteCodigo),
+    lotes.map((l) => l.itemCodigo),
     ["LG-B", "LG-A"]
   );
 });
@@ -152,39 +154,39 @@ test("entre dos lotes igual de expuestos, primero el problema confirmado", () =>
   // suele ser una calibración que existe en papel y nadie cargó todavía.
   const enDuda = [cal(0, 365), cal(200, 560, "NO_CONFORME")];
   const lotes = lotesPorReensayar([
-    medicion({ loteId: "A", loteCodigo: "LG-A", calibraciones: [] }),
-    medicion({ loteId: "B", loteCodigo: "LG-B", calibraciones: enDuda }),
+    medicion({ itemId: "A", itemCodigo: "LG-A", calibraciones: [] }),
+    medicion({ itemId: "B", itemCodigo: "LG-B", calibraciones: enDuda }),
   ]);
   assert.deepEqual(
-    lotes.map((l) => l.loteCodigo),
+    lotes.map((l) => l.itemCodigo),
     ["LG-B", "LG-A"]
   );
 });
 
 test("entre iguales, el ensayo más reciente primero", () => {
   const lotes = lotesPorReensayar([
-    medicion({ loteId: "A", loteCodigo: "LG-A", calibraciones: [], fechaEnsayo: F(10) }),
-    medicion({ loteId: "B", loteCodigo: "LG-B", calibraciones: [], fechaEnsayo: F(300) }),
+    medicion({ itemId: "A", itemCodigo: "LG-A", calibraciones: [], fechaEnsayo: F(10) }),
+    medicion({ itemId: "B", itemCodigo: "LG-B", calibraciones: [], fechaEnsayo: F(300) }),
   ]);
   assert.deepEqual(
-    lotes.map((l) => l.loteCodigo),
+    lotes.map((l) => l.itemCodigo),
     ["LG-B", "LG-A"]
   );
 });
 
 test("el lote que nunca salió queda al final", () => {
   const lotes = lotesPorReensayar([
-    medicion({ loteId: "A", loteCodigo: "LG-A", calibraciones: [], loteAprobado: false }),
-    medicion({ loteId: "B", loteCodigo: "LG-B", calibraciones: [], loteAprobado: true }),
+    medicion({ itemId: "A", itemCodigo: "LG-A", calibraciones: [], disponibleEnAlmacen: false }),
+    medicion({ itemId: "B", itemCodigo: "LG-B", calibraciones: [], disponibleEnAlmacen: true }),
     medicion({
-      loteId: "C",
-      loteCodigo: "LG-C",
+      itemId: "C",
+      itemCodigo: "LG-C",
       calibraciones: [],
       unidadesDespachadas: 1,
     }),
   ]);
   assert.deepEqual(
-    lotes.map((l) => l.loteCodigo),
+    lotes.map((l) => l.itemCodigo),
     ["LG-C", "LG-B", "LG-A"]
   );
 });
@@ -194,23 +196,23 @@ test("el orden en que llegan las mediciones no cambia la lista", () => {
   // primera calibración que encajara» y dependía del orden de la base.
   const enDuda = [cal(0, 365), cal(200, 560, "NO_CONFORME")];
   const entrada = [
-    medicion({ loteId: "A", loteCodigo: "LG-A", calibraciones: [], fechaEnsayo: F(10) }),
-    medicion({ loteId: "B", loteCodigo: "LG-B", calibraciones: enDuda, unidadesDespachadas: 4 }),
-    medicion({ loteId: "C", loteCodigo: "LG-C", calibraciones: [], fechaEnsayo: F(300) }),
+    medicion({ itemId: "A", itemCodigo: "LG-A", calibraciones: [], fechaEnsayo: F(10) }),
+    medicion({ itemId: "B", itemCodigo: "LG-B", calibraciones: enDuda, unidadesDespachadas: 4 }),
+    medicion({ itemId: "C", itemCodigo: "LG-C", calibraciones: [], fechaEnsayo: F(300) }),
   ];
-  const directo = lotesPorReensayar(entrada).map((l) => l.loteCodigo);
-  const invertido = lotesPorReensayar([...entrada].reverse()).map((l) => l.loteCodigo);
+  const directo = lotesPorReensayar(entrada).map((l) => l.itemCodigo);
+  const invertido = lotesPorReensayar([...entrada].reverse()).map((l) => l.itemCodigo);
   assert.deepEqual(directo, invertido);
   assert.deepEqual(directo, ["LG-B", "LG-C", "LG-A"]);
 });
 
 test("dos lotes idénticos en todo se ordenan por código, no al azar", () => {
   const lotes = lotesPorReensayar([
-    medicion({ loteId: "B", loteCodigo: "LG-B", calibraciones: [] }),
-    medicion({ loteId: "A", loteCodigo: "LG-A", calibraciones: [] }),
+    medicion({ itemId: "B", itemCodigo: "LG-B", calibraciones: [] }),
+    medicion({ itemId: "A", itemCodigo: "LG-A", calibraciones: [] }),
   ]);
   assert.deepEqual(
-    lotes.map((l) => l.loteCodigo),
+    lotes.map((l) => l.itemCodigo),
     ["LG-A", "LG-B"]
   );
 });
@@ -219,8 +221,8 @@ test("dos lotes idénticos en todo se ordenan por código, no al azar", () => {
 
 test("el resumen separa el trabajo del laboratorio de la conversación con el cliente", () => {
   const lotes = lotesPorReensayar([
-    medicion({ loteId: "A", loteCodigo: "LG-A", calibraciones: [] }),
-    medicion({ loteId: "B", loteCodigo: "LG-B", calibraciones: [], unidadesDespachadas: 7 }),
+    medicion({ itemId: "A", itemCodigo: "LG-A", calibraciones: [] }),
+    medicion({ itemId: "B", itemCodigo: "LG-B", calibraciones: [], unidadesDespachadas: 7 }),
   ]);
   assert.deepEqual(resumenReensayos(lotes), { total: 2, despachados: 1 });
 });
@@ -449,7 +451,7 @@ test("la consulta encuentra el lote medido con un instrumento vencido", async ()
 
     // Sin ninguna calibración cargada, el ensayo no se sostiene.
     const sinCalibrar = await revisarReensayos(empresaId);
-    const mio = sinCalibrar.lotes.find((l) => l.loteId === lote.id);
+    const mio = sinCalibrar.items.find((l) => l.itemId === lote.id);
     assert.ok(mio, "el lote medido con un instrumento sin calibrar no apareció");
     assert.equal(mio.peorRespaldo, "SIN_RESPALDO");
     assert.equal(mio.destino, "EN_ALMACEN", "nunca se despachó");
@@ -473,7 +475,7 @@ test("la consulta encuentra el lote medido con un instrumento vencido", async ()
     });
     const despues = await revisarReensayos(empresaId);
     assert.equal(
-      despues.lotes.find((l) => l.loteId === lote.id),
+      despues.items.find((l) => l.itemId === lote.id),
       undefined,
       "cargar la calibración que faltaba no sacó al lote de la lista"
     );
@@ -494,7 +496,7 @@ test("la consulta encuentra el lote medido con un instrumento vencido", async ()
       },
     });
     const enDuda = await revisarReensayos(empresaId);
-    const vuelto = enDuda.lotes.find((l) => l.loteId === lote.id);
+    const vuelto = enDuda.items.find((l) => l.itemId === lote.id);
     assert.ok(vuelto, "la verificación fallida no puso el lote en cuestión");
     assert.equal(vuelto.peorRespaldo, "EN_DUDA");
   } finally {
@@ -581,7 +583,7 @@ test("el lote de otra compañía no entra aunque lo midan con un instrumento nue
 
     const propia = await revisarReensayos("1");
     assert.equal(
-      propia.lotes.find((l) => l.loteId === lote.id),
+      propia.items.find((l) => l.itemId === lote.id),
       undefined,
       "el lote de otra compañía se coló por el instrumento"
     );

@@ -11,6 +11,11 @@ import { obtenerConfiguracionEmpresa } from "@/lib/empresa";
 import { normalizarInsumosEnvasado, type InsumoEnvasadoNormalizado } from "@/lib/insumosEnvasado";
 import { postearAsiento } from "@/lib/contabilidad";
 import { MENSAJE_ERROR_REANALISIS, validarReanalisis } from "@/lib/reanalisis";
+import {
+  normalizarLecturasCalidad,
+  resultadosDelEnsayo,
+  type ResultadoDeEnsayo,
+} from "@/lib/planesCalidad";
 
 export type EstadoFormulario = { error?: string };
 
@@ -228,8 +233,8 @@ export async function registrarReanalisis(
     return { error: "Su grupo de seguridad no permite editar registros en Producción." };
   }
 
-  const resultado = String(formData.get("resultado") ?? "");
-  if (resultado !== "APROBADO" && resultado !== "RECHAZADO") {
+  const resultadoDeclarado = String(formData.get("resultado") ?? "");
+  if (resultadoDeclarado !== "APROBADO" && resultadoDeclarado !== "RECHAZADO") {
     return { error: "Seleccione el resultado del ensayo." };
   }
   const crudo = String(formData.get("vencimientoNuevo") ?? "").trim();
@@ -248,6 +253,55 @@ export async function registrarReanalisis(
       const envasado = await tx.envasado.findFirst({ where: { id: envasadoId, empresaId } });
       if (!envasado) throw new Error("El envasado no existe o no es de la compañía activa.");
 
+      // El plan tiene que ser de la compañía activa: no se confía en el id que
+      // llega del formulario.
+      let planVersion: number | null = null;
+      let resultados: ResultadoDeEnsayo[] = [];
+      let resultado: "APROBADO" | "RECHAZADO" = resultadoDeclarado;
+      if (planInspeccionId) {
+        const plan = await tx.planInspeccionCalidad.findFirst({
+          where: { id: planInspeccionId, empresaId },
+          include: { caracteristicas: { orderBy: { secuencia: "asc" } } },
+        });
+        if (!plan) throw new Error("El plan de inspección no pertenece a la compañía activa.");
+        planVersion = plan.version;
+
+        resultados = resultadosDelEnsayo(
+          plan.caracteristicas.map((c) => ({
+            ...c,
+            limiteInferior: c.limiteInferior === null ? null : c.limiteInferior.toNumber(),
+            limiteSuperior: c.limiteSuperior === null ? null : c.limiteSuperior.toNumber(),
+          })),
+          normalizarLecturasCalidad(String(formData.get("lecturas") ?? "[]"))
+        );
+        if (resultados.length === 0) {
+          throw new Error(
+            "Declaró un plan de inspección pero no registró ninguna medición. Un re-análisis sin mediciones no es un ensayo."
+          );
+        }
+
+        // El resultado NO lo elige quien carga: sale de las mediciones contra
+        // la especificación del plan. Dejarlo a criterio del formulario
+        // permitiría aprobar un re-análisis cuyas propias lecturas están fuera
+        // de rango, que es la contradicción que este registro existe para
+        // impedir.
+        resultado = resultados.every((r) => r.conforme) ? "APROBADO" : "RECHAZADO";
+
+        // Los instrumentos llegan del navegador: se comprueban antes de
+        // asentar el ensayo.
+        const instrumentosUsados = [
+          ...new Set(resultados.map((r) => r.instrumentoId).filter((x): x is string => x !== null)),
+        ];
+        if (instrumentosUsados.length > 0) {
+          const propios = await tx.instrumentoMedicion.count({
+            where: { id: { in: instrumentosUsados }, empresaId },
+          });
+          if (propios !== instrumentosUsados.length) {
+            throw new Error("Algún instrumento no pertenece a la compañía activa.");
+          }
+        }
+      }
+
       const error = validarReanalisis({
         vencimientoActual: envasado.fechaVencimiento,
         vencimientoNuevo,
@@ -255,18 +309,6 @@ export async function registrarReanalisis(
         unidadesDisponibles: envasado.unidadesDisponibles,
       });
       if (error) throw new Error(MENSAJE_ERROR_REANALISIS[error]);
-
-      // El plan tiene que ser de la compañía activa: no se confía en el id que
-      // llega del formulario.
-      let planVersion: number | null = null;
-      if (planInspeccionId) {
-        const plan = await tx.planInspeccionCalidad.findFirst({
-          where: { id: planInspeccionId, empresaId },
-          select: { version: true },
-        });
-        if (!plan) throw new Error("El plan de inspección no pertenece a la compañía activa.");
-        planVersion = plan.version;
-      }
 
       await tx.reanalisisEnvasado.create({
         data: {
@@ -280,6 +322,9 @@ export async function registrarReanalisis(
           observaciones,
           usuarioId: auth.usuario.id,
           usuarioNombre: auth.usuario.nombre,
+          // Qué dio el re-ensayo. Sin esto, extender una vigencia es una
+          // afirmación sin evidencia.
+          resultadosCaracteristica: { create: resultados },
         },
       });
 
