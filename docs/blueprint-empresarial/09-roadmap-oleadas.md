@@ -307,3 +307,7 @@ Los dos selectores de la pantalla de trazabilidad se pueden filtrar y están aco
 ## Actualización: datos de prueba del laboratorio
 
 `seed-demo.ts` sembraba el flujo comercial completo y cero de los módulos de calidad: seis ciclos de trabajo quedaban invisibles porque el sembrador se había quedado atrás, no porque faltaran datos del negocio. `npm run seed:calidad` carga especificaciones de grasas, competidores ficticios, equivalencias, instrumentos y planes de inspección, con casos elegidos para que cada alerta tenga algo que decir: una homologación vencida, una equivalencia degradada, un instrumento vencido y otro fuera de tolerancia. Véase `docs/datos-de-prueba-calidad.md`.
+
+## Actualización: el certificado declara equipo y revalidación de vigencia
+
+Decisión del negocio (2026-09-18): el certificado de análisis imprime ahora con qué instrumento se midió cada característica y, cuando corresponde, que la vigencia de un envase fue revalidada por un re-ensayo, con sus mediciones. Lo que NO se imprime es si la calibración del equipo estaba vigente: eso el sistema lo deriva y afirmarlo en un documento que va al cliente es criterio de calidad. Véase `docs/certificado-instrumento-y-reanalisis.md`.
