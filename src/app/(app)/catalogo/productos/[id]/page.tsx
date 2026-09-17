@@ -7,7 +7,9 @@ import { formatMoneda, formatNumero } from "@/lib/format";
 import { unidadesMedidaParaSelect } from "@/lib/unidadesMedida";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import ProductoFormulario from "../ProductoFormulario";
-import { actualizarProducto } from "../actions";
+import { actualizarProducto, declararEspecificacion, quitarEspecificacion } from "../actions";
+import EspecificacionesProducto from "./EspecificacionesProducto";
+import { declaracionesParaDocumento, etiquetaEspecificacion, homologacionesPorVencer, textoDeclaracion } from "@/lib/especificaciones";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 
 export default async function EditarProductoPage({
@@ -24,14 +26,43 @@ export default async function EditarProductoPage({
   const [producto, productos, categorias, unidadesMedida] = await Promise.all([
     prisma.producto.findUnique({
       where: { id, empresaId },
-      include: { presentaciones: { orderBy: { creadoEn: "asc" } } },
+      include: {
+        presentaciones: { orderBy: { creadoEn: "asc" } },
+        especificaciones: {
+          include: { especificacion: true },
+          orderBy: [{ especificacion: { organismo: "asc" } }, { especificacion: { codigo: "asc" } }],
+        },
+      },
     }),
     prisma.producto.findMany({ where: { empresaId }, orderBy: { creadoEn: "desc" } }),
     prisma.categoria.findMany({ where: { empresaId, activo: true }, orderBy: { nombre: "asc" } }),
     unidadesMedidaParaSelect(),
   ]);
 
+  // Solo las activas se pueden declarar: desactivar una especificación
+  // significa que la empresa dejó de manejarla, y las ya declaradas se
+  // conservan porque son un hecho del pasado.
+  const especificacionesActivas = await prisma.especificacionTecnica.findMany({
+    where: { empresaId, activo: true },
+    orderBy: [{ organismo: "asc" }, { codigo: "asc" }],
+  });
+
   if (!producto) notFound();
+
+  // Las que el certificado ya no imprimiría, para marcarlas acá y que alguien
+  // cargue la renovación. Se resuelve una vez, fuera del render.
+  const vigentes = new Set(declaracionesParaDocumento(producto.especificaciones).map((e) => e.id));
+  const vencidas = new Set(
+    producto.especificaciones.filter((e) => !vigentes.has(e.id)).map((e) => e.id)
+  );
+  // Renovar una homologación toma meses. Avisar el día que vence es avisar
+  // tarde: el certificado ya dejó de imprimirla.
+  const DIAS_DE_AVISO = 90;
+  const porVencer = new Set(
+    homologacionesPorVencer(producto.especificaciones, DIAS_DE_AVISO)
+      .filter((e) => !vencidas.has(e.id))
+      .map((e) => e.id)
+  );
 
   return (
     <div>
@@ -80,6 +111,79 @@ export default async function EditarProductoPage({
           textoBoton="Guardar cambios"
         />
       </div>
+
+      {/*
+        Lo que el producto declara sobre las normas del rubro. Antes esto vivía
+        en `notasTecnicas`, texto libre: servía para leerlo y para nada más.
+      */}
+      <section className="mt-10">
+        <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
+          Especificaciones técnicas
+        </h2>
+
+        {producto.especificaciones.length > 0 && (
+          <table className="tabla mb-4">
+            <thead>
+              <tr>
+                <th>Especificación</th>
+                <th>Declaración</th>
+                <th>Vigente hasta</th>
+                <th>Declarada por</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {producto.especificaciones.map((e) => {
+                const vencida = vencidas.has(e.id);
+                return (
+                  <tr key={e.id}>
+                    <td className="font-medium">{etiquetaEspecificacion(e.especificacion)}</td>
+                    <td>{textoDeclaracion(e)}</td>
+                    <td
+                      className={
+                        vencida
+                          ? "text-red-600 dark:text-red-400 font-medium"
+                          : porVencer.has(e.id)
+                            ? "text-amber-600 dark:text-amber-400 font-medium"
+                            : ""
+                      }
+                    >
+                      {e.vigenteHasta
+                        ? new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" }).format(
+                            e.vigenteHasta
+                          )
+                        : "—"}
+                      {vencida && " — VENCIDA"}
+                      {porVencer.has(e.id) && ` — vence en menos de ${DIAS_DE_AVISO} días`}
+                    </td>
+                    <td>{e.usuarioNombre}</td>
+                    <td>
+                      <form
+                        action={async () => {
+                          "use server";
+                          await quitarEspecificacion(producto.id, e.id);
+                        }}
+                      >
+                        <button type="submit" className="text-sm text-red-600 hover:underline">
+                          Quitar
+                        </button>
+                      </form>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+
+        <EspecificacionesProducto
+          accion={declararEspecificacion.bind(null, producto.id)}
+          opciones={especificacionesActivas
+            .filter((e) => !producto.especificaciones.some((d) => d.especificacionId === e.id))
+            .map((e) => ({ id: e.id, etiqueta: etiquetaEspecificacion(e) }))}
+          catalogoVacio={especificacionesActivas.length === 0}
+        />
+      </section>
 
       <section className="mt-10">
         <div className="flex items-center justify-between">
