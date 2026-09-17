@@ -315,3 +315,7 @@ Decisión del negocio (2026-09-18): el certificado de análisis imprime ahora co
 ## Actualización: lo pendiente no frena la operación
 
 El principio que el negocio repitió tres veces —lo que falta desarrollar se agrega más adelante, pero mientras tanto la planta produce, compras recibe y ventas factura— estaba respetado en cada punto pero como decisiones sueltas, y ya había fallado una vez: la recepción retenía material sin que nadie lo hubiera decidido. `tests/la-operacion-no-se-bloquea.test.ts` lo junta en 12 pruebas que verifican que nada frene, incluida una que comprueba que ningún control nace en BLOQUEA. Véase `docs/la-operacion-no-se-bloquea.md`.
+
+## Actualización: el recall alcanza todo el lote del proveedor
+
+La pantalla de trazabilidad contestaba por recepción, pero el proveedor llama por su lote, y un lote suele entrar en varias descargas: la respuesta cubría la mitad de lo fabricado sin decir que faltaba algo. Ahora avisa cuando hay recepciones hermanas y amplía el alcance en un clic —no en silencio, porque a veces la pregunta sí es por una entrega puntual—, con el encabezado sumado sobre el alcance vigente para que no diga «recibido 300 kg» encima de un consumo de 600. `npm run seed:trazabilidad` completa el número de lote del proveedor en las recepciones sembradas, que era el dato que faltaba para poder estrenar la pantalla. Véase `docs/recall-por-lote-proveedor.md`.

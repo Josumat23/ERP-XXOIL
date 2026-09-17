@@ -12,6 +12,7 @@
     "seed:ubigeos": "tsx prisma/seed-ubigeos.ts",
     "seed:segunda-empresa": "tsx prisma/seed-segunda-empresa.ts",
     "seed:calidad": "tsx prisma/seed-calidad.ts",
+    "seed:trazabilidad": "tsx prisma/seed-trazabilidad.ts",
     "test": "node scripts/run-tests.mjs",
     "verificar": "node scripts/verificar.mjs",
     "respaldo": "node scripts/respaldo.mjs",
