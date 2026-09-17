@@ -3,6 +3,14 @@ import { prisma } from "@/lib/prisma";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { formatMoneda, formatNumero, formatFecha } from "@/lib/format";
 import { estadoCalibracion, resumenParaSemaforo } from "@/lib/calibracion";
+import { coberturaEspecificaciones, cambioDeCobertura } from "@/lib/equivalencias";
+import { declaracionesParaDocumento, homologacionesPorVencer } from "@/lib/especificaciones";
+import {
+  senalCalibraciones,
+  senalEquivalencias,
+  senalHomologaciones,
+  senalMasSevera,
+} from "@/lib/semaforo";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import GraficoLinea from "@/components/GraficoLinea";
@@ -360,16 +368,36 @@ export default async function PanelPage() {
   // Aparte del Promise.all de arriba a propósito: ese ya tiene tantas entradas
   // que TypeScript deja de inferir la tupla y devuelve una unión — los dos
   // valores llegaban con el tipo del otro.
-  const [instrumentosMedicion, configuracionPanel] = await Promise.all([
-    prisma.instrumentoMedicion.findMany({
-      where: { empresaId, activo: true },
-      include: { calibraciones: { orderBy: { fecha: "desc" } } },
-    }),
-    prisma.configuracionEmpresa.findUnique({
-      where: { empresaId },
-      select: { controlCalibracion: true },
-    }),
-  ]);
+  const [instrumentosMedicion, configuracionPanel, homologaciones, equivalencias] =
+    await Promise.all([
+      prisma.instrumentoMedicion.findMany({
+        where: { empresaId, activo: true },
+        include: { calibraciones: { orderBy: { fecha: "desc" } } },
+      }),
+      prisma.configuracionEmpresa.findUnique({
+        where: { empresaId },
+        select: { controlCalibracion: true },
+      }),
+      prisma.especificacionProducto.findMany({
+        where: { empresaId, tipo: "HOMOLOGADO" },
+        select: { tipo: true, vigenteHasta: true },
+      }),
+      prisma.equivalenciaProducto.findMany({
+        where: { empresaId },
+        include: {
+          producto: {
+            select: {
+              especificaciones: {
+                select: { especificacionId: true, tipo: true, vigenteHasta: true },
+              },
+            },
+          },
+          productoCompetencia: {
+            select: { especificaciones: { select: { especificacionId: true } } },
+          },
+        },
+      }),
+    ]);
 
   // Calidad: instrumentos que no están en condiciones de liberar un lote.
   //
@@ -381,15 +409,49 @@ export default async function PanelPage() {
     instrumentosMedicion.map((i) => estadoCalibracion(i.calibraciones))
   );
 
+  // Homologaciones: una vencida deja de imprimirse en el certificado y baja
+  // la cobertura de las equivalencias que se apoyaban en ella.
+  const vigentes = new Set(declaracionesParaDocumento(homologaciones));
+  const homologacionesVencidas = homologaciones.filter((h) => !vigentes.has(h)).length;
+  const homologacionesPorVencerCount = homologacionesPorVencer(homologaciones, 90).filter(
+    (h) => vigentes.has(h)
+  ).length;
+
+  // Equivalencias que hoy cubren menos que cuando alguien las declaró: se
+  // sigue ofreciendo un reemplazo cuya evidencia se debilitó.
+  const equivalenciasDegradadas = equivalencias.filter((eq) => {
+    const hoyCobertura = coberturaEspecificaciones(
+      eq.producto.especificaciones,
+      eq.productoCompetencia.especificaciones
+    );
+    return (
+      cambioDeCobertura(
+        { cubiertas: eq.cubiertasAlDeclarar, total: eq.totalAlDeclarar },
+        { cubiertas: hoyCobertura.cubiertas.length, total: hoyCobertura.total }
+      ).sentido === "EMPEORO"
+    );
+  }).length;
+
   // Semáforo por módulo (resumen ejecutivo).
   const semaforo = [
     {
       modulo: "Comercial",
-      indicador:
-        deltaVentas !== null
-          ? `Ventas ${deltaVentas >= 0 ? "+" : ""}${deltaVentas.toFixed(1)}% vs. mes anterior`
-          : `${facturasMes.length} facturas este mes`,
-      estado: deltaVentas === null || deltaVentas >= 0 ? "bien" : "atencion",
+      // Una equivalencia degradada va primero que la caída de ventas cuando
+      // las dos pesan igual: es algo concreto que alguien puede corregir hoy.
+      ...senalMasSevera(
+        [
+          ...senalEquivalencias(equivalenciasDegradadas),
+          {
+            indicador:
+              deltaVentas !== null
+                ? `Ventas ${deltaVentas >= 0 ? "+" : ""}${deltaVentas.toFixed(1)}% vs. mes anterior`
+                : `${facturasMes.length} facturas este mes`,
+            estado:
+              deltaVentas === null || deltaVentas >= 0 ? ("bien" as const) : ("atencion" as const),
+          },
+        ],
+        "Sin señales"
+      ),
     },
     {
       modulo: "Producción",
@@ -426,27 +488,21 @@ export default async function PanelPage() {
             ? "critico"
             : "atencion",
     },
-    ...(controlCalibracion
-      ? [
-          {
-            modulo: "Calidad",
-            indicador:
-              calibraciones.criticos > 0
-                ? `${calibraciones.criticos} instrumento(s) sin calibración vigente`
-                : calibraciones.porVencer > 0
-                  ? `${calibraciones.porVencer} instrumento(s) por vencer`
-                  : "Instrumentos calibrados",
-            // Un instrumento vencido o fuera de tolerancia no puede liberar
-            // un lote: lo que mida no se sostiene. Eso es crítico, no aviso.
-            estado:
-              calibraciones.criticos > 0
-                ? "critico"
-                : calibraciones.porVencer > 0
-                  ? "atencion"
-                  : "bien",
-          },
-        ]
-      : []),
+    // Calidad es una fila permanente: tiene dos fuentes y una de ellas —las
+    // homologaciones— no depende del control de calibración. Las señales se
+    // componen y gana la más severa, en vez de anidar ternarios por cada una.
+    {
+      modulo: "Calidad",
+      ...senalMasSevera(
+        [
+          ...(controlCalibracion
+            ? senalCalibraciones(calibraciones.criticos, calibraciones.porVencer)
+            : []),
+          ...senalHomologaciones(homologacionesVencidas, homologacionesPorVencerCount),
+        ],
+        "Sin evidencia vencida"
+      ),
+    },
   ] as const;
 
   const PILL: Record<string, string> = {
