@@ -295,3 +295,7 @@ Decisión del negocio (2026-09-17): todo insumo se compra y puede ir directo a p
 ## Actualización: aviso de inspecciones de entrada pendientes
 
 Efecto secundario del ciclo anterior: mientras la recepción retenía el material, una inspección olvidada se hacía notar sola porque producción venía a reclamar su materia prima. Al quitar el bloqueo, esa presión desapareció. El panel avisa ahora de las inspecciones sin resolver, con su antigüedad, y marca como crítico el caso en que haya material retenido. Véase `docs/aviso-inspecciones-pendientes.md`.
+
+## Actualización: `npm run verificar`
+
+La verificación local y la de CI no eran la misma lista, y la diferencia costaba ciclos de CI enteros: `prisma format --check` solo corría allá, y `lint` corre allá con `--max-warnings=0`. Un solo comando corre ahora los siete pasos de CI en el mismo orden, y una prueba lee el flujo de CI para que las dos listas no vuelvan a separarse. Véase `docs/verificar-igual-que-ci.md`.
