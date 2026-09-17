@@ -9,8 +9,10 @@ import {
   MENSAJE_ESTADO_CALIBRACION,
   calibracionVigente,
   estadoCalibracion,
+  MENSAJE_RESPALDO,
   proximaCalibracionSugerida,
   requiereAtencion,
+  respaldoDeMedicion,
 } from "@/lib/calibracion";
 import InstrumentoFormulario from "./InstrumentoFormulario";
 import CalibracionFormulario from "./CalibracionFormulario";
@@ -30,7 +32,24 @@ export default async function InstrumentosPage() {
   const [instrumentos, configuracion] = await Promise.all([
     prisma.instrumentoMedicion.findMany({
       where: { empresaId },
-      include: { calibraciones: { orderBy: { fecha: "desc" } } },
+      include: {
+        calibraciones: { orderBy: { fecha: "desc" } },
+        // Qué midió este instrumento. Es la pregunta del día que una
+        // calibración vuelve fuera de tolerancia.
+        mediciones: {
+          include: {
+            controlCalidad: {
+              select: {
+                fecha: true,
+                resultado: true,
+                loteGranel: { select: { id: true, codigo: true } },
+              },
+            },
+          },
+          orderBy: { controlCalidad: { fecha: "desc" } },
+          take: 50,
+        },
+      },
       orderBy: { codigo: "asc" },
     }),
     prisma.configuracionEmpresa.findUnique({
@@ -205,6 +224,61 @@ export default async function InstrumentosPage() {
                       ))}
                     </tbody>
                   </table>
+                )}
+
+                {instrumento.mediciones.length > 0 && (
+                  <div className="mt-4">
+                    <h3 className="text-sm font-semibold">Lotes medidos con este instrumento</h3>
+                    <p className="text-xs mb-2" style={{ color: "var(--epicor-texto-tenue)" }}>
+                      El respaldo se calcula contra el historial de arriba, no se guarda con la
+                      medición: así mejora solo cuando se carga una calibración que faltaba.
+                    </p>
+                    <table className="tabla">
+                      <thead>
+                        <tr>
+                          <th>Lote</th>
+                          <th>Fecha del ensayo</th>
+                          <th>Medición</th>
+                          <th>Valor</th>
+                          <th>Respaldo</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {instrumento.mediciones.map((m) => {
+                          const respaldo = respaldoDeMedicion(
+                            instrumento.calibraciones,
+                            m.controlCalidad.fecha
+                          );
+                          return (
+                            <tr key={m.id}>
+                              <td className="font-medium">
+                                <Link
+                                  href={`/produccion/lotes/${m.controlCalidad.loteGranel.id}`}
+                                  className="hover:underline"
+                                >
+                                  {m.controlCalidad.loteGranel.codigo}
+                                </Link>
+                              </td>
+                              <td>{fechaCorta.format(m.controlCalidad.fecha)}</td>
+                              <td>{m.nombre}</td>
+                              <td>
+                                {m.valorMedido.toString()} {m.unidadMedida}
+                              </td>
+                              <td
+                                className={
+                                  respaldo === "CALIBRADO"
+                                    ? ""
+                                    : "text-red-600 dark:text-red-400 font-medium"
+                                }
+                              >
+                                {MENSAJE_RESPALDO[respaldo]}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
 
                 <div className="mt-3">

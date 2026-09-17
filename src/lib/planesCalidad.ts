@@ -7,9 +7,19 @@ export type CaracteristicaPlanEntrada = {
   metodoEnsayo: string | null;
   obligatoria: boolean;
   esDensidad: boolean;
+  /** Instrumento con el que se espera medirla. Es el valor por omisión del
+   *  ensayo, no una obligación. */
+  instrumentoId: string | null;
 };
 
-export type LecturaCalidad = { caracteristicaId: string; valorMedido: number };
+export type LecturaCalidad = {
+  caracteristicaId: string;
+  valorMedido: number;
+  /** Con qué instrumento se tomó ESTA lectura. `null` cuando no se declaró:
+   *  es la verdad, y mentir con el del plan borraría el dato que hace falta
+   *  el día que una calibración vuelve fuera de tolerancia. */
+  instrumentoId: string | null;
+};
 
 // Unidades en que una densidad puede venir declarada. Las tres son
 // numéricamente idénticas —1 g/cm³ = 1 g/mL = 1 kg/L exactamente—, así que
@@ -32,7 +42,9 @@ function esUnidadDeDensidad(unidad: string): boolean {
  */
 export function densidadMedida(
   caracteristicas: { id: string; esDensidad: boolean }[],
-  lecturas: LecturaCalidad[]
+  // Solo lo que de verdad usa: pedir una `LecturaCalidad` completa obligaría a
+  // quien la llama a traer el instrumento, que acá no pinta nada.
+  lecturas: { caracteristicaId: string; valorMedido: number }[]
 ): number | null {
   const marcada = caracteristicas.find((c) => c.esDensidad);
   if (!marcada) return null;
@@ -69,7 +81,8 @@ export function normalizarCaracteristicasPlan(valor: string): CaracteristicaPlan
         `${nombre} alimenta la densidad del lote, así que su unidad debe ser kg/L (o g/cm³, que es la misma cifra). «${unidadMedida}» no lo es.`
       );
     }
-    return { secuencia: indice + 1, nombre, unidadMedida, limiteInferior, limiteSuperior, metodoEnsayo, obligatoria: dato.obligatoria !== false, esDensidad };
+    const instrumentoId = String(dato.instrumentoId ?? "").trim() || null;
+    return { secuencia: indice + 1, nombre, unidadMedida, limiteInferior, limiteSuperior, metodoEnsayo, obligatoria: dato.obligatoria !== false, esDensidad, instrumentoId };
   });
 
   // Dos densidades en un plan no se pueden resolver: no hay forma de decir
@@ -95,7 +108,8 @@ export function normalizarLecturasCalidad(valor: string): LecturaCalidad[] {
     const valorCrudo = dato.valorMedido;
     const valorMedido = Number(valorCrudo);
     if (!caracteristicaId || valorCrudo === "" || valorCrudo === null || valorCrudo === undefined || !Number.isFinite(valorMedido)) throw new Error("Complete todas las mediciones obligatorias con valores numéricos.");
-    return { caracteristicaId, valorMedido };
+    const instrumentoId = String(dato.instrumentoId ?? "").trim() || null;
+    return { caracteristicaId, valorMedido, instrumentoId };
   });
 }
 

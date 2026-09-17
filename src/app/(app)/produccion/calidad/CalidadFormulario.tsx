@@ -5,16 +5,20 @@ import { useActionState } from "react";
 import { registrarCalidad, type EstadoFormulario } from "./actions";
 
 type Causa = { id: string; nombre: string };
-type Plan = { id: string; version: number; nombre: string; caracteristicas: { id: string; secuencia: number; nombre: string; unidadMedida: string; limiteInferior: { toString(): string } | null; limiteSuperior: { toString(): string } | null; metodoEnsayo: string | null; obligatoria: boolean }[] };
+type Plan = { id: string; version: number; nombre: string; caracteristicas: { id: string; secuencia: number; nombre: string; unidadMedida: string; limiteInferior: { toString(): string } | null; limiteSuperior: { toString(): string } | null; metodoEnsayo: string | null; obligatoria: boolean; instrumentoId: string | null }[] };
 
 export default function CalidadFormulario({
   loteId,
   causas,
   plan,
+  instrumentosDisponibles,
 }: {
   loteId: string;
   causas: Causa[];
   plan: Plan | null;
+  /** Instrumentos activos de la compañía. Vacío = todavía no se cargó ninguno,
+   *  y entonces el selector no aparece en vez de ofrecer una lista vacía. */
+  instrumentosDisponibles: { id: string; etiqueta: string }[];
 }) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     registrarCalidad,
@@ -22,6 +26,11 @@ export default function CalidadFormulario({
   );
   const [resultado, setResultado] = useState("");
   const [lecturas, setLecturas] = useState<Record<string, string>>({});
+  // Con qué instrumento se midió cada una. Arranca en el que declara el plan
+  // y quien ensaya lo cambia si usó otro: lo que se guarda es el que usó.
+  const [instrumentos, setInstrumentos] = useState<Record<string, string>>(
+    Object.fromEntries((plan?.caracteristicas ?? []).map(c => [c.id, c.instrumentoId ?? ""]))
+  );
   const fuera = plan?.caracteristicas.some(c => {
     const valor = Number(lecturas[c.id]);
     if (!Number.isFinite(valor)) return false;
@@ -41,7 +50,7 @@ export default function CalidadFormulario({
         </p>
       )}
       <input type="hidden" name="loteId" value={loteId} />
-      {plan && <><input type="hidden" name="planId" value={plan.id} /><input type="hidden" name="lecturas" value={JSON.stringify(plan.caracteristicas.filter(c => lecturas[c.id] !== "" && lecturas[c.id] !== undefined).map(c => ({ caracteristicaId: c.id, valorMedido: lecturas[c.id] })))} /><div className="rounded-md border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-900 p-3"><p className="font-medium text-sm">{plan.nombre} · versión {plan.version}</p><div className="mt-3 grid gap-3 md:grid-cols-2">{plan.caracteristicas.map(c => <label key={c.id} className="text-sm"><span className="block font-medium">{c.secuencia}. {c.nombre}{c.obligatoria ? " *" : ""}</span><span className="block text-xs text-neutral-500 mb-1">Especificación: {c.limiteInferior?.toString() ?? "−∞"} a {c.limiteSuperior?.toString() ?? "+∞"} {c.unidadMedida}{c.metodoEnsayo ? ` · ${c.metodoEnsayo}` : ""}</span><div className="flex items-center gap-2"><input type="number" step="any" required={c.obligatoria} value={lecturas[c.id] ?? ""} onChange={e => setLecturas(v => ({ ...v, [c.id]: e.target.value }))} className="campo-input w-40" /><span>{c.unidadMedida}</span></div></label>)}</div><p className={`mt-3 text-sm font-medium ${resultadoCalculado === "RECHAZADO" ? "text-red-600" : resultadoCalculado === "APROBADO" ? "text-green-700" : "text-neutral-500"}`}>{resultadoCalculado ? `Resultado calculado: ${resultadoCalculado === "APROBADO" ? "Aprobado" : "Rechazado"}` : "Complete las mediciones para calcular el resultado."}</p></div></>}
+      {plan && <><input type="hidden" name="planId" value={plan.id} /><input type="hidden" name="lecturas" value={JSON.stringify(plan.caracteristicas.filter(c => lecturas[c.id] !== "" && lecturas[c.id] !== undefined).map(c => ({ caracteristicaId: c.id, valorMedido: lecturas[c.id], instrumentoId: instrumentos[c.id] ?? "" })))} /><div className="rounded-md border border-blue-200 bg-blue-50/60 dark:bg-blue-950/20 dark:border-blue-900 p-3"><p className="font-medium text-sm">{plan.nombre} · versión {plan.version}</p><div className="mt-3 grid gap-3 md:grid-cols-2">{plan.caracteristicas.map(c => <label key={c.id} className="text-sm"><span className="block font-medium">{c.secuencia}. {c.nombre}{c.obligatoria ? " *" : ""}</span><span className="block text-xs text-neutral-500 mb-1">Especificación: {c.limiteInferior?.toString() ?? "−∞"} a {c.limiteSuperior?.toString() ?? "+∞"} {c.unidadMedida}{c.metodoEnsayo ? ` · ${c.metodoEnsayo}` : ""}</span><div className="flex items-center gap-2"><input type="number" step="any" required={c.obligatoria} value={lecturas[c.id] ?? ""} onChange={e => setLecturas(v => ({ ...v, [c.id]: e.target.value }))} className="campo-input w-40" /><span>{c.unidadMedida}</span></div>{instrumentosDisponibles.length > 0 && <select value={instrumentos[c.id] ?? ""} onChange={e => setInstrumentos(v => ({ ...v, [c.id]: e.target.value }))} aria-label={`Instrumento con el que se midió ${c.nombre}`} className="campo-input mt-1 w-full text-xs"><option value="">Sin declarar</option>{instrumentosDisponibles.map(x => <option key={x.id} value={x.id}>{x.etiqueta}</option>)}</select>}</label>)}</div><p className={`mt-3 text-sm font-medium ${resultadoCalculado === "RECHAZADO" ? "text-red-600" : resultadoCalculado === "APROBADO" ? "text-green-700" : "text-neutral-500"}`}>{resultadoCalculado ? `Resultado calculado: ${resultadoCalculado === "APROBADO" ? "Aprobado" : "Rechazado"}` : "Complete las mediciones para calcular el resultado."}</p></div></>}
       <div className="flex flex-wrap items-end gap-3">
         <label className="flex flex-col gap-1 text-sm">
           <span className="font-medium text-neutral-700 dark:text-neutral-300">Resultado</span>

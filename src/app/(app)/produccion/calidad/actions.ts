@@ -66,13 +66,17 @@ export async function registrarCalidad(
       // declara cuál de sus características lo es. Gobierna la conversión a
       // litros de cada comprobante que salga de este lote.
       let densidadDelEnsayo: number | null = null;
-      let resultados: { secuencia: number; nombre: string; unidadMedida: string; limiteInferior: number | null; limiteSuperior: number | null; metodoEnsayo: string | null; valorMedido: number; conforme: boolean }[] = [];
+      let resultados: { secuencia: number; nombre: string; unidadMedida: string; limiteInferior: number | null; limiteSuperior: number | null; metodoEnsayo: string | null; valorMedido: number; conforme: boolean; instrumentoId: string | null }[] = [];
       const plan = await tx.planInspeccionCalidad.findFirst({ where: { productoId: lote.formula.productoId, empresaId: auth.usuario.empresaId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } });
       if (plan && planId !== plan.id) throw new Error("Debe evaluar el lote con el plan de inspección vigente. Actualice la página.");
       if (!plan && planId) throw new Error("El plan de inspección ya no está vigente para este producto. Actualice la página.");
       if (plan) {
         const lecturas = normalizarLecturasCalidad(String(formData.get("lecturas") ?? ""));
         const porId = new Map(lecturas.map(l => [l.caracteristicaId, l.valorMedido]));
+        // Con qué instrumento se tomó CADA lectura. Si el ensayo no lo dice,
+        // rige el que el plan declara — y si el plan tampoco, queda en null,
+        // que es la verdad: no se sabe.
+        const instrumentoPorId = new Map(lecturas.map(l => [l.caracteristicaId, l.instrumentoId]));
         const idsPlan = new Set(plan.caracteristicas.map(c => c.id));
         if (new Set(lecturas.map(l => l.caracteristicaId)).size !== lecturas.length || lecturas.some(l => !idsPlan.has(l.caracteristicaId)) || plan.caracteristicas.some(c => c.obligatoria && !porId.has(c.id))) throw new Error("Las mediciones no corresponden exactamente al plan vigente.");
         resultados = plan.caracteristicas.filter(c => porId.has(c.id)).map(c => {
@@ -80,8 +84,17 @@ export async function registrarCalidad(
           if (valorMedido === undefined) throw new Error(`Falta la medición de ${c.nombre}.`);
           const minimo = c.limiteInferior === null ? null : c.limiteInferior.toNumber();
           const maximo = c.limiteSuperior === null ? null : c.limiteSuperior.toNumber();
-          return { secuencia: c.secuencia, nombre: c.nombre, unidadMedida: c.unidadMedida, limiteInferior: minimo, limiteSuperior: maximo, metodoEnsayo: c.metodoEnsayo, valorMedido, conforme: valorCumpleEspecificacion(valorMedido, minimo, maximo) };
+          return { secuencia: c.secuencia, nombre: c.nombre, unidadMedida: c.unidadMedida, limiteInferior: minimo, limiteSuperior: maximo, metodoEnsayo: c.metodoEnsayo, valorMedido, conforme: valorCumpleEspecificacion(valorMedido, minimo, maximo), instrumentoId: instrumentoPorId.get(c.id) ?? c.instrumentoId };
         });
+        // Los instrumentos llegan del navegador: se comprueban antes de
+        // asentar el ensayo.
+        const instrumentosUsados = [...new Set(resultados.map(r => r.instrumentoId).filter((x): x is string => x !== null))];
+        if (instrumentosUsados.length > 0) {
+          const propios = await tx.instrumentoMedicion.count({
+            where: { id: { in: instrumentosUsados }, empresaId: auth.usuario.empresaId },
+          });
+          if (propios !== instrumentosUsados.length) throw new Error("Algún instrumento no pertenece a la empresa activa.");
+        }
         resultado = resultados.every(r => r.conforme) ? ResultadoCalidad.APROBADO : ResultadoCalidad.RECHAZADO;
         planVersion = plan.version;
         // Se toma aunque el lote salga rechazado: es un hecho medido, y un

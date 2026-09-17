@@ -2604,10 +2604,13 @@ test("planes de calidad validan especificaciones y mediciones", () => {
   const caracteristicas = normalizarCaracteristicasPlan(JSON.stringify([
     { nombre: "Viscosidad", unidadMedida: "cSt", limiteInferior: "90", limiteSuperior: "110", metodoEnsayo: "ASTM D445", obligatoria: true },
   ]));
-  // `esDensidad` sale en false sin que el plan lo pida: es lo que hace que los
-  // planes anteriores al 2026-09-16 se comporten igual que siempre.
-  assert.deepEqual(caracteristicas[0], { secuencia: 1, nombre: "Viscosidad", unidadMedida: "cSt", limiteInferior: 90, limiteSuperior: 110, metodoEnsayo: "ASTM D445", obligatoria: true, esDensidad: false });
-  assert.deepEqual(normalizarLecturasCalidad('[{"caracteristicaId":"visc","valorMedido":"100.5"}]'), [{ caracteristicaId: "visc", valorMedido: 100.5 }]);
+  // `esDensidad` e `instrumentoId` salen en su valor neutro sin que el plan los
+  // pida: es lo que hace que los planes anteriores se comporten igual que
+  // siempre.
+  assert.deepEqual(caracteristicas[0], { secuencia: 1, nombre: "Viscosidad", unidadMedida: "cSt", limiteInferior: 90, limiteSuperior: 110, metodoEnsayo: "ASTM D445", obligatoria: true, esDensidad: false, instrumentoId: null });
+  // `instrumentoId` en null cuando el ensayo no lo declara: es «no se sabe»,
+  // no una cadena vacía que se guardaría como un id inválido.
+  assert.deepEqual(normalizarLecturasCalidad('[{"caracteristicaId":"visc","valorMedido":"100.5"}]'), [{ caracteristicaId: "visc", valorMedido: 100.5, instrumentoId: null }]);
   assert.equal(valorCumpleEspecificacion(100, 90, 110), true);
   assert.equal(valorCumpleEspecificacion(111, 90, 110), false);
   assert.throws(() => normalizarCaracteristicasPlan('[{"nombre":"Viscosidad","unidadMedida":"cSt"}]'), /al menos un límite/);

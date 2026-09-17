@@ -21,6 +21,15 @@ export async function crearVersionPlan(_estado: EstadoPlan, formData: FormData):
     await prisma.$transaction(async (tx) => {
       const producto = await tx.producto.findFirst({ where: { id: productoId, empresaId: auth.usuario.empresaId, activo: true } });
       if (!producto) throw new Error("El producto no existe o no está activo.");
+      // Los instrumentos llegan del formulario: se comprueba que todos sean de
+      // la compañía activa antes de guardarlos.
+      const instrumentosPedidos = [...new Set(caracteristicas.map((c) => c.instrumentoId).filter((x): x is string => x !== null))];
+      if (instrumentosPedidos.length > 0) {
+        const propios = await tx.instrumentoMedicion.count({
+          where: { id: { in: instrumentosPedidos }, empresaId: auth.usuario.empresaId },
+        });
+        if (propios !== instrumentosPedidos.length) throw new Error("Algún instrumento no pertenece a la empresa activa.");
+      }
       const ultima = await tx.planInspeccionCalidad.findFirst({ where: { productoId }, orderBy: { version: "desc" } });
       const ahora = new Date();
       await tx.planInspeccionCalidad.updateMany({ where: { productoId, activo: true }, data: { activo: false, vigenteHasta: ahora } });
