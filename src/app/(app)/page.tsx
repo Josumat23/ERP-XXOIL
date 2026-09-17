@@ -2,7 +2,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { formatMoneda, formatNumero, formatFecha } from "@/lib/format";
-import { estadoCalibracion, resumenParaSemaforo } from "@/lib/calibracion";
+import { avisaAlgo, estadoCalibracion, resumenParaSemaforo } from "@/lib/calibracion";
 import { coberturaEspecificaciones, cambioDeCobertura } from "@/lib/equivalencias";
 import { declaracionesParaDocumento, homologacionesPorVencer } from "@/lib/especificaciones";
 import {
@@ -379,7 +379,7 @@ export default async function PanelPage() {
       }),
       prisma.configuracionEmpresa.findUnique({
         where: { empresaId },
-        select: { controlCalibracion: true },
+        select: { nivelControlCalibracion: true },
       }),
       prisma.especificacionProducto.findMany({
         where: { empresaId, tipo: "HOMOLOGADO" },
@@ -411,7 +411,7 @@ export default async function PanelPage() {
   // Está acá y no solo en su pantalla porque una alerta que hay que ir a
   // buscar no alerta a nadie — el mismo defecto que quedó anotado con las
   // homologaciones por vencer y con las equivalencias degradadas.
-  const controlCalibracion = configuracionPanel?.controlCalibracion ?? false;
+  const avisaCalibracion = avisaAlgo(configuracionPanel?.nivelControlCalibracion ?? "NO_APLICA");
   const calibraciones = resumenParaSemaforo(
     instrumentosMedicion.map((i) => estadoCalibracion(i.calibraciones))
   );
@@ -505,7 +505,7 @@ export default async function PanelPage() {
       modulo: "Calidad",
       ...senalMasSevera(
         [
-          ...(controlCalibracion
+          ...(avisaCalibracion
             ? [
                 ...senalReensayos(porReensayar.total, porReensayar.despachados),
                 ...senalCalibraciones(calibraciones.criticos, calibraciones.porVencer),

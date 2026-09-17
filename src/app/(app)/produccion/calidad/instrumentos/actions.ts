@@ -9,7 +9,7 @@ import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { esValorEnum } from "@/lib/enums";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
-import { MENSAJE_ERROR_CALIBRACION, validarCalibracion } from "@/lib/calibracion";
+import { MENSAJE_ERROR_CALIBRACION, NIVELES_CONTROL_CALIBRACION, validarCalibracion, type NivelControlCalibracion } from "@/lib/calibracion";
 
 export type EstadoFormulario = { error?: string; ok?: boolean };
 
@@ -143,21 +143,30 @@ export async function alternarActivoInstrumento(id: string, activo: boolean) {
 }
 
 /**
- * Enciende o apaga el control de calibración para la compañía activa.
+ * Fija cuánto pesa el control de calibración para la compañía activa.
  *
- * Nace apagado: hasta que exista el laboratorio, alertar sobre calibraciones
- * sería ruido. Lo que gobierna es el control, no el registro — el maestro se
- * puede cargar igual con el control apagado.
+ * Tres niveles por decisión del negocio (2026-09-17): `NO_APLICA` para que el
+ * proceso siga su curso mientras el laboratorio se implementa, `ADVIERTE` para
+ * que informe sin frenar, y `BLOQUEA` para que no deje liberar. Nace en
+ * `NO_APLICA`: un control que frena producción antes de que el laboratorio
+ * esté en régimen se apaga, y con él se apaga todo lo demás.
+ *
+ * Lo que gobierna es el control, no el registro: el maestro de instrumentos y
+ * las calibraciones se cargan igual en cualquier nivel.
  */
-export async function alternarControlCalibracion(activo: boolean) {
+export async function fijarNivelControlCalibracion(nivel: NivelControlCalibracion) {
   const auth = await requerirRol(["PRODUCCION", "GERENCIA"]);
   if ("error" in auth) return;
   if (!(await puedeRealizar(auth.usuario, "produccion", "editar"))) return;
+  // El nivel llega del formulario: se comprueba contra los que existen en vez
+  // de escribir lo que venga.
+  if (!NIVELES_CONTROL_CALIBRACION.includes(nivel)) return;
   const empresaId = await obtenerEmpresaActivaId();
   await prisma.configuracionEmpresa.update({
     where: { empresaId },
-    data: { controlCalibracion: activo },
+    data: { nivelControlCalibracion: nivel },
   });
   revalidatePath("/produccion/calidad/instrumentos");
+  revalidatePath("/produccion/calidad");
   revalidatePath("/");
 }

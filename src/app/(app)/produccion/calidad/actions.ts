@@ -7,6 +7,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { postearAsiento } from "@/lib/contabilidad";
 import { densidadMedida, normalizarLecturasCalidad, resultadosDelEnsayo } from "@/lib/planesCalidad";
 import { EstadoLote, ResultadoCalidad } from "@/generated/prisma/client";
+import { controlAlLiberar, respaldoDeMedicion } from "@/lib/calibracion";
 
 export type EstadoFormulario = { error?: string };
 
@@ -81,10 +82,31 @@ export async function registrarCalidad(
         // asentar el ensayo.
         const instrumentosUsados = [...new Set(resultados.map(r => r.instrumentoId).filter((x): x is string => x !== null))];
         if (instrumentosUsados.length > 0) {
-          const propios = await tx.instrumentoMedicion.count({
+          const usados = await tx.instrumentoMedicion.findMany({
             where: { id: { in: instrumentosUsados }, empresaId: auth.usuario.empresaId },
+            select: {
+              codigo: true,
+              calibraciones: { select: { fecha: true, vigenteHasta: true, resultado: true } },
+            },
           });
-          if (propios !== instrumentosUsados.length) throw new Error("Algún instrumento no pertenece a la empresa activa.");
+          if (usados.length !== instrumentosUsados.length) throw new Error("Algún instrumento no pertenece a la empresa activa.");
+
+          // Y el control que la empresa eligió. El nivel se lee acá y no se
+          // confía en lo que diga el formulario: bloquear o dejar pasar es una
+          // decisión de la compañía, no del navegador que envía el ensayo.
+          const configuracion = await tx.configuracionEmpresa.findUnique({
+            where: { empresaId: auth.usuario.empresaId },
+            select: { nivelControlCalibracion: true },
+          });
+          const ahora = new Date();
+          const sinRespaldo = usados
+            .filter(i => respaldoDeMedicion(i.calibraciones, ahora) !== "CALIBRADO")
+            .map(i => i.codigo);
+          const politica = controlAlLiberar(
+            configuracion?.nivelControlCalibracion ?? "NO_APLICA",
+            sinRespaldo
+          );
+          if (politica.bloquea) throw new Error(politica.aviso ?? "El control de calibración no permite liberar este lote.");
         }
         resultado = resultados.every(r => r.conforme) ? ResultadoCalidad.APROBADO : ResultadoCalidad.RECHAZADO;
         planVersion = plan.version;

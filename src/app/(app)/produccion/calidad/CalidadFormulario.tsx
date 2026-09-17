@@ -3,6 +3,12 @@
 import { useState } from "react";
 import { useActionState } from "react";
 import { registrarCalidad, type EstadoFormulario } from "./actions";
+import {
+  controlAlLiberar,
+  requiereAtencion,
+  type EstadoCalibracion,
+  type NivelControlCalibracion,
+} from "@/lib/calibracion";
 
 type Causa = { id: string; nombre: string };
 type Plan = { id: string; version: number; nombre: string; caracteristicas: { id: string; secuencia: number; nombre: string; unidadMedida: string; limiteInferior: { toString(): string } | null; limiteSuperior: { toString(): string } | null; metodoEnsayo: string | null; obligatoria: boolean; instrumentoId: string | null }[] };
@@ -12,13 +18,17 @@ export default function CalidadFormulario({
   causas,
   plan,
   instrumentosDisponibles,
+  nivelControl,
 }: {
   loteId: string;
   causas: Causa[];
   plan: Plan | null;
   /** Instrumentos activos de la compañía. Vacío = todavía no se cargó ninguno,
    *  y entonces el selector no aparece en vez de ofrecer una lista vacía. */
-  instrumentosDisponibles: { id: string; etiqueta: string }[];
+  instrumentosDisponibles: { id: string; etiqueta: string; codigo: string; estado: EstadoCalibracion }[];
+  /** Qué hace el control al liberar. El servidor vuelve a decidirlo: acá solo
+   *  se avisa ANTES, que es cuando todavía se puede elegir otro instrumento. */
+  nivelControl: NivelControlCalibracion;
 }) {
   const [estado, formAction, enviando] = useActionState<EstadoFormulario, FormData>(
     registrarCalidad,
@@ -38,6 +48,20 @@ export default function CalidadFormulario({
     const maximo = c.limiteSuperior === null ? null : Number(c.limiteSuperior.toString());
     return (minimo !== null && valor < minimo) || (maximo !== null && valor > maximo);
   }) ?? false;
+  // Los instrumentos que se están por usar y no tienen calibración vigente.
+  // Se calcula sobre los ELEGIDOS, no sobre todos los del laboratorio: que
+  // haya un termómetro vencido en un cajón no tiene nada que ver con este
+  // ensayo.
+  const sinRespaldo = [
+    ...new Set(
+      Object.values(instrumentos)
+        .filter(Boolean)
+        .map(id => instrumentosDisponibles.find(x => x.id === id))
+        .filter((x): x is NonNullable<typeof x> => Boolean(x) && requiereAtencion(x!.estado))
+        .map(x => x.codigo)
+    ),
+  ];
+  const control = controlAlLiberar(nivelControl, sinRespaldo);
   const completo = plan?.caracteristicas.every(c => !c.obligatoria || (lecturas[c.id] !== "" && lecturas[c.id] !== undefined && Number.isFinite(Number(lecturas[c.id])))) ?? false;
   const resultadoCalculado = plan ? (completo ? (fuera ? "RECHAZADO" : "APROBADO") : "") : resultado;
   const esRechazo = resultadoCalculado === "RECHAZADO";
@@ -113,7 +137,28 @@ export default function CalidadFormulario({
         </div>
       )}
       {!plan && <p className="text-xs text-amber-700">Este producto no tiene plan vigente; se permite la evaluación heredada. Publique un plan para exigir mediciones.</p>}
-      <button type="submit" disabled={enviando || Boolean(plan && !completo)} className="boton-primario self-start">
+      {/*
+        El aviso va ANTES de liberar, que es cuando todavía sirve: quien ensaya
+        puede medir con otro instrumento o cargar el certificado que falta. Una
+        advertencia posterior solo informa de algo ya hecho.
+      */}
+      {control.aviso && (
+        <p
+          role="alert"
+          className={`text-sm rounded-md px-3 py-2 border ${
+            control.bloquea
+              ? "text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-950/40 border-red-200 dark:border-red-900"
+              : "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-900"
+          }`}
+        >
+          {control.aviso}
+        </p>
+      )}
+      <button
+        type="submit"
+        disabled={enviando || Boolean(plan && !completo) || control.bloquea}
+        className="boton-primario self-start"
+      >
         {enviando ? "Registrando..." : "Registrar resultado"}
       </button>
     </form>
