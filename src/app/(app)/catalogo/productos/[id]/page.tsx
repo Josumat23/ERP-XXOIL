@@ -11,6 +11,7 @@ import { actualizarProducto, declararEspecificacion, quitarEspecificacion } from
 import EspecificacionesProducto from "./EspecificacionesProducto";
 import { declaracionesParaDocumento, etiquetaEspecificacion, homologacionesPorVencer, textoDeclaracion } from "@/lib/especificaciones";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { coberturaEspecificaciones } from "@/lib/equivalencias";
 
 export default async function EditarProductoPage({
   params,
@@ -31,6 +32,14 @@ export default async function EditarProductoPage({
         especificaciones: {
           include: { especificacion: true },
           orderBy: [{ especificacion: { organismo: "asc" } }, { especificacion: { codigo: "asc" } }],
+        },
+        equivalencias: {
+          include: {
+            productoCompetencia: {
+              include: { especificaciones: { select: { especificacionId: true } } },
+            },
+          },
+          orderBy: { creadoEn: "asc" },
         },
       },
     }),
@@ -63,6 +72,17 @@ export default async function EditarProductoPage({
       .filter((e) => !vencidas.has(e.id))
       .map((e) => e.id)
   );
+
+  // A qué productos de la competencia reemplaza. La cobertura se recalcula
+  // acá igual que en la ficha del competidor: es la de HOY, no la del día en
+  // que alguien la declaró.
+  const reemplaza = producto.equivalencias.map((eq) => ({
+    ...eq,
+    cobertura: coberturaEspecificaciones(
+      producto.especificaciones,
+      eq.productoCompetencia.especificaciones
+    ),
+  }));
 
   return (
     <div>
@@ -184,6 +204,54 @@ export default async function EditarProductoPage({
           catalogoVacio={especificacionesActivas.length === 0}
         />
       </section>
+
+      {/*
+        La vista inversa de la ficha del competidor: qué reemplaza este
+        producto. Un vendedor que mira nuestro producto necesita saberlo sin
+        recorrer la competencia una por una.
+      */}
+      {reemplaza.length > 0 && (
+        <section className="mt-10">
+          <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
+            Reemplaza a
+          </h2>
+          <table className="tabla">
+            <thead>
+              <tr>
+                <th>Producto de la competencia</th>
+                <th>Cobertura hoy</th>
+                <th>Motivo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {reemplaza.map((eq) => (
+                <tr key={eq.id}>
+                  <td className="font-medium">
+                    <Link
+                      href={`/catalogo/competencia/${eq.productoCompetenciaId}`}
+                      className="hover:underline"
+                    >
+                      {eq.productoCompetencia.marca} {eq.productoCompetencia.nombre}
+                    </Link>
+                  </td>
+                  <td
+                    className={
+                      eq.cobertura.esTotal
+                        ? ""
+                        : "text-amber-600 dark:text-amber-400 font-medium"
+                    }
+                  >
+                    {eq.cobertura.cubiertas.length} de {eq.cobertura.total}
+                  </td>
+                  <td style={{ color: "var(--epicor-texto-tenue)" }}>
+                    {eq.justificacion ?? "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       <section className="mt-10">
         <div className="flex items-center justify-between">
