@@ -312,6 +312,86 @@ model Categoria {
 // Segmento de negocio al que apunta comercialmente el producto (así organiza
 // su catálogo la competencia del rubro, ej. Vistony: automotriz/industrial/
 // minero/agrícola). No sustituye a Categoria (línea de producto interna).
+// Catálogo de especificaciones que el negocio declara manejar. Nace vacío: qué
+// códigos existen y cuáles siguen vigentes es conocimiento del rubro que
+// cambia, y sembrarlo sería decidir por XXOIL.
+model EspecificacionTecnica {
+  id          String                  @id @default(cuid())
+  empresaId   String
+  empresa     Empresa                 @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  organismo   OrganismoEspecificacion
+  codigo      String // CK-4, A3/B4, 228.31, VG 220
+  // Solo para OEM: quién la emite. «228.31» no dice nada sin «Mercedes-Benz».
+  emisor      String?
+  descripcion String?
+  activo      Boolean                 @default(true)
+  creadoEn    DateTime                @default(now())
+
+  productos EspecificacionProducto[]
+
+  @@unique([empresaId, organismo, codigo])
+  @@index([empresaId, activo])
+  @@map("especificaciones_tecnicas")
+}
+
+// Qué declara cada producto sobre cada especificación.
+model EspecificacionProducto {
+  id               String                         @id @default(cuid())
+  empresaId        String
+  empresa          Empresa                        @relation(fields: [empresaId], references: [id], onDelete: Restrict)
+  productoId       String
+  producto         Producto                       @relation(fields: [productoId], references: [id], onDelete: Cascade)
+  especificacionId String
+  especificacion   EspecificacionTecnica          @relation(fields: [especificacionId], references: [id], onDelete: Restrict)
+  tipo             TipoCumplimientoEspecificacion
+  // Obligatorios cuando tipo = HOMOLOGADO. Una aprobación sin número no se
+  // puede verificar, y sin vigencia no se sabe si sigue en pie: quien lee el
+  // certificado tendría que creer en la palabra impresa.
+  numeroAprobacion String?
+  vigenteHasta     DateTime?
+  usuarioId        String
+  usuarioNombre    String
+  creadoEn         DateTime                       @default(now())
+
+  @@unique([productoId, especificacionId])
+  @@index([empresaId, productoId])
+  @@map("especificaciones_producto")
+}
+
+// Organismos que emiten especificaciones de lubricantes. Son los cuerpos, no
+// los códigos: API existe y seguirá existiendo, pero que hoy rija CK-4 y ya no
+// CJ-4 es conocimiento del rubro que cambia. Por eso el catálogo de códigos
+// nace vacío y lo carga el negocio — sembrarlo sería declarar por XXOIL qué
+// especificaciones están vigentes y cuáles cumple.
+enum OrganismoEspecificacion {
+  API // American Petroleum Institute — SN, SP, CK-4, GL-5
+  ACEA // constructores europeos — A3/B4, C3, E9
+  JASO // Japanese Automotive Standards Organization — MA2, MB, FC
+  SAE // grado de viscosidad — 15W-40, 80W-90
+  ISO // ISO VG de aceites industriales — VG 68, VG 220
+  NLGI // consistencia de grasas — 000 a 6
+  OEM // fabricante de equipo — MB 228.31, VW 502.00, Cummins CES 20086
+  OTRO
+}
+
+// Cumplir y estar homologado NO son lo mismo, y el rubro los distingue.
+//
+// CUMPLE es una declaración propia: «cumple los requisitos de API CK-4». La
+// hace el fabricante bajo su responsabilidad y no lleva número.
+//
+// HOMOLOGADO es una aprobación que un tercero otorgó, con su número y su
+// vigencia: «MB-Approval 228.31 n.º XXXXX». Quien lee el documento puede ir a
+// verificarla contra la lista del organismo.
+//
+// Aplanar las dos en un campo de texto —que es lo que termina pasando cuando
+// no hay estructura— deja que un documento afirme una aprobación que nadie
+// otorgó. El sistema aporta la distinción; cuál corresponde a cada producto lo
+// declara el negocio.
+enum TipoCumplimientoEspecificacion {
+  CUMPLE
+  HOMOLOGADO
+}
+
 enum SegmentoMercado {
   AUTOMOTRIZ
   INDUSTRIAL
@@ -356,10 +436,11 @@ model Producto {
   creadoEn               DateTime         @default(now())
   actualizadoEn          DateTime         @updatedAt
 
-  categoria        Categoria               @relation(fields: [categoriaId], references: [id])
+  categoria        Categoria                @relation(fields: [categoriaId], references: [id])
   presentaciones   Presentacion[]
   formulas         Formula[]
   planesInspeccion PlanInspeccionCalidad[]
+  especificaciones EspecificacionProducto[]
 
   @@unique([empresaId, codigo])
   @@map("productos")
@@ -5687,6 +5768,9 @@ model Empresa {
   direccionClientes          DireccionCliente[]
   contactoClientes           ContactoCliente[]
   cuentaBancariaClientes     CuentaBancariaCliente[]
+
+  especificacionesTecnicas EspecificacionTecnica[]
+  especificacionesProducto EspecificacionProducto[]
 
   @@map("empresas")
 }

@@ -17,6 +17,10 @@ import { requerirRol } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
 import { registrarAuditoriaMaestro } from "@/lib/auditoriaMaestros";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { esValorEnum } from "@/lib/enums";
+import { crearFechaCalendarioLocal } from "@/lib/fechas";
+import { TipoCumplimientoEspecificacion } from "@/generated/prisma/client";
+import { MENSAJE_ERROR_DECLARACION, validarDeclaracion } from "@/lib/especificaciones";
 
 export type EstadoFormulario = { error?: string };
 
@@ -177,4 +181,103 @@ export async function alternarActivoProducto(id: string, activo: boolean) {
     await registrarAuditoriaMaestro(tx, { entidad: "Producto", registroId: id, accion: activo ? "ACTIVAR" : "DESACTIVAR", antes, despues, usuario: auth.usuario });
   });
   revalidatePath("/catalogo/productos");
+}
+
+// ---------------------------------------------------------------------------
+// Especificaciones técnicas del producto (API, ACEA, JASO, SAE, ISO, NLGI, OEM).
+//
+// El sistema no decide cuáles cumple un producto — eso lo sabe el negocio y no
+// hay forma de deducirlo. Lo que sí impide es que la declaración se contradiga:
+// una homologación sin número no se puede verificar, y un «cumple» con número
+// de aprobación es casi seguro un tipo mal elegido.
+// ---------------------------------------------------------------------------
+
+export async function declararEspecificacion(
+  productoId: string,
+  _prevState: EstadoFormulario,
+  formData: FormData
+): Promise<EstadoFormulario> {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return auth;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) {
+    return { error: "Su grupo de seguridad no permite editar registros en Materiales." };
+  }
+
+  const especificacionId = String(formData.get("especificacionId") ?? "").trim();
+  const tipoCrudo = String(formData.get("tipo") ?? "");
+  if (!especificacionId) return { error: "Seleccione la especificación." };
+  if (!esValorEnum(Object.values(TipoCumplimientoEspecificacion), tipoCrudo)) {
+    return { error: "Indique si el producto la cumple o está homologado." };
+  }
+  const numeroAprobacion = String(formData.get("numeroAprobacion") ?? "").trim() || null;
+  const vigenteHastaCrudo = String(formData.get("vigenteHasta") ?? "").trim();
+  const vigenteHasta = vigenteHastaCrudo ? crearFechaCalendarioLocal(vigenteHastaCrudo) : null;
+  if (vigenteHastaCrudo && !vigenteHasta) return { error: "La fecha de vigencia no es válida." };
+
+  const error = validarDeclaracion({ tipo: tipoCrudo, numeroAprobacion, vigenteHasta });
+  if (error) return { error: MENSAJE_ERROR_DECLARACION[error] };
+
+  const empresaId = await obtenerEmpresaActivaId();
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Ni el producto ni la especificación se toman del formulario sin
+      // comprobar que son de la compañía activa.
+      const producto = await tx.producto.findFirst({ where: { id: productoId, empresaId }, select: { id: true } });
+      if (!producto) throw new Error("El producto no pertenece a la empresa activa.");
+      const especificacion = await tx.especificacionTecnica.findFirst({
+        where: { id: especificacionId, empresaId, activo: true },
+        select: { id: true },
+      });
+      if (!especificacion) throw new Error("La especificación no pertenece a la empresa activa o está inactiva.");
+
+      const registro = await tx.especificacionProducto.create({
+        data: {
+          empresaId,
+          productoId,
+          especificacionId,
+          tipo: tipoCrudo,
+          numeroAprobacion,
+          vigenteHasta,
+          usuarioId: auth.usuario.id,
+          usuarioNombre: auth.usuario.nombre,
+        },
+      });
+      await registrarAuditoriaMaestro(tx, {
+        empresaId,
+        entidad: "EspecificacionProducto",
+        registroId: registro.id,
+        accion: "CREAR",
+        despues: registro,
+        usuario: auth.usuario,
+      });
+    });
+  } catch (e) {
+    if (esErrorDuplicado(e)) return { error: "El producto ya declara esa especificación." };
+    if (e instanceof Error) return { error: e.message };
+    throw e;
+  }
+
+  revalidatePath(`/catalogo/productos/${productoId}`);
+  return {};
+}
+
+export async function quitarEspecificacion(productoId: string, id: string) {
+  const auth = await requerirRol(["ALMACEN"]);
+  if ("error" in auth) return;
+  if (!(await puedeRealizar(auth.usuario, "materiales", "editar"))) return;
+  const empresaId = await obtenerEmpresaActivaId();
+  await prisma.$transaction(async (tx) => {
+    const antes = await tx.especificacionProducto.findFirst({ where: { id, empresaId, productoId } });
+    if (!antes) return;
+    await tx.especificacionProducto.delete({ where: { id } });
+    await registrarAuditoriaMaestro(tx, {
+      empresaId,
+      entidad: "EspecificacionProducto",
+      registroId: id,
+      accion: "ELIMINAR",
+      antes,
+      usuario: auth.usuario,
+    });
+  });
+  revalidatePath(`/catalogo/productos/${productoId}`);
 }
