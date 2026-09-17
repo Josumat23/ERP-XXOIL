@@ -473,9 +473,11 @@ model InstrumentoMedicion {
   notas                     String?
   creadoEn                  DateTime @default(now())
 
-  calibraciones       CalibracionInstrumento[]
-  caracteristicasPlan CaracteristicaPlanCalidad[]
-  mediciones          ResultadoCaracteristicaCalidad[]
+  calibraciones             CalibracionInstrumento[]
+  caracteristicasPlan       CaracteristicaPlanCalidad[]
+  mediciones                ResultadoCaracteristicaCalidad[]
+  caracteristicasPlanInsumo CaracteristicaPlanInsumo[]
+  medicionesInspeccion      MedicionInspeccionCompra[]
 
   @@unique([empresaId, codigo])
   @@index([empresaId, activo])
@@ -3255,8 +3257,12 @@ model CaracteristicaPlanInsumo {
   limiteSuperior Decimal?
   metodoEnsayo   String?
   obligatoria    Boolean  @default(true)
+  /// Con qué instrumento se espera medirla. Es el valor por omisión de la
+  /// inspección, no una obligación — igual que en el plan de producto.
+  instrumentoId  String?
 
-  plan PlanInspeccionInsumo @relation(fields: [planId], references: [id], onDelete: Cascade)
+  plan        PlanInspeccionInsumo @relation(fields: [planId], references: [id], onDelete: Cascade)
+  instrumento InstrumentoMedicion? @relation(fields: [instrumentoId], references: [id], onDelete: SetNull)
 
   @@unique([planId, secuencia])
   @@map("caracteristicas_plan_insumo")
@@ -3273,8 +3279,14 @@ model MedicionInspeccionCompra {
   metodoEnsayo       String?
   valorMedido        Decimal
   conforme           Boolean
+  /// Con qué instrumento se tomó ESTA lectura. El mismo hecho que ya se
+  /// registra en los ensayos de producción: lo que entra se mide con los
+  /// mismos equipos, y una calibración vencida no distingue entre lo que se
+  /// compra y lo que se fabrica.
+  instrumentoId      String?
 
-  inspeccion InspeccionCompra @relation(fields: [inspeccionCompraId], references: [id], onDelete: Cascade)
+  inspeccion  InspeccionCompra     @relation(fields: [inspeccionCompraId], references: [id], onDelete: Cascade)
+  instrumento InstrumentoMedicion? @relation(fields: [instrumentoId], references: [id], onDelete: SetNull)
 
   @@unique([inspeccionCompraId, secuencia])
   @@map("mediciones_inspeccion_compra")

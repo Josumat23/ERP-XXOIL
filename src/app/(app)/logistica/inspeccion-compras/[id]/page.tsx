@@ -29,7 +29,7 @@ export default async function DetalleInspeccionCompraPage({
     prisma.inspeccionCompra.findFirst({
       where: { id, recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } } },
       include: {
-        mediciones: { orderBy: { secuencia: "asc" } },
+        mediciones: { orderBy: { secuencia: "asc" }, include: { instrumento: { select: { codigo: true } } } },
         recepcionDetalle: {
           include: {
             insumo: true,
@@ -45,7 +45,31 @@ export default async function DetalleInspeccionCompraPage({
     }),
   ]);
   if (!inspeccion) notFound();
+  const instrumentos = await prisma.instrumentoMedicion.findMany({ where: { empresaId, activo: true }, select: { id: true, codigo: true, nombre: true }, orderBy: { codigo: "asc" } });
   const plan = inspeccion.resultado === "PENDIENTE" ? await prisma.planInspeccionInsumo.findFirst({ where: { empresaId, insumoId: inspeccion.recepcionDetalle.insumoId, activo: true }, include: { caracteristicas: { orderBy: { secuencia: "asc" } } } }) : null;
+
+  // Los Decimal de Prisma no cruzan al componente cliente: hay que pasar
+  // valores planos. El tipo del cliente decía «algo con toString()», que
+  // compila y falla en ejecución — esta pantalla no se podía usar con un plan
+  // vigente, y solo se vio al ejercitarla de verdad.
+  const planPlano = plan
+    ? {
+        id: plan.id,
+        version: plan.version,
+        nombre: plan.nombre,
+        caracteristicas: plan.caracteristicas.map((c) => ({
+          id: c.id,
+          secuencia: c.secuencia,
+          nombre: c.nombre,
+          unidadMedida: c.unidadMedida,
+          limiteInferior: c.limiteInferior?.toString() ?? null,
+          limiteSuperior: c.limiteSuperior?.toString() ?? null,
+          metodoEnsayo: c.metodoEnsayo,
+          obligatoria: c.obligatoria,
+          instrumentoId: c.instrumentoId,
+        })),
+      }
+    : null;
 
   const detalle = inspeccion.recepcionDetalle;
 
@@ -97,14 +121,14 @@ export default async function DetalleInspeccionCompraPage({
               <h2 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
                 Evaluar recepción
               </h2>
-              <ResolverInspeccionFormulario inspeccionId={inspeccion.id} plan={plan} />
+              <ResolverInspeccionFormulario inspeccionId={inspeccion.id} plan={planPlano} instrumentosDisponibles={instrumentos.map(i => ({ id: i.id, etiqueta: i.codigo + " — " + i.nombre }))} />
             </section>
           ) : (
             <section className="mt-8 text-sm">
               {inspeccion.observaciones && (
                 <p className="text-neutral-500">{inspeccion.observaciones}</p>
               )}
-              {inspeccion.mediciones.length > 0 && <table className="tabla mt-3"><thead><tr><th>Característica</th><th>Especificación</th><th>Resultado</th></tr></thead><tbody>{inspeccion.mediciones.map(m=><tr key={m.id}><td>{m.nombre}<span className="block text-xs text-neutral-500">{m.metodoEnsayo??""}</span></td><td>{m.limiteInferior?.toString()??"−∞"} a {m.limiteSuperior?.toString()??"+∞"} {m.unidadMedida}</td><td className={m.conforme?"text-green-700":"text-red-600 font-medium"}>{m.valorMedido.toString()} {m.unidadMedida}</td></tr>)}</tbody></table>}
+              {inspeccion.mediciones.length > 0 && <table className="tabla mt-3"><thead><tr><th>Característica</th><th>Especificación</th><th>Resultado</th></tr></thead><tbody>{inspeccion.mediciones.map(m=><tr key={m.id}><td>{m.nombre}<span className="block text-xs text-neutral-500">{m.metodoEnsayo??""}</span></td><td>{m.limiteInferior?.toString()??"−∞"} a {m.limiteSuperior?.toString()??"+∞"} {m.unidadMedida}</td><td className={m.conforme?"text-green-700":"text-red-600 font-medium"}>{m.valorMedido.toString()} {m.unidadMedida}{m.instrumento&&<span className="block text-xs text-neutral-500">{m.instrumento.codigo}</span>}</td></tr>)}</tbody></table>}
               <p className="text-xs text-neutral-400 mt-2">
                 Evaluado por {inspeccion.usuarioNombre} el{" "}
                 {inspeccion.fecha &&

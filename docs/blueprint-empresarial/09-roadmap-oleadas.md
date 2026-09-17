@@ -275,3 +275,7 @@ Sigue pendiente la misma decisión de calidad: si liberar un lote con un instrum
 ## Actualización: qué midió el re-análisis
 
 El re-análisis de un envasado registra ahora las mediciones del re-ensayo, no solo que se hizo: sin ellas, extender una vigencia es una afirmación sin evidencia. Con un plan declarado el resultado sale de las mediciones y no de quien carga, así que una lectura fuera de especificación ya no puede extender la vigencia. Las lecturas comparten tabla con las del lote granel —con un CHECK que exige exactamente un ensayo padre— y por eso el re-análisis se revisa en «Qué hay que reensayar» igual que una liberación. Véase `docs/mediciones-del-reanalisis.md`.
+
+## Actualización: el laboratorio también mide lo que entra
+
+La inspección de recepción registra con qué instrumento se midió cada característica, igual que los ensayos de producción, y entra en «Qué hay que reensayar» y en la ficha del instrumento. En el camino se corrigieron dos defectos preexistentes: publicar un plan de inspección de insumos estaba roto desde el ciclo de la densidad —el normalizador compartido devolvía campos que ese modelo no tiene— y la pantalla de evaluar una recepción no se podía usar con un plan vigente, porque le pasaba objetos `Decimal` de Prisma a un componente cliente. Véase `docs/laboratorio-en-recepcion.md`.

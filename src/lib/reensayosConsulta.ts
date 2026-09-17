@@ -12,10 +12,16 @@ import { lotesPorReensayar, type ItemPorReensayar, type MedicionParaRevisar } fr
 // y la pantalla otra, y nadie sabría cuál creer. Es el mismo defecto que este
 // proyecto ya corrigió con la densidad: un solo hecho, una sola fuente.
 //
-// Recorre los DOS ensayos que hace el laboratorio: la liberación del lote
-// granel y el re-análisis que le da vigencia nueva a un envasado. Dejar fuera
-// el segundo sería peor que no tener la pantalla: diría «no hay nada que
-// reensayar» habiendo trabajo.
+// Recorre los TRES ensayos que hace el laboratorio: la liberación del lote
+// granel, el re-análisis que le da vigencia nueva a un envasado, y la
+// inspección de lo que entra por compras. Dejar alguno fuera sería peor que no
+// tener la pantalla: diría «no hay nada que reensayar» habiendo trabajo.
+//
+// La inspección de recepción vive en su propia tabla y no en la de los otros
+// dos —ya existía así y moverla sería una migración de datos, no un cambio
+// aditivo—, y ese es justo el motivo por el que esta función tiene que
+// recorrerla explícitamente. La protección contra olvidarse de una fuente es
+// que solo hay UN lugar donde acordarse: acá.
 // ---------------------------------------------------------------------------
 
 /** Lo que hace falta de una línea de venta para saber cuánto salió y a quién. */
@@ -56,7 +62,12 @@ export async function revisarReensayos(empresaId: string): Promise<RevisionDeRee
     OR: [{ controlCalidad: { loteGranel: { empresaId } } }, { reanalisis: { empresaId } }],
   };
 
-  const [instrumentos, medicionesSinInstrumento] = await Promise.all([
+  // La inspección de recepción pertenece a la compañía por la orden de compra.
+  const inspeccionDeLaCompania = {
+    inspeccion: { recepcionDetalle: { recepcion: { ordenCompra: { empresaId } } } },
+  };
+
+  const [instrumentos, sinInstrumentoProduccion, sinInstrumentoRecepcion] = await Promise.all([
     prisma.instrumentoMedicion.findMany({
       where: { empresaId },
       select: {
@@ -79,12 +90,36 @@ export async function revisarReensayos(empresaId: string): Promise<RevisionDeRee
             },
           },
         },
+        medicionesInspeccion: {
+          where: inspeccionDeLaCompania,
+          select: {
+            nombre: true,
+            inspeccion: {
+              select: {
+                fecha: true,
+                recepcionDetalle: {
+                  select: {
+                    id: true,
+                    cantidadDisponible: true,
+                    insumo: { select: { codigo: true, nombre: true } },
+                    recepcion: { select: { numero: true } },
+                    asignacionesLote: { select: { cantidad: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     }),
     prisma.resultadoCaracteristicaCalidad.count({
       where: { instrumentoId: null, ...deLaCompania },
     }),
+    prisma.medicionInspeccionCompra.count({
+      where: { instrumentoId: null, ...inspeccionDeLaCompania },
+    }),
   ]);
+  const medicionesSinInstrumento = sinInstrumentoProduccion + sinInstrumentoRecepcion;
 
   // Se filtra ANTES de ir a buscar a dónde salió cada cosa: derivar el respaldo
   // es aritmética sobre datos que ya están en memoria, y consultar el despacho
@@ -101,7 +136,24 @@ export async function revisarReensayos(empresaId: string): Promise<RevisionDeRee
         : [{ instrumento: i, medicion: m, fecha }];
     })
   );
-  const medicionesEvaluadas = instrumentos.reduce((n, i) => n + i.mediciones.length, 0);
+  // La inspección de recepción trae consigo todo lo que hace falta para
+  // ubicarla —el insumo, la recepción y si ya se consumió—, así que no necesita
+  // una segunda consulta como los lotes y los envasados.
+  const recepcionesEnCuestion = instrumentos.flatMap((i) =>
+    i.medicionesInspeccion.flatMap((m) => {
+      const fecha = m.inspeccion.fecha;
+      // Una inspección pendiente todavía no tiene fecha: no se ensayó nada.
+      if (!fecha) return [];
+      return respaldoDeMedicion(i.calibraciones, fecha) === "CALIBRADO"
+        ? []
+        : [{ instrumento: i, medicion: m, fecha, detalle: m.inspeccion.recepcionDetalle }];
+    })
+  );
+
+  const medicionesEvaluadas = instrumentos.reduce(
+    (n, i) => n + i.mediciones.length + i.medicionesInspeccion.length,
+    0
+  );
 
   const loteIds = [
     ...new Set(
@@ -225,6 +277,29 @@ export async function revisarReensayos(empresaId: string): Promise<RevisionDeRee
         clientesAfectados: envasado.despacho.clientes,
       });
     }
+  }
+
+  for (const { instrumento, medicion, fecha, detalle } of recepcionesEnCuestion) {
+    const consumido = detalle.asignacionesLote.reduce((acc, a) => acc + a.cantidad.toNumber(), 0);
+    filas.push({
+      caracteristica: medicion.nombre,
+      instrumentoId: instrumento.id,
+      instrumentoCodigo: `${instrumento.codigo} — ${instrumento.nombre}`,
+      calibraciones: instrumento.calibraciones,
+      fechaEnsayo: fecha,
+      ensayo: "RECEPCION",
+      itemId: detalle.id,
+      itemCodigo: `${detalle.recepcion.numero} · ${detalle.insumo.codigo}`,
+      // Un insumo no tiene lote granel propio: el recall por lote no aplica
+      // hasta saber en qué lotes se consumió, que es otra pregunta.
+      loteGranelId: "",
+      productoNombre: detalle.insumo.nombre,
+      disponibleEnAlmacen: detalle.cantidadDisponible.toNumber() > 0,
+      // «Despachado» para un insumo es que ya se consumió en producción: dejó
+      // de estar en nuestras manos como insumo y pasó a estar dentro de lotes.
+      unidadesDespachadas: consumido,
+      clientesAfectados: 0,
+    });
   }
 
   return {
