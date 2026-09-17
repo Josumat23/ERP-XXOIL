@@ -88,4 +88,11 @@ test("no falla por los tipos que genera el servidor de desarrollo", async () => 
   const script = await readFile(resolve(RAIZ, "scripts/verificar.mjs"), "utf8");
   assert.match(script, /\.next\/dev\/types/);
   assert.match(script, /rmSync\(/);
+
+  // Y se borran JUSTO ANTES del typecheck, no solo al arrancar. Borrarlos una
+  // vez no alcanzaba: con el servidor de desarrollo vivo, los vuelve a
+  // escribir mientras corren los pasos previos y el typecheck se los encuentra
+  // de nuevo. Se comprobó fallando exactamente así.
+  assert.match(script, /antes: limpiarTiposDeDev/);
+  assert.match(script, /pistaAlFallar/, "no explica de dónde viene el fallo");
 });
