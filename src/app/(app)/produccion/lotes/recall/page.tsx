@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import { destinosDeLote, resumenDespacho } from "@/lib/despachoLote";
 
 // Vista de recall: dado un lote granel, agrega TODOS sus envasados y TODOS
 // los clientes/facturas que recibieron unidades — de un vistazo, sin tener
@@ -56,48 +57,10 @@ export default async function RecallPage({
       })
     : null;
 
-  // Neto vigente (ASIGNADA − LIBERADA) por línea de pedido, agregado sobre
-  // TODOS los envasados de este lote (a diferencia de la vista por envasado).
-  type Destino = {
-    cantidad: number;
-    clienteNombre: string;
-    facturaNumero: string | null;
-    pedidoNumero: string;
-    envasadoCodigo: string;
-  };
-  const destinos: Destino[] = [];
-  if (lote) {
-    for (const e of lote.envasados) {
-      const netoPorDetalle = new Map<string, number>();
-      for (const a of e.asignacionesLote) {
-        const clave = a.facturaDetalleId ?? a.guiaDetalleId ?? a.pedidoDetalleId;
-        const actual = netoPorDetalle.get(clave) ?? 0;
-        netoPorDetalle.set(clave, actual + (a.tipo === "ASIGNADA" ? a.cantidad : -a.cantidad));
-      }
-      for (const a of e.asignacionesLote) {
-        const clave = a.facturaDetalleId ?? a.guiaDetalleId ?? a.pedidoDetalleId;
-        const cantidad = netoPorDetalle.get(clave) ?? 0;
-        if (cantidad <= 0) continue;
-        netoPorDetalle.set(clave, 0); // evita duplicar por cada evento de la misma línea
-        destinos.push({
-          cantidad,
-          clienteNombre: a.pedidoDetalle.pedido.cliente.razonSocial,
-          facturaNumero:
-        a.facturaDetalle?.factura.numero ??
-        a.guiaDetalle?.facturaAsignaciones
-          .filter((asignacion) => asignacion.facturaDetalle.factura.estado !== "ANULADA")
-          .map((asignacion) => asignacion.facturaDetalle.factura.numero)
-          .join(", ") ??
-        null,
-          pedidoNumero: a.pedidoDetalle.pedido.numero,
-          envasadoCodigo: e.codigo,
-        });
-      }
-    }
-  }
-
-  const totalUnidadesVendidas = destinos.reduce((acc, d) => acc + d.cantidad, 0);
-  const clientesUnicos = new Set(destinos.map((d) => d.clienteNombre)).size;
+  // El neto vigente por línea de venta (ASIGNADA − LIBERADA) vive en su propio
+  // módulo desde que una tercera pantalla lo necesitó: la de qué reensayar.
+  const destinos = lote ? destinosDeLote(lote.envasados) : [];
+  const { unidades: totalUnidadesVendidas, clientes: clientesUnicos } = resumenDespacho(destinos);
 
   return (
     <div className="max-w-4xl">
@@ -155,13 +118,11 @@ export default async function RecallPage({
               {destinos.map((d, i) => (
                 <tr key={i}>
                   <td className="font-mono text-xs">
-                    <Link href={`/produccion/envasados/${lote.envasados.find((e) => e.codigo === d.envasadoCodigo)?.id}`} className="hover:underline">
+                    <Link href={`/produccion/envasados/${d.envasadoId}`} className="hover:underline">
                       {d.envasadoCodigo}
                     </Link>
                   </td>
-                  <td className="text-sm text-neutral-500">
-                    {lote.envasados.find((e) => e.codigo === d.envasadoCodigo)?.presentacion.nombre}
-                  </td>
+                  <td className="text-sm text-neutral-500">{d.presentacionNombre}</td>
                   <td>{d.clienteNombre}</td>
                   <td className="font-mono text-xs">{d.pedidoNumero}</td>
                   <td className="font-mono text-xs">{d.facturaNumero ?? "—"}</td>

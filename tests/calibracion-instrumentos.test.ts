@@ -211,9 +211,18 @@ test("el aviso llega al panel general y no se queda en su pantalla", async () =>
   // La SEÑAL de calibración cuelga del interruptor. La fila de Calidad ya no:
   // desde que también lleva las homologaciones —que no tienen nada que ver con
   // el laboratorio— colgarla entera dejaría esas invisibles.
+  //
+  // Se comprueba por estructura, no por cercanía de texto: exigir que
+  // `senalCalibraciones` apareciera a menos de 80 caracteres del interruptor
+  // hacía fallar la prueba cada vez que otra señal se sumaba al mismo bloque,
+  // que es exactamente lo que había que dejar pasar.
+  const abre = panel.indexOf("...(controlCalibracion");
+  assert.notEqual(abre, -1, "la calibración no depende del interruptor");
+  const cierra = panel.indexOf(": []", abre);
+  assert.notEqual(cierra, -1, "el bloque del interruptor no cierra en una lista vacía");
   assert.match(
-    panel,
-    /\.\.\.\(controlCalibracion[\s\S]{0,80}senalCalibraciones\(/,
+    panel.slice(abre, cierra),
+    /senalCalibraciones\(/,
     "la calibración no depende del interruptor"
   );
   assert.match(panel, /"critico"/, "un instrumento sin calibración vigente no es solo un aviso");

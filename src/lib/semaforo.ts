@@ -96,3 +96,29 @@ export function senalCalibraciones(criticos: number, porVencer: number): SenalSe
   }
   return senales;
 }
+
+/**
+ * Lotes cuyo ensayo no se puede dar por respaldado.
+ *
+ * Es distinta de `senalCalibraciones`, que habla del instrumento: acá ya no se
+ * trata de reparar un equipo sino de producto medido con él. Un lote
+ * despachado es crítico porque el cliente ya lo tiene y la decisión deja de
+ * ser del laboratorio.
+ */
+export function senalReensayos(total: number, despachados: number): SenalSemaforo[] {
+  const senales: SenalSemaforo[] = [];
+  if (despachados > 0) {
+    senales.push({
+      indicador: `${plural(despachados, "lote despachado", "lotes despachados")} con mediciones sin respaldo`,
+      estado: "critico",
+    });
+  }
+  const enCasa = total - despachados;
+  if (enCasa > 0) {
+    senales.push({
+      indicador: `${plural(enCasa, "lote por reensayar", "lotes por reensayar")}`,
+      estado: "atencion",
+    });
+  }
+  return senales;
+}

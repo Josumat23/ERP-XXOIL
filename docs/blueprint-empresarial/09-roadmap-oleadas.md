@@ -265,3 +265,9 @@ Los proyectos, su WBS, red de actividades, costos y dimensiones relacionadas se 
 ## Actualización: controles de inventario multiempresa
 
 Los ajustes, traslados, ubicaciones, conteos, kardex y análisis de exactitud/rotación se aíslan por empresa activa. Véase `docs/aislamiento-multiempresa-controles-inventario.md`.
+
+## Actualización: qué hay que reensayar
+
+El laboratorio contesta ahora la pregunta inversa a la del ciclo anterior: no «qué midió este instrumento» sino «qué tengo que reensayar de todo el laboratorio, y por dónde empiezo». La lista se ordena por dónde está el producto —lo que ya está en el cliente primero— y cruza el ensayo con la cadena comercial para decir a cuántas unidades y clientes llegó. Véase `docs/que-hay-que-reensayar.md`.
+
+Sigue pendiente la misma decisión de calidad: si liberar un lote con un instrumento sin calibración vigente se bloquea o solo se advierte.

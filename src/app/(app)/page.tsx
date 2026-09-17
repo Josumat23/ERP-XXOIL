@@ -10,7 +10,10 @@ import {
   senalEquivalencias,
   senalHomologaciones,
   senalMasSevera,
+  senalReensayos,
 } from "@/lib/semaforo";
+import { resumenReensayos } from "@/lib/reensayos";
+import { revisarReensayos } from "@/lib/reensayosConsulta";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
 import GraficoLinea from "@/components/GraficoLinea";
@@ -368,7 +371,7 @@ export default async function PanelPage() {
   // Aparte del Promise.all de arriba a propósito: ese ya tiene tantas entradas
   // que TypeScript deja de inferir la tupla y devuelve una unión — los dos
   // valores llegaban con el tipo del otro.
-  const [instrumentosMedicion, configuracionPanel, homologaciones, equivalencias] =
+  const [instrumentosMedicion, configuracionPanel, homologaciones, equivalencias, reensayos] =
     await Promise.all([
       prisma.instrumentoMedicion.findMany({
         where: { empresaId, activo: true },
@@ -397,6 +400,10 @@ export default async function PanelPage() {
           },
         },
       }),
+      // Misma consulta que la pantalla «Qué reensayar», a propósito: dos
+      // derivaciones del mismo hecho terminan discrepando sin que nadie lo
+      // note.
+      revisarReensayos(empresaId),
     ]);
 
   // Calidad: instrumentos que no están en condiciones de liberar un lote.
@@ -408,6 +415,9 @@ export default async function PanelPage() {
   const calibraciones = resumenParaSemaforo(
     instrumentosMedicion.map((i) => estadoCalibracion(i.calibraciones))
   );
+  // Y el producto medido con ellos: reparar el instrumento no arregla el lote
+  // que ya se liberó con él.
+  const porReensayar = resumenReensayos(reensayos.lotes);
 
   // Homologaciones: una vencida deja de imprimirse en el certificado y baja
   // la cobertura de las equivalencias que se apoyaban en ella.
@@ -488,7 +498,7 @@ export default async function PanelPage() {
             ? "critico"
             : "atencion",
     },
-    // Calidad es una fila permanente: tiene dos fuentes y una de ellas —las
+    // Calidad es una fila permanente: tiene varias fuentes y una de ellas —las
     // homologaciones— no depende del control de calibración. Las señales se
     // componen y gana la más severa, en vez de anidar ternarios por cada una.
     {
@@ -496,7 +506,10 @@ export default async function PanelPage() {
       ...senalMasSevera(
         [
           ...(controlCalibracion
-            ? senalCalibraciones(calibraciones.criticos, calibraciones.porVencer)
+            ? [
+                ...senalReensayos(porReensayar.total, porReensayar.despachados),
+                ...senalCalibraciones(calibraciones.criticos, calibraciones.porVencer),
+              ]
             : []),
           ...senalHomologaciones(homologacionesVencidas, homologacionesPorVencerCount),
         ],
