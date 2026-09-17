@@ -283,3 +283,7 @@ La inspección de recepción registra con qué instrumento se midió cada caract
 ## Actualización: el control de calibración pasa a tres niveles
 
 Decisión del negocio (2026-09-17), pendiente desde hacía cuatro ciclos: liberar un lote con un instrumento sin calibración vigente no es «bloquea o advierte» sino tres niveles, con `NO_APLICA` para que el proceso siga su curso. El principio fijado es que el laboratorio no sea un bloqueante: el sistema nace sin frenar y frenar es algo que la empresa elige. Aplica al liberar un lote granel; la inspección de recepción y el re-análisis nunca se bloquean. Véase `docs/control-calibracion-tres-niveles.md`.
+
+## Actualización: de un material recibido a los clientes que lo tienen
+
+La pantalla de trazabilidad recorre ahora la cadena en las dos direcciones. La ficha del lote ya contestaba de qué recepciones salió; faltaba la de ida —qué lotes se fabricaron con una recepción y hasta dónde llegó cada uno—, que es la consulta del día que un proveedor avisa de un problema. Es consulta y no control: no frena ni exige nada, según lo pedido por el negocio. Véase `docs/trazabilidad-insumo-a-cliente.md`.

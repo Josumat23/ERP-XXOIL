@@ -146,10 +146,14 @@ export default async function ReensayosPage() {
                     )}
                     {l.destino === "DESPACHADO" && l.ensayo === "RECEPCION" && (
                       <p className="text-sm mt-1">
-                        {formatNumero(l.unidadesDespachadas, 2)} consumidos en producción.{" "}
-                        <span style={{ color: "var(--epicor-texto-tenue)" }}>
-                          Qué lotes lo usaron todavía se consulta lote por lote.
-                        </span>
+                        {formatNumero(l.unidadesDespachadas, 2)} consumidos en producción
+                        {" · "}
+                        <Link
+                          href={`/produccion/lotes/recall?recepcionId=${l.itemId}`}
+                          className="hover:underline text-blue-700 dark:text-blue-400"
+                        >
+                          ver qué se fabricó
+                        </Link>
                       </p>
                     )}
                   </td>
