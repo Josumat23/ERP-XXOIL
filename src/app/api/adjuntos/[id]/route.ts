@@ -13,12 +13,16 @@ export async function GET(
   if (!usuario) return NextResponse.json({ error: "No autorizado." }, { status: 401 });
 
   const { id } = await params;
-  const adjunto = await prisma.adjunto.findUnique({ where: { id } });
+  // Doble llave sobre la compañía: el adjunto la lleva encima y la entidad a
+  // la que cuelga se comprueba más abajo. Bastaría con la segunda, pero esta
+  // ruta entrega BYTES de un archivo y el id viaja en la URL: si mañana un
+  // tipo de entidad nuevo entrara sin acotar, acá seguiría sin poder leerse.
+  const empresaId = await obtenerEmpresaActivaId();
+  const adjunto = await prisma.adjunto.findFirst({ where: { id, empresaId } });
   if (!adjunto) return NextResponse.json({ error: "Adjunto no encontrado." }, { status: 404 });
   if (!puedeLeerAdjunto(usuario, adjunto.entidadTipo)) {
     return NextResponse.json({ error: "No autorizado." }, { status: 403 });
   }
-  const empresaId = await obtenerEmpresaActivaId();
   if (!(await existeEntidadAdjunto(adjunto.entidadTipo, adjunto.entidadId, empresaId))) {
     return NextResponse.json({ error: "Adjunto no encontrado." }, { status: 404 });
   }

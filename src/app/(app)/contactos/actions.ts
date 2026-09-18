@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar, type ClaveModulo } from "@/lib/permisos";
-import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { entidadEsDeLaEmpresa } from "@/lib/entidadesDeLaEmpresa";
 import type { $Enums, Usuario } from "@/generated/prisma/client";
 
 export type EstadoFormulario = { error?: string };
@@ -36,27 +37,10 @@ async function puedeEditarContactos(usuario: Usuario, entidadTipo: string): Prom
   const politica = POLITICA_CONTACTO[entidadTipo];
   return usuario.rol === politica.rol && puedeRealizar(usuario, politica.modulo, "editar");
 }
-async function existeEntidadContactoAutorizada(
-  entidadTipo: TipoEntidadContacto,
-  entidadId: string,
-  empresaId: string
-): Promise<boolean> {
-  if (entidadTipo === "Empleado") {
-    return Boolean(
-      await prisma.empleado.findUnique({ where: { id: entidadId }, select: { id: true } })
-    );
-  }
-  const entidad = entidadTipo === "Cliente"
-    ? await prisma.cliente.findUnique({
-        where: { id: entidadId },
-        select: { empresaId: true },
-      })
-    : await prisma.proveedor.findUnique({
-        where: { id: entidadId },
-        select: { empresaId: true },
-      });
-  return perteneceAEmpresaActiva(entidad, empresaId);
-}
+// Para EMPLEADO esto solo comprobaba que el id existiera, sin mirar la
+// compañía. La comprobación vive ahora en un solo lugar, compartida con
+// adjuntos y direcciones, que tenían la misma asimetría.
+const existeEntidadContactoAutorizada = entidadEsDeLaEmpresa;
 
 export async function agregarContacto(
   entidadTipo: string,

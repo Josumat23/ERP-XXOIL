@@ -4,7 +4,8 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar, type ClaveModulo } from "@/lib/permisos";
-import { obtenerEmpresaActivaId, perteneceAEmpresaActiva } from "@/lib/empresas";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
+import { entidadEsDeLaEmpresa } from "@/lib/entidadesDeLaEmpresa";
 import { TipoDireccion, type $Enums, type Usuario } from "@/generated/prisma/client";
 import { esValorEnum } from "@/lib/enums";
 
@@ -37,29 +38,12 @@ async function puedeEditarDirecciones(usuario: Usuario, entidadTipo: string): Pr
   const politica = POLITICA_DIRECCION[entidadTipo];
   return usuario.rol === politica.rol && puedeRealizar(usuario, politica.modulo, "editar");
 }
-async function existeEntidadDireccionAutorizada(
-  entidadTipo: TipoEntidadDireccion,
-  entidadId: string,
-  empresaId: string
-): Promise<boolean> {
-  if (entidadTipo === "Cliente") {
-    const cliente = await prisma.cliente.findUnique({
-      where: { id: entidadId },
-      select: { empresaId: true },
-    });
-    return perteneceAEmpresaActiva(cliente, empresaId);
-  }
-  if (entidadTipo === "Proveedor") {
-    const proveedor = await prisma.proveedor.findUnique({
-      where: { id: entidadId },
-      select: { empresaId: true },
-    });
-    return perteneceAEmpresaActiva(proveedor, empresaId);
-  }
-  return Boolean(
-    await prisma.empleado.findUnique({ where: { id: entidadId }, select: { id: true } })
-  );
-}
+// Para EMPLEADO esto solo comprobaba que el id existiera, sin mirar la
+// compañía, teniendo `Empleado` su `empresaId` como todos los demás: sabiendo
+// un id, un usuario de una compañía podía agregarle o borrarle direcciones al
+// empleado de otra. La comprobación vive ahora en un solo lugar, compartida
+// con adjuntos y contactos, que tenían la misma asimetría.
+const existeEntidadDireccionAutorizada = entidadEsDeLaEmpresa;
 
 export async function agregarDireccion(
   entidadTipo: string,
