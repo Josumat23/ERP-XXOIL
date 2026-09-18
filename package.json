@@ -19,7 +19,8 @@
     "test": "node scripts/run-tests.mjs",
     "verificar": "node scripts/verificar.mjs",
     "respaldo": "node scripts/respaldo.mjs",
-    "restaurar": "node scripts/restaurar.mjs"
+    "restaurar": "node scripts/restaurar.mjs",
+    "acciones:sin-guarda": "node scripts/acciones-sin-guarda.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
