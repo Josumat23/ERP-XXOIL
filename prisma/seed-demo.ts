@@ -281,13 +281,22 @@ async function main() {
   ];
 
   // ---------------------------------------------------- 3. Compras (2 OC)
+  // ---------------------------------------------------------------------
+  // El número de lote del PROVEEDOR viaja con la compra.
+  //
+  // El campo existía y nadie lo llenaba, así que la pantalla de trazabilidad
+  // se podía abrir pero no estrenar: el lote del proveedor es el dato con el
+  // que llama quien reporta un problema, y el único que no se deduce de los
+  // demás.
+  // ---------------------------------------------------------------------
   async function comprarInsumo(
     proveedorId: string,
     insumoId: string,
     cantidad: number,
     costoUnitario: number,
     docProveedor: string,
-    mesesAtras: number
+    mesesAtras: number,
+    numeroLoteProveedor: string | null = null
   ) {
     await prisma.$transaction(async (tx) => {
       const numeroOC = await siguienteNumeroOrdenCompra(tx, "1");
@@ -312,7 +321,9 @@ async function main() {
           numero: numeroRecepcion,
           ordenCompraId: oc.id,
           ...audit,
-          detalles: { create: [{ insumoId, cantidad, costoUnitario, cantidadDisponible: cantidad }] },
+          detalles: {
+            create: [{ insumoId, cantidad, costoUnitario, cantidadDisponible: cantidad, numeroLoteProveedor }],
+          },
         },
       });
 
@@ -393,17 +404,20 @@ async function main() {
     });
   }
 
-  await comprarInsumo(provQuimicos.id, aceite.id, 300, 7.0, "F002-1001", 5);
-  await comprarInsumo(provEnvases.id, envPote.id, 500, 0.88, "F015-2050", 4);
+  // El lote del proveedor `AB-2026-014` es el que se reparte en dos entregas
+  // (ver más abajo, después de producción): es el caso que la pantalla de
+  // recall tiene que saber contestar y el que no existía en una base nueva.
+  await comprarInsumo(provQuimicos.id, aceite.id, 300, 7.0, "F002-1001", 5, "AB-2026-014");
+  await comprarInsumo(provEnvases.id, envPote.id, 500, 0.88, "F015-2050", 4, "ENV-P-2260");
   // Litio y aditivo: la fórmula los consume en cada lote pero el catálogo
   // base (prisma/seed.ts) nunca les dio stock real por almacén (solo un
   // número "stock" decorativo) — sin esta compra, producirLote() falla.
-  await comprarInsumo(provQuimicos.id, litio.id, 100, 18.3, "F002-1002", 5);
-  await comprarInsumo(provQuimicos.id, aditivo.id, 30, 42.0, "F002-1003", 5);
+  await comprarInsumo(provQuimicos.id, litio.id, 100, 18.3, "F002-1002", 5, "LI-2026-077");
+  await comprarInsumo(provQuimicos.id, aditivo.id, 30, 42.0, "F002-1003", 5, "EP-2026-A33");
   // Mismo problema para los envases/etiquetas de balde y las etiquetas de
   // pote: sin stock real por almacén, envasar() también fallaría.
-  await comprarInsumo(provEnvases.id, envBalde.id, 30, 12.5, "F015-2051", 4);
-  await comprarInsumo(provEnvases.id, etqChasis.id, 250, 0.12, "F015-2052", 4);
+  await comprarInsumo(provEnvases.id, envBalde.id, 30, 12.5, "F015-2051", 4, "ENV-B-1180");
+  await comprarInsumo(provEnvases.id, etqChasis.id, 250, 0.12, "F015-2052", 4, null);
   console.log("Órdenes de compra + recepciones registradas.");
 
   // --------------------------------------------- 4. Producción (3 lotes)
@@ -461,6 +475,23 @@ async function main() {
   const lote2 = await producirLote(200, 190, 14);
   const lote3 = await producirLote(150, 145, 11);
   console.log("Lotes granel producidos y aprobados por calidad.");
+
+  // ---------------------------------------------------------------------
+  // La SEGUNDA entrega del mismo lote del proveedor.
+  //
+  // Un lote del proveedor casi nunca llega en una sola descarga: se compra
+  // por tanda y el proveedor va despachando de su propio lote de fabricación.
+  // Ese es el caso que la pantalla de recall tiene que saber contestar —
+  // consultar una sola recepción devuelve la mitad de lo fabricado con cara
+  // de respuesta completa— y en una base recién sembrada no existía.
+  //
+  // Va DESPUÉS de producción y con fecha reciente a propósito: así queda sin
+  // consumir, y el recall puede decir cuánto del lote sospechoso sigue en el
+  // almacén, que es el dato accionable del día. La primera entrega, en
+  // cambio, ya se fue entera a los tres lotes de arriba.
+  // ---------------------------------------------------------------------
+  await comprarInsumo(provQuimicos.id, aceite.id, 100, 7.15, "F002-1009", 1, "AB-2026-014");
+  console.log("Segunda entrega del lote del proveedor AB-2026-014: queda en almacén, sin consumir.");
 
   // ------------------------------------------------- 5. Envasados
   async function envasar(

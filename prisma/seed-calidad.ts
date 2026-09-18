@@ -461,13 +461,152 @@ async function main() {
   });
   console.log("Control de calibración: ADVIERTE (solo en datos de prueba; nace en NO_APLICA).");
 
+  await sembrarMedicionesDeLiberacion();
+
   console.log(
     "\nCatálogo técnico y laboratorio cargados. El semáforo del panel ya tiene qué decir:\n" +
       "  · una homologación vencida y otra por vencer\n" +
       "  · una equivalencia que hoy cubre menos que al declararla\n" +
       "  · un instrumento vencido, uno por vencer y uno fuera de tolerancia\n" +
+      "  · lotes liberados con el penetrómetro vencido, ya despachados\n" +
       "\nPara volver al comportamiento de producción, ponga el control en\n" +
       "«No aplica» (Producción → Instrumentos de medición)."
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Qué se midió al liberar cada lote.
+//
+// `seed-demo.ts` aprueba los lotes con un `ControlCalidad` sin una sola
+// medición. Es válido —el sistema soporta la «evaluación heredada»— pero deja
+// tres pantallas en blanco en una instalación recién sembrada:
+//
+//   · El certificado de análisis ni siquiera abre: exige mediciones.
+//   · La ficha del instrumento no tiene qué mostrar.
+//   · «Qué hay que reensayar» dice que no hay nada, habiendo trabajo.
+//
+// Se descubrió corriendo los sembradores desde una base vacía por primera vez
+// (`npm run semillas:desde-cero`). En `erp_dev` funcionaba porque los ensayos
+// se habían cargado a mano por pantalla meses antes, no por el sembrado.
+//
+// Las lecturas salen del plan de inspección del producto, que este mismo
+// sembrador acaba de publicar, y van con el instrumento que el plan declara.
+// Solo se escriben sobre controles que NO tienen mediciones: un ensayo cargado
+// por alguien no se toca.
+//
+// La penetración se mide con PEN-01, cuya calibración está VENCIDA —lo siembra
+// este archivo unas líneas más arriba—, así que los tres lotes quedan con una
+// medición sin respaldo y «Qué hay que reensayar» tiene el caso real que la
+// pantalla existe para contestar: producto ya despachado, medido con un
+// instrumento que no se puede dar por bueno.
+// ---------------------------------------------------------------------------
+async function sembrarMedicionesDeLiberacion() {
+  const controles = await prisma.controlCalidad.findMany({
+    where: {
+      loteGranel: { empresaId: EMPRESA_ID },
+      resultadosCaracteristica: { none: {} },
+    },
+    select: {
+      id: true,
+      loteGranelId: true,
+      loteGranel: { select: { codigo: true, formula: { select: { productoId: true } } } },
+    },
+    orderBy: { fecha: "asc" },
+  });
+
+  if (controles.length === 0) {
+    console.log("Todos los controles de calidad ya tienen sus mediciones: no se toca ninguno.");
+    return;
+  }
+
+  let escritos = 0;
+  let sinPlan = 0;
+  for (const [indice, control] of controles.entries()) {
+    const plan = await prisma.planInspeccionCalidad.findFirst({
+      where: {
+        empresaId: EMPRESA_ID,
+        productoId: control.loteGranel.formula.productoId,
+        activo: true,
+      },
+      select: {
+        id: true,
+        version: true,
+        caracteristicas: {
+          orderBy: { secuencia: "asc" },
+          select: {
+            secuencia: true,
+            nombre: true,
+            unidadMedida: true,
+            limiteInferior: true,
+            limiteSuperior: true,
+            metodoEnsayo: true,
+            esDensidad: true,
+            instrumentoId: true,
+          },
+        },
+      },
+    });
+    // Sin plan publicado no se inventa qué se midió: el lote queda como
+    // evaluación heredada, que es un caso legítimo y también vale verlo.
+    if (!plan || plan.caracteristicas.length === 0) {
+      sinPlan += 1;
+      continue;
+    }
+
+    let densidad: number | null = null;
+    for (const c of plan.caracteristicas) {
+      const min = c.limiteInferior?.toNumber() ?? null;
+      const max = c.limiteSuperior?.toNumber() ?? null;
+      // Un valor dentro de límites, distinto en cada lote: tres lotes con la
+      // misma cifra exacta se leen como un relleno, no como tres ensayos.
+      const paso = (indice % 3) / 3;
+      const valor =
+        min !== null && max !== null
+          ? min + (max - min) * (0.35 + paso * 0.25)
+          : min !== null
+            ? min + 8 + indice * 3
+            : (max ?? 1) - 5 - indice;
+      const redondeado = Number(valor.toFixed(c.esDensidad ? 4 : 1));
+      if (c.esDensidad) densidad = redondeado;
+
+      await prisma.resultadoCaracteristicaCalidad.create({
+        data: {
+          controlCalidadId: control.id,
+          secuencia: c.secuencia,
+          nombre: c.nombre,
+          unidadMedida: c.unidadMedida,
+          limiteInferior: c.limiteInferior,
+          limiteSuperior: c.limiteSuperior,
+          metodoEnsayo: c.metodoEnsayo,
+          valorMedido: redondeado,
+          conforme:
+            (min === null || redondeado >= min) && (max === null || redondeado <= max),
+          instrumentoId: c.instrumentoId,
+        },
+      });
+      escritos += 1;
+    }
+
+    await prisma.controlCalidad.update({
+      where: { id: control.id },
+      data: { planInspeccionId: plan.id, planVersion: plan.version },
+    });
+    // La densidad MEDIDA del lote es la que convierte kg en litros en los
+    // comprobantes. La escribe el ensayo, igual que cuando se carga por
+    // pantalla; dejarla en null haría que el lote use la del producto.
+    if (densidad !== null) {
+      await prisma.loteGranel.update({
+        where: { id: control.loteGranelId },
+        data: { densidadKgL: densidad },
+      });
+    }
+    console.log(`  ${control.loteGranel.codigo}: ${plan.caracteristicas.length} mediciones`);
+  }
+
+  console.log(
+    `Mediciones de liberación escritas: ${escritos}` +
+      (sinPlan > 0 ? ` (${sinPlan} lote(s) sin plan publicado, quedan como evaluación heredada)` : "") +
+      "."
   );
 }
 
