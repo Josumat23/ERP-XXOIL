@@ -8,6 +8,7 @@ import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BarraFiltro from "@/components/BarraFiltro";
 import ReclamoFormulario from "./ReclamoFormulario";
 import { contiene } from "@/lib/busqueda";
+import AlcanceDeLista from "@/components/AlcanceDeLista";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   ABIERTO: "Abierto",
@@ -15,21 +16,31 @@ const ETIQUETA_ESTADO: Record<string, string> = {
   CERRADO: "Cerrado",
 };
 
+// Cuántas opciones se ofrecen en cada lista antes de pedir que se filtre.
+const TOPE_SELECTOR = 50;
+
 export default async function ReclamosClientePage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; estado?: string }>;
+  searchParams: Promise<{
+    q?: string;
+    estado?: string;
+    paraCliente?: string;
+    qCliente?: string;
+    qFactura?: string;
+  }>;
 }) {
   const usuario = await obtenerUsuario();
   if (!usuario || !(await puedeRealizar(usuario, "produccion", "ver"))) redirect("/");
 
-  const { q, estado } = await searchParams;
+  const { q, estado, paraCliente, qCliente, qFactura } = await searchParams;
   const filtroEstado = Object.keys(ETIQUETA_ESTADO).find((e) => e === estado);
+  const empresaId = usuario.empresaId;
 
-  const [reclamos, clientes, facturas, causas] = await Promise.all([
+  const [reclamos, clientes, clientesTotales, causas] = await Promise.all([
     prisma.reclamoCliente.findMany({
       where: {
-        empresaId: usuario.empresaId,
+        empresaId,
         ...(filtroEstado ? { estado: filtroEstado as "ABIERTO" | "EN_PROCESO" | "CERRADO" } : {}),
         ...(q
           ? { OR: [{ numero: contiene(q) }, { cliente: { razonSocial: contiene(q) } }] }
@@ -39,19 +50,65 @@ export default async function ReclamosClientePage({
       orderBy: { creadoEn: "desc" },
     }),
     prisma.cliente.findMany({
-      where: { empresaId: usuario.empresaId, estado: "ACTIVO" },
+      where: {
+        empresaId,
+        estado: "ACTIVO",
+        ...(qCliente
+          ? { OR: [{ razonSocial: contiene(qCliente) }, { codigo: contiene(qCliente) }] }
+          : {}),
+      },
       orderBy: { razonSocial: "asc" },
+      take: TOPE_SELECTOR,
     }),
-    prisma.factura.findMany({
-      where: { empresaId: usuario.empresaId, estado: { not: "ANULADA" } },
-      orderBy: { fechaEmision: "desc" },
-      take: 100,
-    }),
+    prisma.cliente.count({ where: { empresaId, estado: "ACTIVO" } }),
     prisma.causaCalidad.findMany({
-      where: { empresaId: usuario.empresaId, activo: true },
+      where: { empresaId, activo: true },
       orderBy: { nombre: "asc" },
     }),
   ]);
+
+  // -------------------------------------------------------------------------
+  // Las facturas del cliente, no las últimas cien de la compañía.
+  //
+  // La pantalla traía las 100 facturas más recientes de TODA la empresa y las
+  // filtraba por cliente en el navegador. Con los datos de hoy —19 facturas—
+  // funciona. Con volumen real, un cliente cuyas facturas no estén entre las
+  // cien últimas aparece SIN NINGUNA, y quien registra el reclamo concluye que
+  // no tiene facturas y lo deja sin relacionar.
+  //
+  // Y el reclamo sin factura es precisamente el que después no puede decir de
+  // qué lote salió: el defecto silencioso de esta lista desactiva la pantalla
+  // que se construyó encima.
+  //
+  // Ahora se elige primero el cliente y se consultan SUS facturas, acotadas y
+  // buscables, diciendo cuántas se muestran de cuántas hay.
+  // -------------------------------------------------------------------------
+  const clienteElegido = paraCliente
+    ? await prisma.cliente.findFirst({
+        // El id viene del navegador: se comprueba contra la compañía activa.
+        where: { id: paraCliente, empresaId, estado: "ACTIVO" },
+        select: { id: true, codigo: true, razonSocial: true },
+      })
+    : null;
+
+  const [facturas, facturasTotales] = clienteElegido
+    ? await Promise.all([
+        prisma.factura.findMany({
+          where: {
+            empresaId,
+            clienteId: clienteElegido.id,
+            estado: { not: "ANULADA" },
+            ...(qFactura ? { numero: contiene(qFactura) } : {}),
+          },
+          select: { id: true, numero: true, fechaEmision: true },
+          orderBy: { fechaEmision: "desc" },
+          take: TOPE_SELECTOR,
+        }),
+        prisma.factura.count({
+          where: { empresaId, clienteId: clienteElegido.id, estado: { not: "ANULADA" } },
+        }),
+      ])
+    : [[], 0];
 
   return (
     <div>
@@ -94,11 +151,92 @@ export default async function ReclamosClientePage({
         }))}
       >
       <div className="max-w-3xl">
-        <ReclamoFormulario
-          clientes={clientes.map((c) => ({ id: c.id, etiqueta: c.razonSocial }))}
-          facturas={facturas.map((f) => ({ id: f.id, numero: f.numero, clienteId: f.clienteId }))}
-          causas={causas.map((c) => ({ id: c.id, etiqueta: c.nombre }))}
+        {/*
+          El cliente se elige primero, por GET, y recién entonces se consultan
+          SUS facturas. Va en su propio formulario y no dentro del de alta
+          porque un formulario no se anida en otro — y porque son dos cosas
+          distintas: una consulta y un alta.
+        */}
+        <form method="get" className="flex flex-wrap items-end gap-3 mb-3 no-imprimir">
+          {q && <input type="hidden" name="q" value={q} />}
+          {filtroEstado && <input type="hidden" name="estado" value={filtroEstado} />}
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              Filtrar clientes
+            </span>
+            <input
+              type="search"
+              name="qCliente"
+              defaultValue={qCliente ?? ""}
+              placeholder="Razón social o código"
+              className="campo-input"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="font-medium text-neutral-700 dark:text-neutral-300">
+              Reclamo de qué cliente
+            </span>
+            <select
+              name="paraCliente"
+              defaultValue={clienteElegido?.id ?? ""}
+              className="campo-input min-w-72"
+            >
+              <option value="">Seleccione</option>
+              {clientes.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.razonSocial}
+                </option>
+              ))}
+            </select>
+          </label>
+          {clienteElegido && (
+            <label className="flex flex-col gap-1 text-sm">
+              <span className="font-medium text-neutral-700 dark:text-neutral-300">
+                Filtrar sus facturas
+              </span>
+              <input
+                type="search"
+                name="qFactura"
+                defaultValue={qFactura ?? ""}
+                placeholder="Número de factura"
+                className="campo-input"
+              />
+            </label>
+          )}
+          <button type="submit" className="boton-secundario">
+            Buscar
+          </button>
+        </form>
+        <AlcanceDeLista
+          mostrados={clientes.length}
+          totales={clientesTotales}
+          tope={TOPE_SELECTOR}
+          busqueda={qCliente}
+          queBusca="clientes activos"
         />
+        {clienteElegido && (
+          <AlcanceDeLista
+            mostrados={facturas.length}
+            totales={facturasTotales}
+            tope={TOPE_SELECTOR}
+            busqueda={qFactura}
+            queBusca={`facturas de ${clienteElegido.razonSocial}`}
+          />
+        )}
+
+        {clienteElegido ? (
+          <ReclamoFormulario
+            cliente={{ id: clienteElegido.id, etiqueta: clienteElegido.razonSocial }}
+            facturas={facturas.map((f) => ({ id: f.id, numero: f.numero }))}
+            causas={causas.map((c) => ({ id: c.id, etiqueta: c.nombre }))}
+          />
+        ) : (
+          <p className="text-sm borde-seccion" style={{ color: "var(--epicor-texto-tenue)" }}>
+            Elija el cliente para registrar un reclamo. Sus facturas se consultan recién entonces:
+            ofrecer las últimas de toda la compañía dejaría fuera a quien no facturó hace poco, y
+            un reclamo sin factura después no puede decir de qué lote salió.
+          </p>
+        )}
 
         <table className="tabla mt-6">
           <thead>

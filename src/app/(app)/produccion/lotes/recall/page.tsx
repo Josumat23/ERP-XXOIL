@@ -6,6 +6,7 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
+import AlcanceDeLista from "@/components/AlcanceDeLista";
 import { clientesPorAvisar, destinosDeLote, resumenDespacho } from "@/lib/despachoLote";
 import { contactoPara } from "@/lib/contactosCliente";
 import { lotesQueConsumieron, resumenTrazabilidadInsumo } from "@/lib/trazabilidadInsumo";
@@ -419,7 +420,7 @@ export default async function RecallPage({
           Buscar
         </button>
       </form>
-      <Alcance
+      <AlcanceDeLista
         mostrados={lotes.length}
         totales={lotesTotales}
         tope={TOPE_SELECTOR}
@@ -524,7 +525,7 @@ export default async function RecallPage({
             Buscar
           </button>
         </form>
-        <Alcance
+        <AlcanceDeLista
           mostrados={recepciones.length}
           totales={recepcionesTotales}
           tope={TOPE_SELECTOR}
@@ -816,52 +817,6 @@ export default async function RecallPage({
       )}
     </div>
   );
-}
-
-/**
- * Dice cuántas opciones se están mostrando de cuántas hay.
- *
- * Un selector acotado sin decirlo es peor que uno largo: quien no encuentra su
- * lote concluye que no existe, y el día de un recall esa conclusión es cara.
- */
-function Alcance({
-  mostrados,
-  totales,
-  tope,
-  busqueda,
-  queBusca,
-}: {
-  mostrados: number;
-  totales: number;
-  tope: number;
-  busqueda?: string;
-  queBusca: string;
-}) {
-  const clase = "text-xs text-neutral-500 -mt-2 mb-1";
-  if (busqueda) {
-    if (mostrados === 0) {
-      return (
-        <p className={clase}>
-          Ningún resultado para «{busqueda}» entre los {totales} {queBusca}.
-        </p>
-      );
-    }
-    return (
-      <p className={clase}>
-        {mostrados} de {totales} {queBusca} coinciden con «{busqueda}»
-        {mostrados >= tope ? ` (se muestran los ${tope} más recientes)` : ""}.
-      </p>
-    );
-  }
-  if (totales > mostrados) {
-    return (
-      <p className={clase}>
-        Se muestran los {mostrados} más recientes de {totales} {queBusca}. Use el filtro para
-        encontrar el resto.
-      </p>
-    );
-  }
-  return null;
 }
 
 function Dato({ etiqueta, valor }: { etiqueta: string; valor: string }) {
