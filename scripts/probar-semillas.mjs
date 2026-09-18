@@ -56,10 +56,12 @@ const SEMBRADORES = [
   ["Demo comercial", "prisma/seed-demo.ts"],
   ["Calidad", "prisma/seed-calidad.ts"],
   ["Trazabilidad", "prisma/seed-trazabilidad.ts"],
+  ["RRHH", "prisma/seed-rrhh.ts"],
   // Otra vez: los tres últimos se corren sobre bases que ya tienen datos, así
   // que tienen que ser idempotentes. Si el segundo pase escribe algo, se ve.
   ["Trazabilidad (otra vez)", "prisma/seed-trazabilidad.ts"],
   ["Calidad (otra vez)", "prisma/seed-calidad.ts"],
+  ["RRHH (otra vez)", "prisma/seed-rrhh.ts"],
 ];
 
 function correr(etiqueta, archivo) {
