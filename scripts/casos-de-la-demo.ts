@@ -72,6 +72,28 @@ async function main() {
     );
   }
 
+  // --- El tanque con mezcla -------------------------------------------------
+  // Lo que distingue a este módulo es repartir el consumo en proporción entre
+  // los lotes mezclados, en vez de obligar a elegir uno. Con un solo lote en el
+  // tanque eso no se puede ver.
+  const tanques = await prisma.tanque.findMany({
+    where: { empresaId: EMPRESA_ID },
+    select: {
+      codigo: true,
+      contenidoKg: true,
+      aportes: { where: { cantidadKg: { gt: 0 } }, select: { cantidadKg: true } },
+    },
+  });
+  comprobar(tanques.length > 0, "hay algún tanque cargado");
+  const conMezcla = tanques.filter((t) => t.aportes.length >= 2);
+  comprobar(
+    conMezcla.length > 0,
+    "algún tanque tiene dos o más lotes mezclados (el reparto proporcional)"
+  );
+  for (const t of conMezcla) {
+    console.log(`      ${t.codigo}: ${t.contenidoKg} kg de ${t.aportes.length} recepciones`);
+  }
+
   // --- A quiénes hay que avisar --------------------------------------------
   const clientesSinContacto = await prisma.cliente.count({
     where: { empresaId: EMPRESA_ID, contactos: { none: {} } },

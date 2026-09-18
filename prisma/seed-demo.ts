@@ -493,6 +493,12 @@ async function main() {
   await comprarInsumo(provQuimicos.id, aceite.id, 100, 7.15, "F002-1009", 1, "AB-2026-014");
   console.log("Segunda entrega del lote del proveedor AB-2026-014: queda en almacén, sin consumir.");
 
+  // Y una cisterna de OTRO lote del proveedor. Hacen falta dos lotes distintos
+  // con saldo para que el tanque tenga una mezcla de verdad: con uno solo, el
+  // reparto proporcional que es el punto del diseño no se puede ni ver.
+  await comprarInsumo(provQuimicos.id, aceite.id, 150, 7.3, "F002-1012", 0, "AB-2026-021");
+  console.log("Cisterna del lote AB-2026-021: el segundo lote que va al tanque.");
+
   // ------------------------------------------------- 5. Envasados
   async function envasar(
     lote: Awaited<ReturnType<typeof producirLote>>,
