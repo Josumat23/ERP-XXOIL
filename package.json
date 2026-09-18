@@ -13,6 +13,7 @@
     "seed:segunda-empresa": "tsx prisma/seed-segunda-empresa.ts",
     "seed:calidad": "tsx prisma/seed-calidad.ts",
     "seed:trazabilidad": "tsx prisma/seed-trazabilidad.ts",
+    "seed:rrhh": "tsx prisma/seed-rrhh.ts",
     "semillas:desde-cero": "node scripts/probar-semillas.mjs",
     "test": "node scripts/run-tests.mjs",
     "verificar": "node scripts/verificar.mjs",

@@ -118,6 +118,48 @@ async function main() {
     "alguno de esos ensayos ya salió al cliente (el caso urgente de la pantalla)"
   );
 
+  // --- RRHH -----------------------------------------------------------------
+  const empleados = await prisma.empleado.count({ where: { empresaId: EMPRESA_ID } });
+  comprobar(empleados > 0, "hay empleados cargados");
+  const cesados = await prisma.empleado.count({
+    where: { empresaId: EMPRESA_ID, estado: "CESADO" },
+  });
+  comprobar(cesados > 0, "hay algún cesado (rotación y headcount no son una línea plana)");
+  const conJefe = await prisma.empleado.count({
+    where: { empresaId: EMPRESA_ID, jefeDirectoId: { not: null } },
+  });
+  comprobar(conJefe > 0, "hay jefaturas declaradas (el organigrama tiene forma de árbol)");
+
+  const periodo = await prisma.planillaPeriodo.findFirst({
+    where: { empresaId: EMPRESA_ID },
+    select: { anio: true, mes: true, _count: { select: { detalles: true } } },
+  });
+  comprobar(Boolean(periodo && periodo._count.detalles > 0), "hay una planilla corrida con detalle");
+  if (periodo) {
+    console.log(`      planilla ${periodo.mes}/${periodo.anio} con ${periodo._count.detalles} boleta(s)`);
+  }
+
+  // El caso que el propio módulo documenta: sin sistema de pensión declarado,
+  // el empleado queda FUERA de la corrida con una advertencia visible. Sin un
+  // caso así en la demo, esa advertencia no se ve nunca.
+  const sinPension = await prisma.empleado.count({
+    where: {
+      empresaId: EMPRESA_ID,
+      estado: "ACTIVO",
+      sistemaPension: null,
+      tipoContrato: { not: "LOCACION_SERVICIOS" },
+    },
+  });
+  comprobar(sinPension > 0, "hay un activo sin sistema de pensión (la advertencia de la corrida)");
+
+  const posicionVacante = await prisma.posicionOrganizativa.count({
+    where: { empresaId: EMPRESA_ID, asignaciones: { none: {} } },
+  });
+  comprobar(posicionVacante > 0, "hay una posición vacante (existe sin nadie que la ocupe)");
+
+  const parametro = await prisma.parametroPlanilla.findFirst({ where: { empresaId: EMPRESA_ID } });
+  comprobar(Boolean(parametro), "hay parámetros de planilla (RMV/UIT) para que el cálculo corra");
+
   if (fallas.length > 0) {
     console.error(`\n✖ La demo no trae ${fallas.length} caso(s):`);
     for (const f of fallas) console.error(`   - ${f}`);
