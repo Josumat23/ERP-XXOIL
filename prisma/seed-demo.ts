@@ -10,6 +10,7 @@ import { asignarLoteVenta, asignarLoteInsumo } from "../src/lib/trazabilidad";
 import {
   postearVenta,
   postearCobro,
+  postearSalidaMercancia,
   postearNotaCredito,
   postearRecepcionCompra,
   postearPagoProveedor,
@@ -1283,6 +1284,250 @@ async function main() {
       });
       console.log(
         `Orden de producción abierta ${codigo} (${kgObjetivo} kg): material reservado, sin consumir.`
+      );
+    });
+  }
+
+  // ------------------------------- 11. Una venta que se despacha con guía
+  //
+  // Las veinte ventas de arriba facturan y mueven el stock en el mismo acto, y
+  // la trazabilidad del lote queda colgada del renglón de la FACTURA. Existe
+  // un segundo camino —el pedido que requiere entrega— donde el stock se
+  // reserva al tomar el pedido y sale al despachar, y ahí el lote queda
+  // colgado del renglón de la GUÍA.
+  //
+  // Ese segundo camino no lo ejercitaba ningún dato: 23 asignaciones por
+  // factura y cero por guía. Es la rama que «de qué lote salió» recorre cuando
+  // un reclamo llega sobre una entrega, y estaba probada a mano en
+  // `tests/reclamo-al-lote.test.ts` y en ningún otro lado.
+  //
+  // Va aparte del bucle de ventas a propósito: las veinte de arriba no se
+  // tocan, así que sus números —stock, costos, contabilidad— quedan como
+  // estaban. Esta es una venta más, chica, con su propia secuencia.
+  const clienteEntrega = carteraClientes[0];
+  const ventaConGuia = { presentacion: presPote, cantidad: 3 };
+  // Cinco días atrás, no un día fijo del mes: con un número de día el bloque
+  // se salta solo cuando el sembrador corre antes de esa fecha, y la entrega
+  // desaparece sin que nadie lo note. Pasó al escribir esto.
+  const fechaEntrega = new Date(hoy.getTime() - 5 * 24 * 60 * 60 * 1000);
+  {
+    await prisma.$transaction(async (tx) => {
+      const numeroPedido = await siguienteNumeroPedido(tx, "1");
+      const total = ventaConGuia.cantidad * ventaConGuia.presentacion.precio.toNumber();
+      const igv = Math.round(total * 18) / 100;
+
+      // 1. El pedido RESERVA el stock. No lo saca: la mercadería sigue en el
+      //    almacén hasta que sale el camión.
+      const pedido = await tx.pedido.create({
+        data: {
+          empresaId: EMPRESA,
+          numero: numeroPedido,
+          clienteId: clienteEntrega.id,
+          vendedorId: clienteEntrega.vendedorId,
+          almacenId: planta.id,
+          requiereEntrega: true,
+          fecha: fechaEntrega,
+          estado: "FACTURADO",
+          subtotalBruto: total,
+          descuentoTotal: 0,
+          total,
+          tasaIgv: 18,
+          igv,
+          totalConIgv: total + igv,
+          ...audit,
+          detalles: {
+            create: [
+              {
+                presentacionId: ventaConGuia.presentacion.id,
+                cantidad: ventaConGuia.cantidad,
+                precioLista: ventaConGuia.presentacion.precio,
+                origenPrecio: "BASE",
+                descuentoPct: 0,
+                descuentoMonto: 0,
+                precioUnitario: ventaConGuia.presentacion.precio,
+                subtotal: total,
+              },
+            ],
+          },
+        },
+      });
+      const lineaPedido = await tx.pedidoDetalle.findFirstOrThrow({
+        where: { pedidoId: pedido.id },
+      });
+      await tx.presentacion.update({
+        where: { id: ventaConGuia.presentacion.id },
+        data: { stockReservado: { increment: ventaConGuia.cantidad } },
+      });
+
+      // 2. La guía, con su renglón atado al del pedido.
+      const serieGuia = await tx.serieDocumento.findFirstOrThrow({
+        where: { tipoDocumento: "GUIA_REMISION", serie: "T001" },
+      });
+      const numeroGuia = formatearNumeroSerie(serieGuia.serie, serieGuia.correlativoActual + 1);
+      const guia = await tx.guiaRemision.create({
+        data: {
+          empresaId: EMPRESA,
+          numero: numeroGuia,
+          pedidoId: pedido.id,
+          clienteId: clienteEntrega.id,
+          fechaTraslado: fechaEntrega,
+          puntoPartida: "Planta Lima — Av. Los Lubricantes 450, Ate",
+          puntoLlegada: "Almacén del cliente",
+          motivoTraslado: "Venta",
+          pesoBrutoTotal: ventaConGuia.cantidad * 0.5,
+          modalidadTransporte: "PRIVADO",
+          placaVehiculo: "ABC-123",
+          estadoDespacho: "ENTREGADO",
+          fechaSalida: fechaEntrega,
+          fechaEntrega,
+          ...audit,
+          detalles: {
+            create: [
+              {
+                presentacionId: ventaConGuia.presentacion.id,
+                pedidoDetalleId: lineaPedido.id,
+                cantidad: ventaConGuia.cantidad,
+              },
+            ],
+          },
+        },
+      });
+      await avanzarSerie(tx, serieGuia.id);
+      const lineaGuia = await tx.guiaRemisionDetalle.findFirstOrThrow({
+        where: { guiaId: guia.id },
+      });
+
+      // 3. La SALIDA ocurre al despachar: sale el stock, se libera la reserva y
+      //    el lote queda colgado del renglón de la GUÍA — que es el segundo
+      //    camino de la trazabilidad.
+      const presentacion = await tx.presentacion.findUniqueOrThrow({
+        where: { id: ventaConGuia.presentacion.id },
+      });
+      const movimiento = await registrarMovimiento(tx, {
+        tipoItem: "PRESENTACION",
+        presentacionId: ventaConGuia.presentacion.id,
+        tipoMovimiento: "SALIDA",
+        origen: "VENTA",
+        cantidad: ventaConGuia.cantidad,
+        almacenId: planta.id,
+        referencia: `Guía ${numeroGuia} (pedido ${numeroPedido})`,
+        ...audit,
+      });
+      if (!movimiento.ok) throw new Error(movimiento.error);
+      await tx.presentacion.update({
+        where: { id: ventaConGuia.presentacion.id },
+        data: { stockReservado: { decrement: ventaConGuia.cantidad } },
+      });
+      await tx.guiaRemisionDetalle.update({
+        where: { id: lineaGuia.id },
+        data: { costoUnitario: presentacion.costoPromedio },
+      });
+      const costoTotal = ventaConGuia.cantidad * presentacion.costoPromedio.toNumber();
+      await asignarLoteVenta(tx, {
+        guiaDetalleId: lineaGuia.id,
+        pedidoDetalleId: lineaPedido.id,
+        presentacionId: ventaConGuia.presentacion.id,
+        cantidad: ventaConGuia.cantidad,
+      });
+      await postearSalidaMercancia(
+        tx,
+        { numeroGuia, pedido: numeroPedido, costoTotal, fecha: fechaEntrega },
+        audit
+      );
+
+      // 4. La factura llega DESPUÉS de la entrega y se ata a la guía. El costo
+      //    de ventas ya se contabilizó al despachar: cargarlo otra vez acá lo
+      //    contaría dos veces.
+      correlativoFactura += 1;
+      const numeroFactura = formatearNumeroSerie(serieFactura.serie, correlativoFactura);
+      const factura = await tx.factura.create({
+        data: {
+          empresaId: EMPRESA,
+          numero: numeroFactura,
+          pedidoId: pedido.id,
+          clienteId: clienteEntrega.id,
+          vendedorId: clienteEntrega.vendedorId,
+          fechaEmision: fechaEntrega,
+          fechaVencimiento: fechaEntrega,
+          condicionPago: "CONTADO",
+          subtotal: total,
+          igv,
+          total: total + igv,
+          moneda: "PEN",
+          tipoCambio: 1,
+          subtotalFuncional: total,
+          igvFuncional: igv,
+          totalFuncional: total + igv,
+          saldo: 0,
+          estado: "PAGADA",
+          ...audit,
+          detalles: {
+            create: [
+              {
+                pedidoDetalleId: lineaPedido.id,
+                presentacionId: ventaConGuia.presentacion.id,
+                cantidad: ventaConGuia.cantidad,
+                precioUnitario: ventaConGuia.presentacion.precio,
+                subtotal: total,
+                subtotalFuncional: total,
+                costoUnitario: presentacion.costoPromedio,
+              },
+            ],
+          },
+        },
+      });
+      const lineaFactura = await tx.facturaDetalle.findFirstOrThrow({
+        where: { facturaId: factura.id },
+      });
+      // El puente factura ↔ guía: es lo que permite llegar al lote desde la
+      // factura cuando la asignación cuelga de la guía.
+      await tx.facturaDetalleEntrega.create({
+        data: {
+          facturaDetalleId: lineaFactura.id,
+          guiaDetalleId: lineaGuia.id,
+          cantidad: ventaConGuia.cantidad,
+        },
+      });
+      await tx.guiaRemision.update({ where: { id: guia.id }, data: { facturaId: factura.id } });
+      await avanzarSerie(tx, serieFactura.id);
+
+      await postearVenta(
+        tx,
+        {
+          numeroFactura,
+          cliente: clienteEntrega.razonSocial,
+          subtotal: total,
+          igv,
+          total: total + igv,
+          costoVentas: 0, // ya se posteó al despachar
+          fecha: fechaEntrega,
+        },
+        audit
+      );
+      await tx.cobro.create({
+        data: {
+          empresaId: EMPRESA,
+          facturaId: factura.id,
+          monto: total + igv,
+          moneda: "PEN",
+          tipoCambio: 1,
+          montoFuncional: total + igv,
+          cxcFuncionalAplicada: total + igv,
+          diferenciaCambio: 0,
+          medioPago: "TRANSFERENCIA",
+          fecha: fechaEntrega,
+          ...audit,
+        },
+      });
+      await postearCobro(
+        tx,
+        { numeroFactura, monto: total + igv, fecha: fechaEntrega },
+        audit
+      );
+
+      console.log(
+        `Venta con entrega: guía ${numeroGuia} y factura ${numeroFactura}. ` +
+          "El lote quedó colgado del renglón de la guía, que es el segundo camino de la trazabilidad."
       );
     });
   }

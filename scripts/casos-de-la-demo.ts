@@ -182,6 +182,41 @@ async function main() {
   const parametro = await prisma.parametroPlanilla.findFirst({ where: { empresaId: EMPRESA_ID } });
   comprobar(Boolean(parametro), "hay parámetros de planilla (RMV/UIT) para que el cálculo corra");
 
+  // --- Los dos caminos de la trazabilidad de venta --------------------------
+  // El lote puede quedar colgado del renglón de la FACTURA —venta que factura y
+  // despacha en el mismo acto— o del de la GUÍA, cuando el pedido requiere
+  // entrega. La segunda rama es la que «de qué lote salió» recorre ante un
+  // reclamo sobre una entrega, y no la ejercitaba ningún dato.
+  const porFactura = await prisma.asignacionLoteVenta.count({
+    where: { facturaDetalleId: { not: null }, envasado: { empresaId: EMPRESA_ID } },
+  });
+  const porGuia = await prisma.asignacionLoteVenta.count({
+    where: { guiaDetalleId: { not: null }, envasado: { empresaId: EMPRESA_ID } },
+  });
+  console.log(`      asignaciones de lote: ${porFactura} por factura, ${porGuia} por guía`);
+  comprobar(porFactura > 0, "hay ventas con el lote colgado del renglón de la factura");
+  comprobar(porGuia > 0, "hay una entrega con el lote colgado del renglón de la guía");
+
+  // Y el puente entre las dos: sin él, la factura no llega al lote que salió
+  // por la guía.
+  const puentes = await prisma.facturaDetalleEntrega.count();
+  comprobar(puentes > 0, "la factura de esa entrega está atada a su guía");
+
+  // La reserva es transitoria: se toma al pedir y se libera al despachar. Una
+  // reserva que sobrevive al despacho bloquea stock que sí está disponible, y
+  // nadie la ve — el saldo simplemente «no alcanza» sin explicación.
+  const reservasColgadas = await prisma.presentacion.findMany({
+    where: { empresaId: EMPRESA_ID, stockReservado: { gt: 0 } },
+    select: { nombre: true, stockReservado: true },
+  });
+  comprobar(
+    reservasColgadas.length === 0,
+    "ninguna presentación quedó con stock reservado después de despachar" +
+      (reservasColgadas.length > 0
+        ? ` (${reservasColgadas.map((p) => `${p.nombre}: ${p.stockReservado}`).join(", ")})`
+        : "")
+  );
+
   // --- Capacidad con carga abierta ------------------------------------------
   // La planificación muestra la carga de las órdenes que NO terminaron. Sin un
   // centro de trabajo, sin ruta en la fórmula o sin una orden abierta, la
