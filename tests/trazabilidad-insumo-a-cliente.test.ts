@@ -27,6 +27,7 @@ const RAIZ = process.cwd();
 
 const destino = (cliente: string, cantidad: number): DestinoDeLote => ({
   cantidad,
+  clienteId: cliente,
   clienteNombre: cliente,
   facturaNumero: "F001-1",
   pedidoNumero: "P-1",

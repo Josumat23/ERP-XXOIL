@@ -6,7 +6,8 @@ import { puedeRealizar } from "@/lib/permisos";
 import { formatNumero } from "@/lib/format";
 import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 import BotonImprimir from "@/components/BotonImprimir";
-import { destinosDeLote, resumenDespacho } from "@/lib/despachoLote";
+import { clientesPorAvisar, destinosDeLote, resumenDespacho } from "@/lib/despachoLote";
+import { contactoPara } from "@/lib/contactosCliente";
 import { lotesQueConsumieron, resumenTrazabilidadInsumo } from "@/lib/trazabilidadInsumo";
 import { contiene } from "@/lib/busqueda";
 
@@ -18,7 +19,7 @@ const SELECT_ASIGNACIONES_VENTA = {
   facturaDetalleId: true,
   guiaDetalleId: true,
   pedidoDetalle: {
-    select: { pedido: { select: { numero: true, cliente: { select: { razonSocial: true } } } } },
+    select: { pedido: { select: { numero: true, cliente: { select: { id: true, razonSocial: true } } } } },
   },
   facturaDetalle: { select: { factura: { select: { numero: true } } } },
   guiaDetalle: {
@@ -289,6 +290,90 @@ export default async function RecallPage({
   // módulo desde que una tercera pantalla lo necesitó: la de qué reensayar.
   const destinos = lote ? destinosDeLote(lote.envasados) : [];
   const { unidades: totalUnidadesVendidas, clientes: clientesUnicos } = resumenDespacho(destinos);
+
+  // -------------------------------------------------------------------------
+  // A quiénes hay que avisar.
+  //
+  // La pantalla contestaba «cuántos clientes» y «qué lotes», pero la lista de a
+  // quién llamar había que armarla a mano: entrar lote por lote, anotar los
+  // clientes y juntar los repetidos. Con tres lotes son tres pantallas y una
+  // hoja aparte, el día que menos tiempo hay.
+  //
+  // Un lote fabricado con el material en cuestión está comprometido ENTERO: la
+  // grasa no se des-mezcla. Por eso se cuentan todos los destinos de cada lote
+  // alcanzado, no solo la parte proporcional al insumo sospechoso.
+  //
+  // Es una consulta y nada más. No registra a quién se avisó ni marca nada como
+  // notificado: cómo se comunica un recall, quién lo firma y qué se le pide al
+  // cliente son decisiones del negocio que nadie tomó.
+  // -------------------------------------------------------------------------
+  const porAvisar = clientesPorAvisar(
+    recepcion ? consumos.flatMap((c) => c.destinos) : destinos
+  );
+  // Qué alcance cubre esta lista, dicho con todas las letras.
+  //
+  // Con un lote Y un material elegidos hay DOS listas de clientes en la misma
+  // pantalla —la del lote, arriba, y esta— con números distintos. Sin decir
+  // cuál es cuál, quien lee elige a cuál creerle; es el mismo defecto que ya
+  // apareció con el encabezado del recall y con el estado vacío de la búsqueda.
+  const alcanceDelAviso = recepcion
+    ? `${recepcion.insumo.codigo}${
+        recepcion.numeroLoteProveedor ? ` · lote del proveedor ${recepcion.numeroLoteProveedor}` : ""
+      }, ${
+        porLoteProveedor && hermanas.length > 0
+          ? `${hermanas.length + 1} recepciones`
+          : recepcion.recepcion.numero
+      }`
+    : lote
+      ? `lote ${lote.codigo}`
+      : "";
+  const clientesConContacto =
+    porAvisar.length === 0
+      ? []
+      : await prisma.cliente.findMany({
+          // Acotado a la compañía: los ids salen de la cadena comercial, pero
+          // volver a pedirlos sin filtro sería confiar en el camino.
+          where: { id: { in: porAvisar.map((c) => c.clienteId) }, empresaId },
+          select: {
+            id: true,
+            telefono: true,
+            email: true,
+            contactos: {
+              select: {
+                id: true,
+                nombres: true,
+                apellidos: true,
+                cargo: true,
+                telefono: true,
+                celular: true,
+                email: true,
+                activo: true,
+                esPrincipal: true,
+                paraPedidos: true,
+                paraFacturacion: true,
+                paraCobranza: true,
+                paraDespacho: true,
+              },
+            },
+          },
+        });
+  const contactoDelCliente = new Map(
+    clientesConContacto.map((c) => {
+      // No hay un propósito «calidad» ni «recall» declarado en el maestro y no
+      // se inventa uno: se usa el de DESPACHO, que es quien atiende la
+      // mercadería, y `contactoPara` cae en el principal si nadie lo atiende.
+      const elegido = contactoPara(c.contactos, "DESPACHO");
+      const contacto = c.contactos.find((x) => x.id === elegido) ?? null;
+      return [
+        c.id,
+        {
+          contacto,
+          telefonoEmpresa: c.telefono,
+          emailEmpresa: c.email,
+        },
+      ];
+    })
+  );
 
   return (
     <div className="max-w-4xl">
@@ -578,8 +663,15 @@ export default async function RecallPage({
                                 {salida.clientes === 1 ? "1 cliente" : `${salida.clientes} clientes`}
                               </span>
                               {" · "}
+                              {/*
+                                El alcance del material viaja con el enlace: sin
+                                eso, mirar el detalle de un lote hacía perder la
+                                consulta y había que volver a armarla.
+                              */}
                               <Link
-                                href={`/produccion/lotes/recall?loteId=${c.loteGranelId}`}
+                                href={`/produccion/lotes/recall?loteId=${c.loteGranelId}&recepcionId=${recepcion.id}${
+                                  porLoteProveedor ? "&porLoteProveedor=1" : ""
+                                }`}
                                 className="hover:underline text-blue-700 dark:text-blue-400"
                               >
                                 ver a quiénes
@@ -598,6 +690,130 @@ export default async function RecallPage({
           </>
         )}
       </section>
+
+      {/*
+        A quiénes hay que avisar.
+        =========================
+        La lista que se arma a mano el día del recall: un renglón por cliente,
+        con todo lo que tiene y con quién atenderlo. Va al final porque se lee
+        después de haber decidido el alcance, y sale en la impresión.
+      */}
+      {porAvisar.length > 0 && (
+        <section className="mt-10 border-t border-black/10 dark:border-white/10 pt-6">
+          <h2 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+            A quiénes hay que avisar
+          </h2>
+          <p className="text-neutral-500 text-sm mt-1">
+            Alcance de esta lista: <strong>{alcanceDelAviso}</strong>.{" "}
+            {porAvisar.length === 1 ? "1 cliente tiene" : `${porAvisar.length} clientes tienen`}{" "}
+            {formatNumero(
+              porAvisar.reduce((t, c) => t + c.unidades, 0),
+              0
+            )}{" "}
+            unidades, ordenados por cuánto tiene cada uno.
+            {recepcion && lote && (
+              <span className="block mt-1">
+                La tabla de arriba es del lote {lote.codigo} solamente; esta cubre todo lo
+                fabricado con el material.
+              </span>
+            )}
+          </p>
+
+          <table className="tabla mt-4">
+            <thead>
+              <tr>
+                <th>Cliente</th>
+                <th className="text-right">Unidades</th>
+                <th>Qué tiene</th>
+                <th>Documentos</th>
+                <th>A quién llamar</th>
+              </tr>
+            </thead>
+            <tbody>
+              {porAvisar.map((c) => {
+                const datos = contactoDelCliente.get(c.clienteId);
+                const contacto = datos?.contacto ?? null;
+                const canales = [
+                  contacto?.celular,
+                  contacto?.telefono,
+                  contacto?.email,
+                  // Los del cliente son el último recurso: son de la empresa,
+                  // no de una persona.
+                  datos?.telefonoEmpresa,
+                  datos?.emailEmpresa,
+                ].filter(Boolean);
+                return (
+                  <tr key={c.clienteId}>
+                    <td className="font-medium align-top">
+                      <Link href={`/comercial/clientes/${c.clienteId}`} className="hover:underline">
+                        {c.clienteNombre}
+                      </Link>
+                    </td>
+                    <td className="align-top text-right font-medium">
+                      {formatNumero(c.unidades, 0)}
+                    </td>
+                    <td className="align-top text-sm">
+                      {c.envasados.map((e) => (
+                        <span key={e.codigo} className="block">
+                          <span className="font-mono text-xs">{e.codigo}</span> · {e.presentacion} ×{" "}
+                          {formatNumero(e.cantidad, 0)}
+                        </span>
+                      ))}
+                    </td>
+                    <td className="align-top text-sm">
+                      <span className="block font-mono text-xs">{c.pedidos.join(", ")}</span>
+                      {c.facturas.length > 0 ? (
+                        <span className="block font-mono text-xs">{c.facturas.join(", ")}</span>
+                      ) : (
+                        <span className="text-neutral-500 text-xs">Sin factura vigente</span>
+                      )}
+                    </td>
+                    <td className="align-top text-sm">
+                      {contacto ? (
+                        <>
+                          <span className="block">
+                            {[contacto.nombres, contacto.apellidos].filter(Boolean).join(" ")}
+                            {contacto.cargo && (
+                              <span className="text-neutral-500"> — {contacto.cargo}</span>
+                            )}
+                          </span>
+                          {canales.length > 0 ? (
+                            <span className="block text-xs text-neutral-500">
+                              {canales.join(" · ")}
+                            </span>
+                          ) : (
+                            <span className="block text-xs text-amber-700 dark:text-amber-500">
+                              Sin teléfono ni correo cargados
+                            </span>
+                          )}
+                        </>
+                      ) : canales.length > 0 ? (
+                        <>
+                          <span className="block text-neutral-500">Sin contacto designado</span>
+                          <span className="block text-xs text-neutral-500">
+                            {canales.join(" · ")}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-amber-700 dark:text-amber-500">
+                          Sin contacto ni datos de la empresa
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          <p className="mt-3 text-xs text-neutral-500">
+            Un lote fabricado con el material en cuestión está comprometido entero: se listan todas
+            las unidades de cada lote alcanzado, no una parte proporcional. El contacto es el de
+            <strong> despacho</strong> —quien atiende la mercadería— y, si nadie está designado
+            para eso, el principal del cliente. Esta pantalla no registra a quién se avisó.
+          </p>
+        </section>
+      )}
     </div>
   );
 }

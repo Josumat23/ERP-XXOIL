@@ -17,7 +17,7 @@ export type AsignacionDeVenta = {
   pedidoDetalleId: string;
   facturaDetalleId: string | null;
   guiaDetalleId: string | null;
-  pedidoDetalle: { pedido: { numero: string; cliente: { razonSocial: string } } };
+  pedidoDetalle: { pedido: { numero: string; cliente: { id: string; razonSocial: string } } };
   facturaDetalle: { factura: { numero: string } } | null;
   guiaDetalle: {
     facturaAsignaciones: { facturaDetalle: { factura: { numero: string; estado: string } } }[];
@@ -33,6 +33,8 @@ export type EnvasadoDespachado = {
 
 export type DestinoDeLote = {
   cantidad: number;
+  /** Para poder ir a buscar a quién llamar sin adivinar por el nombre. */
+  clienteId: string;
   clienteNombre: string;
   facturaNumero: string | null;
   pedidoNumero: string;
@@ -87,6 +89,7 @@ export function destinosDeLote(envasados: EnvasadoDespachado[]): DestinoDeLote[]
       netoPorLinea.set(clave, 0);
       destinos.push({
         cantidad,
+        clienteId: a.pedidoDetalle.pedido.cliente.id,
         clienteNombre: a.pedidoDetalle.pedido.cliente.razonSocial,
         facturaNumero: facturasDe(a),
         pedidoNumero: a.pedidoDetalle.pedido.numero,
@@ -106,6 +109,85 @@ export function resumenDespacho(destinos: DestinoDeLote[]): {
 } {
   return {
     unidades: destinos.reduce((acc, d) => acc + d.cantidad, 0),
-    clientes: new Set(destinos.map((d) => d.clienteNombre)).size,
+    clientes: new Set(destinos.map((d) => d.clienteId)).size,
   };
+}
+
+// ---------------------------------------------------------------------------
+// A quiénes hay que avisar.
+//
+// La pantalla de recall contesta «cuántos clientes» y «qué lotes», pero la
+// lista de a quién llamar había que armarla a mano: entrar lote por lote,
+// anotar los clientes y juntar los repetidos. Con tres lotes son tres pantallas
+// y una hoja aparte; el día de un recall es cuando menos tiempo hay para eso.
+//
+// Es una CONSULTA y nada más. No registra a quién se avisó ni marca nada como
+// notificado: cómo se comunica un recall, quién lo firma y qué se le pide al
+// cliente son decisiones del negocio que nadie tomó, y no se inventan desde
+// acá.
+// ---------------------------------------------------------------------------
+
+export type ClientePorAvisar = {
+  clienteId: string;
+  clienteNombre: string;
+  /** Unidades vigentes en su poder, sumando todo el alcance. */
+  unidades: number;
+  /** Qué envases tiene, para que sepa qué buscar en su almacén. */
+  envasados: { codigo: string; presentacion: string; cantidad: number }[];
+  /** Los documentos por los que salió: es como el cliente ubica la entrega. */
+  pedidos: string[];
+  facturas: string[];
+};
+
+/**
+ * Los clientes alcanzados, con lo que cada uno tiene.
+ *
+ * Se agrupa por id y no por razón social: dos clientes pueden llamarse
+ * parecido, y juntarlos por el nombre mandaría a uno el aviso del otro.
+ *
+ * El orden es por unidades, de más a menos: si hay que empezar a llamar por
+ * alguien, es por quien más producto tiene.
+ */
+export function clientesPorAvisar(destinos: DestinoDeLote[]): ClientePorAvisar[] {
+  const porCliente = new Map<string, ClientePorAvisar>();
+
+  for (const d of destinos) {
+    const fila = porCliente.get(d.clienteId) ?? {
+      clienteId: d.clienteId,
+      clienteNombre: d.clienteNombre,
+      unidades: 0,
+      envasados: [],
+      pedidos: [],
+      facturas: [],
+    };
+    fila.unidades += d.cantidad;
+
+    // El mismo envase puede llegarle en dos entregas: se suma, no se repite.
+    const envase = fila.envasados.find((e) => e.codigo === d.envasadoCodigo);
+    if (envase) envase.cantidad += d.cantidad;
+    else
+      fila.envasados.push({
+        codigo: d.envasadoCodigo,
+        presentacion: d.presentacionNombre,
+        cantidad: d.cantidad,
+      });
+
+    if (!fila.pedidos.includes(d.pedidoNumero)) fila.pedidos.push(d.pedidoNumero);
+    // Una guía facturada en varias facturas llega con los números juntos.
+    for (const numero of (d.facturaNumero ?? "").split(", ").filter(Boolean)) {
+      if (!fila.facturas.includes(numero)) fila.facturas.push(numero);
+    }
+
+    porCliente.set(d.clienteId, fila);
+  }
+
+  for (const fila of porCliente.values()) {
+    fila.envasados.sort((a, b) => a.codigo.localeCompare(b.codigo));
+    fila.pedidos.sort();
+    fila.facturas.sort();
+  }
+
+  return [...porCliente.values()].sort(
+    (a, b) => b.unidades - a.unidades || a.clienteNombre.localeCompare(b.clienteNombre)
+  );
 }
