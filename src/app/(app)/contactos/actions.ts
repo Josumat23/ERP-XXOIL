@@ -78,12 +78,12 @@ export async function agregarContacto(
     }
     if (esPrincipal) {
       await tx.contacto.updateMany({
-        where: { entidadTipo, entidadId },
+        where: { empresaId, entidadTipo, entidadId },
         data: { esPrincipal: false },
       });
     }
     await tx.contacto.create({
-      data: { entidadTipo, entidadId, nombre, cargo, telefono, email, esPrincipal },
+      data: { empresaId, entidadTipo, entidadId, nombre, cargo, telefono, email, esPrincipal },
     });
   });
 
@@ -95,7 +95,10 @@ export async function eliminarContacto(id: string, _rutaRevalidar: string) {
   void _rutaRevalidar;
   const usuario = await obtenerUsuario();
   if (!usuario) return;
-  const contacto = await prisma.contacto.findUnique({ where: { id } });
+  // El id llega del navegador: el contacto se busca YA acotado a la compañía
+  // activa. Ver la nota equivalente en `direcciones/actions.ts`.
+  const empresaId = await obtenerEmpresaActivaId();
+  const contacto = await prisma.contacto.findFirst({ where: { id, empresaId } });
   if (
     !contacto ||
     !esTipoEntidadContacto(contacto.entidadTipo) ||
@@ -103,7 +106,6 @@ export async function eliminarContacto(id: string, _rutaRevalidar: string) {
   ) {
     return;
   }
-  const empresaId = await obtenerEmpresaActivaId();
   if (
     !(await existeEntidadContactoAutorizada(
       contacto.entidadTipo,

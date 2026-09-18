@@ -268,3 +268,142 @@ test("agregar un tipo obliga a decir cómo se acota", async () => {
     `${comprobaciones.length} de ${ENTIDADES_DE_LA_EMPRESA.length} tipos se acotan por compañía`
   );
 });
+
+// --- Las filas mismas, no solo la entidad de la que cuelgan -----------------
+
+test("direcciones y contactos genéricos llevan su compañía", async () => {
+  // Eran los DOS ÚNICOS modelos polimórficos sin `empresaId` —`Adjunto` ya la
+  // tenía—. En la práctica se acotaban por la entidad padre, que sí la lleva,
+  // pero la fila en sí no se podía filtrar ni contar por compañía: cualquier
+  // consulta nueva nacía sin red.
+  const esquema = await leer("prisma/schema.prisma");
+  for (const modelo of ["Direccion", "Contacto"]) {
+    const bloque = esquema.slice(
+      esquema.indexOf(`model ${modelo} {`),
+      esquema.indexOf("}", esquema.indexOf(`model ${modelo} {`))
+    );
+    assert.match(bloque, /empresaId\s+String/, `${modelo} sigue sin compañía`);
+    assert.match(bloque, /empresa\s+Empresa\s+@relation/, `${modelo} no la relaciona`);
+  }
+});
+
+test("la migración rellena antes de exigir la columna", async () => {
+  // Agregarla NOT NULL de una haría fallar la migración en cualquier base con
+  // filas. Acá están vacías, pero una migración tiene que ser correcta en
+  // cualquier base, no solo en la que se probó.
+  const sql = await leer(
+    "prisma/migrations/20260918190000_aislamiento_direcciones_contactos/migration.sql"
+  );
+  const agrega = sql.indexOf('ADD COLUMN "empresaId" TEXT');
+  const rellena = sql.indexOf("UPDATE \"direcciones\"");
+  const exige = sql.indexOf('ALTER COLUMN "empresaId" SET NOT NULL');
+  assert.ok(agrega >= 0 && rellena > agrega && exige > rellena, "el orden de la migración no es agregar → rellenar → exigir");
+  // Y las tres clases polimórficas se rellenan, no solo una.
+  for (const tabla of ["clientes", "proveedores", "empleados"]) {
+    assert.ok(sql.includes(tabla), `la migración no rellena desde ${tabla}`);
+  }
+});
+
+test("una fila huérfana se borra en vez de inventarle dueño", async () => {
+  // Sin entidad padre no hay compañía que asignarle. Dejarla obligaría a
+  // elegirle una, y una dirección que no cuelga de nadie no la puede ver ni
+  // corregir nadie.
+  const sql = await leer(
+    "prisma/migrations/20260918190000_aislamiento_direcciones_contactos/migration.sql"
+  );
+  assert.match(sql, /DELETE FROM "direcciones" WHERE "empresaId" IS NULL/);
+  assert.match(sql, /DELETE FROM "contactos" WHERE "empresaId" IS NULL/);
+});
+
+test("los paneles leen acotados por compañía", async () => {
+  for (const panel of ["src/components/PanelDirecciones.tsx", "src/components/PanelContactos.tsx"]) {
+    const contenido = await leer(panel);
+    assert.match(
+      contenido,
+      /where: \{ empresaId: await obtenerEmpresaActivaId\(\), entidadTipo, entidadId \}/,
+      `${panel} lee sin acotar por compañía`
+    );
+  }
+});
+
+test("el alta escribe la compañía y el borrado la exige", async () => {
+  for (const [acciones, modelo] of [
+    ["src/app/(app)/direcciones/actions.ts", "direccion"],
+    ["src/app/(app)/contactos/actions.ts", "contacto"],
+  ] as const) {
+    const contenido = await leer(acciones);
+    // Comparación literal y no expresión regular: armarla con el nombre del
+    // modelo interpolado se prestó a un escape mal puesto, y la guarda dio en
+    // rojo sobre código correcto. Una guarda que falla por su propia sintaxis
+    // no dice nada sobre lo que vigila.
+    assert.ok(
+      contenido.includes(`prisma.${modelo}.findFirst({ where: { id, empresaId } })`),
+      `${acciones} busca por id sin la compañía`
+    );
+    assert.ok(
+      !contenido.includes(`prisma.${modelo}.findUnique`),
+      `${acciones} volvió a leer por id a secas`
+    );
+    assert.match(contenido, /where: \{ empresaId, entidadTipo, entidadId \}/);
+  }
+});
+
+test("la fila de una compañía no se ve desde otra", async () => {
+  const sufijo = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const una = await montarCompania(sufijo);
+  const otra = await montarCompania(sufijo + "z");
+
+  try {
+    const direccion = await prisma.direccion.create({
+      data: {
+        empresaId: otra.empresaId,
+        entidadTipo: "Cliente",
+        entidadId: otra.porTipo.Cliente,
+        tipo: "ENVIO",
+        pais: "Perú",
+        direccion: "Av. Ajena 123",
+      },
+    });
+    const contacto = await prisma.contacto.create({
+      data: {
+        empresaId: otra.empresaId,
+        entidadTipo: "Cliente",
+        entidadId: otra.porTipo.Cliente,
+        nombre: "Contacto ajeno",
+      },
+    });
+
+    // Lo que hace el panel: acotar por compañía activa.
+    const desdeLaUna = await prisma.direccion.findMany({
+      where: { empresaId: una.empresaId, entidadTipo: "Cliente", entidadId: otra.porTipo.Cliente },
+      select: { id: true },
+    });
+    assert.equal(desdeLaUna.length, 0, "se vio la dirección de otra compañía");
+
+    // Y lo que hace el borrado: buscar por id YA acotado.
+    const porId = await prisma.direccion.findFirst({
+      where: { id: direccion.id, empresaId: una.empresaId },
+      select: { id: true },
+    });
+    assert.equal(porId, null, "se pudo alcanzar por id la dirección de otra compañía");
+
+    const contactoAjeno = await prisma.contacto.findFirst({
+      where: { id: contacto.id, empresaId: una.empresaId },
+      select: { id: true },
+    });
+    assert.equal(contactoAjeno, null, "se pudo alcanzar por id el contacto de otra compañía");
+
+    // Y la dueña sí los ve.
+    const suyas = await prisma.direccion.count({ where: { empresaId: otra.empresaId } });
+    assert.equal(suyas, 1);
+  } finally {
+    await prisma.direccion.deleteMany({
+      where: { empresaId: { in: [una.empresaId, otra.empresaId] } },
+    });
+    await prisma.contacto.deleteMany({
+      where: { empresaId: { in: [una.empresaId, otra.empresaId] } },
+    });
+    await una.limpiar();
+    await otra.limpiar();
+  }
+});

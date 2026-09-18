@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { eliminarDireccion } from "@/app/(app)/direcciones/actions";
 import AgregarDireccionFormulario from "./AgregarDireccionFormulario";
 import BotonEliminarConfirmacion from "./BotonEliminarConfirmacion";
@@ -24,7 +25,9 @@ export default async function PanelDirecciones({
   rutaRevalidar: string;
 }) {
   const direcciones = await prisma.direccion.findMany({
-    where: { entidadTipo, entidadId },
+    // Acotado también por compañía: la entidad ya la lleva, pero una consulta
+    // que no la nombra no tiene red si mañana llega por otro camino.
+    where: { empresaId: await obtenerEmpresaActivaId(), entidadTipo, entidadId },
     orderBy: [{ esPrincipal: "desc" }, { creadoEn: "desc" }],
   });
 

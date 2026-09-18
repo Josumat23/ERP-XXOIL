@@ -60,3 +60,40 @@ La primera **recorre la lista de tipos**, no una muestra: monta dos compañías 
 Otra reproduce el agujero: comprueba que el registro ajeno **existe** —o sea que la comprobación vieja contestaba «sí»— antes de comprobar que la nueva contesta «no».
 
 Reintroduciendo la falta de `empresaId` en un solo tipo, **4 de las 8 se ponen en rojo**.
+
+---
+
+## Actualización: las filas mismas entran al aislamiento
+
+El ciclo anterior cerró el acceso —ninguna escritura ni lectura llega ya a una entidad de otra compañía— pero dejó anotado que el modelo genérico seguía **sin `empresaId`**.
+
+Medido, resultaron ser **los dos únicos** modelos polimórficos sin compañía: `Direccion` y `Contacto`. `Adjunto` ya la tenía.
+
+En la práctica se acotaban por la entidad padre, que sí la lleva. Pero la fila en sí no se podía filtrar ni contar por compañía, y cualquier consulta nueva nacía sin red: el filtro dependía de que quien la escribiera se acordara de pasar por la entidad.
+
+### No hacía falta la decisión que estaba pendiente
+
+Estaba anotado desde el 2026-09-14 como «pendiente de decisión propia», y por eso quedó tres ciclos sin tocarse. La decisión pendiente era **retirar** el modelo de Proveedores y Empleados, como se hizo con Clientes — y eso sí lo es, porque habría que inventar qué significa una dirección tipada para un proveedor (¿recojo?) y para un empleado (¿domicilio?).
+
+Agregarle la compañía no decide nada: preserva la funcionalidad tal como está y cierra el hueco.
+
+### La migración es correcta en cualquier base, no solo en ésta
+
+Las dos tablas están **vacías** —comprobado en `erp_dev` y en la base demo—, así que el relleno no toca nada. Se escribe igual:
+
+1. La columna se agrega **nullable**.
+2. Se rellena desde la entidad padre, por cada uno de los tres tipos polimórficos.
+3. Las filas **huérfanas** —cuya entidad ya no existe— se borran: sin padre no hay compañía que asignarles, y dejarlas obligaría a inventarles un dueño. Una dirección que no cuelga de nadie no la puede ver ni corregir nadie.
+4. Recién entonces la columna se vuelve obligatoria, con su clave foránea y su índice.
+
+Agregarla `NOT NULL` de una haría fallar la migración en cualquier instalación con datos.
+
+### Y el borrado deja de leer por id a secas
+
+`eliminarDireccion` y `eliminarContacto` leían la fila por id y comprobaban la compañía **después**, contra la entidad. Ahora la fila lleva la suya y se busca ya acotada: `findFirst({ where: { id, empresaId } })`.
+
+### Una guarda que falló por su propia sintaxis
+
+La primera versión de la prueba armaba la expresión regular interpolando el nombre del modelo, y un escape mal puesto la dejó comparando contra un patrón inválido: dio **en rojo sobre código correcto**. Se cambió por una comparación literal. Una guarda que falla por cómo está escrita no dice nada sobre lo que vigila.
+
+Reintroduciendo los dos defectos —quitar la compañía del panel y volver a leer por id a secas— las dos guardas se ponen en rojo.
