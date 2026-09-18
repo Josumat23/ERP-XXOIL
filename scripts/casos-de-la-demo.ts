@@ -182,6 +182,37 @@ async function main() {
   const parametro = await prisma.parametroPlanilla.findFirst({ where: { empresaId: EMPRESA_ID } });
   comprobar(Boolean(parametro), "hay parámetros de planilla (RMV/UIT) para que el cálculo corra");
 
+  // --- Capacidad con carga abierta ------------------------------------------
+  // La planificación muestra la carga de las órdenes que NO terminaron. Sin un
+  // centro de trabajo, sin ruta en la fórmula o sin una orden abierta, la
+  // pantalla sale vacía — y una planta siempre tiene trabajo en curso.
+  const centros = await prisma.centroTrabajo.count({
+    where: { empresaId: EMPRESA_ID, activo: true },
+  });
+  comprobar(centros > 0, "hay centros de trabajo");
+
+  const abiertas = await prisma.loteGranel.findMany({
+    where: { empresaId: EMPRESA_ID, estado: { in: ["PLANIFICADO", "EN_PROCESO"] } },
+    select: {
+      codigo: true,
+      operaciones: { where: { estado: { not: "COMPLETADA" } }, select: { nombre: true } },
+      reservasInsumo: { select: { cantidad: true } },
+    },
+  });
+  comprobar(abiertas.length > 0, "hay una orden de producción abierta");
+  const conRuta = abiertas.filter((l) => l.operaciones.length > 0);
+  comprobar(conRuta.length > 0, "esa orden tiene ruta: la planificación tiene qué repartir");
+  for (const l of conRuta) {
+    console.log(
+      `      ${l.codigo}: ${l.operaciones.length} operación(es) abiertas, ` +
+        `${l.reservasInsumo.length} insumo(s) reservados`
+    );
+  }
+  comprobar(
+    conRuta.every((l) => l.reservasInsumo.length > 0),
+    "la orden abierta reserva su material (reservar no mueve stock; consumir sí)"
+  );
+
   // --- Un lote que no pasó calidad -----------------------------------------
   // La no conformidad la abre el sistema al rechazar: sin un lote rechazado no
   // existe ninguna, y todo el circuito que viene después —contención, causa

@@ -1134,6 +1134,159 @@ async function main() {
   });
   console.log("Equipos y órdenes de mantenimiento de ejemplo creados.");
 
+  // ------------------------------------- 10. Centros de trabajo y capacidad
+  //
+  // La planificación de capacidad muestra la CARGA ABIERTA por centro: las
+  // operaciones de las órdenes que todavía no terminaron. La demo no tenía ni
+  // un centro de trabajo, ni una ruta en la fórmula, ni una orden abierta, así
+  // que la pantalla salía vacía por triplicado.
+  //
+  // Una planta siempre tiene trabajo en curso: sembrar solo órdenes terminadas
+  // deja la planificación sin nada que planificar.
+  const centrosTrabajo = [
+    { codigo: "CT-PESAJE", nombre: "Pesaje y premezcla", tipo: "MEZCLA" as const, horas: 8, eficiencia: 90 },
+    { codigo: "CT-REACTOR", nombre: "Reactor de saponificación", tipo: "MEZCLA" as const, horas: 16, eficiencia: 85 },
+    { codigo: "CT-MOLINO", nombre: "Molino coloidal y acabado", tipo: "MEZCLA" as const, horas: 8, eficiencia: 95 },
+    { codigo: "CT-ENVASE", nombre: "Línea de envasado", tipo: "ENVASADO" as const, horas: 8, eficiencia: 92 },
+  ];
+  const centroPorCodigo = new Map<string, string>();
+  for (const c of centrosTrabajo) {
+    const fila = await prisma.centroTrabajo.upsert({
+      where: { empresaId_codigo: { empresaId: EMPRESA, codigo: c.codigo } },
+      update: { nombre: c.nombre },
+      create: {
+        empresaId: EMPRESA,
+        codigo: c.codigo,
+        nombre: c.nombre,
+        tipo: c.tipo,
+        almacenId: planta.id,
+        capacidadHorasDia: c.horas,
+        eficienciaPct: c.eficiencia,
+      },
+    });
+    centroPorCodigo.set(c.codigo, fila.id);
+  }
+  console.log(`Centros de trabajo: ${centrosTrabajo.length}.`);
+
+  // La RUTA de la fórmula: por dónde pasa el producto y cuánto tarda en cada
+  // centro. Las horas son por el rendimiento de la fórmula (100 kg) y se
+  // escalan solas con el tamaño del lote.
+  const ruta = [
+    { centro: "CT-PESAJE", secuencia: 1, nombre: "Pesaje de insumos", prep: 0.5, maquina: 0.5, manoObra: 1 },
+    { centro: "CT-REACTOR", secuencia: 2, nombre: "Saponificación y cocción", prep: 1, maquina: 4, manoObra: 2 },
+    { centro: "CT-MOLINO", secuencia: 3, nombre: "Molienda y homogeneizado", prep: 0.5, maquina: 1.5, manoObra: 1 },
+  ];
+  const operacionPorSecuencia = new Map<number, string>();
+  for (const o of ruta) {
+    const centroTrabajoId = centroPorCodigo.get(o.centro)!;
+    const existente = await prisma.formulaOperacion.findFirst({
+      where: { formulaId: formula.id, secuencia: o.secuencia },
+      select: { id: true },
+    });
+    const fila = existente
+      ? await prisma.formulaOperacion.update({
+          where: { id: existente.id },
+          data: { centroTrabajoId, nombre: o.nombre },
+        })
+      : await prisma.formulaOperacion.create({
+          data: {
+            formulaId: formula.id,
+            centroTrabajoId,
+            secuencia: o.secuencia,
+            nombre: o.nombre,
+            preparacionHoras: o.prep,
+            maquinaHoras: o.maquina,
+            manoObraHoras: o.manoObra,
+          },
+        });
+    operacionPorSecuencia.set(o.secuencia, fila.id);
+  }
+  console.log(`Ruta de la fórmula: ${ruta.length} operaciones.`);
+
+  // Las órdenes ya terminadas llevan su ruta COMPLETADA: sin ella, la ficha de
+  // un lote cerrado no muestra por dónde pasó, y la ruta parecería inventada
+  // para la orden nueva.
+  for (const lote of [lote1, lote2, lote3]) {
+    const yaTiene = await prisma.loteOperacion.count({ where: { loteGranelId: lote.id } });
+    if (yaTiene > 0) continue;
+    const factor = lote.kgObjetivo.toNumber() / formula.rendimientoKg.toNumber();
+    for (const o of ruta) {
+      await prisma.loteOperacion.create({
+        data: {
+          loteGranelId: lote.id,
+          formulaOperacionId: operacionPorSecuencia.get(o.secuencia) ?? null,
+          centroTrabajoId: centroPorCodigo.get(o.centro)!,
+          secuencia: o.secuencia,
+          nombre: o.nombre,
+          preparacionPlanHoras: o.prep * factor,
+          maquinaPlanHoras: o.maquina * factor,
+          manoObraPlanHoras: o.manoObra * factor,
+          preparacionRealHoras: o.prep * factor,
+          maquinaRealHoras: o.maquina * factor,
+          manoObraRealHoras: o.manoObra * factor,
+          estado: "COMPLETADA",
+          inicioEn: lote.fechaInicio,
+          finEn: lote.fechaFin,
+        },
+      });
+    }
+  }
+
+  // Y una orden ABIERTA, que es la que la planificación tiene para planificar.
+  //
+  // Se crea igual que por pantalla: planificada, con su ruta y con el material
+  // RESERVADO, no consumido. Reservar no mueve stock —eso pasa al liberar la
+  // orden— así que esto no toca ningún saldo ni el kardex.
+  const yaHayAbierta = await prisma.loteGranel.count({
+    where: { empresaId: EMPRESA, estado: { in: ["PLANIFICADO", "EN_PROCESO"] } },
+  });
+  if (yaHayAbierta === 0) {
+    await prisma.$transaction(async (tx) => {
+      const codigo = await siguienteCodigoLote(tx, EMPRESA);
+      const kgObjetivo = 120;
+      const factor = kgObjetivo / formula.rendimientoKg.toNumber();
+      let costoEstandarInsumos = 0;
+      for (const detalle of formula.detalles) {
+        const insumo = await tx.insumo.findUniqueOrThrow({ where: { id: detalle.insumoId } });
+        costoEstandarInsumos += detalle.cantidad.toNumber() * factor * insumo.costoUnitario.toNumber();
+      }
+      const lote = await tx.loteGranel.create({
+        data: {
+          empresaId: EMPRESA,
+          codigo,
+          formulaId: formula.id,
+          kgObjetivo,
+          estado: "PLANIFICADO",
+          fechaCreacion: new Date(),
+          costoEstandarInsumos,
+          observaciones: "Orden abierta: es la carga que la planificación de capacidad reparte.",
+          ...audit,
+          operaciones: {
+            create: ruta.map((o) => ({
+              formulaOperacionId: operacionPorSecuencia.get(o.secuencia) ?? null,
+              centroTrabajoId: centroPorCodigo.get(o.centro)!,
+              secuencia: o.secuencia,
+              nombre: o.nombre,
+              preparacionPlanHoras: o.prep * factor,
+              maquinaPlanHoras: o.maquina * factor,
+              manoObraPlanHoras: o.manoObra * factor,
+            })),
+          },
+        },
+      });
+      await tx.reservaInsumoProduccion.createMany({
+        data: formula.detalles.map((detalle) => ({
+          loteGranelId: lote.id,
+          insumoId: detalle.insumoId,
+          cantidad: detalle.cantidad.toNumber() * factor,
+        })),
+      });
+      console.log(
+        `Orden de producción abierta ${codigo} (${kgObjetivo} kg): material reservado, sin consumir.`
+      );
+    });
+  }
+
   console.log("Datos de prueba cargados. Ya podés navegar el ERP con información real.");
 }
 
