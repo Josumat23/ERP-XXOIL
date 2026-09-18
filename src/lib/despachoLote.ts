@@ -114,6 +114,89 @@ export function resumenDespacho(destinos: DestinoDeLote[]): {
 }
 
 // ---------------------------------------------------------------------------
+// De una venta a los lotes que salieron en ella.
+//
+// La dirección que faltaba. Un reclamo de cliente registra la factura, la causa
+// y la descripción, pero no de qué LOTE salió el producto — y sin eso, quien
+// investiga no sabe qué revisar ni si el problema alcanza a alguien más.
+//
+// El dato no falta: está en el mismo ledger que contesta el recall
+// (`AsignacionLoteVenta`, cuyo comentario dice literalmente que existe para
+// responder ante un reclamo de calidad). Nadie lo había conectado.
+//
+// No se declara nada nuevo en el reclamo: si la factura llevó tres lotes, los
+// tres son candidatos y se muestran los tres. Decir «es este» eligiendo uno
+// sería inventar una precisión que el documento no tiene.
+// ---------------------------------------------------------------------------
+
+/** Un envasado con el lote del que salió. */
+export type EnvasadoConLote = EnvasadoDespachado & {
+  loteGranel: {
+    id: string;
+    codigo: string;
+    estado: string;
+    formula: { producto: { nombre: string } };
+  };
+};
+
+export type LoteEnUnaVenta = {
+  loteGranelId: string;
+  loteCodigo: string;
+  productoNombre: string;
+  estadoLote: string;
+  /** Unidades vigentes de ese lote en esta venta. */
+  unidades: number;
+  envasados: { codigo: string; presentacion: string; cantidad: number }[];
+};
+
+/**
+ * Los lotes que salieron en una venta, con cuánto de cada uno.
+ *
+ * Toma los envasados YA acotados a los renglones de esa venta: la resta
+ * ASIGNADA − LIBERADA se hace por renglón, así que restringir antes mantiene
+ * cada asignación con su liberación. Un renglón anulado o devuelto queda en
+ * cero y no aparece — el cliente no lo tiene.
+ *
+ * Ordena por unidades, de más a menos: si hay que empezar a revisar por un
+ * lote, es por el que más salió en esa venta.
+ */
+export function lotesDeUnaVenta(envasados: EnvasadoConLote[]): LoteEnUnaVenta[] {
+  const porEnvasado = new Map(envasados.map((e) => [e.id, e]));
+  const porLote = new Map<string, LoteEnUnaVenta>();
+
+  for (const d of destinosDeLote(envasados)) {
+    const envasado = porEnvasado.get(d.envasadoId);
+    if (!envasado) continue;
+    const lote = envasado.loteGranel;
+    const fila = porLote.get(lote.id) ?? {
+      loteGranelId: lote.id,
+      loteCodigo: lote.codigo,
+      productoNombre: lote.formula.producto.nombre,
+      estadoLote: lote.estado,
+      unidades: 0,
+      envasados: [],
+    };
+    fila.unidades += d.cantidad;
+    const suyo = fila.envasados.find((x) => x.codigo === d.envasadoCodigo);
+    if (suyo) suyo.cantidad += d.cantidad;
+    else
+      fila.envasados.push({
+        codigo: d.envasadoCodigo,
+        presentacion: d.presentacionNombre,
+        cantidad: d.cantidad,
+      });
+    porLote.set(lote.id, fila);
+  }
+
+  for (const fila of porLote.values()) {
+    fila.envasados.sort((a, b) => a.codigo.localeCompare(b.codigo));
+  }
+  return [...porLote.values()].sort(
+    (a, b) => b.unidades - a.unidades || a.loteCodigo.localeCompare(b.loteCodigo)
+  );
+}
+
+// ---------------------------------------------------------------------------
 // A quiénes hay que avisar.
 //
 // La pantalla de recall contesta «cuántos clientes» y «qué lotes», pero la

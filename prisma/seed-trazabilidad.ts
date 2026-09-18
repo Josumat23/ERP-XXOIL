@@ -3,6 +3,7 @@
 import "dotenv/config";
 import { crearAdaptador } from "../src/lib/adaptadorBase";
 import { PrismaClient } from "../src/generated/prisma/client";
+import { siguienteNumeroReclamo } from "../src/lib/correlativos";
 
 // ---------------------------------------------------------------------------
 // Los datos que hacen usable la trazabilidad / recall.
@@ -136,6 +137,7 @@ async function main() {
   }
 
   await sembrarContactosDeDespacho();
+  await sembrarReclamoDeEjemplo();
 }
 
 // ---------------------------------------------------------------------------
@@ -205,3 +207,71 @@ main()
   .finally(async () => {
     await prisma.$disconnect();
   });
+
+// ---------------------------------------------------------------------------
+// 3. Un reclamo de cliente atado a una venta real.
+//
+// «De qué lote salió» deriva el lote desde la factura del reclamo. Sin un
+// reclamo cargado, la sección no se puede ver ni probar a mano, y la base
+// sembrada no trae ninguno.
+//
+// Se elige una factura que de verdad llevó unidades asignadas a lotes: un
+// reclamo contra una factura sin trazabilidad mostraría el caso vacío, que es
+// justamente el que no hace falta sembrar.
+//
+// Solo se crea si NO hay ningún reclamo: el trabajo de alguien no se toca.
+// ---------------------------------------------------------------------------
+async function sembrarReclamoDeEjemplo() {
+  const yaHay = await prisma.reclamoCliente.count({ where: { empresaId: EMPRESA_ID } });
+  if (yaHay > 0) {
+    console.log(`\nYa hay ${yaHay} reclamo(s) cargado(s): no se crea ninguno.`);
+    return;
+  }
+
+  // Una factura vigente con unidades atadas a un lote de envasado.
+  const detalle = await prisma.facturaDetalle.findFirst({
+    where: {
+      factura: { empresaId: EMPRESA_ID, estado: { not: "ANULADA" } },
+      asignacionesLote: { some: {} },
+    },
+    select: {
+      factura: { select: { id: true, numero: true, clienteId: true } },
+    },
+    orderBy: { factura: { fechaEmision: "asc" } },
+  });
+  if (!detalle) {
+    console.log(
+      "\nNinguna factura tiene unidades asignadas a un lote: no se siembra el reclamo de\n" +
+        "ejemplo. «De qué lote salió» va a mostrar el caso sin trazabilidad, que es correcto."
+    );
+    return;
+  }
+
+  const causa = await prisma.causaCalidad.upsert({
+    where: {
+      empresaId_nombre: { empresaId: EMPRESA_ID, nombre: "Consistencia fuera de especificación" },
+    },
+    update: {},
+    create: { empresaId: EMPRESA_ID, nombre: "Consistencia fuera de especificación" },
+  });
+
+  const numero = await prisma.$transaction((tx) => siguienteNumeroReclamo(tx, EMPRESA_ID));
+  const reclamo = await prisma.reclamoCliente.create({
+    data: {
+      empresaId: EMPRESA_ID,
+      numero,
+      clienteId: detalle.factura.clienteId,
+      facturaId: detalle.factura.id,
+      causaId: causa.id,
+      descripcion:
+        "El cliente reporta que la grasa de esta entrega viene más blanda de lo habitual y " +
+        "chorrea en el punto de engrase. Pide revisión del lote.",
+      usuarioId: "seed",
+      usuarioNombre: "Datos de prueba",
+    },
+  });
+  console.log(
+    `\nReclamo de ejemplo ${reclamo.numero} contra la factura ${detalle.factura.numero}: ` +
+      "«De qué lote salió» ya tiene de dónde derivar el lote."
+  );
+}

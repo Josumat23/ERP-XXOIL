@@ -6,6 +6,8 @@ import { puedeRealizar } from "@/lib/permisos";
 import PanelMaestroDetalle from "@/components/PanelMaestroDetalle";
 import BotonImprimir from "@/components/BotonImprimir";
 import ReclamoEstadoFormulario from "./ReclamoEstadoFormulario";
+import { lotesDeUnaVenta } from "@/lib/despachoLote";
+import { ETIQUETA_ESTADO_LOTE } from "@/lib/etiquetas";
 
 const ETIQUETA_ESTADO: Record<string, string> = {
   ABIERTO: "Abierto",
@@ -35,6 +37,85 @@ export default async function DetalleReclamoPage({
     }),
   ]);
   if (!reclamo) notFound();
+
+  // -------------------------------------------------------------------------
+  // De qué lote salió lo que reclaman.
+  //
+  // El reclamo registra cliente, factura, causa y descripción — y nada sobre el
+  // LOTE. Quien investiga no sabía qué revisar ni si el problema alcanza a
+  // alguien más, aunque el dato estuviera guardado: el ledger de asignaciones
+  // de venta existe, según su propio comentario, «para responder ante un
+  // reclamo de calidad o un recall». Nadie lo había conectado.
+  //
+  // Se deriva de la factura, sin declarar nada nuevo en el reclamo. Si la
+  // factura llevó tres lotes, los tres son candidatos y se muestran los tres:
+  // elegir uno sería inventar una precisión que el documento no tiene.
+  //
+  // Los dos caminos cuentan. Una unidad puede estar atada al renglón de la
+  // factura o al de la guía que esa factura ampara; mirar solo el primero
+  // devolvería media respuesta con cara de completa.
+  const deLaFactura = reclamo.facturaId
+    ? {
+        OR: [
+          { facturaDetalle: { facturaId: reclamo.facturaId } },
+          {
+            guiaDetalle: {
+              facturaAsignaciones: { some: { facturaDetalle: { facturaId: reclamo.facturaId } } },
+            },
+          },
+        ],
+      }
+    : null;
+  const envasadosDeLaFactura = deLaFactura
+    ? await prisma.envasado.findMany({
+        where: { empresaId: usuario.empresaId, asignacionesLote: { some: deLaFactura } },
+        select: {
+          id: true,
+          codigo: true,
+          presentacion: { select: { nombre: true } },
+          loteGranel: {
+            select: {
+              id: true,
+              codigo: true,
+              estado: true,
+              formula: { select: { producto: { select: { nombre: true } } } },
+            },
+          },
+          // Solo los renglones de ESTA factura: la resta de lo liberado es por
+          // renglón, y mezclar otras ventas daría un neto que no es de acá.
+          asignacionesLote: {
+            where: deLaFactura,
+            select: {
+              tipo: true,
+              cantidad: true,
+              pedidoDetalleId: true,
+              facturaDetalleId: true,
+              guiaDetalleId: true,
+              pedidoDetalle: {
+                select: {
+                  pedido: {
+                    select: { numero: true, cliente: { select: { id: true, razonSocial: true } } },
+                  },
+                },
+              },
+              facturaDetalle: { select: { factura: { select: { numero: true } } } },
+              guiaDetalle: {
+                select: {
+                  facturaAsignaciones: {
+                    select: {
+                      facturaDetalle: {
+                        select: { factura: { select: { numero: true, estado: true } } },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      })
+    : [];
+  const lotesReclamados = lotesDeUnaVenta(envasadosDeLaFactura);
 
   return (
     <div>
@@ -98,6 +179,90 @@ export default async function DetalleReclamoPage({
           <p className="text-sm text-neutral-600 dark:text-neutral-400 whitespace-pre-wrap">
             {reclamo.descripcion}
           </p>
+        </div>
+
+        {/*
+          De qué lote salió.
+          =================
+          Va después de la descripción y antes de la acción correctiva, que es
+          el orden en que se investiga: qué pasó, con qué producto, qué se hizo.
+        */}
+        <div className="mt-5 border-t border-black/10 dark:border-white/10 pt-4">
+          <p className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1">
+            De qué lote salió
+          </p>
+          {!reclamo.facturaId ? (
+            <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
+              Este reclamo no tiene factura relacionada, así que no hay por dónde llegar al lote.
+              Si se conoce el documento de la venta, indíquelo al registrarlo.
+            </p>
+          ) : lotesReclamados.length === 0 ? (
+            <p className="text-sm" style={{ color: "var(--epicor-texto-tenue)" }}>
+              La factura {reclamo.factura?.numero} no tiene unidades vigentes asignadas a ningún
+              lote. Puede ser una venta anterior a la trazabilidad por lote, o una factura anulada
+              o devuelta por completo.
+            </p>
+          ) : (
+            <>
+              <p className="text-sm mb-2" style={{ color: "var(--epicor-texto-tenue)" }}>
+                {lotesReclamados.length === 1
+                  ? "La factura llevó un solo lote."
+                  : `La factura llevó ${lotesReclamados.length} lotes: el reclamo corresponde a alguno de ellos.`}{" "}
+                Derivado de la venta; el reclamo no declara el lote.
+              </p>
+              <table className="tabla">
+                <thead>
+                  <tr>
+                    <th>Lote</th>
+                    <th>Producto</th>
+                    <th>Estado</th>
+                    <th className="text-right">Unidades</th>
+                    <th>Envases</th>
+                    <th className="no-imprimir">Ver</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lotesReclamados.map((l) => (
+                    <tr key={l.loteGranelId}>
+                      <td className="font-medium align-top">
+                        <Link href={`/produccion/lotes/${l.loteGranelId}`} className="hover:underline">
+                          {l.loteCodigo}
+                        </Link>
+                      </td>
+                      <td className="align-top">{l.productoNombre}</td>
+                      <td className="align-top text-sm">
+                        {ETIQUETA_ESTADO_LOTE[l.estadoLote as keyof typeof ETIQUETA_ESTADO_LOTE] ??
+                          l.estadoLote}
+                      </td>
+                      <td className="align-top text-right">{l.unidades}</td>
+                      <td className="align-top text-sm">
+                        {l.envasados.map((e) => (
+                          <span key={e.codigo} className="block">
+                            <span className="font-mono text-xs">{e.codigo}</span> · {e.presentacion}{" "}
+                            × {e.cantidad}
+                          </span>
+                        ))}
+                      </td>
+                      <td className="align-top text-sm no-imprimir">
+                        <Link
+                          href={`/produccion/lotes/recall?loteId=${l.loteGranelId}`}
+                          className="hover:underline text-blue-700 dark:text-blue-400"
+                        >
+                          quién más lo tiene
+                        </Link>
+                        <Link
+                          href={`/produccion/calidad/certificados/${l.loteGranelId}`}
+                          className="block hover:underline text-blue-700 dark:text-blue-400"
+                        >
+                          certificado
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
         </div>
 
         {reclamo.accionCorrectiva && (
