@@ -4,6 +4,7 @@ import "dotenv/config";
 import { crearAdaptador } from "../src/lib/adaptadorBase";
 import { PrismaClient } from "../src/generated/prisma/client";
 import { siguienteNumeroReclamo } from "../src/lib/correlativos";
+import { descargarEnTanque } from "../src/lib/tanquesServicio";
 
 // ---------------------------------------------------------------------------
 // Los datos que hacen usable la trazabilidad / recall.
@@ -138,6 +139,7 @@ async function main() {
 
   await sembrarContactosDeDespacho();
   await sembrarReclamoDeEjemplo();
+  await sembrarTanqueDeBaseLubricante();
 }
 
 // ---------------------------------------------------------------------------
@@ -273,5 +275,123 @@ async function sembrarReclamoDeEjemplo() {
   console.log(
     `\nReclamo de ejemplo ${reclamo.numero} contra la factura ${detalle.factura.numero}: ` +
       "«De qué lote salió» ya tiene de dónde derivar el lote."
+  );
+}
+
+// ---------------------------------------------------------------------------
+// 4. El tanque, con una mezcla de verdad.
+//
+// La base lubricante llega en cisterna y se descarga sobre el remanente de la
+// anterior. Desde ese momento los lotes están MEZCLADOS: ningún kilo que salga
+// se puede atribuir a una sola recepción. El sistema lo modela repartiendo el
+// consumo en proporción a lo que cada recepción aporta —en vez de obligar a
+// elegir un lote, que es lo que hace SAP y produce una respuesta equivocada
+// con aire de certeza—.
+//
+// Eso es lo que distingue a este módulo, y no había UN SOLO tanque sembrado:
+// la pantalla existía y no se podía ni abrir.
+//
+// El tanque se llena con DOS lotes del proveedor, porque con uno solo el
+// reparto proporcional no se puede ver. Y se descarga solo una PARTE de cada
+// recepción: el resto queda suelto, que es la otra forma en que el negocio
+// confirmó que recibe —envasado conserva su lote, granel va al tanque— y
+// además mantiene el saldo que la pantalla de recall necesita para decir
+// cuánto del lote sospechoso sigue sin consumirse.
+//
+// La descarga NO se escribe a mano: la hace `descargarEnTanque()`, que mueve
+// la disponibilidad del envase al tanque con reclamo optimista y registra el
+// aporte. Insertar las filas por afuera sería una segunda implementación de
+// una regla de saldos, y la que quedara vieja sería la del sembrador.
+// ---------------------------------------------------------------------------
+async function sembrarTanqueDeBaseLubricante() {
+  const yaHay = await prisma.tanque.count({ where: { empresaId: EMPRESA_ID } });
+  if (yaHay > 0) {
+    console.log(`\nYa hay ${yaHay} tanque(s) cargado(s): no se toca ninguno.`);
+    return;
+  }
+
+  const aceite = await prisma.insumo.findFirst({
+    where: { empresaId: EMPRESA_ID, codigo: "MP-ACEITE-BASE" },
+    select: { id: true, nombre: true },
+  });
+  const almacen = await prisma.almacen.findFirst({
+    where: { empresaId: EMPRESA_ID },
+    orderBy: { codigo: "asc" },
+    select: { id: true },
+  });
+  if (!aceite || !almacen) {
+    console.log("\nSin aceite base o sin almacén: no se siembra el tanque.");
+    return;
+  }
+
+  // Con saldo para descargar, de la más antigua a la más nueva.
+  const conSaldo = await prisma.recepcionCompraDetalle.findMany({
+    where: {
+      recepcion: { ordenCompra: { empresaId: EMPRESA_ID } },
+      insumoId: aceite.id,
+      cantidadDisponible: { gt: 0 },
+    },
+    select: {
+      id: true,
+      cantidadDisponible: true,
+      numeroLoteProveedor: true,
+      recepcion: { select: { numero: true, fecha: true } },
+    },
+    orderBy: { recepcion: { fecha: "asc" } },
+  });
+
+  if (conSaldo.length < 2) {
+    console.log(
+      `\nSolo ${conSaldo.length} recepción(es) de aceite base con saldo: no alcanza para una\n` +
+        "mezcla. Se siembra el tanque vacío para que la pantalla se pueda abrir igual."
+    );
+  }
+
+  const tanque = await prisma.tanque.create({
+    data: {
+      empresaId: EMPRESA_ID,
+      almacenId: almacen.id,
+      codigo: "TK-01",
+      nombre: "Tanque de base lubricante 500N",
+      insumoId: aceite.id,
+      capacidadKg: 3000,
+    },
+  });
+
+  // Una PARTE de cada recepción: el resto queda suelto a propósito.
+  let descargados = 0;
+  for (const r of conSaldo.slice(0, 2)) {
+    const disponible = r.cantidadDisponible.toNumber();
+    const aDescargar = Math.round(disponible * 0.6 * 100) / 100;
+    if (aDescargar <= 0) continue;
+    const resultado = await prisma.$transaction((tx) =>
+      descargarEnTanque(tx, {
+        tanqueId: tanque.id,
+        recepcionCompraDetalleId: r.id,
+        cantidadKg: aDescargar,
+        empresaId: EMPRESA_ID,
+      })
+    );
+    if (!resultado.ok) {
+      console.log(`  ${r.recepcion.numero}: no se pudo descargar — ${resultado.error}`);
+      continue;
+    }
+    descargados += 1;
+    console.log(
+      `  ${r.recepcion.numero} (lote ${r.numeroLoteProveedor ?? "-"}): ${aDescargar} kg al tanque, ` +
+        `${Math.round((disponible - aDescargar) * 100) / 100} kg siguen sueltos`
+    );
+  }
+
+  const final = await prisma.tanque.findUniqueOrThrow({
+    where: { id: tanque.id },
+    select: { contenidoKg: true },
+  });
+  console.log(
+    `\nTanque TK-01: ${final.contenidoKg} kg de ${descargados} lote(s) del proveedor mezclados.` +
+      (descargados >= 2
+        ? " Un consumo desde acá se reparte en proporción entre los dos, que es\n" +
+          "el punto del diseño: no se elige un lote, se dice la verdad."
+        : "")
   );
 }

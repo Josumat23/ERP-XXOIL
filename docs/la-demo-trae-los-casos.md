@@ -59,3 +59,23 @@ No entra en `npm test` porque sembrar la demo entera tarda y la suite ya dura oc
 ## Nota sobre `erp_dev`
 
 La base de desarrollo ya tenía sus propios ensayos y un plan hecho a mano con una sola característica, así que al correr `npm run seed:calidad` allí solo se completó el lote que no tenía mediciones. Es el comportamiento buscado: el sembrador completa lo que falta y no reescribe lo que hay.
+
+---
+
+## Actualización: el tanque con mezcla
+
+El módulo de tanques es lo que distingue a este sistema de los grandes: la base lubricante llega en cisterna y se descarga sobre el remanente de la anterior, así que los lotes quedan **mezclados**, y un consumo se reparte **en proporción** entre ellos en vez de obligar a elegir uno —que es lo que hace SAP y produce «una respuesta equivocada con aire de certeza»—.
+
+No había **un solo tanque sembrado**. La pantalla existía y no se podía ni abrir.
+
+Ahora `npm run seed:trazabilidad` crea `TK-01` (base lubricante 500N, 3 000 kg) y descarga en él dos lotes del proveedor distintos. Tres decisiones:
+
+**Dos lotes, no uno.** Con uno solo el reparto proporcional no se puede ver, así que `seed-demo.ts` compra una cisterna más con su propio número de lote. Desde cero: 60 kg de `AB-2026-014` y 90 kg de `AB-2026-021`, 150 kg mezclados.
+
+**Solo una parte de cada recepción.** El negocio confirmó que recibe de las dos formas —lo envasado conserva su lote, el granel va al tanque—, y además descargar todo dejaría la recepción en cero: la pantalla de recall ya no podría decir cuánto del lote sospechoso sigue sin consumirse. Con la descarga parcial, `AB-2026-014` queda con 40 kg sueltos y el caso del recall sobrevive.
+
+Eso último lo detectó la propia comprobación: `descargarEnTanque()` **decrementa `cantidadDisponible`**, así que una descarga total habría roto en silencio el caso sembrado dos ciclos antes. La guarda «queda material sin consumir» lo habría puesto en rojo.
+
+**La descarga no se escribe a mano.** La hace `descargarEnTanque()`, que mueve la disponibilidad con reclamo optimista y registra el aporte. Insertar las filas por afuera sería una segunda implementación de una regla de saldos.
+
+En `erp_dev` el tanque queda con **un** solo lote, porque esa base ya tenía sus compras hechas y `seed-demo.ts` no se puede volver a correr encima. El sembrador lo dice al terminar en vez de aparentar una mezcla que no existe.

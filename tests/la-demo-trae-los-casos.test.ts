@@ -99,3 +99,51 @@ test("la densidad medida queda en el lote, como cuando se carga por pantalla", a
   const semilla = await leer("prisma/seed-calidad.ts");
   assert.match(semilla, /data: \{ densidadKgL: densidad \}/);
 });
+
+// --- El tanque con mezcla ---------------------------------------------------
+
+test("la descarga al tanque la hace el servicio, no el sembrador", async () => {
+  // `descargarEnTanque()` mueve la disponibilidad del envase al tanque con
+  // reclamo optimista y registra el aporte. Insertar las filas por afuera
+  // sería una segunda implementación de una regla de saldos.
+  const semilla = await leer("prisma/seed-trazabilidad.ts");
+  assert.match(semilla, /import \{ descargarEnTanque \} from "\.\.\/src\/lib\/tanquesServicio"/);
+  assert.match(semilla, /descargarEnTanque\(tx, \{/);
+  assert.doesNotMatch(semilla, /aporteTanque\.create/, "el sembrador escribe el aporte a mano");
+});
+
+test("se descarga solo una parte: el resto queda suelto", async () => {
+  // Dos motivos. Uno: el negocio confirmó que recibe de las dos formas, y lo
+  // envasado conserva su lote. Dos: descargar todo dejaría la recepción en
+  // cero y la pantalla de recall ya no podría decir cuánto del lote sospechoso
+  // sigue sin consumirse — que es su dato accionable.
+  const semilla = await leer("prisma/seed-trazabilidad.ts");
+  assert.match(semilla, /disponible \* 0\.6/);
+  assert.match(semilla, /siguen sueltos/);
+});
+
+test("al tanque entran dos lotes del proveedor, no uno", async () => {
+  // Con un solo lote el reparto proporcional —el punto del diseño— no se ve.
+  const semilla = await leer("prisma/seed-trazabilidad.ts");
+  assert.match(semilla, /conSaldo\.slice\(0, 2\)/);
+
+  const demo = await leer("prisma/seed-demo.ts");
+  assert.match(demo, /"AB-2026-021"/, "falta la cisterna del segundo lote");
+  const lotesDeAceite = demo.match(/comprarInsumo\(provQuimicos\.id, aceite\.id[^)]*\)/g) ?? [];
+  assert.ok(
+    lotesDeAceite.length >= 3,
+    `solo ${lotesDeAceite.length} compras de aceite base: hacen falta tres para que quede saldo de dos lotes`
+  );
+});
+
+test("un tanque ya cargado no se toca", async () => {
+  const semilla = await leer("prisma/seed-trazabilidad.ts");
+  assert.match(semilla, /const yaHay = await prisma\.tanque\.count/);
+  assert.match(semilla, /no se toca ninguno/);
+});
+
+test("la comprobación desde cero exige que el tanque tenga mezcla", async () => {
+  const casos = await leer("scripts/casos-de-la-demo.ts");
+  assert.match(casos, /aportes\.length >= 2/);
+  assert.match(casos, /el reparto proporcional/);
+});
