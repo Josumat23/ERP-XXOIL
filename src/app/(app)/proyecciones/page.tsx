@@ -2,18 +2,17 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
+import { puedeVerPantalla } from "@/lib/accesoPantalla";
 import { irAProyeccionActual } from "./actions";
 
 const NOMBRE_TRIMESTRE: Record<number, string> = { 1: "T1", 2: "T2", 3: "T3", 4: "T4" };
 
 export default async function ProyeccionesPage() {
   const usuario = await obtenerUsuario();
-  if (
-    !usuario ||
-    !["ADMIN", "GERENCIA", "VENTAS", "PRODUCCION"].includes(usuario.rol)
-  ) {
-    redirect("/");
-  }
+  // La lista de roles estaba acá y no en la navegación, así que el menú le
+  // ofrecía la pantalla a ALMACEN y la pantalla lo rechazaba: un enlace muerto.
+  // Ahora la lista vive en un solo lado.
+  if (!usuario || !puedeVerPantalla(usuario.rol, "/proyecciones")) redirect("/");
 
   const proyecciones = await prisma.proyeccion.findMany({
     where: { empresaId: usuario.empresaId },

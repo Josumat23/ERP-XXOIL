@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { puedeVerPantalla } from "@/lib/accesoPantalla";
 import { ETIQUETA_CANAL_CLIENTE } from "@/lib/etiquetas";
 import DescuentoCanalFormulario from "./DescuentoCanalFormulario";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
@@ -10,7 +11,11 @@ const CANALES = Object.keys(ETIQUETA_CANAL_CLIENTE) as (keyof typeof ETIQUETA_CA
 
 export default async function DescuentosCanalPage() {
   const usuario = await obtenerUsuario();
-  if (!usuario || !(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
+  // El menú esconde esta pantalla a los roles que la navegación no declara;
+  // esconder un enlace no cierra la puerta. `puedeRealizar` sola no alcanza:
+  // sin grupo de seguridad asignado devuelve `true` a cualquiera.
+  if (!usuario || !puedeVerPantalla(usuario.rol, "/comercial/descuentos-canal")) redirect("/");
+  if (!(await puedeRealizar(usuario, "ventas", "ver"))) redirect("/");
   const empresaId = await obtenerEmpresaActivaId();
 
   const descuentos = await prisma.descuentoCanal.findMany({ where: { empresaId } });

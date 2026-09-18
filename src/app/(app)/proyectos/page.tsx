@@ -3,6 +3,7 @@ import Link from "next/link";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuarioEmpresaActiva as obtenerUsuario } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
+import { puedeVerPantalla } from "@/lib/accesoPantalla";
 import { formatMoneda } from "@/lib/format";
 import { costoRealProyecto } from "@/lib/proyectos";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -30,7 +31,11 @@ export default async function ProyectosPage({
   searchParams: Promise<{ q?: string; estado?: string }>;
 }) {
   const usuario = await obtenerUsuario();
-  if (!usuario || !(await puedeRealizar(usuario, "proyectos", "ver"))) redirect("/");
+  // El menú esconde esta pantalla a los roles que la navegación no declara;
+  // esconder un enlace no cierra la puerta. `puedeRealizar` sola no alcanza:
+  // sin grupo de seguridad asignado devuelve `true` a cualquiera.
+  if (!usuario || !puedeVerPantalla(usuario.rol, "/proyectos")) redirect("/");
+  if (!(await puedeRealizar(usuario, "proyectos", "ver"))) redirect("/");
 
   const { q, estado } = await searchParams;
 
