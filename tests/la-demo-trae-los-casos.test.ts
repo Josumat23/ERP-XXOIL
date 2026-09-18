@@ -195,3 +195,47 @@ test("`dev:demo` levanta con TODOS los sembradores", async () => {
     assert.match(script, new RegExp(`"${semilla.replace(/[/.]/g, "\$&")}"`), semilla);
   }
 });
+
+// --- Capacidad con carga abierta --------------------------------------------
+
+test("la planta tiene centros de trabajo y la fórmula su ruta", async () => {
+  // La planificación de capacidad reparte la carga POR CENTRO: sin centros no
+  // hay dónde repartirla, y sin ruta en la fórmula no hay qué repartir.
+  const semilla = await leer("prisma/seed-demo.ts");
+  assert.match(semilla, /centroTrabajo\.upsert/);
+  assert.match(semilla, /formulaOperacion\.create/);
+  assert.match(semilla, /CT-REACTOR/);
+});
+
+test("hay una orden abierta, y reserva en vez de consumir", async () => {
+  // Una planta siempre tiene trabajo en curso: sembrar solo órdenes terminadas
+  // deja la planificación sin nada que planificar.
+  //
+  // Reservar NO mueve stock —eso pasa al liberar la orden—, así que la orden
+  // abierta no toca ningún saldo ni el kardex. Es la misma secuencia que hace
+  // `crearLote()` por pantalla.
+  const semilla = await leer("prisma/seed-demo.ts");
+  assert.match(semilla, /estado: "PLANIFICADO"/);
+  assert.match(semilla, /reservaInsumoProduccion\.createMany/);
+  assert.doesNotMatch(
+    semilla.slice(semilla.indexOf("Orden abierta: es la carga")),
+    /registrarMovimiento/,
+    "la orden abierta mueve stock: reservar y consumir no son lo mismo"
+  );
+});
+
+test("las órdenes ya terminadas llevan su ruta completada", async () => {
+  // Sin ella, la ficha de un lote cerrado no muestra por dónde pasó y la ruta
+  // parecería inventada para la orden nueva.
+  const semilla = await leer("prisma/seed-demo.ts");
+  assert.match(semilla, /estado: "COMPLETADA"/);
+  assert.match(semilla, /for \(const lote of \[lote1, lote2, lote3\]\)/);
+});
+
+test("la comprobación desde cero exige carga abierta con ruta", async () => {
+  const casos = await leer("scripts/casos-de-la-demo.ts");
+  assert.match(casos, /hay centros de trabajo/);
+  assert.match(casos, /hay una orden de producción abierta/);
+  assert.match(casos, /la planificación tiene qué repartir/);
+  assert.match(casos, /reservar no mueve stock; consumir sí/);
+});

@@ -103,3 +103,26 @@ Un rechazo con todas las lecturas conformes sería una contradicción impresa: l
 ### `dev:demo` levantaba una base a medias
 
 `npm run dev:demo` es la forma de revisar la aplicación en el navegador, y sembraba solo el flujo comercial: la base que se usa **justamente para mirar** tenía las mismas pantallas en blanco que se habían encontrado sembrando desde cero. Ahora corre los cinco sembradores.
+
+---
+
+## Actualización: capacidad con carga abierta
+
+La planificación de capacidad muestra la **carga abierta** por centro: las operaciones de las órdenes que todavía no terminaron. La demo no tenía ni un centro de trabajo, ni una ruta en la fórmula, ni una orden abierta — la pantalla salía vacía por triplicado.
+
+Una planta siempre tiene trabajo en curso. Sembrar solo órdenes terminadas deja la planificación sin nada que planificar.
+
+Ahora la demo trae:
+
+- **Cuatro centros de trabajo**: pesaje y premezcla, reactor de saponificación, molino coloidal, línea de envasado, con sus horas por día y su eficiencia.
+- **La ruta de la fórmula**: pesaje → saponificación → molienda, con horas de preparación, máquina y mano de obra por cada 100 kg, que se escalan solas con el tamaño del lote.
+- **Una orden abierta** de 120 kg, planificada, con su ruta y su material **reservado**.
+- Las tres órdenes ya cerradas llevan su ruta **completada**: sin ella, la ficha de un lote terminado no muestra por dónde pasó, y la ruta parecería inventada para la orden nueva.
+
+### Reservar no es consumir
+
+La orden abierta crea `ReservaInsumoProduccion`, no movimientos de kardex. El material se consume al liberar la orden, no al planificarla — que es exactamente lo que hace `crearLote()` por pantalla.
+
+Que eso sea cierto se ve en los números: después de agregar la orden abierta, el material sin consumir del lote del proveedor siguió en **18.88 kg** y el tanque en **118.32 kg**, idénticos a antes. Si la orden hubiera consumido, esos dos habrían cambiado y las guardas lo habrían dicho.
+
+La línea de envasado queda sin carga, y está bien: el envasado es un proceso aparte y la ruta del granel no pasa por ahí. La pantalla lo dice —«Sin carga abierta»— en vez de inventarle trabajo.
