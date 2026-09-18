@@ -57,12 +57,16 @@ test("la pantalla dice cuántas opciones muestra de cuántas hay", async () => {
     resolve(RAIZ, "src/app/(app)/produccion/lotes/recall/page.tsx"),
     "utf8"
   );
-  assert.match(pagina, /function Alcance\(/);
-  assert.match(pagina, /Ningún resultado para/, "no avisa cuando la búsqueda no encuentra nada");
-  // Las dos listas, no una: se cuentan los usos en vez de exigir que estén
-  // cerca en el archivo — están separadas por toda la sección de resultados.
-  const usos = pagina.match(/<Alcance\b/g) ?? [];
+  // El aviso vivía dentro de esta pantalla; al necesitarlo una tercera lista
+  // —la de facturas del cliente, en reclamos— se extrajo a un componente. La
+  // guarda sigue comprobando lo mismo: que las DOS listas de acá lo informen.
+  assert.match(pagina, /from "@\/components\/AlcanceDeLista"/);
+  const usos = pagina.match(/<AlcanceDeLista\b/g) ?? [];
   assert.equal(usos.length, 2, `solo ${usos.length} de las dos listas informa su alcance`);
+
+  const componente = await readFile(resolve(RAIZ, "src/components/AlcanceDeLista.tsx"), "utf8");
+  assert.match(componente, /Ningún resultado para/, "no avisa cuando la búsqueda no encuentra nada");
+  assert.match(componente, /Se muestran los \{mostrados\} más recientes de \{totales\}/);
 });
 
 test("la búsqueda usa el ayudante común, no `contains` a secas", async () => {
