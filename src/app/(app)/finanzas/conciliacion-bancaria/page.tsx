@@ -3,13 +3,18 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { puedeVerPantalla } from "@/lib/accesoPantalla";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { formatFecha } from "@/lib/format";
 import { NuevaConciliacionFormulario } from "./FormulariosConciliacion";
 
 export default async function ConciliacionBancariaPage() {
   const usuario = await obtenerUsuario();
-  if (!usuario || !(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
+  // El menú esconde esta pantalla a los roles que la navegación no declara;
+  // esconder un enlace no cierra la puerta. `puedeRealizar` sola no alcanza:
+  // sin grupo de seguridad asignado devuelve `true` a cualquiera.
+  if (!usuario || !puedeVerPantalla(usuario.rol, "/finanzas/conciliacion-bancaria")) redirect("/");
+  if (!(await puedeRealizar(usuario, "finanzas", "ver"))) redirect("/");
   const empresaId = await obtenerEmpresaActivaId();
   const [cuentas, conciliaciones, puedeCrear] = await Promise.all([
     prisma.cuentaBancariaEmpresa.findMany({ where: { empresaId, activo: true }, orderBy: [{ banco: "asc" }, { moneda: "asc" }] }),

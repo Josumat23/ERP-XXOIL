@@ -14,7 +14,7 @@ export const MODULOS: Modulo[] = [
     enlaces: [
       { href: "/", etiqueta: "Panel general" },
       { href: "/reportes", etiqueta: "Reportes" },
-      { href: "/proyecciones", etiqueta: "Proyecciones" },
+      { href: "/proyecciones", etiqueta: "Proyecciones", roles: ["ADMIN", "GERENCIA", "VENTAS", "PRODUCCION"] },
       { href: "/aprobaciones", etiqueta: "Bandeja de aprobaciones", roles: ["ADMIN", "GERENCIA"] },
     ],
   },

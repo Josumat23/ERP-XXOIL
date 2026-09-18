@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuarioEmpresaActiva } from "@/lib/empresas";
 import { puedeRealizar } from "@/lib/permisos";
+import { puedeVerPantalla } from "@/lib/accesoPantalla";
 import {
   cadenaDeMandoPosicion,
   creariaCicloPosicion,
@@ -20,7 +21,11 @@ const formatoFecha = new Intl.DateTimeFormat("es-PE", { dateStyle: "medium" });
 
 export default async function PosicionesPage() {
   const usuario = await obtenerUsuarioEmpresaActiva();
-  if (!usuario || !(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
+  // El menú esconde esta pantalla a los roles que la navegación no declara;
+  // esconder un enlace no cierra la puerta. `puedeRealizar` sola no alcanza:
+  // sin grupo de seguridad asignado devuelve `true` a cualquiera.
+  if (!usuario || !puedeVerPantalla(usuario.rol, "/rrhh/posiciones")) redirect("/");
+  if (!(await puedeRealizar(usuario, "rrhh", "ver"))) redirect("/");
   const empresaId = usuario.empresaId;
 
   const [posiciones, asignaciones, empleados, centrosCosto] = await Promise.all([

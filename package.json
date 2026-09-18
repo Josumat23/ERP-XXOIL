@@ -20,7 +20,8 @@
     "verificar": "node scripts/verificar.mjs",
     "respaldo": "node scripts/respaldo.mjs",
     "restaurar": "node scripts/restaurar.mjs",
-    "acciones:sin-guarda": "node scripts/acciones-sin-guarda.mjs"
+    "acciones:sin-guarda": "node scripts/acciones-sin-guarda.mjs",
+    "pantallas:por-rol": "tsx scripts/pantallas-por-rol.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",

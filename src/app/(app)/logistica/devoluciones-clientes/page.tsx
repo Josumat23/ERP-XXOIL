@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { puedeVerPantalla } from "@/lib/accesoPantalla";
 import { formatFecha } from "@/lib/format";
 import { InspeccionDevolucionFormulario } from "../../comercial/facturas/[id]/FormulariosFactura";
 import { obtenerEmpresaActivaId } from "@/lib/empresas";
@@ -13,7 +14,11 @@ const COLOR_ESTADO = {
 
 export default async function DevolucionesClientePage() {
   const usuario = await obtenerUsuario();
-  if (!usuario || !(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
+  // El menú esconde esta pantalla a los roles que la navegación no declara;
+  // esconder un enlace no cierra la puerta. `puedeRealizar` sola no alcanza:
+  // sin grupo de seguridad asignado devuelve `true` a cualquiera.
+  if (!usuario || !puedeVerPantalla(usuario.rol, "/logistica/devoluciones-clientes")) redirect("/");
+  if (!(await puedeRealizar(usuario, "materiales", "ver"))) redirect("/");
   const puedeInspeccionar = await puedeRealizar(usuario, "materiales", "editar");
   const empresaId = await obtenerEmpresaActivaId();
 
