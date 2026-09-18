@@ -2,7 +2,7 @@ import path from "path";
 import type { $Enums, Usuario } from "@/generated/prisma/client";
 import type { ClaveModulo } from "@/lib/permisos";
 import { puedeRealizar } from "@/lib/permisos";
-import { prisma } from "@/lib/prisma";
+import { entidadEsDeLaEmpresa } from "@/lib/entidadesDeLaEmpresa";
 
 export const TIPOS_ENTIDAD_ADJUNTO = [
   "Insumo",
@@ -41,36 +41,11 @@ export async function existeEntidadAdjunto(
   entidadId: string,
   empresaId?: string
 ): Promise<boolean> {
-  if (!esTipoEntidadAdjunto(entidadTipo) || !entidadId || entidadId.length > 64) return false;
-
-  switch (entidadTipo) {
-    case "Insumo":
-      return Boolean(await prisma.insumo.findUnique({ where: { id: entidadId }, select: { id: true } }));
-    case "Cliente":
-      if (!empresaId) return false;
-      return Boolean(
-        await prisma.cliente.findFirst({
-          where: { id: entidadId, empresaId },
-          select: { id: true },
-        })
-      );
-    case "Proveedor":
-      if (!empresaId) return false;
-      return Boolean(
-        await prisma.proveedor.findFirst({
-          where: { id: entidadId, empresaId },
-          select: { id: true },
-        })
-      );
-    case "OrdenCompra":
-      return Boolean(await prisma.ordenCompra.findUnique({ where: { id: entidadId }, select: { id: true } }));
-    case "Empleado":
-      return Boolean(await prisma.empleado.findUnique({ where: { id: entidadId }, select: { id: true } }));
-    case "Equipo":
-      return Boolean(await prisma.equipo.findUnique({ where: { id: entidadId }, select: { id: true } }));
-    case "ActivoFijo":
-      return Boolean(await prisma.activoFijo.findUnique({ where: { id: entidadId }, select: { id: true } }));
-  }
+  if (!esTipoEntidadAdjunto(entidadTipo)) return false;
+  // La comprobación por compañía vive en un solo lugar: la compartían adjuntos,
+  // contactos y direcciones, y las tres se habían separado. Cinco de los siete
+  // tipos de acá no la hacían, teniendo todos `empresaId`.
+  return entidadEsDeLaEmpresa(entidadTipo, entidadId, empresaId);
 }
 
 const ROLES_LECTURA_POR_ENTIDAD: Record<string, $Enums.RolUsuario[]> = {
