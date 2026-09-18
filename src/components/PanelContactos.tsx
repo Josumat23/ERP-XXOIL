@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { obtenerEmpresaActivaId } from "@/lib/empresas";
 import { eliminarContacto } from "@/app/(app)/contactos/actions";
 import AgregarContactoFormulario from "./AgregarContactoFormulario";
 import BotonEliminarConfirmacion from "./BotonEliminarConfirmacion";
@@ -17,7 +18,9 @@ export default async function PanelContactos({
   rutaRevalidar: string;
 }) {
   const contactos = await prisma.contacto.findMany({
-    where: { entidadTipo, entidadId },
+    // Acotado también por compañía: la entidad ya la lleva, pero una consulta
+    // que no la nombra no tiene red si mañana llega por otro camino.
+    where: { empresaId: await obtenerEmpresaActivaId(), entidadTipo, entidadId },
     orderBy: [{ esPrincipal: "desc" }, { creadoEn: "desc" }],
   });
 

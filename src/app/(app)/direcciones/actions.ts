@@ -88,12 +88,13 @@ export async function agregarDireccion(
     }
     if (esPrincipal) {
       await tx.direccion.updateMany({
-        where: { entidadTipo, entidadId },
+        where: { empresaId, entidadTipo, entidadId },
         data: { esPrincipal: false },
       });
     }
     await tx.direccion.create({
       data: {
+        empresaId,
         entidadTipo,
         entidadId,
         tipo,
@@ -116,7 +117,11 @@ export async function eliminarDireccion(id: string, _rutaRevalidar: string) {
   void _rutaRevalidar;
   const usuario = await obtenerUsuario();
   if (!usuario) return;
-  const direccion = await prisma.direccion.findUnique({ where: { id } });
+  // El id llega del navegador: la dirección se busca YA acotada a la compañía
+  // activa. Antes se leía por id a secas y la compañía se comprobaba después,
+  // contra la entidad; ahora la fila lleva la suya y se filtra de entrada.
+  const empresaId = await obtenerEmpresaActivaId();
+  const direccion = await prisma.direccion.findFirst({ where: { id, empresaId } });
   if (
     !direccion ||
     !esTipoEntidadDireccion(direccion.entidadTipo) ||
@@ -124,7 +129,6 @@ export async function eliminarDireccion(id: string, _rutaRevalidar: string) {
   ) {
     return;
   }
-  const empresaId = await obtenerEmpresaActivaId();
   if (
     !(await existeEntidadDireccionAutorizada(
       direccion.entidadTipo,

@@ -5844,6 +5844,13 @@ enum TipoDireccion {
 
 model Direccion {
   id           String        @id @default(cuid())
+  // Eran los dos únicos modelos polimórficos sin compañía —`Adjunto` ya la
+  // tenía—, así que quedaban fuera del aislamiento multiempresa que rige en
+  // todo lo demás. Un id de entidad basta para acotar en la práctica, porque
+  // la entidad sí la lleva, pero la fila en sí no se podía filtrar ni contar
+  // por compañía, y cualquier consulta nueva nacía sin red.
+  empresaId    String
+  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   entidadTipo  String // "Cliente", "Proveedor", "Empleado"
   entidadId    String
   tipo         TipoDireccion @default(OTRA)
@@ -5857,11 +5864,15 @@ model Direccion {
   creadoEn     DateTime      @default(now())
 
   @@index([entidadTipo, entidadId])
+  @@index([empresaId, entidadTipo, entidadId])
   @@map("direcciones")
 }
 
 model Contacto {
   id          String   @id @default(cuid())
+  // Ver la nota en `Direccion`: los dos quedaban fuera del aislamiento.
+  empresaId   String
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Restrict)
   entidadTipo String // "Cliente", "Proveedor"
   entidadId   String
   nombre      String
@@ -5872,6 +5883,7 @@ model Contacto {
   creadoEn    DateTime @default(now())
 
   @@index([entidadTipo, entidadId])
+  @@index([empresaId, entidadTipo, entidadId])
   @@map("contactos")
 }
 
@@ -5996,6 +6008,8 @@ model Empresa {
   politicasTiempoTrabajo     PoliticaTiempoTrabajo[]
   planillaPeriodos           PlanillaPeriodo[]
   adjuntos                   Adjunto[]
+  direcciones                Direccion[]
+  contactos                  Contacto[]
   configuracion              ConfiguracionEmpresa?
   incidenciasContables       IncidenciaContable[]
   ordenesMantenimiento       OrdenMantenimiento[]
