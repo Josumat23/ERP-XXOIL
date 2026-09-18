@@ -421,7 +421,15 @@ async function main() {
   console.log("Órdenes de compra + recepciones registradas.");
 
   // --------------------------------------------- 4. Producción (3 lotes)
-  async function producirLote(kgObjetivo: number, kgProducidos: number, horas: number) {
+  /** Lo que calidad asienta cuando un lote no pasa. `undefined` = aprobado. */
+  type Rechazo = { observaciones: string; causaRaiz: string; accionCorrectiva: string };
+
+  async function producirLote(
+    kgObjetivo: number,
+    kgProducidos: number,
+    horas: number,
+    rechazado?: Rechazo
+  ) {
     return prisma.$transaction(async (tx) => {
       const codigo = await siguienteCodigoLote(tx, "1");
       const factor = kgObjetivo / formula.rendimientoKg.toNumber();
@@ -449,6 +457,9 @@ async function main() {
       }
 
       const costoManoObra = 0; // tarifaHoraManoObra no configurada en el seed base
+      // Un lote RECHAZADO consumió su material igual —eso ya pasó— pero no
+      // deja nada disponible para envasar: lo que se haga con él lo decide
+      // calidad después (reproceso o desecho).
       await tx.loteGranel.update({
         where: { id: lote.id },
         data: {
@@ -458,14 +469,41 @@ async function main() {
           horasManoObra: horas,
           costoManoObra,
           costoKg: (costoInsumos + costoManoObra) / kgProducidos,
-          kgDisponibles: kgProducidos,
-          estado: "APROBADO",
+          kgDisponibles: rechazado ? 0 : kgProducidos,
+          estado: rechazado ? "RECHAZADO" : "APROBADO",
           fechaFin: new Date(),
         },
       });
-      await tx.controlCalidad.create({
-        data: { loteGranelId: lote.id, resultado: "APROBADO", ...audit },
+      const control = await tx.controlCalidad.create({
+        data: {
+          loteGranelId: lote.id,
+          resultado: rechazado ? "RECHAZADO" : "APROBADO",
+          observaciones: rechazado?.observaciones,
+          causaRaiz: rechazado?.causaRaiz,
+          accionCorrectiva: rechazado?.accionCorrectiva,
+          ...audit,
+        },
       });
+      // La no conformidad la abre el sistema cuando calidad rechaza — no es
+      // un registro aparte que alguien decida crear. Se replica igual acá,
+      // con su primer evento, que es como queda al rechazar por pantalla.
+      if (rechazado) {
+        await tx.noConformidadCalidad.create({
+          data: {
+            empresaId: EMPRESA,
+            controlCalidadId: control.id,
+            causaRaizConfirmada: rechazado.causaRaiz,
+            accionCorrectiva: rechazado.accionCorrectiva,
+            eventos: {
+              create: {
+                estadoNuevo: "ABIERTA",
+                comentario: rechazado.observaciones,
+                ...audit,
+              },
+            },
+          },
+        });
+      }
 
       return tx.loteGranel.findUniqueOrThrow({ where: { id: lote.id } });
     });
@@ -498,6 +536,32 @@ async function main() {
   // reparto proporcional que es el punto del diseño no se puede ni ver.
   await comprarInsumo(provQuimicos.id, aceite.id, 150, 7.3, "F002-1012", 0, "AB-2026-021");
   console.log("Cisterna del lote AB-2026-021: el segundo lote que va al tanque.");
+
+  // ---------------------------------------------------------------------
+  // Un lote que NO pasó calidad.
+  //
+  // Los tres de arriba salieron aprobados, así que la pantalla de no
+  // conformidades no tenía ni un registro: la no conformidad la abre el
+  // sistema al rechazar, no es algo que alguien cree por su cuenta, y sin un
+  // lote rechazado no existe ninguna.
+  //
+  // Sin este caso queda invisible todo el circuito que viene después —
+  // contención, causa raíz, acción correctiva y verificación de eficacia—,
+  // que es la parte del módulo de calidad que se usa cuando algo sale mal.
+  //
+  // Va al final, después de las cisternas, para que tenga material con saldo
+  // de dónde consumir. Consumió su insumo igual —eso ya pasó— y no deja nada
+  // disponible para envasar.
+  // ---------------------------------------------------------------------
+  await producirLote(60, 57, 5, {
+    observaciones:
+      "Penetración trabajada por encima del límite: la grasa salió más blanda que la especificación NLGI 2.",
+    causaRaiz:
+      "Jabón de litio agregado por debajo de la fórmula por una balanza descalibrada en la sala de pesaje.",
+    accionCorrectiva:
+      "Recalibrar la balanza y pesar por duplicado el jabón hasta la siguiente verificación.",
+  });
+  console.log("Lote rechazado por calidad, con su no conformidad abierta.");
 
   // ------------------------------------------------- 5. Envasados
   async function envasar(
