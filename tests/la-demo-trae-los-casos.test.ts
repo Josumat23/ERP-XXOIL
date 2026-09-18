@@ -217,8 +217,15 @@ test("hay una orden abierta, y reserva en vez de consumir", async () => {
   const semilla = await leer("prisma/seed-demo.ts");
   assert.match(semilla, /estado: "PLANIFICADO"/);
   assert.match(semilla, /reservaInsumoProduccion\.createMany/);
+  // Solo el bloque de la orden abierta, acotado por los dos extremos: cortar
+  // hasta el final del archivo arrastraba lo que viniera después —y al agregar
+  // la venta con entrega, que sí mueve stock, esta guarda se puso en rojo sin
+  // que la orden abierta hubiera cambiado.
+  const desde = semilla.indexOf("Orden abierta: es la carga");
+  const hasta = semilla.indexOf("Orden de producción abierta ${codigo}", desde);
+  assert.ok(desde >= 0 && hasta > desde, "no se pudo acotar el bloque de la orden abierta");
   assert.doesNotMatch(
-    semilla.slice(semilla.indexOf("Orden abierta: es la carga")),
+    semilla.slice(desde, hasta),
     /registrarMovimiento/,
     "la orden abierta mueve stock: reservar y consumir no son lo mismo"
   );
@@ -238,4 +245,52 @@ test("la comprobación desde cero exige carga abierta con ruta", async () => {
   assert.match(casos, /hay una orden de producción abierta/);
   assert.match(casos, /la planificación tiene qué repartir/);
   assert.match(casos, /reservar no mueve stock; consumir sí/);
+});
+
+// --- Los dos caminos de la trazabilidad de venta -----------------------------
+
+test("hay una venta que se despacha con guía, y va aparte del bucle", async () => {
+  // Las veinte ventas del bucle facturan y mueven stock en el mismo acto. La
+  // venta con entrega sigue el otro camino —reservar, despachar, facturar— y
+  // va en su propio bloque para no tocar los números de las otras veinte.
+  const semilla = await leer("prisma/seed-demo.ts");
+  assert.match(semilla, /requiereEntrega: true/);
+  assert.match(semilla, /guiaRemision\.create/);
+  assert.match(semilla, /guiaDetalleId: lineaGuia\.id/, "el lote no cuelga del renglón de la guía");
+  assert.match(semilla, /facturaDetalleEntrega\.create/, "falta el puente factura ↔ guía");
+});
+
+test("el costo de ventas se postea al despachar, no dos veces", async () => {
+  // `postearSalidaMercancia` ya carga el costo al despachar; volver a cargarlo
+  // al facturar lo contaría dos veces.
+  const semilla = await leer("prisma/seed-demo.ts");
+  assert.match(semilla, /postearSalidaMercancia\(/);
+  assert.match(semilla, /costoVentas: 0, \/\/ ya se posteó al despachar/);
+});
+
+test("la reserva se toma y se libera", async () => {
+  // Una reserva que sobrevive al despacho bloquea stock disponible sin que
+  // nadie la vea: el saldo «no alcanza» y no hay dónde mirar por qué.
+  const semilla = await leer("prisma/seed-demo.ts");
+  assert.match(semilla, /stockReservado: \{ increment: ventaConGuia\.cantidad \}/);
+  assert.match(semilla, /stockReservado: \{ decrement: ventaConGuia\.cantidad \}/);
+
+  const casos = await leer("scripts/casos-de-la-demo.ts");
+  assert.match(casos, /ninguna presentación quedó con stock reservado/);
+});
+
+test("la fecha de la entrega no depende del día del mes", async () => {
+  // Con un día fijo el bloque se salta solo cuando el sembrador corre antes de
+  // esa fecha, y la entrega desaparece sin que nadie lo note. Pasó al
+  // escribirlo: la comprobación desde cero lo encontró.
+  const semilla = await leer("prisma/seed-demo.ts");
+  assert.match(semilla, /const fechaEntrega = new Date\(hoy\.getTime\(\) - 5 \* 24 \* 60 \* 60 \* 1000\)/);
+  assert.doesNotMatch(semilla, /const fechaEntrega = fechaHace\(/);
+});
+
+test("la comprobación desde cero exige los dos caminos", async () => {
+  const casos = await leer("scripts/casos-de-la-demo.ts");
+  assert.match(casos, /colgado del renglón de la factura/);
+  assert.match(casos, /colgado del renglón de la guía/);
+  assert.match(casos, /atada a su guía/);
 });

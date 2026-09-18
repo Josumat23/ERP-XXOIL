@@ -126,3 +126,30 @@ La orden abierta crea `ReservaInsumoProduccion`, no movimientos de kardex. El ma
 Que eso sea cierto se ve en los números: después de agregar la orden abierta, el material sin consumir del lote del proveedor siguió en **18.88 kg** y el tanque en **118.32 kg**, idénticos a antes. Si la orden hubiera consumido, esos dos habrían cambiado y las guardas lo habrían dicho.
 
 La línea de envasado queda sin carga, y está bien: el envasado es un proceso aparte y la ruta del granel no pasa por ahí. La pantalla lo dice —«Sin carga abierta»— en vez de inventarle trabajo.
+
+---
+
+## Actualización: una venta que se despacha con guía
+
+Las veinte ventas de la demo facturan y mueven el stock **en el mismo acto**, y el lote queda colgado del renglón de la **factura**. Existe un segundo camino —el pedido que **requiere entrega**— donde el stock se reserva al tomar el pedido y sale al despachar, y ahí el lote queda colgado del renglón de la **guía**.
+
+Ese segundo camino no lo ejercitaba ningún dato: **23 asignaciones por factura y cero por guía**. Es la rama que «de qué lote salió» recorre cuando un reclamo llega sobre una entrega, y estaba probada a mano en `tests/reclamo-al-lote.test.ts` y en ningún otro lado.
+
+Ahora hay una venta más —chica, reciente— que sigue el camino completo:
+
+1. El pedido **reserva** el stock. No lo saca: la mercadería sigue en el almacén hasta que sale el camión.
+2. La guía, con su renglón atado al del pedido.
+3. Al despachar: sale el stock, **se libera la reserva**, el lote se cuelga del renglón de la guía y se contabiliza la salida de mercancías.
+4. La factura llega después y se ata a la guía por `FacturaDetalleEntrega` — el puente que permite llegar al lote desde la factura. Su costo de ventas va en **cero**: ya se contabilizó al despachar, y cargarlo otra vez lo contaría dos veces.
+
+Va **aparte del bucle de ventas** a propósito: las veinte de arriba no se tocan, así que sus números —stock, costos, contabilidad— quedan como estaban.
+
+### Dos cosas que la comprobación encontró
+
+**La entrega desapareció sin avisar.** La fecha era «día 20 del mes actual», y el sembrador corrió un día 18: el bloque se saltó solo y la guía no se creó. La comprobación desde cero lo marcó en rojo de inmediato. Ahora la fecha son «cinco días atrás», que no depende del día del mes.
+
+**Una guarda propia se puso en rojo sin que cambiara lo que vigilaba.** La que comprueba que la orden de producción abierta no mueva stock cortaba el archivo desde su comentario **hasta el final**, así que al agregar la venta con entrega —que sí mueve stock— empezó a fallar. Se acotó entre los dos extremos del bloque. Una guarda que mira de más avisa de lo que no es.
+
+### La reserva es transitoria
+
+Se toma al pedir y se libera al despachar. Una reserva que sobrevive al despacho bloquea stock que sí está disponible, y nadie la ve: el saldo simplemente «no alcanza» y no hay dónde mirar por qué. La comprobación desde cero verifica que **ninguna presentación quede con stock reservado**.
