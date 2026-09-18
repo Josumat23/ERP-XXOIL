@@ -147,3 +147,51 @@ test("la comprobación desde cero exige que el tanque tenga mezcla", async () =>
   assert.match(casos, /aportes\.length >= 2/);
   assert.match(casos, /el reparto proporcional/);
 });
+
+// --- Un lote que no pasó calidad --------------------------------------------
+
+test("la no conformidad la abre el rechazo, no una fila suelta", async () => {
+  // En la aplicación, `noConformidadCalidad` se crea SOLO cuando calidad
+  // rechaza. Sembrar una por afuera diría que existe sin que nada la haya
+  // provocado, que es justo lo contrario de lo que la pantalla explica.
+  const semilla = await leer("prisma/seed-demo.ts");
+  assert.match(semilla, /if \(rechazado\) \{/);
+  assert.match(semilla, /noConformidadCalidad\.create/);
+  assert.match(semilla, /estadoNuevo: "ABIERTA"/, "la no conformidad nace sin su primer evento");
+  // Y el lote rechazado no deja nada disponible para envasar.
+  assert.match(semilla, /kgDisponibles: rechazado \? 0 : kgProducidos/);
+  assert.match(semilla, /estado: rechazado \? "RECHAZADO" : "APROBADO"/);
+});
+
+test("el lote rechazado tiene una medición que lo explica", async () => {
+  // Un rechazo con todas las lecturas conformes es una contradicción: la ficha
+  // mostraría un ensayo que no dice por qué se rechazó.
+  const semilla = await leer("prisma/seed-calidad.ts");
+  assert.match(semilla, /const rechazado = control\.resultado === "RECHAZADO"/);
+  assert.match(semilla, /caracteristicaQueFalla/);
+  // Y la que falla es la que menciona la causa raíz: la penetración.
+  assert.match(semilla, /includes\("penetraci"\)/);
+});
+
+test("la comprobación desde cero exige el rechazo y su no conformidad", async () => {
+  const casos = await leer("scripts/casos-de-la-demo.ts");
+  assert.match(casos, /hay un lote rechazado por calidad/);
+  assert.match(casos, /ese rechazo abrió su no conformidad/);
+  assert.match(casos, /fuera de especificación que lo explica/);
+});
+
+test("`dev:demo` levanta con TODOS los sembradores", async () => {
+  // Es la forma de revisar la aplicación en el navegador, y levantaba una base
+  // sin laboratorio, sin trazabilidad y sin RRHH: las mismas pantallas en
+  // blanco, pero en la base que se usa justamente para mirar.
+  const script = await leer("scripts/dev-demo.mjs");
+  for (const semilla of [
+    "prisma/seed.ts",
+    "prisma/seed-demo.ts",
+    "prisma/seed-calidad.ts",
+    "prisma/seed-trazabilidad.ts",
+    "prisma/seed-rrhh.ts",
+  ]) {
+    assert.match(script, new RegExp(`"${semilla.replace(/[/.]/g, "\$&")}"`), semilla);
+  }
+});

@@ -79,3 +79,27 @@ Eso último lo detectó la propia comprobación: `descargarEnTanque()` **decreme
 **La descarga no se escribe a mano.** La hace `descargarEnTanque()`, que mueve la disponibilidad con reclamo optimista y registra el aporte. Insertar las filas por afuera sería una segunda implementación de una regla de saldos.
 
 En `erp_dev` el tanque queda con **un** solo lote, porque esa base ya tenía sus compras hechas y `seed-demo.ts` no se puede volver a correr encima. El sembrador lo dice al terminar en vez de aparentar una mezcla que no existe.
+
+---
+
+## Actualización: un lote que no pasó calidad
+
+La no conformidad **la abre el sistema al rechazar** un lote: no es un registro que alguien cree por su cuenta. Los tres lotes de la demo salían aprobados, así que no existía ninguna — y con ella quedaba invisible todo el circuito que viene después: contención, causa raíz, acción correctiva y verificación de eficacia.
+
+Ahora la demo produce un cuarto lote que **no pasa**. Consumió su material igual —eso ya ocurrió— y no deja nada disponible para envasar: qué se hace con él lo decide calidad después.
+
+La historia cierra sola:
+
+| | |
+| --- | --- |
+| Causa raíz | «Jabón de litio agregado por debajo de la fórmula por una balanza descalibrada en la sala de pesaje» |
+| Penetración trabajada 60× | **298.6** contra un límite superior de **295** → no conforme |
+| Densidad y punto de goteo | Dentro de especificación |
+| Lote | `LG-00004`, RECHAZADO |
+| No conformidad | ABIERTA, con su primer evento |
+
+Un rechazo con todas las lecturas conformes sería una contradicción impresa: la ficha mostraría un ensayo que no dice por qué se rechazó. Por eso el sembrador de calidad, al completar las mediciones de un control **RECHAZADO**, pone fuera de límite precisamente la característica que la causa raíz menciona —la penetración, que es lo que describe una grasa más blanda—.
+
+### `dev:demo` levantaba una base a medias
+
+`npm run dev:demo` es la forma de revisar la aplicación en el navegador, y sembraba solo el flujo comercial: la base que se usa **justamente para mirar** tenía las mismas pantallas en blanco que se habían encontrado sembrando desde cero. Ahora corre los cinco sembradores.

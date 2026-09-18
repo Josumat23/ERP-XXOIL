@@ -182,6 +182,33 @@ async function main() {
   const parametro = await prisma.parametroPlanilla.findFirst({ where: { empresaId: EMPRESA_ID } });
   comprobar(Boolean(parametro), "hay parámetros de planilla (RMV/UIT) para que el cálculo corra");
 
+  // --- Un lote que no pasó calidad -----------------------------------------
+  // La no conformidad la abre el sistema al rechazar: sin un lote rechazado no
+  // existe ninguna, y todo el circuito que viene después —contención, causa
+  // raíz, acción correctiva y verificación de eficacia— queda invisible.
+  const rechazados = await prisma.loteGranel.count({
+    where: { empresaId: EMPRESA_ID, estado: "RECHAZADO" },
+  });
+  comprobar(rechazados > 0, "hay un lote rechazado por calidad");
+
+  const noConformidades = await prisma.noConformidadCalidad.count({
+    where: { empresaId: EMPRESA_ID },
+  });
+  comprobar(noConformidades > 0, "ese rechazo abrió su no conformidad");
+
+  // Un lote rechazado con todas las lecturas conformes es una contradicción:
+  // la ficha mostraría un ensayo que no explica por qué se rechazó.
+  const fueraDeEspec = await prisma.resultadoCaracteristicaCalidad.count({
+    where: {
+      conforme: false,
+      controlCalidad: { loteGranel: { empresaId: EMPRESA_ID }, resultado: "RECHAZADO" },
+    },
+  });
+  comprobar(
+    fueraDeEspec > 0,
+    "el lote rechazado tiene una medición fuera de especificación que lo explica"
+  );
+
   if (fallas.length > 0) {
     console.error(`\n✖ La demo no trae ${fallas.length} caso(s):`);
     for (const f of fallas) console.error(`   - ${f}`);

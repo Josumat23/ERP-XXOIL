@@ -509,6 +509,7 @@ async function sembrarMedicionesDeLiberacion() {
     select: {
       id: true,
       loteGranelId: true,
+      resultado: true,
       loteGranel: { select: { codigo: true, formula: { select: { productoId: true } } } },
     },
     orderBy: { fecha: "asc" },
@@ -553,6 +554,16 @@ async function sembrarMedicionesDeLiberacion() {
       continue;
     }
 
+    // Un lote RECHAZADO con todas las lecturas conformes es una contradicción
+    // impresa: el certificado no sale, pero la ficha del lote mostraría un
+    // ensayo que no explica por qué se rechazó. La característica que lo
+    // explica es la que la no conformidad menciona —la penetración—, y sale
+    // POR ENCIMA del límite, que es lo que describe una grasa más blanda.
+    const rechazado = control.resultado === "RECHAZADO";
+    const caracteristicaQueFalla = plan.caracteristicas.find((c) =>
+      c.nombre.toLowerCase().includes("penetraci")
+    )?.nombre;
+
     let densidad: number | null = null;
     for (const c of plan.caracteristicas) {
       const min = c.limiteInferior?.toNumber() ?? null;
@@ -560,8 +571,13 @@ async function sembrarMedicionesDeLiberacion() {
       // Un valor dentro de límites, distinto en cada lote: tres lotes con la
       // misma cifra exacta se leen como un relleno, no como tres ensayos.
       const paso = (indice % 3) / 3;
-      const valor =
-        min !== null && max !== null
+      const falla =
+        rechazado && (caracteristicaQueFalla ? c.nombre === caracteristicaQueFalla : c === plan.caracteristicas[0]);
+      const valor = falla
+        ? max !== null
+          ? max + (max - (min ?? 0)) * 0.12
+          : (min ?? 0) - 1
+        : min !== null && max !== null
           ? min + (max - min) * (0.35 + paso * 0.25)
           : min !== null
             ? min + 8 + indice * 3
@@ -600,7 +616,10 @@ async function sembrarMedicionesDeLiberacion() {
         data: { densidadKgL: densidad },
       });
     }
-    console.log(`  ${control.loteGranel.codigo}: ${plan.caracteristicas.length} mediciones`);
+    console.log(
+      `  ${control.loteGranel.codigo}: ${plan.caracteristicas.length} mediciones` +
+        (rechazado ? ` — una FUERA de especificación, que es por lo que se rechazó` : "")
+    );
   }
 
   console.log(

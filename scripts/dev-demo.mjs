@@ -62,10 +62,22 @@ if (recienCreada) {
     DATABASE_URL: databaseUrl,
     NODE_OPTIONS: [process.env.NODE_OPTIONS, `--import=${bootstrap}`].filter(Boolean).join(" "),
   };
-  // La tercera semilla puebla una SEGUNDA compañía, para poder revisar el
+  // Todos los sembradores, no solo el comercial. `dev:demo` es la forma de
+  // revisar la aplicación en el navegador, y hasta acá levantaba una base sin
+  // laboratorio, sin trazabilidad y sin RRHH: las mismas pantallas en blanco
+  // que se encontraron sembrando desde cero, pero en la base que se usa
+  // justamente para mirar.
+  //
+  // La última semilla puebla una SEGUNDA compañía, para poder revisar el
   // aislamiento con dos compañías que ambas tienen datos. Se omite con
   // --sin-segunda-empresa.
-  const semillas = ["prisma/seed.ts", "prisma/seed-demo.ts"];
+  const semillas = [
+    "prisma/seed.ts",
+    "prisma/seed-demo.ts",
+    "prisma/seed-calidad.ts",
+    "prisma/seed-trazabilidad.ts",
+    "prisma/seed-rrhh.ts",
+  ];
   if (!process.argv.includes("--sin-segunda-empresa")) semillas.push("prisma/seed-segunda-empresa.ts");
   for (const semilla of semillas) {
     const resultado = spawnSync(process.execPath, ["--import", "tsx", semilla], {
