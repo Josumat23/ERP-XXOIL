@@ -77,6 +77,8 @@ if (recienCreada) {
     "prisma/seed-calidad.ts",
     "prisma/seed-trazabilidad.ts",
     "prisma/seed-rrhh.ts",
+    "prisma/seed-comercial-compras.ts",
+    "prisma/seed-finanzas-proyectos.ts",
   ];
   if (!process.argv.includes("--sin-segunda-empresa")) semillas.push("prisma/seed-segunda-empresa.ts");
   for (const semilla of semillas) {

@@ -275,8 +275,18 @@ test("la reserva se toma y se libera", async () => {
   assert.match(semilla, /stockReservado: \{ increment: ventaConGuia\.cantidad \}/);
   assert.match(semilla, /stockReservado: \{ decrement: ventaConGuia\.cantidad \}/);
 
+  // Y la comprobación desde cero exige que no quede reserva HUÉRFANA. Pedía
+  // cero reservas, que no es lo mismo: la de un pedido pendiente es legítima
+  // —para eso existe— y se cumplía solo porque la demo no tenía ninguno. En
+  // cuanto tuvo el primero, la guarda se puso en rojo sobre un dato correcto.
   const casos = await leer("scripts/casos-de-la-demo.ts");
-  assert.match(casos, /ninguna presentación quedó con stock reservado/);
+  assert.match(casos, /sin reservas huérfanas/);
+  assert.match(casos, /estado: \{ in: \["PENDIENTE", "PARCIAL"\] \}/, "no compara contra los pedidos vivos");
+  assert.doesNotMatch(
+    casos,
+    /reservasColgadas\.length === 0/,
+    "volvió a exigir cero reservas en vez de ninguna huérfana"
+  );
 });
 
 test("la fecha de la entrega no depende del día del mes", async () => {

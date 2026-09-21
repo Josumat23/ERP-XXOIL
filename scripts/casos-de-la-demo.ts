@@ -202,18 +202,38 @@ async function main() {
   const puentes = await prisma.facturaDetalleEntrega.count();
   comprobar(puentes > 0, "la factura de esa entrega está atada a su guía");
 
-  // La reserva es transitoria: se toma al pedir y se libera al despachar. Una
-  // reserva que sobrevive al despacho bloquea stock que sí está disponible, y
-  // nadie la ve — el saldo simplemente «no alcanza» sin explicación.
-  const reservasColgadas = await prisma.presentacion.findMany({
+  // La reserva es transitoria: se toma al pedir y se libera al despachar,
+  // facturar o anular. Una reserva que sobrevive al despacho bloquea stock que
+  // sí está disponible, y nadie la ve — el saldo simplemente «no alcanza» sin
+  // explicación.
+  //
+  // Lo que no puede quedar es reserva SIN un pedido vivo que la justifique. La
+  // de un pedido pendiente es legítima: para eso existe. Esta guarda pedía
+  // CERO reservas, y se cumplía solo porque la demo no tenía ningún pedido
+  // pendiente; en cuanto tuvo el primero —la cotización convertida— se puso en
+  // rojo sobre un dato correcto. Comprobaba «no hay reservas» creyendo
+  // comprobar «no hay reservas huérfanas».
+  const reservadas = await prisma.presentacion.findMany({
     where: { empresaId: EMPRESA_ID, stockReservado: { gt: 0 } },
-    select: { nombre: true, stockReservado: true },
+    select: { id: true, nombre: true, stockReservado: true },
   });
+  const pedidosVivos = await prisma.pedidoDetalle.groupBy({
+    by: ["presentacionId"],
+    where: { pedido: { empresaId: EMPRESA_ID, estado: { in: ["PENDIENTE", "PARCIAL"] } } },
+    _sum: { cantidad: true },
+  });
+  // Para un pedido PARCIAL esto suma la cantidad original y no el saldo, así
+  // que la comparación queda del lado laxo: puede dejar pasar una reserva de
+  // menos, nunca inventar una huérfana que no existe.
+  const justificadas = new Map(pedidosVivos.map((v) => [v.presentacionId, v._sum.cantidad ?? 0]));
+  const huerfanas = reservadas.filter(
+    (p) => p.stockReservado.toNumber() > (justificadas.get(p.id) ?? 0) + 1e-9
+  );
   comprobar(
-    reservasColgadas.length === 0,
-    "ninguna presentación quedó con stock reservado después de despachar" +
-      (reservasColgadas.length > 0
-        ? ` (${reservasColgadas.map((p) => `${p.nombre}: ${p.stockReservado}`).join(", ")})`
+    huerfanas.length === 0,
+    "el stock reservado corresponde a pedidos vivos, sin reservas huérfanas" +
+      (huerfanas.length > 0
+        ? ` (${huerfanas.map((p) => `${p.nombre}: ${p.stockReservado} reservado, ${justificadas.get(p.id) ?? 0} pedido`).join(", ")})`
         : "")
   );
 
@@ -274,6 +294,138 @@ async function main() {
     fueraDeEspec > 0,
     "el lote rechazado tiene una medición fuera de especificación que lo explica"
   );
+
+  // --- Las ocho pantallas que estaban en cero ------------------------------
+  //
+  // No alcanza con que la tabla tenga filas: cada una de estas pantallas
+  // existe para contestar algo, y el caso que lo contesta es lo que se
+  // comprueba acá. Una demo «cargada» que no trae el caso deja la función
+  // invisible igual que una vacía.
+
+  // El embudo compara estados: con todas las cotizaciones en el mismo estado
+  // no hay embudo que mirar.
+  const estadosCotizacion = new Set(
+    (
+      await prisma.cotizacion.findMany({
+        where: { empresaId: EMPRESA_ID },
+        select: { estado: true },
+      })
+    ).map((c) => c.estado)
+  );
+  comprobar(estadosCotizacion.size >= 3, "las cotizaciones están en al menos tres estados distintos");
+  comprobar(
+    (await prisma.cotizacion.count({ where: { empresaId: EMPRESA_ID, estado: "CONVERTIDA", pedidoId: { not: null } } })) > 0,
+    "hay una cotización convertida en pedido, con su pedido colgado"
+  );
+
+  // Una hoja de ruta cerrada es la que enseña para qué sirve el «resultado».
+  comprobar(
+    (await prisma.hojaRutaVisita.count({
+      where: { hojaRuta: { empresaId: EMPRESA_ID, estado: "COMPLETADA" }, resultado: { not: null } },
+    })) > 0,
+    "hay visitas de una hoja de ruta cerrada con su resultado escrito"
+  );
+
+  // «Comparación de ofertas» necesita dos ofertas: con una sola, la pantalla
+  // no compara nada y el sistema ni siquiera deja adjudicar.
+  const rfqsConDos = await prisma.rfqCompra.findMany({
+    where: { empresaId: EMPRESA_ID },
+    select: { estado: true, adjudicadaPorId: true, usuarioId: true, _count: { select: { ofertas: true } } },
+  });
+  comprobar(
+    rfqsConDos.some((r) => r.estado === "ABIERTO" && r._count.ofertas >= 2),
+    "hay un RFQ abierto con dos ofertas para comparar"
+  );
+  const adjudicado = rfqsConDos.find((r) => r.estado === "ADJUDICADO");
+  comprobar(Boolean(adjudicado), "hay un RFQ ya adjudicado");
+  // La regla que el sistema impone: quien pide no adjudica. Un dato de prueba
+  // que la incumpla muestra algo que la aplicación nunca habría aceptado.
+  comprobar(
+    Boolean(adjudicado) && adjudicado!.adjudicadaPorId !== adjudicado!.usuarioId,
+    "el RFQ adjudicado lo adjudicó alguien distinto de quien lo solicitó"
+  );
+
+  // Un acuerdo se entiende por su SALDO: con cero liberado no hay saldo.
+  const lineasAcuerdo = await prisma.acuerdoSuministroLinea.findMany({
+    where: { acuerdo: { empresaId: EMPRESA_ID } },
+    select: { cantidadComprometida: true, cantidadLiberada: true },
+  });
+  comprobar(
+    lineasAcuerdo.some(
+      (l) => l.cantidadLiberada.toNumber() > 0 && l.cantidadLiberada.toNumber() < l.cantidadComprometida.toNumber()
+    ),
+    "hay un acuerdo de suministro liberado en parte, con saldo contractual pendiente"
+  );
+  comprobar(
+    (await prisma.ordenCompra.count({ where: { empresaId: EMPRESA_ID, acuerdoId: { not: null } } })) > 0,
+    "la liberación del acuerdo generó su orden de compra"
+  );
+
+  // Una orden interna sirve para acumular y después liquidar: hacen falta las
+  // dos mitades, y una que se pase del presupuesto para ver que se marca.
+  const ordenesInternas = await prisma.ordenInterna.findMany({
+    where: { empresaId: EMPRESA_ID },
+    select: { estado: true, presupuesto: true, totalAcumulado: true, _count: { select: { costos: true } } },
+  });
+  comprobar(
+    ordenesInternas.some((o) => o.estado === "ABIERTA" && o._count.costos > 0),
+    "hay una orden interna abierta con costos acumulados"
+  );
+  comprobar(
+    ordenesInternas.some((o) => o.estado === "LIQUIDADA"),
+    "hay una orden interna ya liquidada"
+  );
+  comprobar(
+    ordenesInternas.some(
+      (o) => o.presupuesto !== null && o.totalAcumulado.toNumber() > o.presupuesto.toNumber()
+    ),
+    "hay una orden interna que se pasó de su presupuesto"
+  );
+
+  // Un proyecto se mide contra su presupuesto: sin costos reales, la columna
+  // «costo real» sale en cero y no se puede comparar nada.
+  comprobar(
+    (await prisma.costoProyecto.count({ where: { proyecto: { empresaId: EMPRESA_ID } } })) > 0,
+    "el proyecto tiene costos reales cargados"
+  );
+  comprobar(
+    (await prisma.edtProyecto.count({ where: { proyecto: { empresaId: EMPRESA_ID } } })) >= 2,
+    "el proyecto tiene una EDT con más de un paquete"
+  );
+
+  // La conciliación existe para mostrar lo que NO cuadra: si todo concilia,
+  // la pantalla no enseña nada.
+  const extracto = await prisma.movimientoExtractoBancario.findMany({
+    where: { conciliacion: { empresaId: EMPRESA_ID } },
+    select: { _count: { select: { aplicaciones: true } } },
+  });
+  comprobar(extracto.length > 0, "hay una conciliación bancaria con su extracto");
+  comprobar(
+    extracto.some((m) => m._count.aplicaciones === 0),
+    "quedan movimientos del extracto sin conciliar, que es lo que la pantalla sirve para encontrar"
+  );
+  comprobar(
+    extracto.some((m) => m._count.aplicaciones > 0),
+    "y hay movimientos ya conciliados, para ver las dos situaciones"
+  );
+
+  // Un conteo sin diferencias no prueba nada, y una diferencia sin su ajuste
+  // de kardex es un inventario que ninguna operación real puede producir.
+  const detallesConteo = await prisma.conteoInventarioDetalle.findMany({
+    where: { conteo: { empresaId: EMPRESA_ID } },
+    select: { diferencia: true, conteo: { select: { codigo: true } } },
+  });
+  const conDiferencia = detallesConteo.filter((d) => Math.abs(d.diferencia.toNumber()) > 1e-9);
+  comprobar(conDiferencia.length > 0, "el conteo cíclico encontró al menos una diferencia");
+  if (conDiferencia.length > 0) {
+    const codigo = conDiferencia[0].conteo.codigo;
+    comprobar(
+      (await prisma.movimientoKardex.count({
+        where: { empresaId: EMPRESA_ID, origen: "AJUSTE", referencia: codigo },
+      })) > 0,
+      "la diferencia del conteo dejó su ajuste en el kardex"
+    );
+  }
 
   if (fallas.length > 0) {
     console.error(`\n✖ La demo no trae ${fallas.length} caso(s):`);
