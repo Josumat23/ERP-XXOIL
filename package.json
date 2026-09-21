@@ -21,7 +21,8 @@
     "respaldo": "node scripts/respaldo.mjs",
     "restaurar": "node scripts/restaurar.mjs",
     "acciones:sin-guarda": "node scripts/acciones-sin-guarda.mjs",
-    "pantallas:por-rol": "tsx scripts/pantallas-por-rol.ts"
+    "pantallas:por-rol": "tsx scripts/pantallas-por-rol.ts",
+    "acciones:sin-pantalla": "tsx scripts/acciones-sin-pantalla.mjs"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
