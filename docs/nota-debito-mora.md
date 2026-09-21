@@ -61,6 +61,6 @@ La columna del recargo pasó de mostrar el botón a mostrar `ND-00001`, y el com
 
 ## Lo que no hace
 
-- **No emite por aumento de valor ni por penalidad.** Ya explicado: falta la decisión de negocio.
-- **No arma el UBL para envío directo a SUNAT.** Falta el certificado digital real para poder probarlo.
+- ~~**No emite por aumento de valor ni por penalidad.**~~ **Desactualizado:** desde la nota de débito manual sí los emite (códigos 02 y 03 del catálogo 10). Véase `docs/nota-debito-manual.md`.
+- ~~**No arma el UBL para envío directo a SUNAT.**~~ **Desactualizado:** ya lo arma, con la estructura tomada del esquema UBL 2.1 y del ejemplo oficial de OASIS. Lo que falta sigue siendo el certificado digital, que es un trámite externo. Véase `docs/nota-debito-ubl-y-vias-sunat.md`.
 - **No anula ni corrige una nota de débito emitida.** Igual que el resto de documentos de este sistema, la historia no se edita; si hiciera falta revertir, el instrumento es otro documento, y cuál corresponde es criterio del contador.

@@ -36,7 +36,7 @@ Se listan **todas** las unidades de cada lote alcanzado, no una parte proporcion
 
 ## El contacto: lo que hay, sin inventar un propósito
 
-El maestro de clientes declara contactos por propósito —pedidos, facturación, cobranza, despacho—. **No hay un propósito «calidad» ni «recall», y no se inventa uno.** Se usa el de **despacho**, que es quien atiende la mercadería, y `contactoPara()` cae en el contacto principal si nadie está designado para eso. Si tampoco hay contacto, se muestran el teléfono y el correo de la empresa, marcados como lo que son. Si no hay nada, lo dice en ámbar en vez de dejar la celda en blanco.
+El maestro de clientes declara contactos por propósito —pedidos, facturación, cobranza, despacho—. **No hay un propósito «calidad» ni «recall», y no se inventa uno** — el negocio confirmó el 2026-09-21 que no se agregue. Se usa el de **despacho**, que es quien atiende la mercadería, y `contactoPara()` cae en el contacto principal si nadie está designado para eso. Si tampoco hay contacto, se muestran el teléfono y el correo de la empresa, marcados como lo que son. Si no hay nada, lo dice en ámbar en vez de dejar la celda en blanco.
 
 Los ids de cliente salen de la cadena comercial, que ya está acotada a la compañía, pero la consulta de contactos **vuelve a filtrar por empresa**: confiar en el camino no es comprobarlo.
 

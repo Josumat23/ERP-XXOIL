@@ -163,12 +163,17 @@ test("el número de nota de débito es por compañía", async () => {
   assert.match(generador, /where: \{ empresaId \}/);
 });
 
-test("el envío directo a SUNAT no inventa el UBL de una nota de débito", async () => {
+test("cada tipo de documento nombra su constructor, y uno nuevo no cae en el de otro", async () => {
   // Antes, un tipo nuevo caía en la última rama de un ternario encadenado y se
   // habría enviado a SUNAT con la estructura de una GUÍA DE REMISIÓN, sin que
-  // nada lo advirtiera. Construir el DebitNote sin poder probarlo contra SUNAT
-  // —lo que exige el certificado digital real, pendiente— sería adivinar la
-  // estructura de un documento tributario.
+  // nada lo advirtiera. Esa parte sigue valiendo y es lo que se protege acá.
+  //
+  // La otra mitad de esta prueba exigía el mensaje «todavía no arma el UBL de
+  // una nota de débito». Eso era correcto mientras la estructura del DebitNote
+  // hubiera salido de la memoria; ahora sale del esquema UBL 2.1 y del ejemplo
+  // oficial de OASIS, y está en `construirNotaDebitoUBL` con sus pruebas en
+  // `tests/nota-debito-ubl.test.ts`. Lo que NO cambió es que sigue sin poder
+  // probarse contra SUNAT hasta que exista el certificado digital.
   const fuente = await readFile(resolve(process.cwd(), "src/lib/facturacionElectronica.ts"), "utf8");
 
   assert.doesNotMatch(
@@ -176,8 +181,19 @@ test("el envío directo a SUNAT no inventa el UBL de una nota de débito", async
     /construirNotaCreditoUBL\(datos, emisor\)\s*:\s*construirGuiaRemisionUBL/,
     "no debe quedar el ternario que hacía caer un tipo nuevo en la guía de remisión"
   );
-  assert.match(fuente, /tipoDocumento === "GUIA_REMISION"/);
-  assert.match(fuente, /todavía no arma el UBL de una nota de débito/);
+  // Los cuatro documentos, cada uno con su rama y su constructor.
+  for (const [tipo, constructor] of [
+    ["FACTURA", "construirFacturaUBL"],
+    ["NOTA_CREDITO", "construirNotaCreditoUBL"],
+    ["GUIA_REMISION", "construirGuiaRemisionUBL"],
+    ["NOTA_DEBITO", "construirNotaDebitoUBL"],
+  ]) {
+    assert.match(fuente, new RegExp(`tipoDocumento === "${tipo}"`), `falta la rama de ${tipo}`);
+    assert.match(fuente, new RegExp(`${constructor}\\(datos, emisor\\)`), `falta ${constructor}`);
+  }
+  // Y un tipo que no esté contemplado se rechaza en vez de mandarse con la
+  // estructura del anterior.
+  assert.match(fuente, /no sabe armar el UBL de este tipo de documento/);
 });
 
 test("los catálogos de envío cubren la nota de débito", async () => {
