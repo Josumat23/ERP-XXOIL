@@ -175,7 +175,12 @@ function armarBodyFacturaONotaCredito(datos: DatosComprobante, fechaDeEmision: s
   }
 
   if (datos.tipoDocumento === "NOTA_DEBITO") {
-    // Catálogo 10 SUNAT. El sistema solo emite "01 — intereses por mora".
+    // Catálogo 10 SUNAT: 01 intereses por mora, 02 aumento en el valor,
+    // 03 penalidades/otros conceptos. Los códigos 11 (ajustes de operaciones
+    // de exportación) y 12 (ajustes afectos al IVAP) del catálogo no se
+    // ofrecen: el IVAP grava la primera venta de arroz pilado y no alcanza a
+    // este giro, y una operación de exportación necesitaría antes que el
+    // comprobante pueda declararse como tal.
     body.tipo_de_nota_de_debito = Number(datos.tipoNota ?? "01");
     body.documento_que_se_modifica_tipo = 1; // Factura
     body.documento_que_se_modifica_serie = datos.facturaAfectadaSerie;
@@ -310,9 +315,12 @@ const adaptadorSunatDirecto: AdaptadorOse = {
     }
 
     try {
-      const { construirFacturaUBL, construirNotaCreditoUBL, construirGuiaRemisionUBL } = await import(
-        "@/lib/sunatUbl"
-      );
+      const {
+        construirFacturaUBL,
+        construirNotaCreditoUBL,
+        construirGuiaRemisionUBL,
+        construirNotaDebitoUBL,
+      } = await import("@/lib/sunatUbl");
       const { firmarXml } = await import("@/lib/sunatFirma");
       const { enviarSunatDirecto } = await import("@/lib/sunatSoap");
 
@@ -329,11 +337,19 @@ const adaptadorSunatDirecto: AdaptadorOse = {
       // tipo nuevo caía en la última rama y se enviaba a SUNAT con la
       // estructura equivocada, sin que nada lo advirtiera.
       //
-      // La nota de débito (UBL DebitNote) todavía no está construida: hacerlo
-      // sin poder probarlo contra SUNAT —lo que exige el certificado digital
-      // real, que es un trámite externo pendiente— sería adivinar la
-      // estructura de un documento tributario. Se rechaza con un motivo claro
-      // en vez de mandar un XML inventado.
+      // La nota de débito ya tiene su UBL. Antes no lo tenía a propósito: sin
+      // poder probarlo contra SUNAT —lo que exige el certificado digital real,
+      // que sigue siendo un trámite externo pendiente— construirlo habría sido
+      // adivinar la estructura de un documento tributario.
+      //
+      // Lo que cambió no es que ahora se pueda probar, sino de dónde sale la
+      // estructura: del esquema UBL 2.1 y del ejemplo oficial de OASIS, no de
+      // la memoria. Son tres diferencias con la nota de crédito y el esquema
+      // las exige —raíz `DebitNote`, `cac:RequestedMonetaryTotal` en vez de
+      // `cac:LegalMonetaryTotal`, y `cac:DebitNoteLine` con
+      // `cbc:DebitedQuantity`—, todas verificadas contra la fuente.
+      //
+      // Sigue sin probarse contra SUNAT, y eso no lo arregla ningún código.
       let xmlSinFirmar: string;
       // La boleta comparte el documento UBL Invoice con la factura: lo que
       // cambia es el código de tipo (03 en vez de 01, ya resuelto en
@@ -344,12 +360,14 @@ const adaptadorSunatDirecto: AdaptadorOse = {
         xmlSinFirmar = construirNotaCreditoUBL(datos, emisor);
       } else if (datos.tipoDocumento === "GUIA_REMISION") {
         xmlSinFirmar = construirGuiaRemisionUBL(datos, emisor);
+      } else if (datos.tipoDocumento === "NOTA_DEBITO") {
+        xmlSinFirmar = construirNotaDebitoUBL(datos, emisor);
       } else {
         return {
           ok: false,
           estado: "ERROR",
           sunatDescripcion:
-            "El envío directo a SUNAT todavía no arma el UBL de una nota de débito. Emítala por un OSE, o hágalo en el portal de SUNAT y registre aquí el número.",
+            "El envío directo a SUNAT no sabe armar el UBL de este tipo de documento. Emítalo por un OSE, o hágalo en el portal de SUNAT y registre aquí el número.",
         };
       }
 

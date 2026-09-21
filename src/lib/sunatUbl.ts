@@ -138,18 +138,37 @@ function bloqueTaxTotal(totalGravada: number, totalIgv: number, moneda: string):
 
 // Catálogo 07 SUNAT: tipo de afectación IGV. 10 = gravado - operación onerosa
 // (el único caso que este ERP maneja — no hay ventas exoneradas/inafectas).
+/**
+ * Cada documento nombra su línea y su cantidad de forma distinta, y el esquema
+ * UBL 2.1 no los acepta cruzados: `cac:CreditNoteLine` lleva
+ * `cbc:CreditedQuantity`, `cac:DebitNoteLine` lleva `cbc:DebitedQuantity`, y
+ * `cbc:InvoicedQuantity` no es hijo válido de ninguna de las dos.
+ *
+ * Antes esto se resolvía con un `.replace(/InvoiceLine/g, "CreditNoteLine")`
+ * sobre el texto ya armado: renombraba la etiqueta de afuera y dejaba
+ * `<cbc:InvoicedQuantity>` adentro, o sea un XML que la validación de SUNAT
+ * rechaza. No se había notado porque el envío directo espera el certificado
+ * digital y nunca se mandó una nota de crédito de verdad.
+ */
+type NombresDeLinea = { linea: string; cantidad: string };
+
+const LINEA_FACTURA: NombresDeLinea = { linea: "InvoiceLine", cantidad: "InvoicedQuantity" };
+const LINEA_NOTA_CREDITO: NombresDeLinea = { linea: "CreditNoteLine", cantidad: "CreditedQuantity" };
+const LINEA_NOTA_DEBITO: NombresDeLinea = { linea: "DebitNoteLine", cantidad: "DebitedQuantity" };
+
 function bloqueLineaFactura(
   idx: number,
   item: DatosComprobante["items"][number],
   tasaIgv: number,
-  moneda: string
+  moneda: string,
+  nombres: NombresDeLinea = LINEA_FACTURA
 ): string {
   const factorIgv = tasaIgv / 100;
   const igvLinea = item.valorUnitario * item.cantidad * factorIgv;
   const totalLinea = item.valorUnitario * item.cantidad + igvLinea;
-  return `<cac:InvoiceLine>
+  return `<cac:${nombres.linea}>
     <cbc:ID>${idx + 1}</cbc:ID>
-    <cbc:InvoicedQuantity unitCode="${escaparXml(item.unidadMedida)}">${item.cantidad}</cbc:InvoicedQuantity>
+    <cbc:${nombres.cantidad} unitCode="${escaparXml(item.unidadMedida)}">${item.cantidad}</cbc:${nombres.cantidad}>
     <cbc:LineExtensionAmount currencyID="${escaparXml(moneda)}">${formatearMonto(item.valorUnitario * item.cantidad)}</cbc:LineExtensionAmount>
     <cac:PricingReference>
       <cac:AlternativeConditionPrice>
@@ -179,7 +198,7 @@ function bloqueLineaFactura(
     <cac:Price>
       <cbc:PriceAmount currencyID="${escaparXml(moneda)}">${formatearMonto(item.valorUnitario)}</cbc:PriceAmount>
     </cac:Price>
-  </cac:InvoiceLine>
+  </cac:${nombres.linea}>
   <!-- totalLinea (informativo, no forma parte del XML): ${formatearMonto(totalLinea)} -->`;
 }
 
@@ -225,7 +244,7 @@ export function construirNotaCreditoUBL(datos: DatosComprobante, emisor: DatosEm
   }
   const items = datos.items
     .map((item, idx) =>
-      bloqueLineaFactura(idx, item, tasaIgv, datos.moneda).replace(/InvoiceLine/g, "CreditNoteLine")
+      bloqueLineaFactura(idx, item, tasaIgv, datos.moneda, LINEA_NOTA_CREDITO)
     )
     .join("\n  ");
 
@@ -263,6 +282,72 @@ export function construirNotaCreditoUBL(datos: DatosComprobante, emisor: DatosEm
   </cac:LegalMonetaryTotal>
   ${items}
 </CreditNote>`;
+}
+
+/**
+ * Nota de débito electrónica (UBL 2.1).
+ *
+ * Faltaba: existían factura, nota de crédito y guía, así que la nota de débito
+ * se podía emitir por un OSE que arma el XML —Nubefact— pero no por el envío
+ * directo a SUNAT, que necesita el UBL firmado. Era el único de los cuatro
+ * documentos sin constructor.
+ *
+ * No es una nota de crédito con otro nombre. El documento cambia en tres
+ * lugares, y el esquema los exige así:
+ *
+ *   raíz      `DebitNote`, con su propio namespace
+ *   totales   `cac:RequestedMonetaryTotal` (la factura y la NC usan
+ *             `cac:LegalMonetaryTotal`)
+ *   líneas    `cac:DebitNoteLine` con `cbc:DebitedQuantity`
+ *
+ * El `cbc:ResponseCode` del `DiscrepancyResponse` es el código del catálogo 10
+ * —01 intereses por mora, 02 aumento en el valor, 03 penalidades/otros—, no el
+ * texto del motivo.
+ */
+export function construirNotaDebitoUBL(datos: DatosComprobante, emisor: DatosEmisor): string {
+  const tasaIgv = datos.tasaIgv;
+  if (tasaIgv === undefined || !Number.isFinite(tasaIgv) || tasaIgv < 0) {
+    throw new Error("Falta una tasa de IGV válida para construir la nota de débito UBL.");
+  }
+  const items = datos.items
+    .map((item, idx) => bloqueLineaFactura(idx, item, tasaIgv, datos.moneda, LINEA_NOTA_DEBITO))
+    .join("\n  ");
+  const afectada = `${escaparXml(datos.facturaAfectadaSerie ?? "")}-${escaparXml(datos.facturaAfectadaNumero ?? "")}`;
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<DebitNote xmlns="urn:oasis:names:specification:ubl:schema:xsd:DebitNote-2"
+  xmlns:cac="urn:oasis:names:specification:ubl:schema:xsd:CommonAggregateComponents-2"
+  xmlns:cbc="urn:oasis:names:specification:ubl:schema:xsd:CommonBasicComponents-2"
+  xmlns:ds="http://www.w3.org/2000/09/xmldsig#"
+  xmlns:ext="urn:oasis:names:specification:ubl:schema:xsd:CommonExtensionComponents-2">
+  ${UBL_EXTENSIONS_PLACEHOLDER}
+  <cbc:UBLVersionID>2.1</cbc:UBLVersionID>
+  <cbc:CustomizationID>2.0</cbc:CustomizationID>
+  <cbc:ID>${escaparXml(datos.serie)}-${datos.numero}</cbc:ID>
+  <cbc:IssueDate>${formatearFecha(datos.fechaEmision)}</cbc:IssueDate>
+  <cbc:DocumentCurrencyCode>${escaparXml(datos.moneda)}</cbc:DocumentCurrencyCode>
+  <cac:DiscrepancyResponse>
+    <cbc:ReferenceID>${afectada}</cbc:ReferenceID>
+    <cbc:ResponseCode>${escaparXml(datos.tipoNota ?? "01")}</cbc:ResponseCode>
+    <cbc:Description>${escaparXml(datos.motivo ?? "")}</cbc:Description>
+  </cac:DiscrepancyResponse>
+  <cac:BillingReference>
+    <cac:InvoiceDocumentReference>
+      <cbc:ID>${afectada}</cbc:ID>
+      <cbc:DocumentTypeCode>01</cbc:DocumentTypeCode>
+    </cac:InvoiceDocumentReference>
+  </cac:BillingReference>
+  ${bloqueFirma(emisor.ruc, emisor.razonSocial)}
+  ${bloqueParteSupplier(emisor)}
+  ${bloqueParteCustomer(datos.clienteRuc, datos.clienteDenominacion, datos.clienteDireccion)}
+  ${bloqueTaxTotal(datos.totalGravada, datos.totalIgv, datos.moneda)}
+  <cac:RequestedMonetaryTotal>
+    <cbc:LineExtensionAmount currencyID="${escaparXml(datos.moneda)}">${formatearMonto(datos.totalGravada)}</cbc:LineExtensionAmount>
+    <cbc:TaxInclusiveAmount currencyID="${escaparXml(datos.moneda)}">${formatearMonto(datos.total)}</cbc:TaxInclusiveAmount>
+    <cbc:PayableAmount currencyID="${escaparXml(datos.moneda)}">${formatearMonto(datos.total)}</cbc:PayableAmount>
+  </cac:RequestedMonetaryTotal>
+  ${items}
+</DebitNote>`;
 }
 
 function bloqueDireccionUbigeo(direccion: string, ubigeo: string): string {
