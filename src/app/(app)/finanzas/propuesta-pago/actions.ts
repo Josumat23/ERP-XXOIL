@@ -33,7 +33,12 @@ export async function ejecutarPropuestaPago(
   _prevState: EstadoFormulario,
   formData: FormData
 ): Promise<EstadoFormulario> {
-  const auth = await requerirRol(["ALMACEN"]);
+  // Almacén y Gerencia corren la propuesta; la APROBACIÓN de cada pago sigue
+  // siendo de Gerencia, en `aprobarPagoProveedor`, por el umbral que ya existe.
+  // Antes decía solo ["ALMACEN"] —copiado del pago individual cuyo motor
+  // reutiliza— mientras el menú mostraba la pantalla a ADMIN y GERENCIA: a
+  // Gerencia le rechazaba cada envío y Almacén no llegaba a la pantalla.
+  const auth = await requerirRol(["ALMACEN", "GERENCIA"]);
   if ("error" in auth) return auth;
   if (!(await puedeRealizar(auth.usuario, "finanzas", "editar"))) {
     return { error: "Su grupo de seguridad no permite editar registros en Finanzas." };

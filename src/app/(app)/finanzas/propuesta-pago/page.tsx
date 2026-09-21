@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { obtenerUsuario } from "@/lib/auth";
 import { puedeRealizar } from "@/lib/permisos";
+import { puedeVerPantalla } from "@/lib/accesoPantalla";
 import { formatMoneda } from "@/lib/format";
 import { crearFechaCalendarioLocal } from "@/lib/fechas";
 import BotonImprimir from "@/components/BotonImprimir";
@@ -19,9 +20,12 @@ export default async function PropuestaPagoPage({
   searchParams: Promise<{ hasta?: string }>;
 }) {
   const usuario = await obtenerUsuario();
+  // La lista de roles vive en la navegación, no acá: esta pantalla la tenía
+  // escrita a mano y la acción de atrás tenía otra, y ninguna de las dos
+  // coincidía con el menú.
   if (
     !usuario ||
-    (usuario.rol !== "ADMIN" && usuario.rol !== "GERENCIA") ||
+    !puedeVerPantalla(usuario.rol, "/finanzas/propuesta-pago") ||
     !(await puedeRealizar(usuario, "finanzas", "ver"))
   ) {
     redirect("/");
